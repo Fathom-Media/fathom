@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fathom/l10n/generated/app_localizations.dart';
 import 'package:fathom/theme/app_theme.dart';
 
 /// Why modals rendered blank from the library and guide screens.
@@ -51,6 +52,8 @@ void main() {
 
   Future<void> open(WidgetTester tester, Widget body) async {
     await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: AppTheme.dark(const Color(0xFF7C4DFF)),
       home: Scaffold(
         body: Builder(

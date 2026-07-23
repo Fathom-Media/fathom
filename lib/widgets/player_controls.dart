@@ -1,14 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
-import '../state/preferences.dart';
 import 'glass.dart';
 
 class _TrickplayThumb extends StatelessWidget {
@@ -195,6 +193,10 @@ class FathomPlayerControls extends StatefulWidget {
   /// of its time outside the video, so there'd be no way to reach pause.
   final bool autoHide;
 
+  /// Control-bar chrome, chosen in Player settings and passed in by the caller
+  /// (the shared controls never read prefs themselves): 'none' | 'glass' | 'dark'.
+  final String barStyle;
+
   /// Hides the top bar (title + back) when the surrounding page already shows
   /// that context.
   final bool showTopBar;
@@ -248,6 +250,7 @@ class FathomPlayerControls extends StatefulWidget {
     this.onJumpToLive,
     required this.onToggleMute,
     this.autoHide = true,
+    this.barStyle = 'glass',
     this.showTopBar = true,
     this.onMinimize,
     this.onToggleTheater,
@@ -607,6 +610,7 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
           bottom: 0,
           child: _BottomChrome(
             isLive: widget.isLive,
+            style: widget.barStyle,
             child: SafeArea(
               top: false,
               child: Column(
@@ -872,23 +876,25 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
 }
 
 /// The bottom control-bar background. The user picks the chrome from Player
-/// settings ([Prefs.playerBarStyle]):
+/// settings (playerBarStyle), and the caller passes it in as [style]:
 ///  - 'none'  a plain darkening gradient, no blur (lightest on the GPU);
 ///  - 'glass' a subdued frosted panel (blurred, translucent, hairline top edge);
 ///  - 'dark'  a heavier, darker frosted panel.
 /// For 'glass'/'dark', VOD/YouTube also lay a soft wash over the glass so the
 /// position text and hovering trickplay thumbnail stay readable against bright
 /// video; live has no seek preview, so it keeps the cleaner glass alone.
-class _BottomChrome extends ConsumerWidget {
+class _BottomChrome extends StatelessWidget {
   final bool isLive;
+
+  /// Chrome style, passed in by the caller (not read from prefs here, so the
+  /// shared controls stay settings-agnostic): 'none' | 'glass' | 'dark'.
+  final String style;
   final Widget child;
-  const _BottomChrome({required this.isLive, required this.child});
+  const _BottomChrome(
+      {required this.isLive, required this.style, required this.child});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final style = ref.watch(preferencesProvider
-            .select((p) => p.asData?.value.playerBarStyle)) ??
-        'glass';
+  Widget build(BuildContext context) {
     final padded = Padding(
       padding: EdgeInsets.fromLTRB(18, style == 'none' ? 30 : 14, 18, 8),
       child: child,

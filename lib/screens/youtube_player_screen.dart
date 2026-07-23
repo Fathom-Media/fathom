@@ -914,6 +914,8 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         player: _player,
         title: _titleText(l),
         isLive: _isLive,
+        barStyle:
+            ref.read(preferencesProvider).asData?.value.playerBarStyle ?? 'glass',
         loading: !_ready,
         // Hides itself in the page too, not just fullscreen. A play button and
         // two skip buttons parked over the middle of the video are exactly what

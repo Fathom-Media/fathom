@@ -1066,6 +1066,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           channelNumber:
                               isLive ? widget.item.channelNumber : null,
                           isLive: widget.item.isLiveChannel,
+                          barStyle: prefs?.playerBarStyle ?? 'glass',
                           // Hide the generic spinner while a SyncPlay cue is
                           // shown — the sync glyph is the status indicator then,
                           // and two overlapping spinners just fight for space.

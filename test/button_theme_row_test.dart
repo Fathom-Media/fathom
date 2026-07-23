@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fathom/l10n/generated/app_localizations.dart';
 import 'package:fathom/theme/app_theme.dart';
 import 'package:fathom/widgets/subscribe_button.dart';
 import 'package:fathom/models/youtube_channel.dart';
@@ -24,6 +25,8 @@ void main() {
       (tester) async {
     await tester.pumpWidget(ProviderScope(
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: AppTheme.dark(const Color(0xFF7C4DFF)),
         home: Scaffold(
           body: Row(children: [
@@ -36,7 +39,7 @@ void main() {
     ));
     await tester.pump();
     expect(tester.takeException(), isNull);
-    expect(find.text('Subscribe'), findsOneWidget);
+    expect(find.byTooltip('Subscribe'), findsOneWidget);
     final size = tester.getSize(find.byType(SubscribeButton));
     expect(size.width.isFinite, isTrue);
     expect(size.width, lessThan(400));

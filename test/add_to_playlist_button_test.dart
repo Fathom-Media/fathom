@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fathom/l10n/generated/app_localizations.dart';
 import 'package:fathom/models/youtube_local_playlist.dart';
 import 'package:fathom/models/youtube_video.dart';
 import 'package:fathom/state/youtube_providers.dart';
@@ -30,6 +31,8 @@ Future<void> pump(WidgetTester tester, List<YoutubeLocalPlaylist> lists) async {
       youtubeLocalPlaylistsProvider.overrideWith(() => _FakePlaylists(lists)),
     ],
     child: MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: AddToPlaylistButton(video: _video)),
     ),
   ));

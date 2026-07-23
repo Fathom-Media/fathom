@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fathom/l10n/generated/app_localizations.dart';
 import 'package:fathom/theme/app_theme.dart';
 
 /// Where does the app's button theme actually explode, and where is it fine?
@@ -7,10 +8,12 @@ import 'package:fathom/theme/app_theme.dart';
 /// Any parent that offers unbounded width makes the button demand infinity,
 /// layout throws, and the framework skips painting it entirely.
 void main() {
-  final theme = AppTheme.dark(const Color(0xFF7C4DFF));
+  late final theme = AppTheme.dark(const Color(0xFF7C4DFF));
 
   Future<String> probe(WidgetTester tester, String label, Widget child) async {
     await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: theme,
       home: Scaffold(body: child),
     ));
@@ -24,6 +27,8 @@ void main() {
 
   testWidgets('AlertDialog actions', (tester) async {
     await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: theme,
       home: Scaffold(
         body: AlertDialog(

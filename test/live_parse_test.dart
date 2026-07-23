@@ -2,7 +2,9 @@
 library;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fathom/l10n/generated/app_localizations.dart';
 import 'package:fathom/services/youtube_innertube.dart';
 import 'package:fathom/services/lrclib.dart';
 import 'package:fathom/services/sponsorblock.dart';
@@ -12,6 +14,7 @@ import 'package:fathom/services/youtube_streams.dart';
 /// Hits the real endpoint. Not part of the default suite.
 void main() {
   final yt = YoutubeInnerTube(dio: Dio());
+  final l = lookupAppLocalizations(const Locale('en'));
 
   test('channel search parses', () async {
     final page = await yt.search('johnny carson', filter: YtSearchFilter.channels);
@@ -177,11 +180,11 @@ void main() {
     expect(s.duration, isNull);
     expect(s.isShort, isTrue);
     expect(s.isLive, isFalse, reason: 'a Short is not a live stream');
-    expect(s.durationLabel, 'Short');
+    expect(s.durationLabel(l), 'Short');
 
     // ignore: avoid_print
     print('SHORTS n=${tab.videos.length} first="${s.title}" '
-        'views=${s.viewsLabel} label=${s.durationLabel}');
+        'views=${s.viewsLabel(l)} label=${s.durationLabel(l)}');
   });
 
   test('live tab parses on a channel that actually has one', () async {

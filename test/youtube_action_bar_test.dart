@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fathom/l10n/generated/app_localizations.dart';
 import 'package:fathom/models/youtube_video.dart';
 import 'package:fathom/theme/app_theme.dart';
 import 'package:fathom/widgets/youtube_actions.dart';
@@ -27,6 +28,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ProviderScope(
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: AppTheme.dark(const Color(0xFF7C4DFF)),
         home: Scaffold(
           body: Align(
@@ -47,8 +50,8 @@ void main() {
       await pumpAt(tester, width);
       expect(tester.takeException(), isNull,
           reason: 'the action bar overflowed at ${width.toInt()}px');
-      expect(find.text('Copy Link'), findsOneWidget);
-      expect(find.text('Open in Browser'), findsOneWidget);
+      expect(find.byTooltip('Copy Link'), findsOneWidget);
+      expect(find.byTooltip('Open in Browser'), findsOneWidget);
     });
   }
 
@@ -56,7 +59,7 @@ void main() {
     await pumpAt(tester, 900);
     for (final label in ['Play Next', 'Add to Queue', 'Copy Link',
                          'Open in Browser']) {
-      expect(find.text(label), findsOneWidget);
+      expect(find.byTooltip(label), findsOneWidget);
     }
   });
 
@@ -64,7 +67,7 @@ void main() {
     // It didn't. Download was added to the menu only, so the watch page — the
     // first place anyone looks — silently lacked it.
     await pumpAt(tester, 900);
-    expect(find.text('Download'), findsOneWidget);
+    expect(find.byTooltip('Download'), findsOneWidget);
   });
 
   testWidgets('the bar and the menu offer the same actions', (tester) async {
@@ -75,6 +78,8 @@ void main() {
 
     await tester.pumpWidget(ProviderScope(
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: AppTheme.dark(const Color(0xFF7C4DFF)),
         home: Scaffold(
           body: Consumer(builder: (context, ref, _) {
