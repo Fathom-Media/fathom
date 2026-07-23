@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  analyze:
+    name: Analyze, i18n & tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Regenerate localizations
+        run: flutter gen-l10n
+
+      - name: Check generated localizations are committed and up to date
+        run: |
+          if ! git diff --quiet lib/l10n/generated; then
+            echo "::error::lib/l10n/generated is stale. Run 'flutter gen-l10n' and commit the result."
+            git --no-pager diff --stat lib/l10n/generated
+            exit 1
+          fi
+
+      - name: i18n guard (no hardcoded UI strings)
+        run: ./tool/i18n_guard.sh
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Tests
+        run: flutter test
