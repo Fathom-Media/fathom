@@ -17,7 +17,7 @@ subtitle and audio track handling, and hardware decoding.
   groups, local playlists, comments, captions, chapters, a play queue, theater
   mode (press `T`), and downloads. No account, no ads; everything is kept on
   this device.
-- **Seerr** — discovery and requests, if you run Jellyseerr
+- **Seerr** — discovery and requests, if you run a Seerr instance
 - **Server administration** — users, libraries, tasks, sessions, plugins
 
 ## Building

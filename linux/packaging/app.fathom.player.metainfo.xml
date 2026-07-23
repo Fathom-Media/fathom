@@ -22,7 +22,7 @@
       <li>Music: albums, queue, now playing, shuffle and repeat</li>
       <li>Live TV and DVR: channel list, EPG guide, recording, series rules</li>
       <li>YouTube: search, subscriptions, playlists, comments, chapters, a play queue, and downloads, with no account and no ads</li>
-      <li>Seerr: discovery and requests, when Jellyseerr is connected</li>
+      <li>Seerr: discovery and requests, when a Seerr instance is connected</li>
       <li>Server administration: users, libraries, tasks, sessions, plugins</li>
     </ul>
   </description>
