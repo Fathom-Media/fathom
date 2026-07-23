@@ -108,40 +108,48 @@ export OUTPUT="$root/build/Fathom-$ARCH.AppImage"
   "${extra[@]}" \
   --plugin gtk
 
-# CRITICAL: drop the whole mpv/media stack from the bundle so the app uses the
-# HOST's libmpv end-to-end, exactly like the raw release bundle (which ships no
-# libmpv and plays fine). A BUNDLED libmpv aborts with
-#   m_config_core.c: m_config_cache_from_shadow: Assertion `group_index >= 0'
-# because its media/driver stack is inconsistent with the host. linuxdeploy keeps
-# re-bundling libmpv (it follows the media_kit plugin's NEEDED), so we remove it
-# and its exclusive dependencies here.
-#
-# "Exclusive" = mpv's ldd closure MINUS the app/GTK closure, so shared libs
-# (glib, png, zlib, stdc++...) stay bundled for hosts without GTK, while the
-# media/codec/driver libs come from the host alongside its libmpv.
-_closure() { # print the recursive ldd sonames of the given ELF files
-  ldd "$@" 2>/dev/null \
-    | grep -oE '/[^ ]+\.so[^ ]*' \
-    | xargs -r -n1 basename \
-    | sort -u
-}
-host_libmpv="$(awk '/libmpv\.so\.2/{print $NF; exit}' <<< "$(ldconfig -p 2>/dev/null || true)")"
-if [[ -n "${host_libmpv:-}" && -e "$host_libmpv" ]]; then
-  mpv_closure="$(_closure "$host_libmpv")"
-  # Diff against the GTK/Flutter UI closure specifically — NOT the fathom binary,
-  # which hard-links the media_kit plugin and so already pulls the whole mpv
-  # stack (diffing against it would cancel to nothing).
-  ui_closure="$(_closure /usr/lib/libgtk-3.so.0 /usr/lib/libgdk_pixbuf-2.0.so.0 \
-                          "$appdir/usr/bin/lib/libflutter_linux_gtk.so" 2>/dev/null)"
-  to_prune="$(comm -23 <(printf '%s\n' "$mpv_closure") <(printf '%s\n' "$ui_closure"))"
-  echo "==> pruning mpv/media stack (host provides it): $(wc -w <<< "$to_prune") libs"
-  while read -r so; do
-    [[ -z "$so" ]] && continue
-    rm -f "$appdir"/usr/lib/"$so" "$appdir"/usr/lib/"${so%.so*}".so*
-  done <<< "$to_prune"
-  rm -f "$appdir"/usr/lib/libmpv.so*
+# GPU/driver libraries are ALWAYS dropped: they are driver-coupled (must match
+# the running Mesa/NVIDIA/kernel), so a bundled copy crashes libmpv's renderer.
+# Every graphical host provides them.
+driver_libs=(
+  'libGL.so' 'libEGL.so' 'libGLX' 'libGLdispatch.so' 'libOpenGL.so' 'libglapi.so'
+  'libvulkan.so' 'libva.so' 'libva-drm.so' 'libva-x11.so' 'libva-wayland.so'
+  'libva-glx.so' 'libdrm.so' 'libgbm.so' 'libOpenCL.so'
+)
+
+if [[ "${BUNDLE_MPV:-0}" == "1" ]]; then
+  # SELF-CONTAINED (recommended for release/CI on an old base): keep libmpv and
+  # the codec stack bundled, drop only the host GPU/driver libs. The result runs
+  # anywhere without needing mpv installed. This is the portable recipe.
+  echo "==> BUNDLE_MPV: bundling libmpv+codecs; pruning only host GPU/driver libs"
+  for base in "${driver_libs[@]}"; do rm -f "$appdir"/usr/lib/"$base"*; done
 else
-  echo "WARNING: host libmpv not found; leaving the bundle as linuxdeploy built it." >&2
+  # HOST-MPV (default; used for local builds on a bleeding-edge distro): drop the
+  # whole mpv/media stack so the app uses the host's libmpv end-to-end. A bundled
+  # libmpv from a very new distro (Arch) aborts with
+  #   m_config_core.c: m_config_cache_from_shadow: Assertion `group_index >= 0'.
+  # linuxdeploy keeps re-bundling libmpv (it follows the media_kit plugin's
+  # NEEDED), so we remove it and its exclusive dependencies here. "Exclusive" =
+  # mpv's ldd closure MINUS the GTK/Flutter closure, so shared libs (glib, png,
+  # stdc++...) stay bundled while the media/codec/driver libs come from the host.
+  _closure() { # print the recursive ldd sonames of the given ELF files
+    ldd "$@" 2>/dev/null | grep -oE '/[^ ]+\.so[^ ]*' | xargs -r -n1 basename | sort -u
+  }
+  host_libmpv="$(awk '/libmpv\.so\.2/{print $NF; exit}' <<< "$(ldconfig -p 2>/dev/null || true)")"
+  if [[ -n "${host_libmpv:-}" && -e "$host_libmpv" ]]; then
+    mpv_closure="$(_closure "$host_libmpv")"
+    ui_closure="$(_closure /usr/lib/libgtk-3.so.0 /usr/lib/libgdk_pixbuf-2.0.so.0 \
+                            "$appdir/usr/bin/lib/libflutter_linux_gtk.so" 2>/dev/null)"
+    to_prune="$(comm -23 <(printf '%s\n' "$mpv_closure") <(printf '%s\n' "$ui_closure"))"
+    echo "==> host-mpv: pruning mpv/media stack: $(wc -w <<< "$to_prune") libs"
+    while read -r so; do
+      [[ -z "$so" ]] && continue
+      rm -f "$appdir"/usr/lib/"$so" "$appdir"/usr/lib/"${so%.so*}".so*
+    done <<< "$to_prune"
+    rm -f "$appdir"/usr/lib/libmpv.so*
+  else
+    echo "WARNING: host libmpv not found; leaving the bundle as linuxdeploy built it." >&2
+  fi
 fi
 
 # The linuxdeploy GTK plugin hard-forces GDK_BACKEND=x11. On a Wayland session

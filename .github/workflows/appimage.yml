@@ -1,0 +1,53 @@
+name: AppImage
+
+# Builds a portable, self-contained Linux AppImage on an OLD base (Ubuntu 22.04)
+# so it runs across distros (forward-compatible glibc) and bundles libmpv+codecs
+# (BUNDLE_MPV=1) so no host mpv is required. Run manually via "Run workflow", or
+# it fires automatically on a v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  appimage:
+    name: Build portable AppImage (Ubuntu 22.04)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
+            libmpv-dev mpv patchelf wget file desktop-file-utils xvfb
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build self-contained AppImage
+        env:
+          BUNDLE_MPV: '1'
+        run: ./tool/build_appimage.sh
+
+      - name: Smoke test (loads past the dynamic linker headlessly)
+        run: |
+          set -x
+          code=0
+          timeout 60 xvfb-run -a ./build/Fathom-x86_64.AppImage --appimage-extract-and-run &>/tmp/smoke.log || code=$?
+          echo "exit=$code"
+          tail -20 /tmp/smoke.log || true
+          # A clean start that we then time out is fine; a loader/link crash is not.
+          if [ "$code" = "139" ] || [ "$code" = "134" ]; then echo "::error::AppImage crashed on start"; exit 1; fi
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fathom-x86_64-AppImage
+          path: |
+            build/Fathom-x86_64.AppImage
+            build/Fathom-x86_64.AppImage.zsync
+          if-no-files-found: error

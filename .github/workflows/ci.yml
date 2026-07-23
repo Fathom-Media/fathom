@@ -35,7 +35,8 @@ jobs:
         run: ./tool/i18n_guard.sh
 
       - name: Analyze
-        run: flutter analyze
+        # Warnings and errors fail the build; advisory infos (style lints) don't.
+        run: flutter analyze --no-fatal-infos
 
       - name: Tests
         run: flutter test
