@@ -17,6 +17,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Install libmpv
+        # media_kit loads libmpv at runtime, so tests that construct a Player
+        # (e.g. volume_sync_test) need it present on the runner.
+        run: sudo apt-get update && sudo apt-get install -y libmpv-dev
+
       - name: Install dependencies
         run: flutter pub get
 
