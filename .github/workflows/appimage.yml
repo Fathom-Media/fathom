@@ -1,9 +1,10 @@
 name: AppImage
 
-# Builds a portable, self-contained Linux AppImage on an OLD base (Ubuntu 22.04)
-# so it runs across distros (forward-compatible glibc) and bundles libmpv+codecs
-# (BUNDLE_MPV=1) so no host mpv is required. Run manually via "Run workflow", or
-# it fires automatically on a v* tag.
+# Builds a portable, self-contained Linux AppImage and bundles libmpv+codecs
+# (BUNDLE_MPV=1) so no host mpv is required. Built on Ubuntu 24.04: older bases
+# (22.04) ship libmpv too old for media_kit's video renderer (video comes up as
+# a solid colour), so 24.04's libmpv 0.38 is the floor. Its glibc still runs on
+# current distros. Run manually via "Run workflow", or on a v* tag.
 on:
   workflow_dispatch:
   push:
@@ -11,8 +12,8 @@ on:
 
 jobs:
   appimage:
-    name: Build portable AppImage (Ubuntu 22.04)
-    runs-on: ubuntu-22.04
+    name: Build portable AppImage (Ubuntu 24.04)
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
