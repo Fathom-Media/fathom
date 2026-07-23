@@ -5,7 +5,7 @@
   <project_license>AGPL-3.0-or-later</project_license>
 
   <name>Fathom</name>
-  <summary>A modern Jellyfin client with a built-in YouTube player</summary>
+  <summary>A modern Jellyfin desktop client with optional Seerr requests and a built-in YouTube player</summary>
 
   <developer id="io.github.fathom_media">
     <name>Fathom</name>
@@ -18,12 +18,11 @@
       proper subtitle and audio track handling, and hardware decoding.
     </p>
     <ul>
-      <li>Movies and TV: libraries, search, resume, next-up, skip intro/credits, chapters, trickplay previews</li>
-      <li>Music: albums, queue, now playing, shuffle and repeat</li>
-      <li>Live TV and DVR: channel list, EPG guide, recording, series rules</li>
-      <li>YouTube: search, subscriptions, playlists, comments, chapters, a play queue, and downloads, with no account and no ads</li>
-      <li>Seerr: discovery and requests, when a Seerr instance is connected</li>
-      <li>Server administration: users, libraries, tasks, sessions, plugins</li>
+      <li>Movies, TV, music, and Live TV, with mpv-grade playback and hardware decoding</li>
+      <li>One shared player across everything, with picture-in-picture and a pop-out desktop window</li>
+      <li>Optional Seerr: discover, request, and manage requests without leaving the page</li>
+      <li>Optional ad-free YouTube client with subscriptions, playlists, and downloads</li>
+      <li>Ratings, watch together (SyncPlay), and full server administration</li>
     </ul>
   </description>
 
