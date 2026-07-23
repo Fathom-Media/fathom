@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.fathom.player</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+
+  <name>Fathom</name>
+  <summary>A modern Jellyfin client with a built-in YouTube player</summary>
+
+  <developer id="io.github.fathom_media">
+    <name>Fathom</name>
+  </developer>
+
+  <description>
+    <p>
+      Fathom is a desktop Jellyfin client built with Flutter and media_kit
+      (libmpv), so playback is mpv-grade: direct play with transcode fallback,
+      proper subtitle and audio track handling, and hardware decoding.
+    </p>
+    <ul>
+      <li>Movies and TV: libraries, search, resume, next-up, skip intro/credits, chapters, trickplay previews</li>
+      <li>Music: albums, queue, now playing, shuffle and repeat</li>
+      <li>Live TV and DVR: channel list, EPG guide, recording, series rules</li>
+      <li>YouTube: search, subscriptions, playlists, comments, chapters, a play queue, and downloads, with no account and no ads</li>
+      <li>Seerr: discovery and requests, when Jellyseerr is connected</li>
+      <li>Server administration: users, libraries, tasks, sessions, plugins</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">app.fathom.player.desktop</launchable>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Video</category>
+    <category>Player</category>
+  </categories>
+
+  <keywords>
+    <keyword>Jellyfin</keyword>
+    <keyword>media</keyword>
+    <keyword>video</keyword>
+    <keyword>YouTube</keyword>
+    <keyword>mpv</keyword>
+  </keywords>
+
+  <url type="homepage">https://github.com/Fathom-Media/fathom</url>
+  <url type="bugtracker">https://github.com/Fathom-Media/fathom/issues</url>
+
+  <provides>
+    <binary>fathom</binary>
+  </provides>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.9.0" date="2026-07-22">
+      <description>
+        <p>Beta: full interface internationalization, refined player chrome, and desktop pop-out.</p>
+      </description>
+    </release>
+  </releases>
+</component>

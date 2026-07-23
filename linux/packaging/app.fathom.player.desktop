@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Fathom
+GenericName=Media Player
+Comment=A modern Jellyfin client
+Exec=fathom
+Icon=app.fathom.player
+Terminal=false
+Categories=AudioVideo;Video;Player;
+StartupWMClass=app.fathom.player

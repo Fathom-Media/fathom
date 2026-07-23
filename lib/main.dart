@@ -1,0 +1,70 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:uuid/uuid.dart';
+import 'package:window_manager/window_manager.dart';
+
+import 'app.dart';
+import 'services/notifications.dart';
+import 'state/providers.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Initialize libmpv-backed playback before the UI starts.
+  MediaKit.ensureInitialized();
+
+  // The OS title bar is suppressed natively (empty CSD titlebar in the Linux
+  // runner). window_manager handles show/min-size + the custom window buttons.
+  // On Windows/macOS, hide the title bar the usual way.
+  if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
+    await windowManager.ensureInitialized();
+    final options = WindowOptions(
+      minimumSize: const Size(900, 620),
+      backgroundColor: Colors.transparent,
+      titleBarStyle:
+          Platform.isLinux ? TitleBarStyle.normal : TitleBarStyle.hidden,
+    );
+    await windowManager.waitUntilReadyToShow(options, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+    // Intercept every close (the custom titlebar button, the compositor, Alt+F4)
+    // so mpv players are torn down before the engine shuts down. Without this,
+    // closing mid-playback races libmpv's callback teardown and aborts. The
+    // FathomApp window listener does the disposal, then destroy()s the window.
+    await windowManager.setPreventClose(true);
+  }
+
+  // A generous in-memory image cache so posters/backdrops stay decoded when you
+  // revisit a screen instead of re-downloading (the default 100 MB evicts fast
+  // with large backdrops).
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 512 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 3000;
+
+  // System notifications (download complete, request available). Best-effort.
+  await AppNotifications.init();
+
+  const storage = FlutterSecureStorage();
+  final deviceId = await _getOrCreateDeviceId(storage);
+
+  runApp(
+    ProviderScope(
+      overrides: [deviceIdProvider.overrideWithValue(deviceId)],
+      child: const FathomApp(),
+    ),
+  );
+}
+
+Future<String> _getOrCreateDeviceId(FlutterSecureStorage storage) async {
+  const key = 'fathom_device_id';
+  var id = await storage.read(key: key);
+  if (id == null || id.isEmpty) {
+    id = const Uuid().v4();
+    await storage.write(key: key, value: id);
+  }
+  return id;
+}

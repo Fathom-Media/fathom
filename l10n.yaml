@@ -1,0 +1,13 @@
+# Flutter gen_l10n configuration. English (app_en.arb) is the source of truth and
+# the ONLY locale edited in-repo; every other language flows in from Weblate.
+# Regenerate with: flutter gen-l10n  (also runs automatically on build).
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+output-dir: lib/l10n/generated
+nullable-getter: false
+
+# Emit any messages present in the template but missing from other locales, so
+# gaps are visible in CI once non-English ARBs land.
+untranslated-messages-file: lib/l10n/untranslated_messages.txt

@@ -1,0 +1,2095 @@
+import 'package:flutter/gestures.dart'
+    show PointerScrollEvent, PointerSignalEvent;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../api/seerr_client.dart';
+import '../l10n/generated/app_localizations.dart';
+import '../data/seerr_companies.dart';
+import '../models/seerr_custom_slider.dart';
+import '../models/seerr_genre.dart';
+import '../models/seerr_request.dart';
+import '../models/seerr_result.dart';
+import '../state/preferences.dart';
+import '../state/seerr_providers.dart';
+import '../widgets/app_dropdown.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/cached_image.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/error_view.dart';
+import '../widgets/hover_pill_button.dart';
+import '../widgets/media_section.dart';
+import '../widgets/media_cards.dart';
+import '../widgets/motion.dart';
+import '../widgets/seerr_add_slider_dialog.dart';
+import '../widgets/seerr_avatar.dart';
+import '../widgets/seerr_edit_request_dialog.dart';
+import '../widgets/seerr_poster_card.dart';
+import '../widgets/shimmer.dart';
+
+/// Seerr Discover: browse trending / popular and request titles.
+class DiscoverScreen extends ConsumerWidget {
+  const DiscoverScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final configured = ref.watch(seerrConfiguredProvider);
+    if (!configured) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Seerr')),
+        body: EmptyState(
+          icon: Icons.travel_explore_rounded,
+          title: l.browseConnectSeerr,
+          message: l.browseConnectSeerrMessage,
+          action: FilledButton(
+            onPressed: () => context.push('/seerr-settings'),
+            child: Text(l.browseSetUp),
+          ),
+        ),
+      );
+    }
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Seerr'),
+          actions: [
+            // Only meaningful on the Discover tab, so it appears there alone.
+            Builder(builder: (context) {
+              final controller = DefaultTabController.of(context);
+              return AnimatedBuilder(
+                animation: controller,
+                builder: (context, _) => controller.index == 0
+                    ? IconButton(
+                        tooltip: l.browseCustomizeDiscover,
+                        icon: const Icon(Icons.tune_rounded),
+                        onPressed: () => context.push('/seerr-layout'),
+                      )
+                    : const SizedBox.shrink(),
+              );
+            }),
+            IconButton(
+              tooltip: l.browseSettings,
+              icon: const Icon(Icons.settings_rounded),
+              onPressed: () => context.push('/seerr-settings'),
+            ),
+          ],
+          bottom: TabBar(
+            tabs: [
+              Tab(text: l.browseDiscover),
+              Tab(text: l.commonSearch),
+              Tab(text: l.browseRequests),
+            ],
+          ),
+        ),
+        body: const TabBarView(
+          // Each tab gets its own raster layer, so the switch animation
+          // composites cached textures instead of repainting the content.
+          children: [
+            RepaintBoundary(child: _DiscoverHome()),
+            RepaintBoundary(child: _SeerrSearchTab()),
+            RepaintBoundary(child: _RequestsTab()),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The Seerr Discover rows and their titles, in the same set as the Jellyseerr
+/// web home. The order shown, and which are hidden, come from preferences and
+/// are edited on the Customize Discover screen.
+Map<String, String> _seerrRowTitles(AppLocalizations l) => <String, String>{
+      'recentlyAdded': l.browseRecentlyAdded,
+      'recentRequests': l.browseRecentRequests,
+      'trending': l.browseTrending,
+      'popularMovies': l.browsePopularMovies,
+      'movieGenres': l.browseMovieGenres,
+      'upcomingMovies': l.browseUpcomingMovies,
+      'studios': l.browseStudios,
+      'popularSeries': l.browsePopularSeries,
+      'seriesGenres': l.browseSeriesGenres,
+      'upcomingSeries': l.browseUpcomingSeries,
+      'networks': l.browseNetworks,
+    };
+
+/// The built-in Discover rows, in default order.
+const kSeerrBuiltinRows = <String>[
+  'recentlyAdded',
+  'recentRequests',
+  'trending',
+  'popularMovies',
+  'movieGenres',
+  'upcomingMovies',
+  'studios',
+  'popularSeries',
+  'seriesGenres',
+  'upcomingSeries',
+  'networks',
+];
+
+List<SeerrCustomSlider> _customSliders(Prefs p) =>
+    [for (final m in p.seerrCustomSliders) SeerrCustomSlider.fromMap(m)];
+
+/// Every valid row id for a given prefs: the built-ins plus any custom sliders.
+List<String> _knownRows(Prefs p) =>
+    [...kSeerrBuiltinRows, for (final c in _customSliders(p)) 'custom:${c.id}'];
+
+/// Resolves the saved order + hidden set into the list of row ids to show.
+/// Unknown ids (from an older or newer build) are dropped, and any known row
+/// missing from a saved order is appended so new rows still appear.
+List<String> orderedSeerrRows(
+  List<String> order,
+  List<String> hidden, {
+  Iterable<String> known = kSeerrBuiltinRows,
+}) {
+  final knownSet = known.toSet();
+  final seen = <String>{};
+  final ordered = <String>[
+    for (final id in order)
+      if (knownSet.contains(id) && seen.add(id)) id,
+    for (final id in known)
+      if (seen.add(id)) id,
+  ];
+  final hiddenSet = hidden.toSet();
+  return [for (final id in ordered) if (!hiddenSet.contains(id)) id];
+}
+
+/// Jellyseerr-style Discover home: the rows in the user's chosen order.
+class _DiscoverHome extends ConsumerWidget {
+  const _DiscoverHome();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final p = ref.watch(preferencesProvider).asData?.value ?? const Prefs();
+    final customs = {for (final c in _customSliders(p)) 'custom:${c.id}': c};
+    final rows = orderedSeerrRows(p.seerrRowOrder, p.seerrHiddenRows,
+        known: _knownRows(p));
+    return ListView(
+      padding: const EdgeInsets.only(top: 8, bottom: 24),
+      children: [
+        for (final id in rows)
+          if (customs[id] != null)
+            _CustomRow(slider: customs[id]!)
+          else
+            _seerrSection(l, id),
+      ],
+    );
+  }
+}
+
+/// A row backed by a user-created slider (genre or keyword search).
+class _CustomRow extends ConsumerWidget {
+  final SeerrCustomSlider slider;
+  const _CustomRow({required this.slider});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = switch (slider.type) {
+      'movieGenre' => ref.watch(seerrGenreResultsProvider(
+          (mediaType: 'movie', genreId: slider.genreId, sortBy: null))),
+      'tvGenre' => ref.watch(seerrGenreResultsProvider(
+          (mediaType: 'tv', genreId: slider.genreId, sortBy: null))),
+      _ => ref.watch(seerrKeywordProvider(slider.data)),
+    };
+    return async.when(
+      loading: () =>
+          _RowShell(title: slider.title, child: const SectionSkeleton(height: 300)),
+      error: (e, _) =>
+          _RowShell(title: slider.title, child: const SectionError()),
+      data: (list) {
+        if (list.isEmpty) return const SizedBox.shrink();
+        return _RowShell(
+          title: slider.title,
+          child: _HList(
+            itemCount: list.length,
+            itemBuilder: (context, i) =>
+                EntranceFade(
+                    index: i,
+                    onceKey: '${list[i].mediaType}${list[i].tmdbId}',
+                    child: SeerrPosterCard(result: list[i])),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Builds the row widget for a section id.
+Widget _seerrSection(AppLocalizations l, String id) => switch (id) {
+      'recentlyAdded' => const _RecentlyAddedRow(),
+      'recentRequests' => const _RecentRequestsRow(),
+      'trending' => _SeerrRow(title: l.browseTrending, provider: _Row.trending),
+      'popularMovies' =>
+        _SeerrRow(title: l.browsePopularMovies, provider: _Row.popularMovies),
+      'movieGenres' => _GenreRow(title: l.browseMovieGenres, mediaType: 'movie'),
+      'upcomingMovies' => _SeerrRow(
+          title: l.browseUpcomingMovies, provider: _Row.upcomingMovies),
+      'studios' =>
+        _CompanyRow(title: l.browseStudios, companies: kSeerrStudios),
+      'popularSeries' =>
+        _SeerrRow(title: l.browsePopularSeries, provider: _Row.popularSeries),
+      'seriesGenres' => _GenreRow(title: l.browseSeriesGenres, mediaType: 'tv'),
+      'upcomingSeries' => _SeerrRow(
+          title: l.browseUpcomingSeries, provider: _Row.upcomingSeries),
+      'networks' =>
+        _CompanyRow(title: l.browseNetworks, companies: kSeerrNetworks),
+      _ => const SizedBox.shrink(),
+    };
+
+enum _Row {
+  trending('trending'),
+  popularMovies('popularMovies'),
+  upcomingMovies('upcomingMovies'),
+  popularSeries('popularSeries'),
+  upcomingSeries('upcomingSeries');
+
+  final String key;
+  const _Row(this.key);
+}
+
+class _SeerrRow extends ConsumerWidget {
+  final String title;
+  final _Row provider;
+  const _SeerrRow({required this.title, required this.provider});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = switch (provider) {
+      _Row.trending => ref.watch(seerrTrendingProvider),
+      _Row.popularMovies => ref.watch(seerrMoviesProvider),
+      _Row.upcomingMovies => ref.watch(seerrUpcomingMoviesProvider),
+      _Row.popularSeries => ref.watch(seerrTvProvider),
+      _Row.upcomingSeries => ref.watch(seerrUpcomingTvProvider),
+    };
+
+    return async.when(
+      loading: () => _RowShell(
+        title: title,
+        child: const SectionSkeleton(height: 300),
+      ),
+      error: (e, _) => _RowShell(title: title, child: const SectionError()),
+      data: (list) {
+        if (list.isEmpty) return const SizedBox.shrink();
+        return _RowShell(
+          title: title,
+          onSeeAll: () => context.push('/seerr-category',
+              extra: (key: provider.key, title: title)),
+          child: _HList(
+            itemCount: list.length,
+            itemBuilder: (context, i) => EntranceFade(
+              index: i,
+              onceKey: '${list[i].mediaType}${list[i].tmdbId}',
+              child: SeerrPosterCard(result: list[i]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Recently added, available titles. The `/media` endpoint gives only ids and
+/// status, so each card resolves its own poster from the detail endpoint.
+class _RecentlyAddedRow extends ConsumerWidget {
+  const _RecentlyAddedRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final async = ref.watch(seerrRecentlyAddedProvider);
+    return async.when(
+      loading: () => _RowShell(
+          title: l.browseRecentlyAdded,
+          child: const SectionSkeleton(height: 300)),
+      error: (e, _) =>
+          _RowShell(title: l.browseRecentlyAdded, child: const SectionError()),
+      data: (refs) {
+        if (refs.isEmpty) return const SizedBox.shrink();
+        return _RowShell(
+          title: l.browseRecentlyAdded,
+          child: _HList(
+            itemCount: refs.length,
+            itemBuilder: (context, i) => EntranceFade(
+              index: i,
+              onceKey: 'ra${refs[i].mediaType}${refs[i].tmdbId}',
+              child: _EnrichedPosterCard(
+                  mediaType: refs[i].mediaType, tmdbId: refs[i].tmdbId),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The most recent requests, as Jellyseerr-style landscape request cards
+/// (backdrop, title, requester, status).
+class _RecentRequestsRow extends ConsumerWidget {
+  const _RecentRequestsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final async = ref.watch(seerrRecentRequestsProvider);
+    return async.when(
+      loading: () => _RowShell(
+          title: l.browseRecentRequests,
+          height: 230,
+          child: const SectionSkeleton(height: 230)),
+      error: (e, _) => _RowShell(
+          title: l.browseRecentRequests,
+          height: 230,
+          child: const SectionError()),
+      data: (list) {
+        if (list.isEmpty) return const SizedBox.shrink();
+        return _RowShell(
+          title: l.browseRecentRequests,
+          height: 230,
+          child: _HList(
+            itemCount: list.length,
+            itemBuilder: (context, i) => EntranceFade(
+              index: i,
+              onceKey: 'rq${list[i].id}',
+              child: _RequestCard(request: list[i]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A Jellyseerr-style request card: backdrop behind, a left column with the
+/// year, title, requester and status, and the poster on the right.
+class _RequestCard extends ConsumerStatefulWidget {
+  final SeerrRequest request;
+  const _RequestCard({required this.request});
+
+  @override
+  ConsumerState<_RequestCard> createState() => _RequestCardState();
+}
+
+class _RequestCardState extends ConsumerState<_RequestCard> {
+  bool _hover = false;
+
+  (String, Color) _status(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final r = widget.request;
+    if (r.isDeclined) {
+      return (l.browseDeclined, Theme.of(context).colorScheme.error);
+    }
+    if (r.isFailed) return (l.browseFailed, const Color(0xFFEF4444));
+    return switch (r.mediaStatus) {
+      5 => (l.browseAvailable, const Color(0xFF22C55E)),
+      4 => (l.browsePartiallyAvailable, const Color(0xFF14B8A6)),
+      3 => (l.browseProcessing, const Color(0xFF3B82F6)),
+      2 => (l.browsePending, const Color(0xFFF59E0B)),
+      _ => (r.isPending ? l.browsePending : l.browseApproved,
+          const Color(0xFFF59E0B)),
+    };
+  }
+
+  Future<void> _act(String action) async {
+    final l = AppLocalizations.of(context);
+    final client = ref.read(seerrClientProvider);
+    if (client == null) return;
+    final r = widget.request;
+    final title = ref
+            .read(seerrDetailProvider(
+                (mediaType: r.mediaType, tmdbId: r.tmdbId)))
+            .asData
+            ?.value
+            .title ??
+        (r.mediaType == 'tv' ? l.browseThisSeries : l.browseThisMovie);
+    try {
+      switch (action) {
+        case 'approve':
+          await client.approveRequest(r.id);
+        case 'decline':
+          await client.declineRequest(r.id);
+        case 'retry':
+          await client.retryRequest(r.id);
+      }
+      ref.invalidate(seerrRecentRequestsProvider);
+      ref.invalidate(seerrRequestsProvider);
+      final done = switch (action) {
+        'approve' => l.browseApprovedTitle(title),
+        'decline' => l.browseDeclinedTitle(title),
+        'retry' => l.browseRetryingTitle(title),
+        _ => l.browseDone,
+      };
+      if (mounted) showSnack(context, done, kind: SnackKind.success);
+    } catch (e) {
+      if (mounted) showSnack(context, '$e', kind: SnackKind.error);
+    }
+  }
+
+  /// Inline Approve/Decline (pending) or Retry (failed) pills, for a manager.
+  Widget _actions() {
+    final l = AppLocalizations.of(context);
+    final r = widget.request;
+    final perms = ref.watch(seerrPermissionsProvider).asData?.value ?? 0;
+    if (!seerrCan(perms, kSeerrManageRequests)) return const SizedBox.shrink();
+    final pills = <Widget>[];
+    if (r.isPending) {
+      pills.add(HoverPillButton(
+          icon: Icons.check_rounded,
+          label: l.browseApprove,
+          color: const Color(0xFF22C55E),
+          onTap: () => _act('approve')));
+      pills.add(HoverPillButton(
+          icon: Icons.close_rounded,
+          label: l.browseDecline,
+          color: const Color(0xFFEF4444),
+          onTap: () => _act('decline')));
+    } else if (r.isFailed) {
+      pills.add(HoverPillButton(
+          icon: Icons.refresh_rounded,
+          label: l.commonRetry,
+          color: Theme.of(context).colorScheme.primary,
+          onTap: () => _act('retry')));
+    }
+    if (pills.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Wrap(spacing: 8, runSpacing: 8, children: pills),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final r = widget.request;
+    final key = (mediaType: r.mediaType, tmdbId: r.tmdbId);
+    final detail = ref.watch(seerrDetailProvider(key)).asData?.value;
+    final title = detail?.title ??
+        (r.mediaType == 'tv'
+            ? l.browseSeriesNumber(r.tmdbId)
+            : l.browseMovieNumber(r.tmdbId));
+    final (statusLabel, statusColor) = _status(context);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: detail == null
+            ? null
+            : () => context.push('/seerr-detail',
+                extra: SeerrResult(
+                  tmdbId: r.tmdbId,
+                  mediaType: r.mediaType,
+                  title: title,
+                  posterPath: detail.posterPath,
+                  backdropPath: detail.backdropPath,
+                  status: r.mediaStatus,
+                )),
+        child: AnimatedScale(
+          scale: _hover ? 1.02 : 1.0,
+          duration: const Duration(milliseconds: 150),
+          child: Container(
+            width: 344,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black
+                        .withValues(alpha: _hover ? 0.45 : 0.3),
+                    blurRadius: _hover ? 18 : 10,
+                    offset: const Offset(0, 6)),
+              ],
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (detail?.backdropUrl != null)
+                  CachedImage(
+                      url: detail!.backdropUrl!,
+                      errorBuilder: (_) => const SizedBox()),
+                // Darken, heavier on the left where the text sits.
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.88),
+                        Colors.black.withValues(alpha: 0.55),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: _info(theme, title, statusLabel, statusColor)),
+                      const SizedBox(width: 12),
+                      if (detail?.posterUrl != null)
+                        AspectRatio(
+                          aspectRatio: 2 / 3,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedImage(
+                                url: detail!.posterUrl!,
+                                errorBuilder: (_) => const SizedBox()),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _info(
+      ThemeData theme, String title, String statusLabel, Color statusColor) {
+    final l = AppLocalizations.of(context);
+    final r = widget.request;
+    final detail = ref.watch(seerrDetailProvider(
+            (mediaType: r.mediaType, tmdbId: r.tmdbId)))
+        .asData
+        ?.value;
+    final year = detail?.year;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (year != null)
+          Text(year,
+              style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500)),
+        Text(title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w700)),
+        const Spacer(),
+        if (r.requestedBy != null)
+          Row(
+            children: [
+              SeerrAvatar(
+                name: r.requestedBy!,
+                avatarUrl: seerrAvatarUrl(
+                    ref.read(seerrClientProvider)?.baseUrl ?? '',
+                    r.requestedByAvatar),
+                radius: 11,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(r.requestedBy!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+        if (r.mediaType == 'tv' && r.seasons.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              children: [
+                Text('${l.browseSeasonLabel} ',
+                    style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
+                Flexible(
+                  child: Text(r.seasons.join(', '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          const TextStyle(color: Colors.white, fontSize: 13)),
+                ),
+              ],
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              Text('${l.browseStatus}  ',
+                  style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700)),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(20)),
+                child: Text(statusLabel,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+        ),
+        _actions(),
+      ],
+    );
+  }
+}
+
+/// A poster card whose title and artwork are resolved from the detail endpoint,
+/// for rows that start from a bare (mediaType, tmdbId) reference.
+class _EnrichedPosterCard extends ConsumerWidget {
+  final String mediaType;
+  final int tmdbId;
+  const _EnrichedPosterCard({required this.mediaType, required this.tmdbId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async =
+        ref.watch(seerrDetailProvider((mediaType: mediaType, tmdbId: tmdbId)));
+    final d = async.asData?.value;
+    if (d == null) {
+      // Loading or failed: hold the slot with a poster-shaped shimmer that fills
+      // the row, matching the card layout so nothing reflows as cards resolve.
+      return const SizedBox(
+        width: 176,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: ShimmerBox()),
+            SizedBox(height: 6),
+            ShimmerBox(
+                height: 12,
+                width: 120,
+                borderRadius: BorderRadius.all(Radius.circular(6))),
+          ],
+        ),
+      );
+    }
+    return SeerrPosterCard(
+      result: SeerrResult(
+        tmdbId: d.tmdbId,
+        mediaType: d.mediaType,
+        title: d.title,
+        overview: d.overview,
+        posterPath: d.posterPath,
+        backdropPath: d.backdropPath,
+        status: d.status,
+        voteAverage: d.voteAverage,
+      ),
+    );
+  }
+}
+
+/// A row of genre tiles (artwork with the genre name), from the genre slider.
+class _GenreRow extends ConsumerWidget {
+  final String title;
+  final String mediaType; // 'movie' | 'tv'
+  const _GenreRow({required this.title, required this.mediaType});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = mediaType == 'tv'
+        ? ref.watch(seerrTvGenresProvider)
+        : ref.watch(seerrMovieGenresProvider);
+    return async.when(
+      loading: () => _RowShell(
+          title: title,
+          height: 130,
+          child: const SectionSkeleton(height: 130)),
+      error: (e, _) =>
+          _RowShell(title: title, height: 130, child: const SectionError()),
+      data: (genres) {
+        if (genres.isEmpty) return const SizedBox.shrink();
+        return _RowShell(
+          title: title,
+          height: 130,
+          child: _HList(
+            itemCount: genres.length,
+            itemBuilder: (context, i) =>
+                EntranceFade(
+                    index: i,
+                    onceKey: 'g${genres[i].mediaType}${genres[i].id}',
+                    child: _GenreCard(genre: genres[i])),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GenreCard extends StatelessWidget {
+  final SeerrGenre genre;
+  const _GenreCard({required this.genre});
+
+  @override
+  Widget build(BuildContext context) {
+    // A colour derived from the genre name, not a movie's artwork: a genre
+    // isn't one film, so a plain varying-colour tile reads more honestly.
+    final hue = (genre.name.hashCode.abs() % 360).toDouble();
+    final top = HSLColor.fromAHSL(1, hue, 0.52, 0.42).toColor();
+    final bottom = HSLColor.fromAHSL(1, (hue + 24) % 360, 0.55, 0.28).toColor();
+    return SizedBox(
+      width: 220,
+      child: HoverPosterArt(
+        borderRadius: 14,
+        onTap: () => context.push('/seerr-genre',
+            extra: (
+              mediaType: genre.mediaType,
+              genreId: genre.id,
+              title: genre.name,
+            )),
+        art: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [top, bottom],
+            ),
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                genre.name,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  shadows: [Shadow(color: Colors.black54, blurRadius: 6)],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A row of studio or network logo cards, from the curated list. Static data,
+/// so there's no loading state.
+class _CompanyRow extends StatelessWidget {
+  final String title;
+  final List<SeerrCompany> companies;
+  const _CompanyRow({required this.title, required this.companies});
+
+  @override
+  Widget build(BuildContext context) {
+    return _RowShell(
+      title: title,
+      height: 130,
+      child: _HList(
+        itemCount: companies.length,
+        itemBuilder: (context, i) =>
+            EntranceFade(
+                index: i,
+                onceKey: 'co${companies[i].kind}${companies[i].id}',
+                child: _CompanyCard(company: companies[i])),
+      ),
+    );
+  }
+}
+
+/// A studio/network tile: the duotone logo centered on a surface card, matching
+/// Jellyseerr's CompanyCard. Tapping opens that company's titles.
+class _CompanyCard extends StatelessWidget {
+  final SeerrCompany company;
+  const _CompanyCard({required this.company});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 220,
+      child: HoverPosterArt(
+        borderRadius: 14,
+        onTap: () => context.push('/seerr-company',
+            extra: (kind: company.kind, id: company.id, title: company.name)),
+        art: Container(
+          color: scheme.surfaceContainerHigh,
+          padding: const EdgeInsets.all(28),
+          alignment: Alignment.center,
+          child: CachedImage(
+            url: company.imageUrl,
+            fit: BoxFit.contain,
+            // If the logo can't load, the name keeps the tile meaningful.
+            errorBuilder: (_) => Center(
+              child: Text(
+                company.name,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A horizontal row that scrolls with the mouse wheel, not only by dragging.
+/// On desktop a vertical wheel over the row moves it sideways; once it reaches
+/// an end the event falls through so the page keeps scrolling. Without this,
+/// most of a long row (all the studios, all the networks) stays unreachable.
+class _HList extends StatefulWidget {
+  final int itemCount;
+  final IndexedWidgetBuilder itemBuilder;
+  const _HList({required this.itemCount, required this.itemBuilder});
+
+  @override
+  State<_HList> createState() => _HListState();
+}
+
+class _HListState extends State<_HList> {
+  final _controller = ScrollController();
+  bool _hover = false;
+  bool _canLeft = false;
+  bool _canRight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_updateArrows);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  // An arrow only means something if there's room to move that way, so each is
+  // shown only when the row can actually scroll in that direction.
+  void _updateArrows() {
+    if (!_controller.hasClients) return;
+    final pos = _controller.position;
+    final left = pos.pixels > pos.minScrollExtent + 1;
+    final right = pos.pixels < pos.maxScrollExtent - 1;
+    if (left != _canLeft || right != _canRight) {
+      setState(() {
+        _canLeft = left;
+        _canRight = right;
+      });
+    }
+  }
+
+  void _onSignal(PointerSignalEvent e) {
+    if (e is! PointerScrollEvent || !_controller.hasClients) return;
+    final primary = e.scrollDelta.dy;
+    if (primary == 0) return; // a horizontal wheel: let the list handle it
+    final pos = _controller.position;
+    final atStart = _controller.offset <= pos.minScrollExtent;
+    final atEnd = _controller.offset >= pos.maxScrollExtent;
+    // At an end in the wheel's direction, let the page scroll instead.
+    if ((primary < 0 && atStart) || (primary > 0 && atEnd)) return;
+    _controller.jumpTo((_controller.offset + primary)
+        .clamp(pos.minScrollExtent, pos.maxScrollExtent));
+  }
+
+  void _scrollBy(int sign) {
+    if (!_controller.hasClients) return;
+    final pos = _controller.position;
+    final target = (_controller.offset + sign * pos.viewportDimension * 0.85)
+        .clamp(pos.minScrollExtent, pos.maxScrollExtent);
+    _controller.animateTo(target,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Listener(
+        onPointerSignal: _onSignal,
+        child: NotificationListener<ScrollMetricsNotification>(
+          // Fires when the content size changes (async rows filling in), so the
+          // arrows appear/disappear without needing a scroll first.
+          onNotification: (_) {
+            _updateArrows();
+            return false;
+          },
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              ListView.separated(
+                controller: _controller,
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: widget.itemCount,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: widget.itemBuilder,
+              ),
+              ScrollAffordance(
+                  visible: _hover && _canLeft,
+                  left: true,
+                  onTap: () => _scrollBy(-1)),
+              ScrollAffordance(
+                  visible: _hover && _canRight,
+                  left: false,
+                  onTap: () => _scrollBy(1)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RowShell extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final VoidCallback? onSeeAll;
+  final double height;
+  const _RowShell(
+      {required this.title,
+      required this.child,
+      this.onSeeAll,
+      this.height = 300});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: title,
+          trailing: onSeeAll == null
+              ? null
+              : TextButton(
+                  onPressed: onSeeAll,
+                  child: Text(AppLocalizations.of(context).browseSeeAll),
+                ),
+        ),
+        SizedBox(height: height, child: child),
+      ],
+    );
+  }
+}
+
+/// Full grid for one Discover category (opened from a row's "See all").
+class SeerrCategoryScreen extends ConsumerWidget {
+  final String categoryKey;
+  final String title;
+  const SeerrCategoryScreen(
+      {super.key, required this.categoryKey, required this.title});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = switch (categoryKey) {
+      'popularMovies' => ref.watch(seerrMoviesProvider),
+      'popularSeries' => ref.watch(seerrTvProvider),
+      'upcomingMovies' => ref.watch(seerrUpcomingMoviesProvider),
+      'upcomingSeries' => ref.watch(seerrUpcomingTvProvider),
+      _ => ref.watch(seerrTrendingProvider),
+    };
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: async.when(
+        loading: () => const PosterGridSkeleton(),
+        error: (e, _) => ErrorView(message: '$e'),
+        data: (list) => list.isEmpty
+            ? EmptyState(
+                icon: Icons.movie_filter_rounded,
+                title: AppLocalizations.of(context).browseNothingToShow)
+            : _SeerrResultGrid(list: list),
+      ),
+    );
+  }
+}
+
+/// Full grid for one genre, opened from a genre-slider tile.
+/// The TMDB sort options offered on a filterable grid, per media type.
+/// A function taking [AppLocalizations] so the labels can be localized.
+List<(String, String)> _sortOptions(AppLocalizations l, String mediaType) => [
+      ('popularity.desc', l.browseSortPopularity),
+      (
+        mediaType == 'tv' ? 'first_air_date.desc' : 'primary_release_date.desc',
+        l.browseSortNewest
+      ),
+      ('vote_average.desc', l.browseSortTopRated),
+    ];
+
+/// A sort menu for the filterable grids.
+class _SortAction extends StatelessWidget {
+  final String mediaType;
+  final String value;
+  final ValueChanged<String> onChanged;
+  const _SortAction(
+      {required this.mediaType, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final options = _sortOptions(l, mediaType);
+    final label = options.firstWhere((o) => o.$1 == value,
+        orElse: () => options.first);
+    return PopupMenuButton<String>(
+      tooltip: l.browseSort,
+      onSelected: onChanged,
+      itemBuilder: (_) => [
+        for (final o in options)
+          PopupMenuItem(
+            value: o.$1,
+            child: Row(
+              children: [
+                Icon(o.$1 == value
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded),
+                const SizedBox(width: 10),
+                Text(o.$2),
+              ],
+            ),
+          ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(children: [
+          const Icon(Icons.sort_rounded, size: 20),
+          const SizedBox(width: 6),
+          Text(label.$2),
+        ]),
+      ),
+    );
+  }
+}
+
+class SeerrGenreScreen extends ConsumerStatefulWidget {
+  final String mediaType;
+  final int genreId;
+  final String title;
+  const SeerrGenreScreen({
+    super.key,
+    required this.mediaType,
+    required this.genreId,
+    required this.title,
+  });
+
+  @override
+  ConsumerState<SeerrGenreScreen> createState() => _SeerrGenreScreenState();
+}
+
+class _SeerrGenreScreenState extends ConsumerState<SeerrGenreScreen> {
+  String _sortBy = 'popularity.desc';
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final async = ref.watch(seerrGenreResultsProvider((
+      mediaType: widget.mediaType,
+      genreId: widget.genreId,
+      sortBy: _sortBy,
+    )));
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title), actions: [
+        _SortAction(
+            mediaType: widget.mediaType,
+            value: _sortBy,
+            onChanged: (v) => setState(() => _sortBy = v)),
+      ]),
+      body: async.when(
+        loading: () => const PosterGridSkeleton(),
+        error: (e, _) => ErrorView(message: '$e'),
+        data: (list) => list.isEmpty
+            ? EmptyState(
+                icon: Icons.movie_filter_rounded,
+                title: l.browseNothingToShow)
+            : _SeerrResultGrid(list: list),
+      ),
+    );
+  }
+}
+
+/// Full grid for one studio or network, opened from a company card.
+class SeerrCompanyScreen extends ConsumerStatefulWidget {
+  final String kind; // 'studio' | 'network'
+  final int id;
+  final String title;
+  const SeerrCompanyScreen({
+    super.key,
+    required this.kind,
+    required this.id,
+    required this.title,
+  });
+
+  @override
+  ConsumerState<SeerrCompanyScreen> createState() => _SeerrCompanyScreenState();
+}
+
+class _SeerrCompanyScreenState extends ConsumerState<SeerrCompanyScreen> {
+  String _sortBy = 'popularity.desc';
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final mediaType = widget.kind == 'network' ? 'tv' : 'movie';
+    final async = ref.watch(
+        seerrCompanyResultsProvider((kind: widget.kind, id: widget.id, sortBy: _sortBy)));
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.title), actions: [
+        _SortAction(
+            mediaType: mediaType,
+            value: _sortBy,
+            onChanged: (v) => setState(() => _sortBy = v)),
+      ]),
+      body: async.when(
+        loading: () => const PosterGridSkeleton(),
+        error: (e, _) => ErrorView(message: '$e'),
+        data: (list) => list.isEmpty
+            ? EmptyState(
+                icon: Icons.movie_filter_rounded,
+                title: l.browseNothingToShow)
+            : _SeerrResultGrid(list: list),
+      ),
+    );
+  }
+}
+
+/// Reorder and toggle the Seerr Discover rows, matching the Jellyseerr web
+/// customization. Saved to preferences.
+class SeerrDiscoverLayoutScreen extends ConsumerWidget {
+  const SeerrDiscoverLayoutScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final rowTitles = _seerrRowTitles(l);
+    final p = ref.watch(preferencesProvider).asData?.value ?? const Prefs();
+    final c = ref.read(preferencesProvider.notifier);
+    final customs = {for (final s in _customSliders(p)) 'custom:${s.id}': s};
+    // Every known row, in saved order, so hidden ones still show here to toggle.
+    final rows = orderedSeerrRows(p.seerrRowOrder, const [],
+        known: _knownRows(p));
+    final hidden = p.seerrHiddenRows.toSet();
+
+    void deleteCustom(String id) {
+      final sid = id.substring('custom:'.length);
+      c.edit((x) => x.copyWith(
+            seerrCustomSliders: [
+              for (final m in x.seerrCustomSliders)
+                if ('${m['id']}' != sid) m,
+            ],
+            seerrRowOrder:
+                x.seerrRowOrder.where((r) => r != id).toList(),
+            seerrHiddenRows:
+                x.seerrHiddenRows.where((r) => r != id).toList(),
+          ));
+    }
+
+    final scheme = Theme.of(context).colorScheme;
+
+    void move(int from, int to) {
+      if (to < 0 || to >= rows.length) return;
+      final list = [...rows];
+      list.insert(to, list.removeAt(from));
+      c.edit((x) => x.copyWith(seerrRowOrder: list));
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l.browseCustomizeDiscover),
+        actions: [
+          TextButton(
+            onPressed: () => c.edit((x) => x.copyWith(
+                seerrRowOrder: kDefaultSeerrRows, seerrHiddenRows: const [])),
+            child: Text(l.commonReset),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _addSlider(context, ref),
+        icon: const Icon(Icons.add_rounded),
+        label: Text(l.browseAddSlider),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                child: Text(
+                  l.browseReorderHint,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant),
+                ),
+              ),
+              Expanded(
+                child: ReorderableListView(
+                  buildDefaultDragHandles: false,
+                  padding: const EdgeInsets.only(top: 4, bottom: 96),
+                  // ignore: deprecated_member_use
+                  onReorder: (oldIndex, newIndex) {
+                    final list = [...rows];
+                    if (newIndex > oldIndex) newIndex -= 1;
+                    list.insert(newIndex, list.removeAt(oldIndex));
+                    c.edit((x) => x.copyWith(seerrRowOrder: list));
+                  },
+                  children: [
+                    for (final (i, id) in rows.indexed)
+                      Container(
+                        key: ValueKey(id),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color:
+                                  scheme.outlineVariant.withValues(alpha: 0.5)),
+                        ),
+                        child: Row(
+                          children: [
+                            ReorderableDragStartListener(
+                              index: i,
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 16, 6, 16),
+                                child: Icon(Icons.drag_indicator_rounded,
+                                    color: scheme.onSurfaceVariant),
+                              ),
+                            ),
+                            Expanded(
+                              child: Opacity(
+                                opacity: hidden.contains(id) ? 0.45 : 1,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      customs[id]?.title ??
+                                          rowTitles[id] ??
+                                          id,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 15),
+                                    ),
+                                    if (customs[id] != null)
+                                      Text(l.browseCustomSlider,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                  color:
+                                                      scheme.onSurfaceVariant)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                              tooltip: l.browseMoveUp,
+                              onPressed: i == 0 ? null : () => move(i, i - 1),
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon:
+                                  const Icon(Icons.keyboard_arrow_down_rounded),
+                              tooltip: l.browseMoveDown,
+                              onPressed: i == rows.length - 1
+                                  ? null
+                                  : () => move(i, i + 1),
+                            ),
+                            if (customs[id] != null)
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                tooltip: l.browseDeleteSlider,
+                                color: scheme.error,
+                                onPressed: () => deleteCustom(id),
+                              ),
+                            const SizedBox(width: 4),
+                            Switch(
+                              value: !hidden.contains(id),
+                              onChanged: (visible) {
+                                final next = {...hidden};
+                                if (visible) {
+                                  next.remove(id);
+                                } else {
+                                  next.add(id);
+                                }
+                                c.edit((x) => x.copyWith(
+                                    seerrHiddenRows: next.toList()));
+                              },
+                            ),
+                            const SizedBox(width: 10),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addSlider(BuildContext context, WidgetRef ref) async {
+    final slider = await showSeerrAddSliderDialog(context, ref);
+    if (slider == null) return;
+    final c = ref.read(preferencesProvider.notifier);
+    c.edit((x) => x.copyWith(
+          seerrCustomSliders: [...x.seerrCustomSliders, slider.toMap()],
+          // Place new sliders at the end of the visible order.
+          seerrRowOrder: [
+            ...orderedSeerrRows(x.seerrRowOrder, const [],
+                known: _knownRows(x)),
+            'custom:${slider.id}',
+          ],
+        ));
+  }
+}
+
+class _SeerrSearchTab extends ConsumerStatefulWidget {
+  const _SeerrSearchTab();
+  @override
+  ConsumerState<_SeerrSearchTab> createState() => _SeerrSearchTabState();
+}
+
+class _SeerrSearchTabState extends ConsumerState<_SeerrSearchTab> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: ref.read(seerrQueryProvider));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final async = ref.watch(seerrSearchProvider);
+    final query = ref.watch(seerrQueryProvider);
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: SearchBar(
+            controller: _controller,
+            hintText: l.browseSeerrSearchHint,
+            leading: const Icon(Icons.search_rounded),
+            trailing: [
+              if (query.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () {
+                    _controller.clear();
+                    ref.read(seerrQueryProvider.notifier).set('');
+                  },
+                ),
+            ],
+            onChanged: (v) => ref.read(seerrQueryProvider.notifier).set(v),
+          ),
+        ),
+        Expanded(
+          child: query.trim().isEmpty
+              ? EmptyState(
+                  icon: Icons.search_rounded,
+                  title: l.browseSearchSeerrTitle,
+                  message: l.browseSearchSeerrMessage,
+                )
+              : async.when(
+                  loading: () => const PosterGridSkeleton(),
+                  error: (e, _) => Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text('$e',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              color: Theme.of(context).colorScheme.error)),
+                    ),
+                  ),
+                  data: (list) => list.isEmpty
+                      ? EmptyState(
+                          icon: Icons.search_off_rounded,
+                          title: l.browseNoResults)
+                      : _SeerrResultGrid(list: list),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SeerrResultGrid extends StatelessWidget {
+  final List<SeerrResult> list;
+  const _SeerrResultGrid({required this.list});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 184,
+        mainAxisSpacing: 18,
+        crossAxisSpacing: 14,
+        childAspectRatio: 0.54,
+      ),
+      itemCount: list.length,
+      itemBuilder: (context, i) => EntranceFade(
+        index: i,
+        onceKey: 'gr${list[i].mediaType}${list[i].tmdbId}',
+        child: list[i].mediaType == 'person'
+            ? SeerrPersonSearchCard(person: list[i])
+            : SeerrGridCard(result: list[i]),
+      ),
+    );
+  }
+}
+
+// Jellyseerr's Requests-page options, matched exactly. Functions (not const
+// lists) so the labels can be localized; the ids stay stable for the API.
+List<(String, String)> _requestStatusFilters(AppLocalizations l) =>
+    <(String, String)>[
+      ('all', l.browseAll),
+      ('pending', l.browsePending),
+      ('approved', l.browseApproved),
+      ('completed', l.browseCompleted),
+      ('processing', l.browseProcessing),
+      ('failed', l.browseFailed),
+      ('available', l.browseAvailable),
+      ('unavailable', l.browseUnavailable),
+      ('deleted', l.browseDeleted),
+    ];
+List<(String, String)> _requestMediaTypes(AppLocalizations l) =>
+    <(String, String)>[
+      ('all', l.browseAll),
+      ('movie', l.browseMovies),
+      ('tv', l.browseTvShows),
+    ];
+List<(String, String)> _requestSorts(AppLocalizations l) => <(String, String)>[
+      ('added', l.browseSortMostRecent),
+      ('modified', l.browseSortLastModified),
+    ];
+
+/// One of the Requests-page control dropdowns: a leading icon + a compact
+/// dropdown in a rounded field, matching Jellyseerr's header controls.
+class _RequestFilterDropdown extends StatelessWidget {
+  final IconData icon;
+  final String value;
+  final List<(String, String)> options;
+  final ValueChanged<String> onChanged;
+  const _RequestFilterDropdown({
+    required this.icon,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppDropdown<String>(
+      leading: icon,
+      value: value,
+      options: {for (final o in options) o.$1: o.$2},
+      onChanged: onChanged,
+    );
+  }
+}
+
+class _RequestsTab extends ConsumerWidget {
+  const _RequestsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final filter = ref.watch(seerrRequestFilterProvider);
+    final mediaType = ref.watch(seerrRequestMediaTypeProvider);
+    final sort = ref.watch(seerrRequestSortProvider);
+    final dir = ref.watch(seerrRequestSortDirProvider);
+    final async = ref.watch(seerrRequestsProvider);
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _RequestFilterDropdown(
+                icon: Icons.layers_rounded,
+                value: mediaType,
+                options: _requestMediaTypes(l),
+                onChanged: (v) =>
+                    ref.read(seerrRequestMediaTypeProvider.notifier).set(v),
+              ),
+              _RequestFilterDropdown(
+                icon: Icons.filter_alt_rounded,
+                value: filter,
+                options: _requestStatusFilters(l),
+                onChanged: (v) =>
+                    ref.read(seerrRequestFilterProvider.notifier).set(v),
+              ),
+              _RequestFilterDropdown(
+                icon: Icons.sort_rounded,
+                value: sort,
+                options: _requestSorts(l),
+                onChanged: (v) =>
+                    ref.read(seerrRequestSortProvider.notifier).set(v),
+              ),
+              Container(
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: scheme.outlineVariant.withValues(alpha: 0.5)),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () =>
+                        ref.read(seerrRequestSortDirProvider.notifier).toggle(),
+                    child: Tooltip(
+                      message: l.browseToggleSortDirection,
+                      child: SizedBox(
+                        height: 42,
+                        width: 44,
+                        child: Center(
+                          child: AnimatedRotation(
+                            turns: dir == 'asc' ? 0.5 : 0,
+                            duration: const Duration(milliseconds: 220),
+                            child: Icon(Icons.arrow_downward_rounded,
+                                size: 20, color: scheme.onSurfaceVariant),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: async.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => ErrorView(message: '$e'),
+            data: (list) => list.isEmpty
+                ? EmptyState(
+                    icon: Icons.inbox_rounded,
+                    title: l.browseNoRequests,
+                    message: l.browseNoRequestsMessage)
+                : RefreshIndicator(
+                    onRefresh: () async =>
+                        ref.invalidate(seerrRequestsProvider),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      itemCount: list.length,
+                      itemBuilder: (context, i) =>
+                          _RequestTile(request: list[i]),
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _seerrAgo(AppLocalizations l, String? iso) {
+  if (iso == null) return '';
+  final t = DateTime.tryParse(iso);
+  if (t == null) return '';
+  final d = DateTime.now().difference(t);
+  if (d.inDays >= 1) return l.browseDaysAgo(d.inDays);
+  if (d.inHours >= 1) return l.browseHoursAgo(d.inHours);
+  if (d.inMinutes >= 1) return l.browseMinutesAgo(d.inMinutes);
+  return l.browseJustNow;
+}
+
+/// A Jellyseerr-style request row: backdrop, poster, title, the request fields
+/// (status, requested/modified by, profile), and permission-gated actions.
+class _RequestTile extends ConsumerWidget {
+  final SeerrRequest request;
+  const _RequestTile({required this.request});
+
+  (String, Color) _status(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final r = request;
+    if (r.isDeclined) return (l.browseDeclined, Theme.of(context).colorScheme.error);
+    return switch (r.mediaStatus) {
+      5 => (l.browseAvailable, const Color(0xFF22C55E)),
+      4 => (l.browsePartiallyAvailable, const Color(0xFF14B8A6)),
+      3 => (l.browseProcessing, const Color(0xFF3B82F6)),
+      2 => (l.browsePending, const Color(0xFFF59E0B)),
+      _ => (r.isPending ? l.browsePending : l.browseApproved,
+          const Color(0xFFF59E0B)),
+    };
+  }
+
+  Future<bool> _confirm(BuildContext context, String title, String action,
+      {bool destructive = true}) async {
+    final l = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: Text(l.browseConfirmUndone(action)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(l.commonCancel)),
+          FilledButton(
+            style: destructive
+                ? FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error)
+                : null,
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
+  }
+
+  Future<void> _act(BuildContext context, WidgetRef ref, String action) async {
+    final l = AppLocalizations.of(context);
+    if (action == 'edit') {
+      final ok = await showSeerrEditRequestDialog(context, request);
+      if (ok) {
+        ref.invalidate(seerrRequestsProvider);
+        ref.invalidate(seerrRecentRequestsProvider);
+        if (context.mounted) {
+          showSnack(context, l.browseRequestUpdated, kind: SnackKind.success);
+        }
+      }
+      return;
+    }
+    final client = ref.read(seerrClientProvider);
+    if (client == null) return;
+    if (action == 'delete' &&
+        !await _confirm(context, l.browseDeleteRequest, l.browseDeleteRequest)) {
+      return;
+    }
+    if (action == 'remove') {
+      final svc = request.mediaType == 'tv' ? 'Sonarr' : 'Radarr';
+      if (!context.mounted ||
+          !await _confirm(context, l.browseRemoveFromService(svc),
+              l.browseRemoveFromService(svc))) {
+        return;
+      }
+    }
+    if (!context.mounted) return;
+    final title = ref
+            .read(seerrDetailProvider(
+                (mediaType: request.mediaType, tmdbId: request.tmdbId)))
+            .asData
+            ?.value
+            .title ??
+        (request.mediaType == 'tv' ? l.browseThisSeries : l.browseThisMovie);
+    final arr = request.mediaType == 'tv' ? 'Sonarr' : 'Radarr';
+    try {
+      switch (action) {
+        case 'approve':
+          await client.approveRequest(request.id);
+        case 'decline':
+          await client.declineRequest(request.id);
+        case 'retry':
+          await client.retryRequest(request.id);
+        case 'delete':
+          await client.deleteRequest(request.id);
+        case 'remove':
+          if (request.mediaId != null) {
+            await client.deleteMediaFile(request.mediaId!, is4k: request.is4k);
+          }
+      }
+      ref.invalidate(seerrRequestsProvider);
+      ref.invalidate(seerrRecentRequestsProvider);
+      final done = switch (action) {
+        'approve' => l.browseApprovedTitle(title),
+        'decline' => l.browseDeclinedTitle(title),
+        'retry' => l.browseRetryingTitle(title),
+        'delete' => l.browseDeletedRequestFor(title),
+        'remove' => l.browseRemovedFromService(title, arr),
+        _ => l.browseDone,
+      };
+      if (context.mounted) showSnack(context, done, kind: SnackKind.success);
+    } catch (e) {
+      if (context.mounted) showSnack(context, '$e', kind: SnackKind.error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final r = request;
+    final detail =
+        ref.watch(seerrDetailProvider((mediaType: r.mediaType, tmdbId: r.tmdbId)))
+            .asData
+            ?.value;
+    final perms = ref.watch(seerrPermissionsProvider).asData?.value ?? 0;
+    final canManage = seerrCan(perms, kSeerrManageRequests);
+    final isAdmin = perms & kSeerrAdmin != 0;
+    final profileNames =
+        ref.watch(seerrProfileNamesProvider(r.mediaType)).asData?.value ??
+            const {};
+
+    final title = detail?.title ??
+        (r.mediaType == 'tv'
+            ? l.browseSeriesNumber(r.tmdbId)
+            : l.browseMovieNumber(r.tmdbId));
+    final (statusLabel, statusColor) = _status(context);
+    final profileName =
+        r.profileId != null ? profileNames[r.profileId] : null;
+
+    void openDetail() {
+      if (detail == null) return;
+      context.push('/seerr-detail',
+          extra: SeerrResult(
+            tmdbId: r.tmdbId,
+            mediaType: r.mediaType,
+            title: title,
+            posterPath: detail.posterPath,
+            backdropPath: detail.backdropPath,
+            status: r.mediaStatus,
+          ));
+    }
+
+    final actions = <Widget>[
+      if (r.isPending && canManage) ...[
+        _RequestButton(
+            icon: Icons.tune_rounded,
+            label: l.commonEdit,
+            onTap: () => _act(context, ref, 'edit')),
+        _RequestButton(
+            icon: Icons.check_circle_outline_rounded,
+            label: l.browseApprove,
+            color: const Color(0xFF22C55E),
+            onTap: () => _act(context, ref, 'approve')),
+        _RequestButton(
+            icon: Icons.cancel_outlined,
+            label: l.browseDecline,
+            color: scheme.error,
+            onTap: () => _act(context, ref, 'decline')),
+      ],
+      if (r.isFailed && canManage)
+        _RequestButton(
+            icon: Icons.refresh_rounded,
+            label: l.commonRetry,
+            color: scheme.primary,
+            onTap: () => _act(context, ref, 'retry')),
+      if (canManage || r.isPending)
+        _RequestButton(
+            icon: Icons.delete_outline_rounded,
+            label: l.browseDeleteRequest,
+            color: scheme.error,
+            onTap: () => _act(context, ref, 'delete')),
+      if (isAdmin &&
+          r.mediaId != null &&
+          (r.mediaStatus ?? 0) >= 3)
+        _RequestButton(
+            icon: Icons.delete_sweep_outlined,
+            label: l.browseRemoveFromService(
+                r.mediaType == 'tv' ? 'Sonarr' : 'Radarr'),
+            color: scheme.error,
+            onTap: () => _act(context, ref, 'remove')),
+    ];
+
+    Widget fields() => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _fieldRow(theme, l, l.browseStatus,
+                pill: _pill(statusLabel, statusColor)),
+            if (r.requestedBy != null)
+              _fieldRow(theme, l, l.browseRequested,
+                  ago: _seerrAgo(l, r.createdAt),
+                  name: r.requestedBy!,
+                  avatar: _avatarUrl(ref, r.requestedByAvatar)),
+            if (r.modifiedBy != null)
+              _fieldRow(theme, l, l.browseModified,
+                  ago: _seerrAgo(l, r.updatedAt),
+                  name: r.modifiedBy!,
+                  avatar: _avatarUrl(ref, r.modifiedByAvatar)),
+            if (profileName != null)
+              _fieldRow(theme, l, l.browseProfile, value: profileName),
+            if (r.mediaType == 'tv' && r.seasons.isNotEmpty)
+              _fieldRow(theme, l, l.browseSeasons, value: r.seasons.join(', ')),
+          ],
+        );
+
+    return LayoutBuilder(builder: (context, c) {
+      final wide = c.maxWidth >= 860;
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(14)),
+        child: Stack(
+          children: [
+            if (detail?.backdropUrl != null)
+              Positioned.fill(
+                child: Image.network(detail!.backdropUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox()),
+              ),
+            // A scrim in the surface colour so the normal theme text is legible
+            // over any backdrop, in light or dark.
+            Positioned.fill(
+              child: ColoredBox(
+                  color: scheme.surface.withValues(alpha: 0.86)),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _PosterThumb(url: detail?.posterUrl, onTap: openDetail),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (detail?.year != null)
+                          Text(detail!.year!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: scheme.onSurfaceVariant)),
+                        InkWell(
+                          onTap: openDetail,
+                          child: Text(title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700)),
+                        ),
+                        if (!wide) ...[
+                          const SizedBox(height: 8),
+                          fields(),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (wide) ...[
+                    const SizedBox(width: 12),
+                    SizedBox(width: 250, child: fields()),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: 232,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final a in actions)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: a,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ] else
+                    PopupMenuButton<String>(
+                      onSelected: (v) => _act(context, ref, v),
+                      itemBuilder: (_) => [
+                        if (r.isPending && canManage) ...[
+                          _menuItem('edit', Icons.tune_rounded, l.browseEditRequest),
+                          _menuItem('approve',
+                              Icons.check_circle_outline_rounded, l.browseApprove),
+                          _menuItem(
+                              'decline', Icons.cancel_outlined, l.browseDecline),
+                        ],
+                        if (r.isFailed && canManage)
+                          _menuItem(
+                              'retry', Icons.refresh_rounded, l.commonRetry),
+                        if (canManage || r.isPending)
+                          _menuItem('delete', Icons.delete_outline_rounded,
+                              l.browseDeleteRequest,
+                              color: scheme.error),
+                        if (isAdmin &&
+                            r.mediaId != null &&
+                            (r.mediaStatus ?? 0) >= 3)
+                          _menuItem(
+                              'remove',
+                              Icons.delete_sweep_outlined,
+                              l.browseRemoveFromService(
+                                  r.mediaType == 'tv' ? 'Sonarr' : 'Radarr'),
+                              color: scheme.error),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  String? _avatarUrl(WidgetRef ref, String? raw) =>
+      seerrAvatarUrl(ref.read(seerrClientProvider)?.baseUrl ?? '', raw);
+
+  PopupMenuItem<String> _menuItem(String value, IconData icon, String label,
+          {Color? color}) =>
+      PopupMenuItem(
+        value: value,
+        child: ListTile(
+          leading: Icon(icon, color: color),
+          title: Text(label),
+          contentPadding: EdgeInsets.zero,
+        ),
+      );
+
+  Widget _pill(String label, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+        decoration:
+            BoxDecoration(color: color, borderRadius: BorderRadius.circular(20)),
+        child: Text(label,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700)),
+      );
+
+  Widget _fieldRow(ThemeData theme, AppLocalizations l, String label,
+      {Widget? pill,
+      String? value,
+      String? ago,
+      String? name,
+      String? avatar}) {
+    final labelStyle = theme.textTheme.bodySmall
+        ?.copyWith(fontWeight: FontWeight.w700);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(width: 78, child: Text(label, style: labelStyle)),
+          ?pill,
+          if (value != null)
+            Flexible(
+                child: Text(value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall)),
+          if (name != null) ...[
+            if (ago != null && ago.isNotEmpty)
+              Text('${l.browseAgoBy(ago)} ',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            SeerrAvatar(name: name, avatarUrl: avatar, radius: 8),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A poster thumbnail in a request row.
+class _PosterThumb extends StatelessWidget {
+  final String? url;
+  final VoidCallback onTap;
+  const _PosterThumb({required this.url, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 56,
+        height: 84,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: url != null
+              ? CachedImage(url: url!, errorBuilder: (_) => _ph(theme))
+              : _ph(theme),
+        ),
+      ),
+    );
+  }
+
+  Widget _ph(ThemeData theme) => Container(
+        color: theme.colorScheme.surfaceContainerHighest,
+        alignment: Alignment.center,
+        child: Icon(Icons.movie_rounded,
+            size: 18, color: theme.colorScheme.onSurfaceVariant),
+      );
+}
+
+/// A compact filled action button for request rows.
+class _RequestButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color? color;
+  final VoidCallback onTap;
+  const _RequestButton(
+      {required this.icon,
+      required this.label,
+      required this.onTap,
+      this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onTap,
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          minimumSize: const Size.fromHeight(38),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.center,
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        icon: Icon(icon, size: 17),
+        label: Text(label, maxLines: 1, softWrap: false),
+      ),
+    );
+  }
+}

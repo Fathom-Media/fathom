@@ -1,0 +1,449 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Video;
+
+import '../models/youtube_caption.dart';
+
+/// One selectable video quality (a YouTube stream), or the 'Auto' default.
+typedef YtQuality = ({String label, String url, int bitrate, int height});
+
+/// Resolved playback sources for a YouTube video.
+///
+/// Adaptive mode pairs a video-only stream with [audioUrl] as an external audio
+/// track, which is the only way YouTube exposes anything above ~360p. The muxed
+/// stream is self-contained and used as a safety net.
+class YtStreams {
+  final List<YtQuality> qualities; // adaptive options, highest first
+  final String? audioUrl; // external audio for adaptive streams
+  final String? muxedUrl; // self-contained fallback
+  final List<YtQuality> muxedQualities;
+
+  /// True when [muxedUrl] is a live HLS/DASH manifest (not a finite VOD). The
+  /// player opens these at the live edge so start-up doesn't buffer the whole
+  /// DVR backlog, and shows a LIVE control.
+  final bool isLive;
+
+  const YtStreams({
+    this.qualities = const [],
+    this.audioUrl,
+    this.muxedUrl,
+    this.muxedQualities = const [],
+    this.isLive = false,
+  });
+
+  bool get isAdaptive => audioUrl != null && qualities.isNotEmpty;
+}
+
+/// The video id inside a YouTube URL, or null when it isn't one.
+String? youtubeVideoId(String url) {
+  try {
+    return VideoId(url).value;
+  } catch (_) {
+    return null;
+  }
+}
+
+bool isYoutubeUrl(String url) =>
+    url.contains('youtube.com') || url.contains('youtu.be');
+
+/// Resolves the playable streams for [url].
+///
+/// Fast path: the primary client (ANDROID_VR, whose adaptive URLs are fetchable
+/// by mpv/ffmpeg where the plain android client's 403) resolves almost every
+/// normal VOD in one call. When it can't, the remaining VOD clients and the live
+/// manifest are resolved CONCURRENTLY and the first to land wins, so a live
+/// stream doesn't wait out the whole VOD failure chain before its manifest is
+/// even tried (that sequential walk is what made live streams slow to start).
+Future<YtStreams> resolveYoutubeStreams(String url) async {
+  final yt = YoutubeExplode();
+  final id = VideoId(url);
+  final sw = Stopwatch()..start();
+  try {
+    var primaryDone = false;
+    final primary = _tryVod(yt, id, 'androidVr', [YoutubeApiClient.androidVr])
+        .then((s) {
+      if (s != null) primaryDone = true;
+      return s;
+    });
+
+    // Hedge: the primary client ALWAYS fails for a live stream, and that failure
+    // can take seconds. Rather than wait it out before even trying the live
+    // manifest, spin the live lookup up in parallel once the primary is a little
+    // slow. Normal (VOD) videos resolve under this delay, so they never fire the
+    // live requests and pay no extra cost.
+    final live = Future.delayed(const Duration(milliseconds: 600))
+        .then<String?>(
+            (_) => primaryDone ? null : _resolveLiveManifest(id.value))
+        .then((u) =>
+            (u == null || u.isEmpty) ? null : YtStreams(muxedUrl: u, isLive: true));
+
+    final first = await _firstNonNull<YtStreams>([primary, live]);
+    if (first != null) {
+      debugPrint('[yt] resolved in ${sw.elapsedMilliseconds}ms');
+      return first;
+    }
+
+    // Neither the primary client nor the live lookup produced anything; fall
+    // back to the remaining VOD clients before giving up.
+    final rest = await _resolveVodRemaining(yt, id);
+    if (rest != null) {
+      debugPrint('[yt] resolved (fallback) in ${sw.elapsedMilliseconds}ms');
+      return rest;
+    }
+
+    debugPrint('[yt] no streams found in ${sw.elapsedMilliseconds}ms ($url)');
+    throw VideoUnavailableException(
+        'Video "${id.value}" does not contain any playable streams.');
+  } finally {
+    yt.close();
+  }
+}
+
+/// One getManifest attempt with a specific client set, built into [YtStreams] if
+/// the result is usable, else null. Never throws.
+Future<YtStreams?> _tryVod(YoutubeExplode yt, VideoId id, String name,
+    List<YoutubeApiClient> clients) async {
+  try {
+    final m = await yt.videos.streamsClient.getManifest(id, ytClients: clients);
+    if (m.muxed.isNotEmpty ||
+        (m.videoOnly.isNotEmpty && m.audioOnly.isNotEmpty)) {
+      return _buildStreams(m);
+    }
+    debugPrint('[yt] client "$name" returned no usable streams');
+  } catch (e) {
+    debugPrint('[yt] client "$name" failed: $e');
+  }
+  return null;
+}
+
+/// The VOD clients past the primary, plus the library default as a last resort.
+Future<YtStreams?> _resolveVodRemaining(YoutubeExplode yt, VideoId id) async {
+  for (final (name, clients) in <(String, List<YoutubeApiClient>)>[
+    ('ios', [YoutubeApiClient.ios]),
+    ('tv', [YoutubeApiClient.tv]),
+    ('mweb', [YoutubeApiClient.mweb]),
+  ]) {
+    final s = await _tryVod(yt, id, name, clients);
+    if (s != null) return s;
+  }
+  try {
+    return _buildStreams(await yt.videos.streamsClient.getManifest(id));
+  } catch (e) {
+    debugPrint('[yt] default VOD clients failed: $e');
+    return null;
+  }
+}
+
+/// Builds [YtStreams] from a resolved manifest: an adaptive video+audio pairing
+/// (the only way past ~360p) with a self-contained muxed stream as the safety
+/// net, or just the muxed set when adaptive isn't available.
+YtStreams _buildStreams(StreamManifest manifest) {
+  String? muxedUrl;
+  var muxedQualities = const <YtQuality>[];
+  if (manifest.muxed.isNotEmpty) {
+    muxedUrl = manifest.muxed.withHighestBitrate().url.toString();
+    muxedQualities = _dedupeByHeight([
+      for (final s in manifest.muxed)
+        (
+          label: '${s.videoResolution.height}p',
+          url: s.url.toString(),
+          bitrate: s.bitrate.bitsPerSecond,
+          height: s.videoResolution.height,
+        ),
+    ]);
+  }
+
+  if (manifest.videoOnly.isEmpty || manifest.audioOnly.isEmpty) {
+    return YtStreams(
+      muxedUrl: muxedUrl,
+      muxedQualities: muxedQualities,
+      qualities: muxedQualities,
+    );
+  }
+
+  // Best audio: prefer mp4/AAC, else the highest bitrate available.
+  final audios = manifest.audioOnly.toList();
+  final mp4Audio = audios.where((s) => s.container.name == 'mp4').toList();
+  final audioPick = (mp4Audio.isNotEmpty ? mp4Audio : audios)
+    ..sort((a, b) => b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond));
+
+  // One entry per resolution, choosing the codec that decodes cheapest in
+  // software: H.264 (mp4) up to 1080p, VP9 (webm) above it (lighter than AV1).
+  bool preferMp4(int h) => h <= 1080;
+  final byH = <int, YtQuality>{};
+  final rankH = <int, int>{};
+  for (final s in manifest.videoOnly) {
+    final h = s.videoResolution.height;
+    final isMp4 = s.container.name == 'mp4';
+    final rank = (isMp4 == preferMp4(h)) ? 0 : 1;
+    final q = (
+      label: '${h}p',
+      url: s.url.toString(),
+      bitrate: s.bitrate.bitsPerSecond,
+      height: h,
+    );
+    final curRank = rankH[h];
+    if (curRank == null ||
+        rank < curRank ||
+        (rank == curRank && q.bitrate > byH[h]!.bitrate)) {
+      byH[h] = q;
+      rankH[h] = rank;
+    }
+  }
+
+  return YtStreams(
+    qualities: byH.values.toList()
+      ..sort((a, b) => b.height.compareTo(a.height)),
+    audioUrl: audioPick.first.url.toString(),
+    muxedUrl: muxedUrl,
+    muxedQualities: muxedQualities,
+  );
+}
+
+/// Completes with the first future that yields a non-null value, or null once
+/// every future has completed null (or errored). Errors are swallowed.
+Future<T?> _firstNonNull<T>(List<Future<T?>> futures) {
+  final completer = Completer<T?>();
+  var remaining = futures.length;
+  if (remaining == 0) return Future.value(null);
+  void settle(T? v) {
+    if (completer.isCompleted) return;
+    if (v != null) {
+      completer.complete(v);
+    } else if (--remaining == 0) {
+      completer.complete(null);
+    }
+  }
+
+  for (final f in futures) {
+    f.then(settle).catchError((_) {
+      if (!completer.isCompleted && --remaining == 0) completer.complete(null);
+    });
+  }
+  return completer.future;
+}
+
+/// Fetches a live stream's manifest URL straight from the InnerTube /player
+/// endpoint, trying the clients that still return one (the browser/WEB client
+/// went manifestless SABR). Prefers HLS (mpv handles it best), falls back to
+/// DASH. Returns null when no client yields a manifest (i.e. not actually live,
+/// or fully gated). This is the piece youtube_explode 3.1.0 doesn't do for us.
+Future<String?> _resolveLiveManifest(String videoId) async {
+  final dio = Dio(BaseOptions(
+    responseType: ResponseType.json,
+    // A gated/odd response is handled by reading streamingData, not the status.
+    validateStatus: (_) => true,
+  ));
+  // iOS and TV client responses carry live manifests without a po_token; the
+  // sdk-less android client is a further fallback. All three are asked at once
+  // and the first to return a manifest wins, so this costs one round-trip, not
+  // three, which is what keeps live start-up snappy.
+  final clients = <(String, YoutubeApiClient)>[
+    ('IOS', YoutubeApiClient.ios),
+    ('TVHTML5', YoutubeApiClient.tv),
+    ('ANDROID', YoutubeApiClient.androidSdkless),
+  ];
+  try {
+    return await _firstNonNull<String>([
+      for (final (name, c) in clients) _liveManifestFrom(dio, name, c, videoId),
+    ]);
+  } finally {
+    dio.close(force: true);
+  }
+}
+
+Future<String?> _liveManifestFrom(
+    Dio dio, String name, YoutubeApiClient c, String videoId) async {
+  try {
+    final ua = c.payload['context']?['client']?['userAgent'] as String?;
+    final res = await dio.post<dynamic>(
+      c.apiUrl,
+      data: {
+        ...c.payload,
+        'videoId': videoId,
+        'contentCheckOk': true,
+        'racyCheckOk': true,
+      },
+      options: Options(headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': ?ua,
+        ...c.headers,
+      }),
+    );
+    final body = res.data;
+    final data = body is Map ? body : null;
+    final sd = data?['streamingData'] as Map?;
+    final hls = sd?['hlsManifestUrl'] as String?;
+    final dash = sd?['dashManifestUrl'] as String?;
+    // HLS is what mpv plays most reliably here (DASH opened even slower and then
+    // stalled). DASH is only a last resort if there's no HLS.
+    final useHls = hls != null && hls.isNotEmpty;
+    final url = useHls ? hls : (dash != null && dash.isNotEmpty ? dash : null);
+    if (url != null) {
+      debugPrint('[yt] live manifest via $name (${useHls ? 'HLS' : 'DASH'})');
+      debugPrint('[yt] manifest url: $url');
+      return url;
+    }
+    debugPrint('[yt] $name returned no live manifest');
+  } catch (e) {
+    debugPrint('[yt] live manifest client $name failed: $e');
+  }
+  return null;
+}
+
+/// The default target for a quality preference. 'auto' caps at 1080p (smooth
+/// under software decoding); an explicit height picks the best option at or
+/// below it. [qualities] must be sorted high-to-low.
+YtQuality? defaultQualityFor(List<YtQuality> qualities, String pref) {
+  if (qualities.isEmpty) return null;
+  final cap = pref == 'auto' ? 1080 : (int.tryParse(pref) ?? 1080);
+  for (final q in qualities) {
+    if (q.height <= cap) return q;
+  }
+  return qualities.last; // everything is above the cap; take the smallest
+}
+
+/// Ceiling for the automatic quality pick. 4K/1440p are left to an explicit
+/// choice: auto-selecting them is aggressive on bandwidth and brutal under the
+/// software decoding this build falls back to.
+const _autoQualityCeiling = 1080;
+
+int? _cachedBps;
+final _bwCacheAge = Stopwatch();
+
+/// Estimates downstream throughput (bits/sec) by timing the opening bytes of
+/// [url] (YouTube bursts the first chunk at full speed, so a short read is a
+/// fair sample). Bounded to ~2s so it can't stall start-up, and cached briefly
+/// so hopping between videos doesn't re-probe every time. Null when unmeasurable.
+Future<int?> estimateBandwidthBps(String url) async {
+  if (url.isEmpty) return null;
+  if (_cachedBps != null &&
+      _bwCacheAge.isRunning &&
+      _bwCacheAge.elapsed < const Duration(seconds: 120)) {
+    return _cachedBps;
+  }
+  final dio = Dio();
+  try {
+    final sw = Stopwatch()..start();
+    final res = await dio.get<ResponseBody>(
+      url,
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: {'Range': 'bytes=0-${4 * 1024 * 1024 - 1}'},
+      ),
+    );
+    var bytes = 0;
+    const target = 1024 * 1024; // stop after ~1 MiB...
+    const budgetMs = 1000; // ...or 1 second, whichever first.
+    // A link that has already delivered a small burst faster than the 1080p
+    // ceiling needs (~8 Mbit/s, i.e. the top rate plus audio and safety margin)
+    // won't be the thing that caps quality, so there's nothing to learn by
+    // reading further: bail the moment that's clear. On a fast connection this
+    // ends the probe in a few hundred ms instead of the full budget, which is
+    // pure start-up latency saved before the first frame.
+    const fastEnoughBps = 8000000;
+    await for (final chunk in res.data!.stream) {
+      bytes += chunk.length;
+      final ms = sw.elapsedMilliseconds;
+      if (bytes >= 256 * 1024 && ms >= 80 && bytes * 8 * 1000 / ms >= fastEnoughBps) {
+        break;
+      }
+      if (bytes >= target || ms >= budgetMs) break;
+    }
+    final ms = sw.elapsedMilliseconds;
+    if (bytes < 128 * 1024 || ms < 20) return null; // too small a sample
+    final bps = (bytes * 8 * 1000 / ms).round();
+    _cachedBps = bps;
+    _bwCacheAge
+      ..reset()
+      ..start();
+    return bps;
+  } catch (_) {
+    return null;
+  } finally {
+    dio.close(force: true);
+  }
+}
+
+/// The bandwidth-aware pick for the 'auto' preference: the highest rendition (up
+/// to [_autoQualityCeiling]) the measured connection can sustain with headroom.
+/// Falls back to the ceiling when bandwidth can't be measured. [probeUrl] should
+/// be a real stream URL (the audio track is ideal — small and always present).
+Future<YtQuality?> autoQualityByBandwidth(
+    List<YtQuality> qualities, String probeUrl) async {
+  if (qualities.isEmpty) return null;
+  final pool = qualities.where((q) => q.height <= _autoQualityCeiling).toList();
+  final capped = pool.isEmpty ? qualities : pool; // everything above the ceiling
+  final bps = await estimateBandwidthBps(probeUrl);
+  if (bps == null) return capped.first; // unmeasurable: best within the ceiling
+  const audioBps = 160000; // adaptive plays a separate audio track too
+  const safety = 1.5; // headroom so playback doesn't immediately stall
+  for (final q in capped) {
+    // capped is sorted high -> low
+    if ((q.bitrate + audioBps) * safety <= bps) return q;
+  }
+  return capped.last; // even the lowest exceeds the measured link
+}
+
+List<YtQuality> _dedupeByHeight(List<YtQuality> list) {
+  final byH = <int, YtQuality>{};
+  for (final q in list) {
+    final ex = byH[q.height];
+    if (ex == null || q.bitrate > ex.bitrate) byH[q.height] = q;
+  }
+  return byH.values.toList()..sort((a, b) => b.height.compareTo(a.height));
+}
+
+/// Subtitle tracks for [videoId], as WebVTT.
+///
+/// YouTube lists every language once per format (srv1/srv2/srv3/ttml/vtt), so a
+/// video with six languages arrives as ~30 tracks. They're deduped by language
+/// here, preferring authored captions over auto-generated ones.
+///
+/// The URLs are rewritten with fmt=vtt: the default response is YouTube's own
+/// XML, which mpv cannot parse. Verified against the live endpoint — fmt=vtt
+/// returns a real WEBVTT document.
+Future<List<YoutubeCaption>> resolveYoutubeCaptions(String videoId) async {
+  final yt = YoutubeExplode();
+  try {
+    final manifest = await yt.videos.closedCaptions.getManifest(videoId);
+    final byLanguage = <String, YoutubeCaption>{};
+
+    for (final track in manifest.tracks) {
+      final code = track.language.code;
+      final existing = byLanguage[code];
+      // First one wins, except that an authored track displaces an auto one.
+      if (existing != null &&
+          !(existing.isAutoGenerated && !track.isAutoGenerated)) {
+        continue;
+      }
+      final url = track.url.replace(queryParameters: {
+        ...track.url.queryParameters,
+        'fmt': 'vtt',
+      });
+      byLanguage[code] = YoutubeCaption(
+        code: code,
+        label: track.language.name,
+        vttUrl: url.toString(),
+        isAutoGenerated: track.isAutoGenerated,
+      );
+    }
+
+    final out = byLanguage.values.toList()
+      ..sort((a, b) {
+        // Authored before auto-generated, then alphabetical.
+        if (a.isAutoGenerated != b.isAutoGenerated) {
+          return a.isAutoGenerated ? 1 : -1;
+        }
+        return a.label.toLowerCase().compareTo(b.label.toLowerCase());
+      });
+    return out;
+  } catch (_) {
+    // No captions is normal; never let it break playback.
+    return const [];
+  } finally {
+    yt.close();
+  }
+}

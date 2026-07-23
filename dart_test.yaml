@@ -1,0 +1,6 @@
+tags:
+  live:
+    # Hits the real YouTube endpoints. Run explicitly:
+    #   flutter test --tags live
+    # Excluded by default so the suite stays offline and deterministic.
+    skip: "network test; run with --tags live"

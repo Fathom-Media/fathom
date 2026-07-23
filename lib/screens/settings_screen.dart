@@ -1,0 +1,299 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../l10n/generated/app_localizations.dart';
+import '../state/app_info.dart';
+import '../state/preferences.dart';
+import '../state/session_controller.dart';
+import '../widgets/app_logo.dart';
+import '../widgets/user_avatar.dart';
+import 'settings_search.dart';
+
+/// Account, server, and app info, plus a search box that jumps straight to any
+/// setting. A home for future prefs (playback, subtitles, theme).
+class SettingsScreen extends ConsumerStatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _open(SettingResult r) {
+    // Clear the search so returning here lands on the full hub, then navigate.
+    setState(() {
+      _query = '';
+      _searchCtrl.clear();
+    });
+    context.push(r.route, extra: r.extra);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final session = ref.watch(sessionControllerProvider).asData?.value;
+    final theme = Theme.of(context);
+    final searching = _query.trim().isNotEmpty;
+
+    return Scaffold(
+      appBar: AppBar(title: Text(l.settingsTitle)),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _query = v),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: l.settingsSearchHint,
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: searching
+                    ? IconButton(
+                        tooltip: l.commonClear,
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () =>
+                            setState(() {
+                          _query = '';
+                          _searchCtrl.clear();
+                        }),
+                      )
+                    : null,
+                filled: true,
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: searching
+                ? _results(context)
+                : ListView(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    children: _hub(context, session, theme),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _results(BuildContext context) {
+    final results = searchSettings(userSettingsIndex(AppLocalizations.of(context)), _query);
+    if (results.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+              AppLocalizations.of(context).settingsNoMatch(_query.trim()),
+              style: TextStyle(color: Theme.of(context).hintColor)),
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 8),
+      itemCount: results.length,
+      itemBuilder: (context, i) {
+        final r = results[i];
+        return ListTile(
+          leading: _leading(context, r.icon),
+          title: Text(r.title),
+          subtitle: Text(r.section),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => _open(r),
+        );
+      },
+    );
+  }
+
+  List<Widget> _hub(
+      BuildContext context, dynamic session, ThemeData theme) {
+    final l = AppLocalizations.of(context);
+    final version = ref.watch(appVersionProvider).asData?.value ?? '…';
+    return [
+      _sectionLabel(context, l.settingsSectionPreferences),
+      ListTile(
+        leading: _leading(context, Icons.settings_rounded),
+        title: Text(l.settingsGeneral),
+        subtitle: Text(l.settingsGeneralSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/preferences', extra: 'general'),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.palette_outlined),
+        title: Text(l.settingsAppearance),
+        subtitle: Text(l.settingsAppearanceSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/preferences', extra: 'appearance'),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.dashboard_outlined),
+        title: Text(l.settingsHome),
+        subtitle: Text(l.settingsHomeSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/preferences', extra: 'home'),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.play_circle_outline_rounded),
+        title: Text(l.settingsPlayer),
+        subtitle: Text(l.settingsPlayerSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/preferences', extra: 'player'),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.subtitles_outlined),
+        title: Text(l.settingsAudioSubtitles),
+        subtitle: Text(l.settingsAudioSubtitlesSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/preferences', extra: 'audio'),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.star_half_rounded),
+        title: Text(l.settingsRatings),
+        subtitle: Text(l.settingsRatingsSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/preferences', extra: 'ratings'),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.keyboard_rounded),
+        title: Text(l.settingsShortcuts),
+        subtitle: Text(l.settingsShortcutsSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/shortcuts'),
+      ),
+      const Divider(height: 24),
+      _sectionLabel(context, l.settingsSectionIntegrations),
+      ListTile(
+        leading: _leading(context, Icons.travel_explore_rounded),
+        title: Text(l.settingsSeerr),
+        subtitle: Text(l.settingsSeerrSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/seerr-settings'),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.smart_display_rounded),
+        title: Text(l.settingsYouTube),
+        subtitle: Text(l.settingsYouTubeSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/preferences', extra: 'youtube'),
+      ),
+      SwitchListTile(
+        secondary: _leading(context, Icons.groups_rounded),
+        title: Text(l.settingsWatchTogether),
+        subtitle: Text(l.settingsWatchTogetherSubtitle),
+        value: ref.watch(preferencesProvider
+            .select((p) => p.asData?.value.syncPlayEnabled ?? true)),
+        onChanged: (v) => ref
+            .read(preferencesProvider.notifier)
+            .edit((x) => x.copyWith(syncPlayEnabled: v)),
+      ),
+      const Divider(height: 24),
+      _sectionLabel(context, l.settingsSectionAccount),
+      ListTile(
+        leading: const UserAvatar(radius: 22),
+        title: Text(session?.userName ?? '—'),
+        subtitle: Text(l.settingsProfileSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/profile'),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.switch_account_rounded),
+        title: Text(l.settingsAccounts),
+        subtitle: Text(l.settingsAccountsSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/accounts'),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.dns_rounded),
+        title: Text(session?.serverName ?? l.settingsServer),
+        subtitle: Text(session?.baseUrl ?? '—'),
+      ),
+      const Divider(height: 24),
+      _sectionLabel(context, l.settingsSectionAbout),
+      ListTile(
+        leading: const SizedBox(
+            width: 38, height: 38, child: FathomLogo(size: 38)),
+        title: Text(l.appName),
+        subtitle: Text(l.settingsVersion(version)),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.favorite_rounded),
+        title: Text(l.settingsSupport),
+        subtitle: Text(l.settingsSupportSubtitle),
+        trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+        onTap: () => launchUrl(
+          Uri.parse('https://ko-fi.com/traceapps'),
+          mode: LaunchMode.externalApplication,
+        ),
+      ),
+      ListTile(
+        leading: _leading(context, Icons.description_outlined),
+        title: Text(l.settingsLicenses),
+        subtitle: Text(l.settingsLicensesSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => showLicensePage(
+          context: context,
+          applicationName: l.appName,
+          applicationVersion: version,
+          applicationIcon: const Padding(
+            padding: EdgeInsets.all(12),
+            child: SizedBox(width: 48, height: 48, child: FathomLogo(size: 48)),
+          ),
+        ),
+      ),
+      const SizedBox(height: 24),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: OutlinedButton.icon(
+          onPressed: () =>
+              ref.read(sessionControllerProvider.notifier).signOut(),
+          icon: Icon(Icons.logout_rounded, color: theme.colorScheme.error),
+          label: Text(l.settingsSignOut,
+              style: TextStyle(color: theme.colorScheme.error)),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+            side: BorderSide(color: theme.colorScheme.error),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  /// A tinted rounded-square icon for settings rows (a more finished, app-like
+  /// look than a bare glyph).
+  Widget _leading(BuildContext context, IconData icon) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, color: scheme.primary, size: 21),
+    );
+  }
+
+  Widget _sectionLabel(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+        child: Text(text,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w700)),
+      );
+}
