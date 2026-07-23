@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,7 @@ import 'package:uuid/uuid.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'services/desktop_integration.dart';
 import 'services/notifications.dart';
 import 'state/providers.dart';
 
@@ -38,6 +40,11 @@ Future<void> main() async {
     // FathomApp window listener does the disposal, then destroy()s the window.
     await windowManager.setPreventClose(true);
   }
+
+  // Give AppImage runs a proper launcher entry + icons so the desktop (notably
+  // Wayland, which ignores the window's own icon) shows Fathom's icon in the
+  // taskbar. Fire-and-forget; no-ops off Linux or outside an AppImage.
+  unawaited(integrateAppImageDesktopEntry());
 
   // A generous in-memory image cache so posters/backdrops stay decoded when you
   // revisit a screen instead of re-downloading (the default 100 MB evicts fast
