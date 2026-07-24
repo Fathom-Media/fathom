@@ -38,12 +38,17 @@ jobs:
           $vsPath = & $vswhere -latest -products * -property installationPath
           if (-not $vsPath) { throw "Could not locate a Visual Studio installation via vswhere" }
           Write-Host "Visual Studio: $vsPath"
-          $crt = Get-ChildItem "$vsPath\VC\Redist\MSVC" -Recurse -Directory -Filter "Microsoft.VC*.CRT" |
-            Where-Object { $_.FullName -like "*\x64\*" } |
+          # Pick the newest DESKTOP x64 CRT (exclude the onecore/debug variants), keyed
+          # off msvcp140.dll's file version so we never bundle a CRT older than the
+          # toolset that compiled the exe.
+          $crt = Get-ChildItem "$vsPath\VC\Redist\MSVC" -Recurse -Filter "msvcp140.dll" |
+            Where-Object { $_.FullName -match '\\x64\\' -and $_.FullName -notmatch 'onecore' -and $_.FullName -notmatch 'debug' } |
+            Sort-Object { [version]$_.VersionInfo.FileVersion } -Descending |
             Select-Object -First 1
           if (-not $crt) { throw "Could not locate the MSVC x64 CRT redistributable under $vsPath" }
-          Write-Host "Bundling CRT from $($crt.FullName)"
-          Copy-Item "$($crt.FullName)\*.dll" -Destination "build\windows\x64\runner\Release\" -Force
+          $crtDir = $crt.DirectoryName
+          Write-Host "Bundling CRT $($crt.VersionInfo.FileVersion) from $crtDir"
+          Copy-Item "$crtDir\*.dll" -Destination "build\windows\x64\runner\Release\" -Force
           Get-ChildItem "build\windows\x64\runner\Release\" -Filter "*140*.dll" | Format-Table Name
 
       - name: Upload Windows build
