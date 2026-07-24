@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../api/seerr_client.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../state/preferences.dart';
+import '../state/session_controller.dart';
 
-/// Configure the Seerr connection: an admin API key, or sign in with Jellyfin
-/// credentials so requests are attributed to you.
+/// Configure the Seerr connection: an admin API key, or sign in so requests are
+/// attributed to you, either with your Jellyfin account or a local Seerr one.
 class SeerrSettingsScreen extends ConsumerStatefulWidget {
   const SeerrSettingsScreen({super.key});
 
@@ -19,8 +21,11 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
   late final TextEditingController _url;
   late final TextEditingController _key;
   late final TextEditingController _username;
+  late final TextEditingController _email;
   late final TextEditingController _password;
   String _mode = 'apikey';
+  // Which sign-in method: 'jellyfin' (Jellyfin account) or 'local' (Seerr account).
+  String _loginKind = 'jellyfin';
   bool _busy = false;
 
   @override
@@ -29,7 +34,11 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
     final p = ref.read(preferencesProvider).asData?.value ?? const Prefs();
     _url = TextEditingController(text: p.seerrUrl);
     _key = TextEditingController(text: p.seerrApiKey);
-    _username = TextEditingController();
+    // Pre-fill the Jellyfin username from the active session so signing in to
+    // Seerr with the Jellyfin account is one password entry away.
+    _username = TextEditingController(
+        text: ref.read(sessionControllerProvider).asData?.value?.userName ?? '');
+    _email = TextEditingController();
     _password = TextEditingController();
     _mode = p.seerrAuthMode;
   }
@@ -39,6 +48,7 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
     _url.dispose();
     _key.dispose();
     _username.dispose();
+    _email.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -72,17 +82,21 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final url = _url.text.trim().replaceAll(RegExp(r'/+$'), '');
+    final local = _loginKind == 'local';
     final user = _username.text.trim();
+    final email = _email.text.trim();
     final pass = _password.text;
-    if (url.isEmpty || user.isEmpty || pass.isEmpty) {
+    if (url.isEmpty || pass.isEmpty || (local ? email.isEmpty : user.isEmpty)) {
       messenger.showSnackBar(SnackBar(
-          content: Text(l.seerrEnterCredentials)));
+          content: Text(
+              local ? l.seerrEnterCredentialsLocal : l.seerrEnterCredentials)));
       return;
     }
     setState(() => _busy = true);
     try {
-      final cookie =
-          await seerrJellyfinLogin(url, username: user, password: pass);
+      final cookie = local
+          ? await seerrLocalLogin(url, email: email, password: pass)
+          : await seerrJellyfinLogin(url, username: user, password: pass);
       final name = await SeerrClient(url, '', cookie: cookie).me();
       await ref.read(preferencesProvider.notifier).edit((x) => x.copyWith(
             seerrUrl: url,
@@ -91,8 +105,8 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
           ));
       if (!mounted) return;
       _password.clear();
-      messenger.showSnackBar(
-          SnackBar(content: Text(l.seerrSignedInAs(name ?? user))));
+      messenger.showSnackBar(SnackBar(
+          content: Text(l.seerrSignedInAs(name ?? (local ? email : user)))));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('$e')));
     } finally {
@@ -179,17 +193,45 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
                 ),
               )
             else ...[
-              Text(l.seerrSignInHelp,
+              _ProviderButton(
+                asset: 'assets/jellyfin.svg',
+                label: l.seerrLoginWithJellyfin,
+                selected: _loginKind == 'jellyfin',
+                onTap: () => setState(() => _loginKind = 'jellyfin'),
+              ),
+              const SizedBox(height: 10),
+              _ProviderButton(
+                asset: 'assets/seerr.svg',
+                label: l.seerrLoginWithSeerr,
+                selected: _loginKind == 'local',
+                onTap: () => setState(() => _loginKind = 'local'),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                  _loginKind == 'local'
+                      ? l.seerrLocalSignInHelp
+                      : l.seerrSignInHelp,
                   style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 14),
-              TextField(
-                controller: _username,
-                autocorrect: false,
-                decoration: InputDecoration(
-                  labelText: l.seerrUsernameLabel,
-                  prefixIcon: const Icon(Icons.person_outline_rounded),
+              if (_loginKind == 'local')
+                TextField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  decoration: InputDecoration(
+                    labelText: l.seerrEmailLabel,
+                    prefixIcon: const Icon(Icons.alternate_email_rounded),
+                  ),
+                )
+              else
+                TextField(
+                  controller: _username,
+                  autocorrect: false,
+                  decoration: InputDecoration(
+                    labelText: l.seerrUsernameLabel,
+                    prefixIcon: const Icon(Icons.person_outline_rounded),
+                  ),
                 ),
-              ),
               const SizedBox(height: 14),
               TextField(
                 controller: _password,
@@ -216,4 +258,67 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
       width: 20,
       height: 20,
       child: CircularProgressIndicator(strokeWidth: 2.5));
+}
+
+/// A sign-in method choice, branded with the provider's logo tinted to the
+/// theme accent. Selected state is shown with an accent border, wash, and tick.
+class _ProviderButton extends StatelessWidget {
+  final String asset;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ProviderButton({
+    required this.asset,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: selected
+          ? scheme.primary.withValues(alpha: 0.12)
+          : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? scheme.primary : scheme.outlineVariant,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              SvgPicture.asset(
+                asset,
+                width: 22,
+                height: 22,
+                colorFilter:
+                    ColorFilter.mode(scheme.primary, BlendMode.srcIn),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 15),
+                ),
+              ),
+              if (selected)
+                Icon(Icons.check_circle_rounded,
+                    color: scheme.primary, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

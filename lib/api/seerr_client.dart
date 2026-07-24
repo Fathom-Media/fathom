@@ -24,20 +24,43 @@ String? seerrAvatarUrl(String baseUrl, String? raw) {
 }
 
 /// Signs in to a Seerr instance with Jellyfin credentials and returns the
-/// session cookie (connect.sid=...), for cookie-based auth. Throws on failure.
+/// session cookie (connect.sid=...), for cookie-based auth. First-time sign-in
+/// creates/links the matching Seerr account. Throws on failure.
 Future<String> seerrJellyfinLogin(
   String baseUrl, {
   required String username,
   required String password,
   String? hostname,
-}) async {
-  final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 12)));
-  try {
-    final res = await dio.post('$baseUrl/api/v1/auth/jellyfin', data: {
+}) =>
+    _seerrCookieLogin(baseUrl, '/api/v1/auth/jellyfin', {
       'username': username,
       'password': password,
       if (hostname != null && hostname.isNotEmpty) 'hostname': hostname,
     });
+
+/// Signs in to a Seerr instance with a local Seerr account (email + password),
+/// for users whose Seerr account isn't linked to Jellyfin. Returns the session
+/// cookie. Throws on failure.
+Future<String> seerrLocalLogin(
+  String baseUrl, {
+  required String email,
+  required String password,
+}) =>
+    _seerrCookieLogin(baseUrl, '/api/v1/auth/local', {
+      'email': email,
+      'password': password,
+    });
+
+/// Posts credentials to a Seerr auth endpoint and returns the connect.sid
+/// session cookie. Shared by the Jellyfin and local sign-in paths.
+Future<String> _seerrCookieLogin(
+  String baseUrl,
+  String path,
+  Map<String, dynamic> data,
+) async {
+  final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 12)));
+  try {
+    final res = await dio.post('$baseUrl$path', data: data);
     final setCookies = res.headers['set-cookie'] ?? const [];
     for (final c in setCookies) {
       final pair = c.split(';').first.trim();

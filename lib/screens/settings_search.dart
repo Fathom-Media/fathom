@@ -53,6 +53,7 @@ const _player = Icons.play_circle_outline_rounded;
 const _audio = Icons.subtitles_outlined;
 const _ratings = Icons.star_half_rounded;
 const _youtube = Icons.smart_display_rounded;
+const _integrations = Icons.travel_explore_rounded;
 
 /// Every searchable user setting. Grouped by section for upkeep.
 List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
@@ -65,6 +66,8 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   SettingResult(title: l.searchRequestDeclined, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'seerr', 'request', 'declined', 'rejected']),
   SettingResult(title: l.searchNowAvailable, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'seerr', 'request', 'available', 'downloaded', 'ready']),
   SettingResult(title: l.searchCheckForRequestUpdates, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['seerr', 'poll', 'interval', 'refresh', 'status', 'updates', 'requests']),
+  // Integrations — Seerr connection / sign-in
+  SettingResult(title: l.searchSeerrConnection, section: l.settingsSectionIntegrations, icon: _integrations, route: '/seerr-settings', keywords: ['seerr', 'jellyseerr', 'overseerr', 'connect', 'connection', 'login', 'log in', 'sign in', 'signin', 'account', 'jellyfin', 'local', 'api key', 'apikey', 'token', 'email', 'password', 'url', 'server', 'requests']),
   SettingResult(title: l.searchDownloadComplete, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'download', 'complete', 'finished', 'youtube']),
   // General — Storage
   SettingResult(title: l.searchImageCache, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['cache', 'storage', 'clear cache', 'disk', 'data', 'space', 'thumbnails', 'posters']),

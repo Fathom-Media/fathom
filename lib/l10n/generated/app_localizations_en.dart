@@ -957,6 +957,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter the server URL, username and password.';
 
   @override
+  String get seerrEnterCredentialsLocal =>
+      'Enter the server URL, email and password.';
+
+  @override
+  String get seerrLoginWithJellyfin => 'Login with Jellyfin';
+
+  @override
+  String get seerrLoginWithSeerr => 'Login with Seerr';
+
+  @override
+  String get seerrLocalSignInHelp =>
+      'Sign in with a Seerr account (email and password) created directly in Seerr, not through Jellyfin.';
+
+  @override
+  String get seerrEmailLabel => 'Email';
+
+  @override
   String seerrSignedInAs(String name) {
     return 'Signed in as $name';
   }
@@ -4346,6 +4363,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchRatings => 'Ratings';
+
+  @override
+  String get searchSeerrConnection => 'Seerr Sign-in';
 
   @override
   String get searchYouTube => 'YouTube';

@@ -1858,6 +1858,36 @@ abstract class AppLocalizations {
   /// **'Enter the server URL, username and password.'**
   String get seerrEnterCredentials;
 
+  /// Snackbar prompting the user to fill in all local sign-in fields (email instead of username).
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the server URL, email and password.'**
+  String get seerrEnterCredentialsLocal;
+
+  /// Sign-in method button: use the Jellyfin account. 'Jellyfin' is a brand name.
+  ///
+  /// In en, this message translates to:
+  /// **'Login with Jellyfin'**
+  String get seerrLoginWithJellyfin;
+
+  /// Sign-in method button: use a local Seerr account (email + password created in Seerr). 'Seerr' is a brand name.
+  ///
+  /// In en, this message translates to:
+  /// **'Login with Seerr'**
+  String get seerrLoginWithSeerr;
+
+  /// Helper text above the local Seerr sign-in form.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with a Seerr account (email and password) created directly in Seerr, not through Jellyfin.'**
+  String get seerrLocalSignInHelp;
+
+  /// Field label for the email used to sign in to a local Seerr account.
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get seerrEmailLabel;
+
   /// Snackbar after a successful Seerr sign-in.
   ///
   /// In en, this message translates to:
@@ -7863,6 +7893,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ratings'**
   String get searchRatings;
+
+  /// Settings search result title: the Seerr connection / sign-in screen (API key, Jellyfin, or local account).
+  ///
+  /// In en, this message translates to:
+  /// **'Seerr Sign-in'**
+  String get searchSeerrConnection;
 
   /// Settings search section: YouTube settings. 'YouTube' is a brand name.
   ///
