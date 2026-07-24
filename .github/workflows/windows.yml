@@ -34,10 +34,14 @@ jobs:
       - name: Bundle VC++ runtime
         shell: pwsh
         run: |
-          $crt = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC" -Recurse -Directory -Filter "Microsoft.VC*.CRT" |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -property installationPath
+          if (-not $vsPath) { throw "Could not locate a Visual Studio installation via vswhere" }
+          Write-Host "Visual Studio: $vsPath"
+          $crt = Get-ChildItem "$vsPath\VC\Redist\MSVC" -Recurse -Directory -Filter "Microsoft.VC*.CRT" |
             Where-Object { $_.FullName -like "*\x64\*" } |
             Select-Object -First 1
-          if (-not $crt) { throw "Could not locate the MSVC x64 CRT redistributable" }
+          if (-not $crt) { throw "Could not locate the MSVC x64 CRT redistributable under $vsPath" }
           Write-Host "Bundling CRT from $($crt.FullName)"
           Copy-Item "$($crt.FullName)\*.dll" -Destination "build\windows\x64\runner\Release\" -Force
           Get-ChildItem "build\windows\x64\runner\Release\" -Filter "*140*.dll" | Format-Table Name
