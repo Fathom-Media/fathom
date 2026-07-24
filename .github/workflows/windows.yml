@@ -42,7 +42,7 @@ jobs:
           # off msvcp140.dll's file version so we never bundle a CRT older than the
           # toolset that compiled the exe.
           $crt = Get-ChildItem "$vsPath\VC\Redist\MSVC" -Recurse -Filter "msvcp140.dll" |
-            Where-Object { $_.FullName -match '\\x64\\' -and $_.FullName -notmatch 'onecore' -and $_.FullName -notmatch 'debug' } |
+            Where-Object { $_.FullName -match '\\x64\\' -and $_.FullName -notmatch 'onecore' -and $_.FullName -notmatch 'debug' -and $_.FullName -notmatch 'spectre' } |
             Sort-Object { $_.VersionInfo.FileVersionRaw } -Descending |
             Select-Object -First 1
           if (-not $crt) { throw "Could not locate the MSVC x64 CRT redistributable under $vsPath" }
