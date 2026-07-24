@@ -53,3 +53,4 @@ jobs:
             build/Fathom-x86_64.AppImage
             build/Fathom-x86_64.AppImage.zsync
           if-no-files-found: error
+          retention-days: 7
