@@ -1136,6 +1136,26 @@
   "@seerrEnterCredentials": {
     "description": "Snackbar prompting the user to fill in all sign-in fields."
   },
+  "seerrEnterCredentialsLocal": "Enter the server URL, email and password.",
+  "@seerrEnterCredentialsLocal": {
+    "description": "Snackbar prompting the user to fill in all local sign-in fields (email instead of username)."
+  },
+  "seerrLoginWithJellyfin": "Login with Jellyfin",
+  "@seerrLoginWithJellyfin": {
+    "description": "Sign-in method button: use the Jellyfin account. 'Jellyfin' is a brand name."
+  },
+  "seerrLoginWithSeerr": "Login with Seerr",
+  "@seerrLoginWithSeerr": {
+    "description": "Sign-in method button: use a local Seerr account (email + password created in Seerr). 'Seerr' is a brand name."
+  },
+  "seerrLocalSignInHelp": "Sign in with a Seerr account (email and password) created directly in Seerr, not through Jellyfin.",
+  "@seerrLocalSignInHelp": {
+    "description": "Helper text above the local Seerr sign-in form."
+  },
+  "seerrEmailLabel": "Email",
+  "@seerrEmailLabel": {
+    "description": "Field label for the email used to sign in to a local Seerr account."
+  },
   "seerrSignedInAs": "Signed in as {name}",
   "@seerrSignedInAs": {
     "description": "Snackbar after a successful Seerr sign-in.",
@@ -5713,6 +5733,10 @@
   "searchRatings": "Ratings",
   "@searchRatings": {
     "description": "Settings search section: Ratings settings."
+  },
+  "searchSeerrConnection": "Seerr Sign-in",
+  "@searchSeerrConnection": {
+    "description": "Settings search result title: the Seerr connection / sign-in screen (API key, Jellyfin, or local account)."
   },
   "searchYouTube": "YouTube",
   "@searchYouTube": {
