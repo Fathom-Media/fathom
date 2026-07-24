@@ -70,6 +70,10 @@ flutter test                          # offline, deterministic
 flutter test --tags live --run-skipped   # hits real YouTube/network endpoints
 ```
 
+## Contributing
+
+[ARCHITECTURE.md](ARCHITECTURE.md) is a tour of the codebase and the design decisions worth knowing before touching things. [ROADMAP.md](ROADMAP.md) tracks what's planned, done, and parked. Translations are welcome, see above.
+
 ## License
 
 Fathom is free software, licensed under the [GNU Affero General Public License v3.0](LICENSE).
