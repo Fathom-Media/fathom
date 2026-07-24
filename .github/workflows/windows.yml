@@ -1,0 +1,37 @@
+name: Windows
+
+# Builds a Windows x64 release and uploads it as a downloadable artifact.
+# media_kit bundles libmpv.dll on Windows, so the build is self-contained.
+# Run manually via "Run workflow", or it fires automatically on a v* tag.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  windows:
+    name: Build Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Regenerate localizations
+        run: flutter gen-l10n
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fathom-windows-x64
+          path: build/windows/x64/runner/Release/
+          if-no-files-found: error
