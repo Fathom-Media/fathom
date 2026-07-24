@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, exit;
 import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -121,6 +121,12 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
   @override
   void onWindowClose() async {
     await _teardown();
+    // Windows stalls for several seconds finalizing the Flutter engine and
+    // libmpv on a normal window destroy. SyncPlay is already disconnected and
+    // the players disposed above, so terminate the process directly instead of
+    // grinding through the native teardown. Linux does the equivalent via
+    // _exit() in its runner; other desktops destroy the window normally.
+    if (!kIsWeb && Platform.isWindows) exit(0);
     await windowManager.destroy();
   }
 
