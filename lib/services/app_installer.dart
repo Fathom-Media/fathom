@@ -52,6 +52,16 @@ Future<void> _installLinuxAppImage(
 Future<void> _installWindowsZip(
     ReleaseAsset asset, void Function(double)? onProgress) async {
   final appDir = File(Platform.resolvedExecutable).parent.path;
+  final dartLog = File('$appDir\\fathom_dart.log');
+  void dlog(String m) {
+    try {
+      dartLog.writeAsStringSync(
+          '${DateTime.now().toIso8601String()} $m\r\n',
+          mode: FileMode.append);
+    } catch (_) {}
+  }
+
+  dlog('install start; appDir=$appDir');
   final tmp = await getTemporaryDirectory();
   final zipPath = '${tmp.path}\\fathom_update.zip';
   final scriptPath = '${tmp.path}\\fathom_update.ps1';
@@ -59,10 +69,12 @@ Future<void> _installWindowsZip(
   // Log beside the exe (a path we know exactly) so it's unambiguous where to
   // look, path_provider's temp dir isn't always %TEMP%.
   final logPath = '$appDir\\fathom_update.log';
+  dlog('temp=${tmp.path}');
 
   final dio = await secureDio();
   await dio.download(asset.url, zipPath,
       onReceiveProgress: (r, t) => _report(onProgress, r, t));
+  dlog('downloaded zip to $zipPath');
 
   // A helper that waits for this process to exit, extracts the new build over
   // the app folder, and relaunches. Windows locks a running exe, hence the
@@ -94,9 +106,19 @@ Remove-Item '$zipPath' -Force -ErrorAction SilentlyContinue
 Remove-Item '$extractDir' -Recurse -Force -ErrorAction SilentlyContinue
 ''';
   await File(scriptPath).writeAsString(script);
-  await Process.start(
-    'powershell',
+  dlog('wrote script; launching via cmd start');
+
+  // Launch through `cmd /c start` so the helper is an independent process that
+  // survives this one exiting (a plain detached child can be torn down with the
+  // parent), while staying in the interactive session so the relaunched window
+  // appears.
+  final proc = await Process.start(
+    'cmd.exe',
     [
+      '/c',
+      'start',
+      '',
+      'powershell',
       '-NoProfile',
       '-ExecutionPolicy',
       'Bypass',
@@ -107,5 +129,6 @@ Remove-Item '$extractDir' -Recurse -Force -ErrorAction SilentlyContinue
     ],
     mode: ProcessStartMode.detached,
   );
+  dlog('launched cmd pid=${proc.pid}; exiting');
   exit(0);
 }
