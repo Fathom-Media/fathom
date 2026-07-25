@@ -5125,7 +5125,7 @@ abstract class AppLocalizations {
   /// Splash screen tagline shown under the Fathom wordmark.
   ///
   /// In en, this message translates to:
-  /// **'Dive into your library'**
+  /// **'Dive into your media'**
   String get appTagline;
 
   /// Navigation rail label for the Home section.
