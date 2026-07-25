@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_updates.dart';
+import 'secure_http.dart';
 
 /// Downloads a release asset and installs it in place, then relaunches Fathom.
 ///
@@ -36,7 +36,7 @@ Future<void> _installLinuxAppImage(
     throw StateError('Not running as an AppImage.');
   }
   final staged = '$appImage.new';
-  final dio = Dio();
+  final dio = await secureDio();
   await dio.download(asset.url, staged,
       onReceiveProgress: (r, t) => _report(onProgress, r, t));
 
@@ -57,7 +57,7 @@ Future<void> _installWindowsZip(
   final scriptPath = '${tmp.path}\\fathom_update.ps1';
   final extractDir = '${tmp.path}\\fathom_update_extract';
 
-  final dio = Dio();
+  final dio = await secureDio();
   await dio.download(asset.url, zipPath,
       onReceiveProgress: (r, t) => _report(onProgress, r, t));
 
