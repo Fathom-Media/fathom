@@ -5,9 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 const double _titleBarHeight = 34;
+const double _winButtonWidth = 46;
 
-bool get _isDesktop =>
+/// Width of the window-control cluster (min/max/close) on the right. Top-of-app
+/// chrome like banners reserves this so its buttons don't sit under the controls.
+const double kWindowControlsWidth = _winButtonWidth * 3;
+
+bool get isDesktopWindowFrame =>
     !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
+
+bool get _isDesktop => isDesktopWindowFrame;
 
 /// Draws a seamless, transparent title bar (drag region + window buttons) over
 /// the content, Fladder-style: full-bleed art runs to the very top edge while
@@ -114,7 +121,7 @@ class _WinButtonState extends State<_WinButton> {
       child: GestureDetector(
         onTap: _run,
         child: Container(
-          width: 46,
+          width: _winButtonWidth,
           height: _titleBarHeight,
           color: closeHover
               ? widget.hoverColor

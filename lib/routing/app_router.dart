@@ -43,6 +43,7 @@ import '../screens/seerr_detail_screen.dart';
 import '../screens/seerr_person_screen.dart';
 import '../screens/seerr_season_screen.dart';
 import '../screens/seerr_settings_screen.dart';
+import '../screens/updates_screen.dart';
 import '../models/seerr_result.dart';
 import '../screens/server_connect_screen.dart';
 import '../screens/settings_screen.dart';
@@ -415,6 +416,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/seerr-settings',
               pageBuilder: (_, _) => _fadePage(const SeerrSettingsScreen())),
+          GoRoute(
+              path: '/updates',
+              pageBuilder: (_, _) => _fadePage(const UpdatesScreen())),
           GoRoute(
             path: '/seerr-detail',
             pageBuilder: (context, state) =>

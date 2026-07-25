@@ -17,6 +17,8 @@ import '../state/seerr_request_watcher.dart';
 import '../state/session_controller.dart';
 import '../state/syncplay.dart';
 import '../state/ui_providers.dart';
+import '../state/updates.dart';
+import '../widgets/window_frame.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/glass.dart';
 import '../widgets/app_logo.dart';
@@ -114,8 +116,9 @@ class AppShell extends ConsumerWidget {
             ],
           ),
         ),
-        // Notifications sit just above the account/admin control at the foot of
-        // the rail, both aligned to the same left rhythm as the nav items.
+        // An update indicator (only when a newer release is available) sits with
+        // the notifications and account controls at the foot of the rail.
+        _UpdateRailButton(extended: extended),
         _NotifBell(extended: extended),
         const SizedBox(height: 2),
         Padding(
@@ -220,7 +223,8 @@ class _OfflineBanner extends ConsumerWidget {
     return Material(
       color: scheme.errorContainer,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        padding: EdgeInsets.fromLTRB(
+            16, 8, 8 + (isDesktopWindowFrame ? kWindowControlsWidth : 0), 8),
         child: Row(
           children: [
             Icon(Icons.cloud_off_rounded,
@@ -239,6 +243,113 @@ class _OfflineBanner extends ConsumerWidget {
               child: Text(l.appDownloads),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A rail-foot indicator shown only when a newer release is available. Kicks
+/// the throttled startup check on first build, then watches the result; tapping
+/// it opens the Updates screen. Accent-tinted so it reads as an action, and it
+/// simply disappears once you're on the latest version.
+class _UpdateRailButton extends ConsumerStatefulWidget {
+  final bool extended;
+  const _UpdateRailButton({required this.extended});
+
+  @override
+  ConsumerState<_UpdateRailButton> createState() => _UpdateRailButtonState();
+}
+
+class _UpdateRailButtonState extends ConsumerState<_UpdateRailButton> {
+  bool _hover = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final prefs = ref.read(preferencesProvider).asData?.value;
+      if (prefs?.updateCheckOnStartup ?? true) {
+        ref.read(updateControllerProvider.notifier).check();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = ref.watch(updateControllerProvider).asData?.value;
+    if (status == null || !status.updateAvailable) {
+      return const SizedBox.shrink();
+    }
+    final l = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final version = status.latest!.version;
+    final icon = Icon(Icons.system_update_alt_rounded,
+        color: scheme.primary, size: 23);
+
+    void open() => context.push('/updates');
+
+    if (!widget.extended) {
+      return Tooltip(
+        message: l.updateBannerAvailable(version),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: open,
+            child: Container(
+              height: 44,
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: BoxDecoration(
+                color: _hover
+                    ? scheme.primary.withValues(alpha: 0.12)
+                    : scheme.primary.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(child: icon),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: open,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            height: 48,
+            decoration: BoxDecoration(
+              color: _hover
+                  ? scheme.primary.withValues(alpha: 0.14)
+                  : scheme.primary.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                icon,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(l.updatesTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      softWrap: false,
+                      style: TextStyle(
+                          color: scheme.primary,
+                          fontWeight: FontWeight.w600)),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -185,6 +185,78 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get settingsUpdates => 'Updates';
+
+  @override
+  String get settingsUpdatesSubtitle => 'Check for new versions';
+
+  @override
+  String get updatesTitle => 'Updates';
+
+  @override
+  String updateCurrentVersion(String version) {
+    return 'Current version: $version';
+  }
+
+  @override
+  String get updateChannelLabel => 'Update Channel';
+
+  @override
+  String get updateChannelStable => 'Stable';
+
+  @override
+  String get updateChannelBeta => 'Beta';
+
+  @override
+  String get updateChannelHelp => 'Beta includes pre-release test builds.';
+
+  @override
+  String get updateAutoCheckLabel => 'Check on Startup';
+
+  @override
+  String get updateCheckNow => 'Check for Updates';
+
+  @override
+  String get updateChecking => 'Checking…';
+
+  @override
+  String get updateUpToDate => 'You\'re on the latest version.';
+
+  @override
+  String updateAvailableHeadline(String version) {
+    return 'Version $version is available';
+  }
+
+  @override
+  String get updateReleaseNotes => 'Release Notes';
+
+  @override
+  String get updateViewOnGitHub => 'View on GitHub';
+
+  @override
+  String get updateCheckFailedNote =>
+      'Couldn\'t reach GitHub. Check your connection and try again.';
+
+  @override
+  String updateBannerAvailable(String version) {
+    return 'Update available: $version';
+  }
+
+  @override
+  String get updateView => 'View';
+
+  @override
+  String updateNotifTitle(String version) {
+    return 'Fathom $version is available';
+  }
+
+  @override
+  String get updateNotifBody => 'Open Updates to download and install.';
+
+  @override
+  String get commonDismiss => 'Dismiss';
+
+  @override
   String get settingsSupport => 'Support Development';
 
   @override
