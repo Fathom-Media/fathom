@@ -2,6 +2,8 @@ import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
 
+import 'secure_http.dart';
+
 /// A downloadable file attached to a release.
 class ReleaseAsset {
   final String name;
@@ -91,8 +93,9 @@ Future<GithubRelease?> fetchLatestRelease({
   required bool includePrereleases,
   Dio? dio,
 }) async {
-  final client =
-      dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 12)));
+  final client = dio ??
+      await secureDio(
+          options: BaseOptions(connectTimeout: const Duration(seconds: 12)));
   try {
     final res = await client.get(
       'https://api.github.com/repos/$_repo/releases',
