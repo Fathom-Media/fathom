@@ -3742,7 +3742,7 @@
   "@appConnect": {
     "description": "Server connect screen: button that validates and connects to the entered server."
   },
-  "appTagline": "Dive into your library",
+  "appTagline": "Dive into your media",
   "@appTagline": {
     "description": "Splash screen tagline shown under the Fathom wordmark."
   },

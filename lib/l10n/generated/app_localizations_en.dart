@@ -2856,7 +2856,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appConnect => 'Connect';
 
   @override
-  String get appTagline => 'Dive into your library';
+  String get appTagline => 'Dive into your media';
 
   @override
   String get appNavHome => 'Home';
