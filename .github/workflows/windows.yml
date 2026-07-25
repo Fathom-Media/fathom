@@ -99,3 +99,15 @@ jobs:
           files: Fathom-windows-x64.zip
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
+
+      # For -dev.N tags, also point the floating "dev-latest" pre-release at this
+      # build so testers have one stable "always latest dev" download URL.
+      - name: Update dev-latest alias
+        if: github.ref_type == 'tag' && contains(github.ref_name, '-dev.')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-latest
+          name: Dev Build (latest)
+          files: Fathom-windows-x64.zip
+          prerelease: true
+          make_latest: false
