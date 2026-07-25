@@ -91,8 +91,18 @@ class UpdatesScreen extends ConsumerWidget {
       ColorScheme scheme, AsyncValue<UpdateStatus?> async) {
     if (async.isLoading) return const SizedBox.shrink();
     if (async.hasError) {
-      return Text(l.updateCheckFailedNote,
-          style: Theme.of(context).textTheme.bodyMedium);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l.updateCheckFailedNote,
+              style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 6),
+          // Diagnostic detail (temporary): the raw fetch error.
+          SelectableText('${async.error}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ],
+      );
     }
     final status = async.asData?.value;
     if (status == null) return const SizedBox.shrink();
