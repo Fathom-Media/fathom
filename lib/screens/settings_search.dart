@@ -54,6 +54,7 @@ const _audio = Icons.subtitles_outlined;
 const _ratings = Icons.star_half_rounded;
 const _youtube = Icons.smart_display_rounded;
 const _integrations = Icons.travel_explore_rounded;
+const _about = Icons.system_update_alt_rounded;
 
 /// Every searchable user setting. Grouped by section for upkeep.
 List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
@@ -68,6 +69,8 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   SettingResult(title: l.searchCheckForRequestUpdates, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['seerr', 'poll', 'interval', 'refresh', 'status', 'updates', 'requests']),
   // Integrations — Seerr connection / sign-in
   SettingResult(title: l.searchSeerrConnection, section: l.settingsSectionIntegrations, icon: _integrations, route: '/seerr-settings', keywords: ['seerr', 'jellyseerr', 'overseerr', 'connect', 'connection', 'login', 'log in', 'sign in', 'signin', 'account', 'jellyfin', 'local', 'api key', 'apikey', 'token', 'email', 'password', 'url', 'server', 'requests']),
+  // About — Updates
+  SettingResult(title: l.settingsUpdates, section: l.settingsSectionAbout, icon: _about, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'beta', 'stable', 'latest']),
   SettingResult(title: l.searchDownloadComplete, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'download', 'complete', 'finished', 'youtube']),
   // General — Storage
   SettingResult(title: l.searchImageCache, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['cache', 'storage', 'clear cache', 'disk', 'data', 'space', 'thumbnails', 'posters']),

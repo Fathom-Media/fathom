@@ -168,6 +168,114 @@
       }
     }
   },
+  "settingsUpdates": "Updates",
+  "@settingsUpdates": {
+    "description": "About-section row title opening the update checker."
+  },
+  "settingsUpdatesSubtitle": "Check for new versions",
+  "@settingsUpdatesSubtitle": {
+    "description": "About-section row subtitle for the update checker."
+  },
+  "updatesTitle": "Updates",
+  "@updatesTitle": {
+    "description": "Title of the Updates screen."
+  },
+  "updateCurrentVersion": "Current version: {version}",
+  "@updateCurrentVersion": {
+    "description": "Shows the running app version on the Updates screen.",
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "0.9.0"
+      }
+    }
+  },
+  "updateChannelLabel": "Update Channel",
+  "@updateChannelLabel": {
+    "description": "Label above the stable/beta update channel selector."
+  },
+  "updateChannelStable": "Stable",
+  "@updateChannelStable": {
+    "description": "Update channel option: stable releases only."
+  },
+  "updateChannelBeta": "Beta",
+  "@updateChannelBeta": {
+    "description": "Update channel option: include pre-release/beta builds."
+  },
+  "updateChannelHelp": "Beta includes pre-release test builds.",
+  "@updateChannelHelp": {
+    "description": "Helper text under the update channel selector."
+  },
+  "updateAutoCheckLabel": "Check on Startup",
+  "@updateAutoCheckLabel": {
+    "description": "Toggle: automatically check for updates when the app starts."
+  },
+  "updateCheckNow": "Check for Updates",
+  "@updateCheckNow": {
+    "description": "Button that checks for updates immediately."
+  },
+  "updateChecking": "Checking…",
+  "@updateChecking": {
+    "description": "Button label while an update check is in progress."
+  },
+  "updateUpToDate": "You're on the latest version.",
+  "@updateUpToDate": {
+    "description": "Shown when no newer release is available."
+  },
+  "updateAvailableHeadline": "Version {version} is available",
+  "@updateAvailableHeadline": {
+    "description": "Headline on the Updates screen when a newer release exists.",
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "0.9.1"
+      }
+    }
+  },
+  "updateReleaseNotes": "Release Notes",
+  "@updateReleaseNotes": {
+    "description": "Label above the release notes text on the Updates screen."
+  },
+  "updateViewOnGitHub": "View on GitHub",
+  "@updateViewOnGitHub": {
+    "description": "Button that opens the release page in the browser to download. 'GitHub' is a brand name."
+  },
+  "updateCheckFailedNote": "Couldn't reach GitHub. Check your connection and try again.",
+  "@updateCheckFailedNote": {
+    "description": "Shown when the update check fails (offline / rate-limited)."
+  },
+  "updateBannerAvailable": "Update available: {version}",
+  "@updateBannerAvailable": {
+    "description": "Top-of-app banner text when a newer release is available.",
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "0.9.1"
+      }
+    }
+  },
+  "updateView": "View",
+  "@updateView": {
+    "description": "Banner button that opens the Updates screen."
+  },
+  "updateNotifTitle": "Fathom {version} is available",
+  "@updateNotifTitle": {
+    "description": "Notification title when a newer version is first detected. 'Fathom' is the app name.",
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "example": "0.9.1"
+      }
+    }
+  },
+  "updateNotifBody": "Open Updates to download and install.",
+  "@updateNotifBody": {
+    "description": "Notification body prompting the user to open the Updates screen."
+  },
+  "commonDismiss": "Dismiss",
+  "@commonDismiss": {
+    "description": "Generic dismiss action, e.g. hiding a banner."
+  },
   "settingsSupport": "Support Development",
   "settingsSupportSubtitle": "Fathom is free. Buy me a coffee on Ko-fi",
   "settingsLicenses": "Open Source Licenses",

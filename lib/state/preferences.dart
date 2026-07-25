@@ -236,6 +236,12 @@ class Prefs {
   /// id/title/type/data. Stored locally, so no admin access is needed.
   final List<Map<String, dynamic>> seerrCustomSliders;
 
+  // In-app update checking (GitHub Releases).
+  final String updateChannel; // 'stable' or 'beta' (include pre-releases)
+  final bool updateCheckOnStartup;
+  final int updateLastCheck; // epoch ms of the last check, for throttling
+  final String updateNotifiedVersion; // version we already posted an update notification for
+
   const Prefs({
     this.themeMode = 'system',
     this.accentColor = 0xFF6C8CFF,
@@ -336,6 +342,10 @@ class Prefs {
     this.seerrRowOrder = kDefaultSeerrRows,
     this.seerrHiddenRows = const [],
     this.seerrCustomSliders = const [],
+    this.updateChannel = 'stable',
+    this.updateCheckOnStartup = true,
+    this.updateLastCheck = 0,
+    this.updateNotifiedVersion = '',
   });
 
   /// Player key bindings with any user overrides applied over the defaults.
@@ -436,6 +446,10 @@ class Prefs {
     List<String>? seerrRowOrder,
     List<String>? seerrHiddenRows,
     List<Map<String, dynamic>>? seerrCustomSliders,
+    String? updateChannel,
+    bool? updateCheckOnStartup,
+    int? updateLastCheck,
+    String? updateNotifiedVersion,
   }) =>
       Prefs(
         themeMode: themeMode ?? this.themeMode,
@@ -549,6 +563,11 @@ class Prefs {
         seerrRowOrder: seerrRowOrder ?? this.seerrRowOrder,
         seerrHiddenRows: seerrHiddenRows ?? this.seerrHiddenRows,
         seerrCustomSliders: seerrCustomSliders ?? this.seerrCustomSliders,
+        updateChannel: updateChannel ?? this.updateChannel,
+        updateCheckOnStartup: updateCheckOnStartup ?? this.updateCheckOnStartup,
+        updateLastCheck: updateLastCheck ?? this.updateLastCheck,
+        updateNotifiedVersion:
+            updateNotifiedVersion ?? this.updateNotifiedVersion,
       );
 
   Map<String, dynamic> toJson() => {
@@ -646,6 +665,10 @@ class Prefs {
         'seerrRowOrder': seerrRowOrder,
         'seerrHiddenRows': seerrHiddenRows,
         'seerrCustomSliders': seerrCustomSliders,
+        'updateChannel': updateChannel,
+        'updateCheckOnStartup': updateCheckOnStartup,
+        'updateLastCheck': updateLastCheck,
+        'updateNotifiedVersion': updateNotifiedVersion,
       };
 
   factory Prefs.fromJson(Map<String, dynamic> j) => Prefs(
@@ -771,6 +794,10 @@ class Prefs {
           for (final e in (j['seerrCustomSliders'] as List?) ?? const [])
             if (e is Map) Map<String, dynamic>.from(e),
         ],
+        updateChannel: j['updateChannel'] as String? ?? 'stable',
+        updateCheckOnStartup: j['updateCheckOnStartup'] as bool? ?? true,
+        updateLastCheck: (j['updateLastCheck'] as num?)?.toInt() ?? 0,
+        updateNotifiedVersion: j['updateNotifiedVersion'] as String? ?? '',
       );
 }
 

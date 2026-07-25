@@ -231,6 +231,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         subtitle: Text(l.settingsVersion(version)),
       ),
       ListTile(
+        leading: _leading(context, Icons.system_update_alt_rounded),
+        title: Text(l.settingsUpdates),
+        subtitle: Text(l.settingsUpdatesSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/updates'),
+      ),
+      ListTile(
         leading: _leading(context, Icons.favorite_rounded),
         title: Text(l.settingsSupport),
         subtitle: Text(l.settingsSupportSubtitle),

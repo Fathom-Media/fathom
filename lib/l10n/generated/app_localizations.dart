@@ -436,6 +436,132 @@ abstract class AppLocalizations {
   /// **'Version {version}'**
   String settingsVersion(String version);
 
+  /// About-section row title opening the update checker.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get settingsUpdates;
+
+  /// About-section row subtitle for the update checker.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for new versions'**
+  String get settingsUpdatesSubtitle;
+
+  /// Title of the Updates screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get updatesTitle;
+
+  /// Shows the running app version on the Updates screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Current version: {version}'**
+  String updateCurrentVersion(String version);
+
+  /// Label above the stable/beta update channel selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Channel'**
+  String get updateChannelLabel;
+
+  /// Update channel option: stable releases only.
+  ///
+  /// In en, this message translates to:
+  /// **'Stable'**
+  String get updateChannelStable;
+
+  /// Update channel option: include pre-release/beta builds.
+  ///
+  /// In en, this message translates to:
+  /// **'Beta'**
+  String get updateChannelBeta;
+
+  /// Helper text under the update channel selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Beta includes pre-release test builds.'**
+  String get updateChannelHelp;
+
+  /// Toggle: automatically check for updates when the app starts.
+  ///
+  /// In en, this message translates to:
+  /// **'Check on Startup'**
+  String get updateAutoCheckLabel;
+
+  /// Button that checks for updates immediately.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for Updates'**
+  String get updateCheckNow;
+
+  /// Button label while an update check is in progress.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking…'**
+  String get updateChecking;
+
+  /// Shown when no newer release is available.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re on the latest version.'**
+  String get updateUpToDate;
+
+  /// Headline on the Updates screen when a newer release exists.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} is available'**
+  String updateAvailableHeadline(String version);
+
+  /// Label above the release notes text on the Updates screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Release Notes'**
+  String get updateReleaseNotes;
+
+  /// Button that opens the release page in the browser to download. 'GitHub' is a brand name.
+  ///
+  /// In en, this message translates to:
+  /// **'View on GitHub'**
+  String get updateViewOnGitHub;
+
+  /// Shown when the update check fails (offline / rate-limited).
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t reach GitHub. Check your connection and try again.'**
+  String get updateCheckFailedNote;
+
+  /// Top-of-app banner text when a newer release is available.
+  ///
+  /// In en, this message translates to:
+  /// **'Update available: {version}'**
+  String updateBannerAvailable(String version);
+
+  /// Banner button that opens the Updates screen.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get updateView;
+
+  /// Notification title when a newer version is first detected. 'Fathom' is the app name.
+  ///
+  /// In en, this message translates to:
+  /// **'Fathom {version} is available'**
+  String updateNotifTitle(String version);
+
+  /// Notification body prompting the user to open the Updates screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Updates to download and install.'**
+  String get updateNotifBody;
+
+  /// Generic dismiss action, e.g. hiding a banner.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get commonDismiss;
+
   /// No description provided for @settingsSupport.
   ///
   /// In en, this message translates to:
