@@ -103,8 +103,8 @@ class _YoutubeChannelScreenState extends ConsumerState<YoutubeChannelScreen> {
   }
 }
 
-/// The channel's uploads, paginated. Kept on youtube_explode rather than the
-/// browse endpoint because it pages properly.
+/// The channel's uploads, paged through the InnerTube browse endpoint (full
+/// metadata, one request per page).
 class _UploadsTab extends ConsumerWidget {
   final String channelId;
   const _UploadsTab({required this.channelId});

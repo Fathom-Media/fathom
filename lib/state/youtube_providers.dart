@@ -473,53 +473,44 @@ class YoutubeChannelUploads extends AsyncNotifier<YoutubeUploads> {
   YoutubeChannelUploads(this.channelId);
   final String channelId;
 
-  static const _chunk = 12;
-  ChannelUploadsList? _page;
-  final _buffer = <String>[];
-  bool _exhausted = false;
+  // Paged through the InnerTube browse endpoint, not youtube_explode. Browse
+  // returns full video metadata (title, duration, views, date) per page in a
+  // single request, so a channel costs one request per page instead of the
+  // dozen-per-page that the youtube_explode path needed (list items there are
+  // partial, so each had to be re-fetched, which tripped YouTube's rate limit
+  // and broke both paging and playback).
+  String? _continuation;
 
   @override
   Future<YoutubeUploads> build() async {
-    final yt = ref.watch(youtubeClientProvider);
-    _page = await yt.channels.getUploadsFromPage(ChannelId(channelId));
-    _buffer
-      ..clear()
-      ..addAll(_page!.map((v) => v.id.value));
-    _exhausted = false;
-    final videos = await _takeChunk(yt);
-    return YoutubeUploads(videos: videos, hasMore: _hasMore);
-  }
-
-  bool get _hasMore => _buffer.isNotEmpty || !_exhausted;
-
-  Future<List<YoutubeVideo>> _takeChunk(YoutubeExplode yt) async {
-    final ids = _buffer.take(_chunk).toList();
-    _buffer.removeRange(0, ids.length);
-    return _hydrate(yt, ids);
+    final yt = ref.watch(youtubeInnerTubeProvider);
+    final tab = await yt.channelTab(channelId, YtChannelTabKind.videos);
+    _continuation = tab.continuation;
+    return YoutubeUploads(videos: tab.videos, hasMore: tab.continuation != null);
   }
 
   Future<void> loadMore() async {
     final current = state.asData?.value;
-    if (current == null || current.loadingMore || !current.hasMore) return;
+    final token = _continuation;
+    if (current == null ||
+        current.loadingMore ||
+        !current.hasMore ||
+        token == null) {
+      return;
+    }
     state = AsyncData(current.copyWith(loadingMore: true));
-    final yt = ref.read(youtubeClientProvider);
     try {
-      if (_buffer.isEmpty && !_exhausted) {
-        final next = await _page?.nextPage();
-        if (next == null || next.isEmpty) {
-          _exhausted = true;
-        } else {
-          _page = next;
-          _buffer.addAll(next.map((v) => v.id.value));
-        }
-      }
-      final more = await _takeChunk(yt);
+      final page =
+          await ref.read(youtubeInnerTubeProvider).channelTabMore(token);
+      _continuation = page.continuation;
       state = AsyncData(YoutubeUploads(
-        videos: [...current.videos, ...more],
-        hasMore: _hasMore,
+        videos: [...current.videos, ...page.videos],
+        hasMore: page.continuation != null && page.videos.isNotEmpty,
       ));
     } catch (_) {
-      state = AsyncData(current.copyWith(loadingMore: false, hasMore: false));
+      // A transient continuation error shouldn't end paging for good; keep
+      // hasMore true so the next scroll retries instead of stalling.
+      state = AsyncData(current.copyWith(loadingMore: false));
     }
   }
 }
