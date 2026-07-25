@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../services/app_updates.dart';
+import '../state/installer.dart';
 import '../state/preferences.dart';
 import '../state/updates.dart';
 
@@ -77,14 +79,14 @@ class UpdatesScreen extends ConsumerWidget {
             label: Text(async.isLoading ? l.updateChecking : l.updateCheckNow),
           ),
           const SizedBox(height: 20),
-          _result(context, l, scheme, async),
+          _result(context, ref, l, scheme, async),
         ],
       ),
     );
   }
 
-  Widget _result(BuildContext context, AppLocalizations l, ColorScheme scheme,
-      AsyncValue<UpdateStatus?> async) {
+  Widget _result(BuildContext context, WidgetRef ref, AppLocalizations l,
+      ColorScheme scheme, AsyncValue<UpdateStatus?> async) {
     if (async.isLoading) return const SizedBox.shrink();
     if (async.hasError) {
       return Text(l.updateCheckFailedNote,
@@ -128,15 +130,77 @@ class UpdatesScreen extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: () => launchUrl(Uri.parse(latest.htmlUrl),
-                  mode: LaunchMode.externalApplication),
-              icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              label: Text(l.updateViewOnGitHub),
-            ),
+            _actions(context, ref, l, latest),
           ],
         ),
       ),
+    );
+  }
+
+  /// Install + view actions. Offers in-app "Download & Install" only when the
+  /// build can replace itself (AppImage / portable Windows) and the release has
+  /// a matching asset; otherwise just links to the release page.
+  Widget _actions(BuildContext context, WidgetRef ref, AppLocalizations l,
+      GithubRelease latest) {
+    final asset = latest.platformAsset;
+    final install = ref.watch(installControllerProvider);
+
+    Widget viewOnGitHub({bool filled = true}) {
+      final child = Text(l.updateViewOnGitHub);
+      void open() => launchUrl(Uri.parse(latest.htmlUrl),
+          mode: LaunchMode.externalApplication);
+      return filled
+          ? FilledButton.icon(
+              onPressed: open,
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: child)
+          : TextButton.icon(
+              onPressed: open,
+              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              label: child);
+    }
+
+    if (!canSelfInstall || asset == null) return viewOnGitHub();
+
+    if (install.busy) {
+      final pct = (install.progress * 100).clamp(0, 100).toStringAsFixed(0);
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(l.updateDownloading(pct),
+              style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+                value: install.progress > 0 ? install.progress : null),
+          ),
+        ],
+      );
+    }
+
+    // Stack the buttons full-width in a stretched Column: bare buttons in a Row
+    // get unbounded width from the theme's full-width style and don't paint.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (install.error != null) ...[
+          Text(l.updateInstallFailed,
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.error)),
+          const SizedBox(height: 8),
+        ],
+        FilledButton.icon(
+          onPressed: () =>
+              ref.read(installControllerProvider.notifier).install(asset),
+          icon: const Icon(Icons.download_rounded, size: 18),
+          label: Text(l.updateDownloadInstall),
+        ),
+        const SizedBox(height: 8),
+        viewOnGitHub(filled: false),
+      ],
     );
   }
 

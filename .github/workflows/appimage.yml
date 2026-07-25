@@ -33,7 +33,14 @@ jobs:
       - name: Build self-contained AppImage
         env:
           BUNDLE_MPV: '1'
-        run: ./tool/build_appimage.sh
+        run: |
+          # On a v* tag, stamp the app version from the tag so the released
+          # build reports its exact tag (e.g. 0.9.0-beta.2) for update checks.
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
+            export BUILD_NAME="${GITHUB_REF_NAME#v}"
+            echo "Stamping version: $BUILD_NAME"
+          fi
+          ./tool/build_appimage.sh
 
       - name: Smoke test (loads past the dynamic linker headlessly)
         run: |

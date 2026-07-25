@@ -1,4 +1,21 @@
+import 'dart:io' show Platform;
+
 import 'package:dio/dio.dart';
+
+/// A downloadable file attached to a release.
+class ReleaseAsset {
+  final String name;
+  final String url; // browser_download_url
+  final int size; // bytes
+
+  const ReleaseAsset({required this.name, required this.url, required this.size});
+
+  factory ReleaseAsset.fromJson(Map<String, dynamic> j) => ReleaseAsset(
+        name: j['name'] as String? ?? '',
+        url: j['browser_download_url'] as String? ?? '',
+        size: (j['size'] as num?)?.toInt() ?? 0,
+      );
+}
 
 /// A published Fathom release, from the GitHub Releases API.
 class GithubRelease {
@@ -8,6 +25,7 @@ class GithubRelease {
   final String body; // markdown notes
   final String htmlUrl; // release page
   final bool prerelease;
+  final List<ReleaseAsset> assets;
 
   const GithubRelease({
     required this.tagName,
@@ -16,6 +34,7 @@ class GithubRelease {
     required this.body,
     required this.htmlUrl,
     required this.prerelease,
+    this.assets = const [],
   });
 
   factory GithubRelease.fromJson(Map<String, dynamic> j) {
@@ -28,8 +47,39 @@ class GithubRelease {
       body: (j['body'] as String? ?? '').trim(),
       htmlUrl: j['html_url'] as String? ?? '',
       prerelease: j['prerelease'] as bool? ?? false,
+      assets: [
+        for (final a in (j['assets'] as List?) ?? const [])
+          if (a is Map) ReleaseAsset.fromJson(a.cast<String, dynamic>()),
+      ],
     );
   }
+
+  /// The installable asset for the running platform: the AppImage on Linux, the
+  /// Windows zip on Windows. Null when the release has no matching file.
+  ReleaseAsset? get platformAsset {
+    ReleaseAsset? pick(bool Function(String) test) {
+      for (final a in assets) {
+        if (test(a.name.toLowerCase())) return a;
+      }
+      return null;
+    }
+
+    if (Platform.isLinux) return pick((n) => n.endsWith('.appimage'));
+    if (Platform.isWindows) {
+      return pick((n) => n.endsWith('.zip') && n.contains('windows'));
+    }
+    return null;
+  }
+}
+
+/// Whether Fathom can replace itself in place on this install: only when running
+/// as an AppImage on Linux, or as the portable build on Windows. A package- or
+/// store-managed install must update through its manager, so this returns false
+/// and callers fall back to opening the release page.
+bool get canSelfInstall {
+  if (Platform.isLinux) return Platform.environment.containsKey('APPIMAGE');
+  if (Platform.isWindows) return true;
+  return false;
 }
 
 const _repo = 'Fathom-Media/fathom';

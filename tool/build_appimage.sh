@@ -25,9 +25,14 @@ work="$root/build/appimage"
 cache="$work/tools"
 
 # 1. Release build ---------------------------------------------------------
+# BUILD_NAME (optional) stamps the app version, so a tagged CI release reports
+# its tag (e.g. 0.9.0-beta.2) rather than whatever pubspec happens to say. Local
+# builds leave it unset and use the pubspec version.
 if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-  echo "==> flutter build linux --release"
-  ( cd "$root" && flutter build linux --release )
+  build_args=(--release)
+  [[ -n "${BUILD_NAME:-}" ]] && build_args+=(--build-name="$BUILD_NAME")
+  echo "==> flutter build linux ${build_args[*]}"
+  ( cd "$root" && flutter build linux "${build_args[@]}" )
 fi
 if [[ ! -x "$bundle/$BIN" ]]; then
   echo "Release bundle not found at $bundle/$BIN" >&2
