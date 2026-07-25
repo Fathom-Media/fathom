@@ -34,6 +34,7 @@ What's done, what's planned, what's parked. Fathom is in beta (v0.9.0); the core
 - [ ] AUR package for Arch
 - [ ] Flathub submission
 - [ ] Community translations via Weblate
+- [ ] Android app
 - [ ] macOS and iOS builds (pending Mac hardware and a paid Apple Developer account)
 
 ## Phase 5 — Planned features

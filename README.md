@@ -52,7 +52,7 @@ Fathom brings your whole Jellyfin setup into one window: movies, shows, music, a
 
 ## Installing
 
-Fathom runs on Linux and Windows today, with a self-contained download for each. macOS and iOS are on the radar but not available yet (see [Support](#support)).
+Fathom runs on Linux and Windows today, with a self-contained download for each. An Android app is planned, and macOS and iOS are on the radar but need Mac hardware (see [Support](#support)).
 
 **Linux (AppImage)**
 
@@ -76,6 +76,10 @@ flutter build linux --release
 ```
 
 `ffmpeg` is recommended: it merges YouTube's separate video and audio streams when you download in higher quality. Everything else works without it.
+
+**Android**
+
+Planned. Fathom is built with Flutter, so an Android build is on the roadmap, no extra hardware needed, just development time.
 
 **macOS and iOS**
 
