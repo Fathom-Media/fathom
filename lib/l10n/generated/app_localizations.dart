@@ -526,6 +526,24 @@ abstract class AppLocalizations {
   /// **'View on GitHub'**
   String get updateViewOnGitHub;
 
+  /// Button that downloads the new version and installs it in place.
+  ///
+  /// In en, this message translates to:
+  /// **'Download & Install'**
+  String get updateDownloadInstall;
+
+  /// Progress label while the update downloads.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading… {percent}%'**
+  String updateDownloading(String percent);
+
+  /// Shown when the in-app download/install fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed. Try again, or use View on GitHub.'**
+  String get updateInstallFailed;
+
   /// Shown when the update check fails (offline / rate-limited).
   ///
   /// In en, this message translates to:

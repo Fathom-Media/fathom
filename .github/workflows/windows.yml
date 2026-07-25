@@ -27,7 +27,17 @@ jobs:
         run: flutter gen-l10n
 
       - name: Build Windows release
-        run: flutter build windows --release
+        shell: pwsh
+        run: |
+          # On a v* tag, stamp the app version from the tag so the released
+          # build reports its exact tag (e.g. 0.9.0-beta.2) for update checks.
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -like 'v*') {
+            $v = $env:GITHUB_REF_NAME.TrimStart('v')
+            Write-Host "Stamping version: $v"
+            flutter build windows --release --build-name=$v
+          } else {
+            flutter build windows --release
+          }
 
       # Bundle the MSVC runtime (MSVCP140.dll, VCRUNTIME140*.dll) next to the exe
       # so the app runs on a clean Windows install without the VC++ redistributable.

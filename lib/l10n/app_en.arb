@@ -240,6 +240,24 @@
   "@updateViewOnGitHub": {
     "description": "Button that opens the release page in the browser to download. 'GitHub' is a brand name."
   },
+  "updateDownloadInstall": "Download & Install",
+  "@updateDownloadInstall": {
+    "description": "Button that downloads the new version and installs it in place."
+  },
+  "updateDownloading": "Downloading… {percent}%",
+  "@updateDownloading": {
+    "description": "Progress label while the update downloads.",
+    "placeholders": {
+      "percent": {
+        "type": "String",
+        "example": "42"
+      }
+    }
+  },
+  "updateInstallFailed": "Download failed. Try again, or use View on GitHub.",
+  "@updateInstallFailed": {
+    "description": "Shown when the in-app download/install fails."
+  },
   "updateCheckFailedNote": "Couldn't reach GitHub. Check your connection and try again.",
   "@updateCheckFailedNote": {
     "description": "Shown when the update check fails (offline / rate-limited)."

@@ -234,6 +234,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateViewOnGitHub => 'View on GitHub';
 
   @override
+  String get updateDownloadInstall => 'Download & Install';
+
+  @override
+  String updateDownloading(String percent) {
+    return 'Downloading… $percent%';
+  }
+
+  @override
+  String get updateInstallFailed =>
+      'Download failed. Try again, or use View on GitHub.';
+
+  @override
   String get updateCheckFailedNote =>
       'Couldn\'t reach GitHub. Check your connection and try again.';
 
