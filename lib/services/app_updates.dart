@@ -97,7 +97,13 @@ Future<GithubRelease?> fetchLatestRelease({
     final res = await client.get(
       'https://api.github.com/repos/$_repo/releases',
       queryParameters: {'per_page': 30},
-      options: Options(headers: {'Accept': 'application/vnd.github+json'}),
+      // GitHub's API requires a User-Agent and returns 403 without one. dart:io
+      // sets a default on some platforms but not others (Windows sends none), so
+      // set it explicitly rather than relying on the implicit default.
+      options: Options(headers: {
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'Fathom',
+      }),
     );
     final list = (res.data as List?) ?? const [];
     final releases = list

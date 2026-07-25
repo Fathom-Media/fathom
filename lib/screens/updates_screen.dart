@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../services/app_updates.dart';
+import '../state/app_info.dart';
 import '../state/installer.dart';
 import '../state/preferences.dart';
 import '../state/updates.dart';
@@ -30,7 +31,8 @@ class UpdatesScreen extends ConsumerWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Icon(Icons.info_outline_rounded, color: scheme.primary),
-            title: Text(l.updateCurrentVersion(async.asData?.value?.currentVersion ?? '…')),
+            title: Text(l.updateCurrentVersion(
+                ref.watch(appVersionProvider).asData?.value ?? '…')),
           ),
           const SizedBox(height: 8),
           Text(l.updateChannelLabel,
