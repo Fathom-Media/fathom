@@ -1,8 +1,8 @@
 # Fathom
 
-A modern desktop client for Jellyfin, with an optional built-in YouTube player and Seerr requests.
+An all-in-one desktop client for Jellyfin. Your media, your server, Seerr requests, and YouTube, without leaving the app.
 
-Fathom is a Jellyfin client that treats playback as the main event. Your movies, shows, music, and Live TV all live in one fast, good-looking app, and everything plays through mpv (via [media_kit](https://github.com/media-kit/media-kit) / libmpv), so you get direct play, hardware decoding, and real subtitle and audio track control instead of a lowest-common-denominator web player. Two optional extras round it out: a full, ad-free YouTube client and Seerr requests, each toggled on or off in settings. Use what you want and ignore the rest.
+Fathom brings your whole Jellyfin setup into one window: movies, shows, music, and Live TV, plus most of Jellyfin's server-side management (users, libraries, scheduled tasks, transcoding, Live TV and DVR, and more), so you rarely need the web dashboard. Two optional integrations, Seerr requests and a full YouTube client, live right inside the app, each toggled on or off in settings. No more bouncing between the dashboard, a requests page, and a browser tab. Everything plays through mpv (via [media_kit](https://github.com/media-kit/media-kit) / libmpv), so you get direct play, hardware decoding, and real subtitle and audio track control.
 
 <!-- Screenshots: add a few under docs/ and reference them here once captured. -->
 
@@ -13,10 +13,13 @@ Fathom is a Jellyfin client that treats playback as the main event. Your movies,
 - **Music**: albums, a play queue, now playing, shuffle and repeat, synced lyrics with an online fallback, and scrobbling.
 - **Live TV and DVR**: a channel list, an EPG guide, recording with series rules, and tuner and guide-provider setup.
 
+### Run your server from the app
+- **Server administration** without opening the Jellyfin web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, and plugins.
+
 ### One player for everything
-- **mpv-grade playback** through media_kit and libmpv: direct play with a transcode fallback, hardware decoding, and proper subtitle and audio track selection.
 - **The same player everywhere.** Jellyfin and YouTube share one control bar, one seek bar (with chapter and skip markers), the same speed control, track pickers, and keyboard shortcuts, so nothing feels bolted on.
 - **Picture in picture.** Shrink a video into a floating mini player and keep browsing, or pop it out to a resizable, always-on-top window on your desktop.
+- **mpv-grade playback** through media_kit and libmpv: direct play with a transcode fallback, hardware decoding, and proper subtitle and audio track selection.
 - **Tune it to taste**: video fit, playback speed, a control bar you can style (glass, dark, or plain), remappable keyboard shortcuts, and scrub-preview thumbnails.
 
 ### YouTube, built in (optional)
@@ -25,29 +28,32 @@ Fathom is a Jellyfin client that treats playback as the main event. Your movies,
 - **Downloads** for offline viewing: video as MP4 or MKV, audio as M4A or MP3, at a quality and to a folder you choose.
 - No account and no ads. Subscriptions, playlists, and history stay on your device, and nothing is sent to YouTube.
 
-### Requests, ratings, and more
+### Requests, ratings, and watching together
 - **Seerr (optional)**: browse and request titles, then approve, decline, or manage requests without leaving the page, with download progress shown right on the detail view.
 - **Ratings that matter to you**: Rotten Tomatoes, IMDb, and community scores, plus Letterboxd, Metacritic, Trakt and others through MDBList.
 - **Watch together**: SyncPlay-based shared playback that works with the official Jellyfin apps and other clients, not only with other Fathom users.
-- **Server administration**: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, and plugins, all from the app.
 
 ### Make it yours
-- Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, desktop and in-app notifications, a settings screen you can search, and a fully translatable interface.
+- Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, in-app updates with a stable or beta channel, desktop and in-app notifications, a settings screen you can search, and a fully translatable interface.
 
 ## Installing
 
-Fathom is Linux-first (built and tested on Arch with KDE) and cross-platform by design.
+Fathom runs on Linux and Windows today, with a self-contained download for each. macOS and iOS are on the radar but not available yet (see [Support](#support)).
 
-**AppImage** (most distributions)
+**Linux (AppImage)**
 
-Download the latest `Fathom-x86_64.AppImage` from the [Releases](https://github.com/Fathom-Media/fathom/releases) page, then make it executable and run it:
+Download the latest `Fathom-x86_64.AppImage` from the [Releases](https://github.com/Fathom-Media/fathom/releases) page, make it executable, and run it:
 
 ```
 chmod +x Fathom-x86_64.AppImage
 ./Fathom-x86_64.AppImage
 ```
 
-It uses your system's `mpv`/`libmpv` (Arch: `mpv`, Fedora: `mpv-libs`, Debian/Ubuntu: `libmpv2`).
+The AppImage is self-contained (libmpv and the media codecs are bundled), so there's nothing else to install.
+
+**Windows**
+
+Download `Fathom-windows-x64.zip` from the [Releases](https://github.com/Fathom-Media/fathom/releases) page, extract it, and run `fathom.exe`. It's self-contained, with nothing else to install.
 
 **Build from source**
 
@@ -56,6 +62,10 @@ flutter build linux --release
 ```
 
 `ffmpeg` is recommended: it merges YouTube's separate video and audio streams when you download in higher quality. Everything else works without it.
+
+**macOS and iOS**
+
+Not available yet. Building for either needs Mac hardware (and, for iOS, an iPhone and a paid Apple Developer account), which I don't currently own. If you'd like to see Fathom on Apple platforms, see [Support](#support).
 
 ## Translations
 
@@ -73,6 +83,12 @@ flutter test --tags live --run-skipped   # hits real YouTube/network endpoints
 ## Contributing
 
 [ARCHITECTURE.md](ARCHITECTURE.md) is a tour of the codebase and the design decisions worth knowing before touching things. [ROADMAP.md](ROADMAP.md) tracks what's planned, done, and parked. Translations are welcome, see above.
+
+## Support
+
+Fathom is free and open source, and always will be. It's built and maintained by one person; donations help cover real costs like Mac hardware and an Apple Developer account to enable macOS and iOS builds, plus ongoing development. Donations are appreciated but never required, and starring the repo helps with discoverability and costs nothing.
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Buy_me_a_coffee-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/traceapps)
 
 ## License
 
