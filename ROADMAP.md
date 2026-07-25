@@ -29,11 +29,12 @@ What's done, what's planned, what's parked. Fathom is in beta (v0.9.0); the core
 ## Phase 4 — Release and reach
 
 - [x] Self-contained Linux AppImage
+- [x] Self-contained Windows build (portable zip)
+- [x] In-app updates (Linux and Windows), with a stable or beta channel
 - [ ] AUR package for Arch
-- [ ] Windows build and installer
 - [ ] Flathub submission
 - [ ] Community translations via Weblate
-- [ ] macOS build
+- [ ] macOS and iOS builds (pending Mac hardware and a paid Apple Developer account)
 
 ## Phase 5 — Planned features
 
