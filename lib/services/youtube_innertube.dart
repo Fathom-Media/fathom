@@ -345,7 +345,49 @@ class YoutubeInnerTube {
       playlists: playlists,
       availableTabs: available,
       isRequestedTab: matched,
+      continuation: matched ? _continuationToken(data) : null,
     );
+  }
+
+  /// A further page of a channel tab, for a token from [channelTab]. Returns
+  /// full video metadata in a single request, so paging a channel costs one
+  /// request per page rather than one per video.
+  Future<YtChannelTab> channelTabMore(String continuation) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      _browseEndpoint,
+      queryParameters: const {'prettyPrint': 'false'},
+      data: {'context': _context, 'continuation': continuation},
+    );
+    final data = res.data;
+    if (data == null) return const YtChannelTab();
+    final videos = <YoutubeVideo>[];
+    for (final s in _findAll(data, 'shortsLockupViewModel')) {
+      final v = _shortsLockup(Map<String, dynamic>.from(s as Map));
+      if (v != null) videos.add(v);
+    }
+    for (final l in _findAll(data, 'lockupViewModel')) {
+      final map = Map<String, dynamic>.from(l as Map);
+      if ('${map['contentType']}' == 'LOCKUP_CONTENT_TYPE_VIDEO') {
+        final v = _lockup(map);
+        if (v != null) videos.add(v);
+      }
+    }
+    return YtChannelTab(
+      videos: videos,
+      isRequestedTab: true,
+      continuation: _continuationToken(data),
+    );
+  }
+
+  /// The next-page token embedded in a browse response, if any.
+  String? _continuationToken(dynamic data) {
+    for (final c in _findAll(data, 'continuationCommand')) {
+      if (c is Map) {
+        final t = c['token'];
+        if (t is String && t.isNotEmpty) return t;
+      }
+    }
+    return null;
   }
 
   /// Every value under [key], at any depth. The browse response nests its
@@ -809,10 +851,14 @@ class YoutubeInnerTube {
       for (final row in rows) {
         final parts = _path(row, ['metadataParts']);
         if (parts is! List) continue;
-        lines.add([
+        final line = [
           for (final p in parts) (_path(p, ['text', 'content']) as String?) ?? '',
-        ]);
-        channelId ??= _path(row, [
+        ];
+        lines.add(line);
+        // The channel row carries a browse link. It's present in search and
+        // related lists but absent on a channel's own page (redundant there),
+        // so key off the link rather than the row position.
+        final linked = _path(row, [
           'metadataParts',
           0,
           'text',
@@ -823,11 +869,24 @@ class YoutubeInnerTube {
           'browseEndpoint',
           'browseId',
         ]) as String?;
+        if (linked != null && linked.isNotEmpty && channelId == null) {
+          channelId = linked;
+          if (line.isNotEmpty) author = line[0].trim();
+        }
       }
-      if (lines.isNotEmpty) author = lines[0].join(' ').trim();
-      if (lines.length > 1) {
-        if (lines[1].isNotEmpty) viewsLabel = lines[1][0];
-        if (lines[1].length > 1) published = lines[1][1];
+      // Views + published live in whichever row mentions "views": row 1 in a
+      // search result (after the channel row), row 0 on a channel page.
+      for (final line in lines) {
+        final vi = line.indexWhere((p) => p.toLowerCase().contains('view'));
+        if (vi < 0) continue;
+        viewsLabel = line[vi];
+        for (var i = 0; i < line.length; i++) {
+          if (i != vi && line[i].trim().isNotEmpty) {
+            published = line[i];
+            break;
+          }
+        }
+        break;
       }
     }
 
@@ -1008,11 +1067,15 @@ class YtChannelTab {
   /// False when YouTube fell back to Home because the tab doesn't exist.
   final bool isRequestedTab;
 
+  /// Token for the next page of this tab, or null at the end.
+  final String? continuation;
+
   const YtChannelTab({
     this.videos = const [],
     this.playlists = const [],
     this.availableTabs = const {},
     this.isRequestedTab = false,
+    this.continuation,
   });
 
   bool get isEmpty => videos.isEmpty && playlists.isEmpty;
