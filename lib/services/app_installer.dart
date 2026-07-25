@@ -56,7 +56,9 @@ Future<void> _installWindowsZip(
   final zipPath = '${tmp.path}\\fathom_update.zip';
   final scriptPath = '${tmp.path}\\fathom_update.ps1';
   final extractDir = '${tmp.path}\\fathom_update_extract';
-  final logPath = '${tmp.path}\\fathom_update.log';
+  // Log beside the exe (a path we know exactly) so it's unambiguous where to
+  // look, path_provider's temp dir isn't always %TEMP%.
+  final logPath = '$appDir\\fathom_update.log';
 
   final dio = await secureDio();
   await dio.download(asset.url, zipPath,
