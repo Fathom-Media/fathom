@@ -37,8 +37,9 @@ jobs:
         shell: pwsh
         run: |
           # Version precedence: a manual "version" input (for testing self-update)
-          # wins; otherwise a v* tag stamps its exact tag (e.g. 0.9.0-beta.2) so
-          # the released build reports the right version for update checks.
+          # wins; otherwise a v* tag uses its exact tag (e.g. 0.9.0-beta.2) so the
+          # build reports the right version for update checks. Edit pubspec rather
+          # than pass --build-name, so Linux and Windows stamp identically.
           $v = ''
           if ('${{ inputs.version }}' -ne '') {
             $v = '${{ inputs.version }}'
@@ -46,11 +47,10 @@ jobs:
             $v = $env:GITHUB_REF_NAME.TrimStart('v')
           }
           if ($v -ne '') {
-            Write-Host "Stamping version: $v"
-            flutter build windows --release --build-name=$v
-          } else {
-            flutter build windows --release
+            Write-Host "Stamping pubspec version: $v+$env:GITHUB_RUN_NUMBER"
+            (Get-Content pubspec.yaml) -replace '^version: .*', "version: $v+$env:GITHUB_RUN_NUMBER" | Set-Content pubspec.yaml
           }
+          flutter build windows --release
 
       # Bundle the MSVC runtime (MSVCP140.dll, VCRUNTIME140*.dll) next to the exe
       # so the app runs on a clean Windows install without the VC++ redistributable.

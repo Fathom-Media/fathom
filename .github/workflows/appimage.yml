@@ -36,11 +36,13 @@ jobs:
         env:
           BUNDLE_MPV: '1'
         run: |
-          # On a v* tag, stamp the app version from the tag so the released
-          # build reports its exact tag (e.g. 0.9.0-beta.2) for update checks.
+          # On a v* tag, set the pubspec version to the tag so the build reports
+          # its exact tag (e.g. 0.9.0-beta.2) for update checks. `flutter build
+          # linux` ignores --build-name, so edit pubspec directly, which works.
           if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
-            export BUILD_NAME="${GITHUB_REF_NAME#v}"
-            echo "Stamping version: $BUILD_NAME"
+            V="${GITHUB_REF_NAME#v}"
+            echo "Stamping pubspec version: ${V}+${GITHUB_RUN_NUMBER}"
+            sed -i "s/^version: .*/version: ${V}+${GITHUB_RUN_NUMBER}/" pubspec.yaml
           fi
           ./tool/build_appimage.sh
 
