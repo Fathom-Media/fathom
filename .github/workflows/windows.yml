@@ -17,6 +17,8 @@ jobs:
   windows:
     name: Build Windows (x64)
     runs-on: windows-latest
+    permissions:
+      contents: write # attach the zip to the release on a tag
     steps:
       - uses: actions/checkout@v4
 
@@ -79,3 +81,21 @@ jobs:
           path: build/windows/x64/runner/Release/
           if-no-files-found: error
           retention-days: 7
+
+      # Package the release zip with a top-level "Fathom" folder, the shape the
+      # in-app updater and manual users expect.
+      - name: Package release zip
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path staging\Fathom | Out-Null
+          Copy-Item build\windows\x64\runner\Release\* staging\Fathom\ -Recurse -Force
+          Compress-Archive -Path staging\Fathom -DestinationPath Fathom-windows-x64.zip -Force
+
+      - name: Attach to release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Fathom-windows-x64.zip
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
