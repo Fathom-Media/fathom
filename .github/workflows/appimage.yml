@@ -7,6 +7,11 @@ name: AppImage
 # current distros. Run manually via "Run workflow", or on a v* tag.
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Override build version (e.g. 0.9.0-beta.2)'
+        required: false
+        default: ''
   push:
     tags: ['v*']
 
@@ -36,11 +41,16 @@ jobs:
         env:
           BUNDLE_MPV: '1'
         run: |
-          # On a v* tag, set the pubspec version to the tag so the build reports
-          # its exact tag (e.g. 0.9.0-beta.2) for update checks. `flutter build
-          # linux` ignores --build-name, so edit pubspec directly, which works.
-          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
+          # Set the pubspec version so the build reports the right version for
+          # update checks: a manual "version" input wins, else a v* tag uses its
+          # tag. `flutter build linux` ignores --build-name, so edit pubspec.
+          V=""
+          if [[ -n "${{ inputs.version }}" ]]; then
+            V="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == v* ]]; then
             V="${GITHUB_REF_NAME#v}"
+          fi
+          if [[ -n "$V" ]]; then
             echo "Stamping pubspec version: ${V}+${GITHUB_RUN_NUMBER}"
             sed -i "s/^version: .*/version: ${V}+${GITHUB_RUN_NUMBER}/" pubspec.yaml
           fi
