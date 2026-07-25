@@ -56,27 +56,46 @@ Future<void> _installWindowsZip(
   final zipPath = '${tmp.path}\\fathom_update.zip';
   final scriptPath = '${tmp.path}\\fathom_update.ps1';
   final extractDir = '${tmp.path}\\fathom_update_extract';
+  final logPath = '${tmp.path}\\fathom_update.log';
 
   final dio = await secureDio();
   await dio.download(asset.url, zipPath,
       onReceiveProgress: (r, t) => _report(onProgress, r, t));
 
-  // The zip contains a top-level "Fathom" folder (see the release packaging).
+  // A helper that waits for this process to exit, extracts the new build over
+  // the app folder, and relaunches. Windows locks a running exe, hence the
+  // wait. Every step is logged to fathom_update.log for diagnosis, with a
+  // timeout so a stuck wait can't hang forever, and a fallback for the zip's
+  // top-level folder (release zips wrap files in "Fathom", CI zips don't).
   final script = '''
-\$ErrorActionPreference = 'SilentlyContinue'
-while (Get-Process -Id $pid) { Start-Sleep -Milliseconds 300 }
-Remove-Item '$extractDir' -Recurse -Force
-Expand-Archive -Path '$zipPath' -DestinationPath '$extractDir' -Force
-Copy-Item (Join-Path '$extractDir' 'Fathom\\*') -Destination '$appDir' -Recurse -Force
-Start-Process -FilePath (Join-Path '$appDir' 'fathom.exe')
-Remove-Item '$zipPath' -Force
-Remove-Item '$extractDir' -Recurse -Force
-Remove-Item '$scriptPath' -Force
+\$log = '$logPath'
+function Log(\$m) { "[\$(Get-Date -Format o)] \$m" | Out-File -FilePath \$log -Append -Encoding utf8 }
+Log "start; waiting for PID $pid"
+\$n = 0
+while ((Get-Process -Id $pid -ErrorAction SilentlyContinue) -and (\$n -lt 200)) { Start-Sleep -Milliseconds 300; \$n++ }
+Log "wait done (n=\$n)"
+try {
+  if (Test-Path '$extractDir') { Remove-Item '$extractDir' -Recurse -Force }
+  Log "extracting '$zipPath'"
+  Expand-Archive -Path '$zipPath' -DestinationPath '$extractDir' -Force
+  \$src = Join-Path '$extractDir' 'Fathom'
+  if (-not (Test-Path \$src)) { \$src = '$extractDir' }
+  Log "copying from \$src to '$appDir'"
+  Copy-Item (Join-Path \$src '*') -Destination '$appDir' -Recurse -Force
+  Log "relaunching"
+  Start-Process -FilePath (Join-Path '$appDir' 'fathom.exe') -WorkingDirectory '$appDir'
+  Log "done"
+} catch {
+  Log "ERROR: \$_"
+}
+Remove-Item '$zipPath' -Force -ErrorAction SilentlyContinue
+Remove-Item '$extractDir' -Recurse -Force -ErrorAction SilentlyContinue
 ''';
   await File(scriptPath).writeAsString(script);
   await Process.start(
     'powershell',
     [
+      '-NoProfile',
       '-ExecutionPolicy',
       'Bypass',
       '-WindowStyle',
