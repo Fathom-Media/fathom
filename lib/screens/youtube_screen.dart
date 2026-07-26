@@ -27,6 +27,7 @@ import '../services/subscription_transfer.dart';
 import '../services/youtube_search_params.dart';
 import '../services/youtube_download.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 
 /// The YouTube section: subscribed channels, what they've posted, and search.
 class YoutubeScreen extends ConsumerWidget {
@@ -43,6 +44,7 @@ class YoutubeScreen extends ConsumerWidget {
       initialIndex: subs.isEmpty ? 0 : 1,
       child: Scaffold(
         appBar: AppBar(
+          leading: mobileDrawerLeading(context),
           title: const Text('YouTube'),
           // Subscriptions lists the channels themselves; the merged
           // newest-first feed is its own tab. They were one screen before, so

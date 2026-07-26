@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -104,6 +105,9 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
             seerrCookie: cookie,
           ));
       if (!mounted) return;
+      // Let the password manager offer to save these credentials before we
+      // clear the field.
+      TextInput.finishAutofillContext();
       _password.clear();
       messenger.showSnackBar(SnackBar(
           content: Text(l.seerrSignedInAs(name ?? (local ? email : user)))));
@@ -213,33 +217,48 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
                       : l.seerrSignInHelp,
                   style: Theme.of(context).textTheme.bodySmall),
               const SizedBox(height: 14),
-              if (_loginKind == 'local')
-                TextField(
-                  controller: _email,
-                  keyboardType: TextInputType.emailAddress,
-                  autocorrect: false,
-                  decoration: InputDecoration(
-                    labelText: l.seerrEmailLabel,
-                    prefixIcon: const Icon(Icons.alternate_email_rounded),
-                  ),
-                )
-              else
-                TextField(
-                  controller: _username,
-                  autocorrect: false,
-                  decoration: InputDecoration(
-                    labelText: l.seerrUsernameLabel,
-                    prefixIcon: const Icon(Icons.person_outline_rounded),
-                  ),
-                ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _password,
-                obscureText: true,
-                onSubmitted: (_) => _busy ? null : _signIn(),
-                decoration: InputDecoration(
-                  labelText: l.seerrPasswordLabel,
-                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+              AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_loginKind == 'local')
+                      TextField(
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        autocorrect: false,
+                        autofillHints: const [
+                          AutofillHints.email,
+                          AutofillHints.username
+                        ],
+                        decoration: InputDecoration(
+                          labelText: l.seerrEmailLabel,
+                          prefixIcon:
+                              const Icon(Icons.alternate_email_rounded),
+                        ),
+                      )
+                    else
+                      TextField(
+                        controller: _username,
+                        autocorrect: false,
+                        autofillHints: const [AutofillHints.username],
+                        decoration: InputDecoration(
+                          labelText: l.seerrUsernameLabel,
+                          prefixIcon:
+                              const Icon(Icons.person_outline_rounded),
+                        ),
+                      ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _password,
+                      obscureText: true,
+                      autofillHints: const [AutofillHints.password],
+                      onSubmitted: (_) => _busy ? null : _signIn(),
+                      decoration: InputDecoration(
+                        labelText: l.seerrPasswordLabel,
+                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),

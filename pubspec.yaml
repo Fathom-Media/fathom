@@ -59,6 +59,10 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   dbus: ^0.7.14
   google_fonts: ^8.2.0
+  # Per-app screen brightness for the player's left-side swipe gesture (mobile).
+  screen_brightness: ^2.1.3
+  # Background audio + lock-screen/notification media controls (music, mobile).
+  audio_service: ^0.18.15
 
 dev_dependencies:
   flutter_test:

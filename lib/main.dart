@@ -9,9 +9,12 @@ import 'package:media_kit/media_kit.dart';
 import 'package:uuid/uuid.dart';
 import 'package:window_manager/window_manager.dart';
 
+import 'package:audio_service/audio_service.dart';
+
 import 'app.dart';
 import 'services/desktop_integration.dart';
 import 'services/notifications.dart';
+import 'state/audio_handler.dart';
 import 'state/providers.dart';
 
 Future<void> main() async {
@@ -58,9 +61,33 @@ Future<void> main() async {
   const storage = FlutterSecureStorage();
   final deviceId = await _getOrCreateDeviceId(storage);
 
+  // Mobile-only: bring up the OS media session for background music + a
+  // lock-screen/notification transport. Guarded so a failure here (or an
+  // unsupported platform) never blocks app launch — the app just runs without
+  // the media notification.
+  FathomAudioHandler? audioHandler;
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    try {
+      audioHandler = await AudioService.init(
+        builder: () => FathomAudioHandler(),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId: 'app.fathom.player.audio',
+          androidNotificationChannelName: 'Playback',
+          androidNotificationOngoing: true,
+          androidStopForegroundOnPause: true,
+        ),
+      );
+    } catch (_) {
+      audioHandler = null;
+    }
+  }
+
   runApp(
     ProviderScope(
-      overrides: [deviceIdProvider.overrideWithValue(deviceId)],
+      overrides: [
+        deviceIdProvider.overrideWithValue(deviceId),
+        audioHandlerProvider.overrideWithValue(audioHandler),
+      ],
       child: const FathomApp(),
     ),
   );

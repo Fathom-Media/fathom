@@ -82,10 +82,11 @@ class JellyfinClient {
   /// the unauthenticated /System/Info/Public with a short timeout: a reachable
   /// server replies in milliseconds, so a slow failure means offline. Never
   /// throws, offline is an answer.
-  Future<bool> pingServer(String baseUrl) async {
+  Future<bool> pingServer(String baseUrl,
+      {Duration timeout = const Duration(seconds: 4)}) async {
     final probe = Dio(BaseOptions(
-      connectTimeout: const Duration(seconds: 4),
-      receiveTimeout: const Duration(seconds: 4),
+      connectTimeout: timeout,
+      receiveTimeout: timeout,
     ));
     try {
       final res = await probe.get('$baseUrl/System/Info/Public');

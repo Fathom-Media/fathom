@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:math';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 
+import 'audio_handler.dart';
 import '../api/jellyfin_client.dart';
 import '../models/base_item.dart';
 import '../models/session.dart';
@@ -72,6 +75,9 @@ class AudioController extends Notifier<AudioState> {
   String? _reportedId;
   int _lastPositionTicks = 0;
   final Map<String, BaseItemDto> _byId = {};
+  final _random = Random();
+  // The OS media session (mobile only); null on desktop or if init failed.
+  FathomAudioHandler? _handler;
 
   // The stream URL always contains /Audio/{itemId}/stream — resolve the current
   // track by URL so it stays correct even after shuffling reorders the queue.
@@ -80,6 +86,19 @@ class AudioController extends Notifier<AudioState> {
 
   @override
   AudioState build() {
+    // Wire the OS media session (mobile). The handler owns no player, so route
+    // its transport buttons back into ours; state is pushed the other way below.
+    _handler = ref.read(audioHandlerProvider);
+    final h = _handler;
+    if (h != null) {
+      h.onPlay = _player.play;
+      h.onPause = _player.pause;
+      h.onNext = _player.next;
+      h.onPrevious = _player.previous;
+      h.onSeek = _player.seek;
+      h.onStop = () async => _player.stop();
+    }
+
     final subPlaylist = _player.stream.playlist.listen((pl) {
       // Keep the visible queue in the player's real order (matters once shuffle
       // or a reorder has rearranged things), and follow the current track.
@@ -97,6 +116,7 @@ class AudioController extends Notifier<AudioState> {
         _reportStart(track.id);
         state = state.copyWith(
             queue: ordered.isNotEmpty ? ordered : state.queue, current: track);
+        _pushNowPlaying();
       } else if (ordered.isNotEmpty) {
         state = state.copyWith(queue: ordered);
       }
@@ -104,15 +124,84 @@ class AudioController extends Notifier<AudioState> {
     final subPosition = _player.stream.position.listen((p) {
       _lastPositionTicks = p.inMicroseconds * 10;
     });
-    _progressTimer =
-        Timer.periodic(const Duration(seconds: 10), (_) => _reportProgress());
+    // Mirror transport state to the media session. Position is extrapolated by
+    // the OS between updates, so pushing on play/pause/buffer/duration changes
+    // (plus the 10s progress tick) keeps the notification honest.
+    StreamSubscription<bool>? subPlaying, subBuffering;
+    StreamSubscription<Duration>? subDuration;
+    if (h != null) {
+      subPlaying = _player.stream.playing.listen((_) => _pushPlaybackState());
+      subBuffering = _player.stream.buffering.listen((_) => _pushPlaybackState());
+      // Re-publish now-playing once the real duration is known.
+      subDuration = _player.stream.duration.listen((_) => _pushNowPlaying());
+    }
+    _progressTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _reportProgress();
+      _pushPlaybackState();
+    });
     ref.onDispose(() {
       subPlaylist.cancel();
       subPosition.cancel();
+      subPlaying?.cancel();
+      subBuffering?.cancel();
+      subDuration?.cancel();
       _progressTimer?.cancel();
       _reportStopped();
     });
     return const AudioState();
+  }
+
+  /// Publish the current track's metadata to the OS media session.
+  void _pushNowPlaying() {
+    final h = _handler;
+    final t = state.current;
+    if (h == null || t == null) return;
+    final c = _ctx();
+    Uri? art;
+    if (c != null) {
+      // A song usually has no image of its own; the album carries the art. Fall
+      // back to it, matching MediaImage's resolution.
+      String? imgItemId, imgTag;
+      if (t.primaryImageTag != null) {
+        imgItemId = t.id;
+        imgTag = t.primaryImageTag;
+      } else if (t.albumPrimaryImageTag != null && t.albumId != null) {
+        imgItemId = t.albumId;
+        imgTag = t.albumPrimaryImageTag;
+      }
+      if (imgItemId != null) {
+        art = Uri.tryParse(c.client.imageUrl(
+          baseUrl: c.session.baseUrl,
+          itemId: imgItemId,
+          tag: imgTag,
+          maxHeight: 512,
+        ));
+      }
+    }
+    final dur = _player.state.duration;
+    h.setNowPlaying(MediaItem(
+      id: t.id,
+      title: t.name,
+      artist: t.albumArtist ??
+          (t.artists.isNotEmpty ? t.artists.join(', ') : null),
+      album: t.album,
+      duration: dur > Duration.zero ? dur : null,
+      artUri: art,
+    ));
+  }
+
+  /// Publish current transport state (playing/paused, position, buffered).
+  void _pushPlaybackState() {
+    final h = _handler;
+    if (h == null) return;
+    final s = _player.state;
+    h.setPlayback(
+      playing: s.playing,
+      buffering: s.buffering,
+      position: s.position,
+      buffered: s.buffer,
+      speed: s.rate,
+    );
   }
 
   ({Session session, JellyfinClient client})? _ctx() {
@@ -121,7 +210,8 @@ class AudioController extends Notifier<AudioState> {
     return (session: session, client: ref.read(jellyfinClientProvider));
   }
 
-  Future<void> playQueue(List<BaseItemDto> tracks, int startIndex) async {
+  Future<void> playQueue(List<BaseItemDto> tracks, int startIndex,
+      {bool shuffle = false}) async {
     if (tracks.isEmpty) return;
     final c = _ctx();
     if (c == null) return;
@@ -136,10 +226,21 @@ class AudioController extends Notifier<AudioState> {
     _byId
       ..clear()
       ..addEntries(tracks.map((t) => MapEntry(t.id, t)));
-    state = state.copyWith(queue: tracks, current: tracks[startIndex]);
-    await _player.open(Playlist(medias, index: startIndex));
+    // Shuffle: start on a RANDOM track (not always the first) and turn the
+    // player's shuffle mode on. A normal play starts at [startIndex] in order,
+    // and explicitly turns shuffle off so the two buttons are true opposites.
+    final index =
+        (shuffle && tracks.length > 1) ? _random.nextInt(tracks.length) : startIndex;
+    state =
+        state.copyWith(queue: tracks, current: tracks[index], shuffle: shuffle);
+    await _player.open(Playlist(medias, index: index));
+    await _player.setShuffle(shuffle);
     _lastPositionTicks = 0;
-    _reportStart(tracks[startIndex].id);
+    _reportStart(tracks[index].id);
+    // Publish to the media session right away so its foreground notification
+    // appears promptly (and Android sees startForeground before its deadline).
+    _pushNowPlaying();
+    _pushPlaybackState();
   }
 
   void _reportStart(String itemId) {

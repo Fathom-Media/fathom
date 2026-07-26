@@ -430,6 +430,54 @@ abstract class AppLocalizations {
   /// **'Server'**
   String get settingsServer;
 
+  /// No description provided for @serverAddressesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Server Addresses'**
+  String get serverAddressesTitle;
+
+  /// No description provided for @serverAddressInternalLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Home Address'**
+  String get serverAddressInternalLabel;
+
+  /// No description provided for @serverAddressExternalLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote Address'**
+  String get serverAddressExternalLabel;
+
+  /// No description provided for @serverAddressInternalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'http://192.168.1.10:8096'**
+  String get serverAddressInternalHint;
+
+  /// No description provided for @serverAddressExternalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'https://jellyfin.example.com'**
+  String get serverAddressExternalHint;
+
+  /// No description provided for @serverAddressHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Fathom uses the Home address on your local network and the Remote address elsewhere, switching automatically. Leave Home blank to always use the Remote address.'**
+  String get serverAddressHelp;
+
+  /// No description provided for @serverAddressHome.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get serverAddressHome;
+
+  /// No description provided for @serverAddressRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote'**
+  String get serverAddressRemote;
+
   /// App version row subtitle on the About section.
   ///
   /// In en, this message translates to:
@@ -5151,6 +5199,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Live TV'**
   String get appNavLiveTv;
+
+  /// Bottom navigation label opening a sheet of overflow destinations on phones.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get appNavMore;
 
   /// Banner shown across the top of the app when the active server cannot be reached.
   ///

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:screen_brightness/screen_brightness.dart';
 
 import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -201,6 +202,17 @@ class FathomPlayerControls extends StatefulWidget {
   /// that context.
   final bool showTopBar;
 
+  /// Whether to offer a fullscreen toggle (the bar button and the double-tap-
+  /// centre gesture). Off on a phone, where the player route already fills the
+  /// screen and orientation handles the rest, so media_kit's own fullscreen
+  /// doesn't fight the forced-landscape lock.
+  final bool showFullscreen;
+
+  /// Enables the phone swipe gestures: vertical drag on the left half changes
+  /// screen brightness, on the right half changes volume (each with a HUD).
+  /// Off on desktop, where there's no touch and no per-app brightness.
+  final bool touchGestures;
+
   /// Minimizes the video into the floating mini player. Null hides the button.
   final VoidCallback? onMinimize;
 
@@ -252,6 +264,8 @@ class FathomPlayerControls extends StatefulWidget {
     this.autoHide = true,
     this.barStyle = 'glass',
     this.showTopBar = true,
+    this.showFullscreen = true,
+    this.touchGestures = false,
     this.onMinimize,
     this.onToggleTheater,
     this.theaterActive = false,
@@ -304,6 +318,11 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
   Timer? _hudTimer;
   double _lastVolume = 0;
 
+  // Current per-app screen brightness (0..1), seeded from the OS on first drag.
+  // Only touched on mobile, where [widget.touchGestures] is on.
+  double? _brightness;
+  bool _brightnessChanged = false;
+
   Player get _p => widget.player;
 
   @override
@@ -311,6 +330,12 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
     super.initState();
     _playing = _p.state.playing;
     _lastVolume = _p.state.volume;
+    if (widget.touchGestures) {
+      ScreenBrightness()
+          .application
+          .then((b) => _brightness = b)
+          .catchError((_) => _brightness = 0.5);
+    }
     _playSub = _p.stream.playing.listen((v) {
       if (!mounted) return;
       _playing = v;
@@ -343,7 +368,46 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
     _flashCtrl.dispose();
     _playSub?.cancel();
     _volSub?.cancel();
+    // Hand brightness back to the system so a manual level doesn't stick after
+    // leaving the player.
+    if (_brightnessChanged) {
+      ScreenBrightness().resetApplicationScreenBrightness().catchError((_) {});
+    }
     super.dispose();
+  }
+
+  /// Vertical drag on the left half: screen brightness. [dy] is the per-event
+  /// delta in logical pixels (positive = downward = dimmer).
+  void _dragBrightness(double dy) {
+    final next = ((_brightness ?? 0.5) - dy * 0.003).clamp(0.0, 1.0);
+    _brightness = next;
+    _brightnessChanged = true;
+    ScreenBrightness()
+        .setApplicationScreenBrightness(next)
+        .catchError((_) {});
+    _flashHud(
+      next < 0.34
+          ? Icons.brightness_low_rounded
+          : (next < 0.67
+              ? Icons.brightness_medium_rounded
+              : Icons.brightness_high_rounded),
+      '${(next * 100).round()}%',
+    );
+    _show();
+  }
+
+  /// Vertical drag on the right half: playback volume (positive dy = quieter).
+  void _dragVolume(double dy) {
+    final next = (_p.state.volume - dy * 0.35).clamp(0.0, 100.0);
+    _p.setVolume(next);
+    _lastVolume = next;
+    _flashHud(
+      next <= 0
+          ? Icons.volume_off_rounded
+          : (next < 50 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
+      '${next.round()}%',
+    );
+    _show();
   }
 
   void _flashHud(IconData icon, String text) {
@@ -421,15 +485,22 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                     behavior: HitTestBehavior.opaque,
                     onTap: _toggle,
                     onDoubleTap: widget.isLive
-                        ? () => toggleFullscreen(context)
+                        ? (widget.showFullscreen
+                            ? () => toggleFullscreen(context)
+                            : null)
                         : () => _seekZone(-widget.seekBackSeconds),
+                    onVerticalDragUpdate: widget.touchGestures
+                        ? (d) => _dragBrightness(d.primaryDelta ?? 0)
+                        : null,
                   ),
                 ),
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: _toggle,
-                    onDoubleTap: () => toggleFullscreen(context),
+                    onDoubleTap: widget.showFullscreen
+                        ? () => toggleFullscreen(context)
+                        : null,
                   ),
                 ),
                 Expanded(
@@ -437,8 +508,13 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                     behavior: HitTestBehavior.opaque,
                     onTap: _toggle,
                     onDoubleTap: widget.isLive
-                        ? () => toggleFullscreen(context)
+                        ? (widget.showFullscreen
+                            ? () => toggleFullscreen(context)
+                            : null)
                         : () => _seekZone(widget.seekForwardSeconds),
+                    onVerticalDragUpdate: widget.touchGestures
+                        ? (d) => _dragVolume(d.primaryDelta ?? 0)
+                        : null,
                   ),
                 ),
               ],
@@ -784,7 +860,8 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                             _MinimizeButton(
                                 onMinimize: widget.onMinimize!,
                                 onInteract: _show),
-                          _FullscreenButton(onInteract: _show),
+                          if (widget.showFullscreen)
+                            _FullscreenButton(onInteract: _show),
                         ],
                       );
                     }
@@ -861,7 +938,8 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                           _MinimizeButton(
                               onMinimize: widget.onMinimize!,
                               onInteract: _show),
-                        _FullscreenButton(onInteract: _show),
+                        if (widget.showFullscreen)
+                          _FullscreenButton(onInteract: _show),
                       ],
                     );
                   }),

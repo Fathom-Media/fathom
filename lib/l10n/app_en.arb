@@ -158,6 +158,14 @@
   "settingsAccounts": "Accounts",
   "settingsAccountsSubtitle": "Switch server or user, add account",
   "settingsServer": "Server",
+  "serverAddressesTitle": "Server Addresses",
+  "serverAddressInternalLabel": "Home Address",
+  "serverAddressExternalLabel": "Remote Address",
+  "serverAddressInternalHint": "http://192.168.1.10:8096",
+  "serverAddressExternalHint": "https://jellyfin.example.com",
+  "serverAddressHelp": "Fathom uses the Home address on your local network and the Remote address elsewhere, switching automatically. Leave Home blank to always use the Remote address.",
+  "serverAddressHome": "Home",
+  "serverAddressRemote": "Remote",
   "settingsVersion": "Version {version}",
   "@settingsVersion": {
     "description": "App version row subtitle on the About section.",
@@ -3761,6 +3769,10 @@
   "appNavLiveTv": "Live TV",
   "@appNavLiveTv": {
     "description": "Navigation rail label for the Live TV section."
+  },
+  "appNavMore": "More",
+  "@appNavMore": {
+    "description": "Bottom navigation label opening a sheet of overflow destinations on phones."
   },
   "appServerUnreachableOffline": "Server unreachable. You are offline.",
   "@appServerUnreachableOffline": {

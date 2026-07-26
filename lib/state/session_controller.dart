@@ -54,6 +54,47 @@ class SessionController extends AsyncNotifier<Session?> {
     state = AsyncData(_accounts.active);
   }
 
+  /// Replace the active session in the account list, preserving its identity
+  /// key (serverId+userId), so callers can mutate address fields safely.
+  void _replaceActive(Session updated) {
+    final key = accountKey(updated);
+    _accounts = Accounts(
+      sessions: [
+        for (final s in _accounts.sessions)
+          accountKey(s) == key ? updated : s,
+      ],
+      activeKey: _accounts.activeKey,
+    );
+  }
+
+  /// Swap the address the app uses right now (driven by the address resolver as
+  /// the home network comes and goes). Identity keys on serverId+userId, so this
+  /// never re-keys or forks the account.
+  Future<void> setActiveBaseUrl(String url) async {
+    final active = _accounts.active;
+    if (active == null || active.baseUrl == url) return;
+    final updated = active.copyWith(baseUrl: url);
+    _replaceActive(updated);
+    await _store.save(_accounts);
+    state = AsyncData(updated);
+  }
+
+  /// Configure the active account's internal (home) and external (remote)
+  /// addresses. Pass null for either to clear it. Setting both enables the
+  /// seamless reachability-based switching.
+  Future<void> setServerAddresses({
+    required String? internal,
+    required String? external,
+  }) async {
+    final active = _accounts.active;
+    if (active == null) return;
+    final updated =
+        active.copyWith(internalUrl: internal, externalUrl: external);
+    _replaceActive(updated);
+    await _store.save(_accounts);
+    state = AsyncData(updated);
+  }
+
   /// Signs out the active account (switching to another if one remains).
   Future<void> signOut() async {
     final active = _accounts.active;

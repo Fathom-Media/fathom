@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../models/base_item.dart';
 import '../state/library_providers.dart';
 import '../widgets/empty_state.dart';
@@ -29,7 +30,9 @@ class LibrariesScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final views = ref.watch(userViewsProvider);
     return Scaffold(
-      appBar: AppBar(title: Text(l.browseLibraries)),
+      appBar: AppBar(
+          leading: mobileDrawerLeading(context),
+          title: Text(l.browseLibraries)),
       body: Column(
         children: [
           const _BrowseBar(),

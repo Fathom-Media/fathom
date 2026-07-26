@@ -29,6 +29,58 @@ import '../widgets/ui_common.dart';
 
 typedef _Dest = ({String route, IconData icon, String label});
 
+/// The shell's inner navigator. Held here so navigation code can pop any pushed
+/// pages (a detail screen, Settings) when needed. Wired onto the [ShellRoute] in
+/// app_router.dart.
+final shellNavigatorKey = GlobalKey<NavigatorState>();
+
+/// The phone shell's Scaffold, so a top-level screen's hamburger (see
+/// [mobileDrawerLeading]) can open the slide-out navigation drawer from anywhere.
+final shellScaffoldKey = GlobalKey<ScaffoldState>();
+
+/// A hamburger for a top-level screen's AppBar that opens the phone navigation
+/// drawer. Returns null on tablet/desktop, which use the persistent rail instead
+/// of a drawer, so those screens get no leading button. Screens use it as
+/// `AppBar(leading: mobileDrawerLeading(context), ...)`.
+Widget? mobileDrawerLeading(BuildContext context) {
+  if (MediaQuery.of(context).size.shortestSide >= 600) return null;
+  return const DrawerMenuButton();
+}
+
+/// The hamburger itself: opens the drawer and carries a small badge when there
+/// are unread notifications or an available update, so those stay noticeable
+/// without opening the drawer (the animated bell lives inside it). On desktop it
+/// renders nothing.
+class DrawerMenuButton extends ConsumerWidget {
+  const DrawerMenuButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (MediaQuery.of(context).size.shortestSide >= 600) {
+      return const SizedBox.shrink();
+    }
+    final unread = ref.watch(unreadNotifCountProvider);
+    final updateAvailable = ref
+            .watch(updateControllerProvider)
+            .asData
+            ?.value
+            ?.updateAvailable ??
+        false;
+    Widget icon = const Icon(Icons.menu_rounded);
+    if (unread > 0) {
+      icon = Badge(
+          label: Text(unread > 99 ? '99+' : '$unread'), child: icon);
+    } else if (updateAvailable) {
+      icon = Badge(child: icon);
+    }
+    return IconButton(
+      icon: icon,
+      tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
+      onPressed: () => shellScaffoldKey.currentState?.openDrawer(),
+    );
+  }
+}
+
 /// Wraps the signed-in content routes with a desktop navigation rail and docks
 /// the mini now-playing bar at the bottom. Full-screen routes (video player,
 /// now-playing, auth) sit outside this.
@@ -41,11 +93,6 @@ class AppShell extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final location = GoRouterState.of(context).matchedLocation;
     final extended = ref.watch(railExtendedProvider);
-    // Prefer the live policy; fall back to the stored session flag while it loads.
-    final liveAdmin = ref.watch(currentUserProvider).asData?.value?.isAdministrator;
-    final storedAdmin =
-        ref.watch(sessionControllerProvider).asData?.value?.isAdmin ?? false;
-    final isAdmin = liveAdmin ?? storedAdmin;
     final seerrOn = ref.watch(seerrConfiguredProvider);
     final youtubeOn = ref.watch(youtubeEnabledProvider);
     // Keep the Seerr request poller alive for the app's lifetime (no-op until
@@ -83,49 +130,20 @@ class AppShell extends ConsumerWidget {
     ];
     final scheme = Theme.of(context).colorScheme;
 
+    // Phones get a slide-out drawer shell; tablets and desktop keep the rail.
+    if (MediaQuery.of(context).size.shortestSide < 600) {
+      return _MobileShell(
+          destinations: destinations, location: location, child: child);
+    }
+
     const dur = Duration(milliseconds: 240);
     const curve = Curves.easeOutCubic;
     final width = extended ? 228.0 : 76.0;
 
-    final sidebar = Column(
-      children: [
-        _BrandHeader(
-          extended: extended,
-          onToggle: () => ref.read(railExtendedProvider.notifier).toggle(),
-        ),
-        const SizedBox(height: 6),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            children: [
-              for (final d in destinations)
-                if (d.route == '/libraries') ...[
-                  _LibrariesNav(extended: extended, location: location),
-                  _BrowseNav(extended: extended, location: location),
-                ] else
-                  _NavTile(
-                    label: d.label,
-                    extended: extended,
-                    selected: location.startsWith(d.route),
-                    icon: d.route == '/discover' ? null : d.icon,
-                    iconBuilder: d.route == '/discover'
-                        ? (color) => _SeerrIcon(color: color)
-                        : null,
-                    onTap: () => context.go(d.route),
-                  ),
-            ],
-          ),
-        ),
-        // An update indicator (only when a newer release is available) sits with
-        // the notifications and account controls at the foot of the rail.
-        _UpdateRailButton(extended: extended),
-        _NotifBell(extended: extended),
-        const SizedBox(height: 2),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(10, 0, 10, 14),
-          child: _ProfileMenu(isAdmin: isAdmin, extended: extended),
-        ),
-      ],
+    final sidebar = NavSidebar(
+      destinations: destinations,
+      extended: extended,
+      onToggle: () => ref.read(railExtendedProvider.notifier).toggle(),
     );
 
     // A Material ancestor so all shell chrome (profile menu, tooltips, ink)
@@ -204,6 +222,150 @@ class AppShell extends ConsumerWidget {
           ),
           const MiniPlayer(),
         ],
+      ),
+    );
+  }
+}
+
+/// The navigation rail contents: brand header, destinations (with the
+/// expandable Libraries and Browse groups), and the update/notifications/account
+/// controls at the foot. Shared by the desktop rail and the phone's slide-out
+/// drawer, so both look and behave the same.
+class NavSidebar extends ConsumerWidget {
+  final List<_Dest> destinations;
+  final bool extended;
+
+  /// The rail's collapse toggle; null hides it (the phone drawer has no collapse).
+  final VoidCallback? onToggle;
+
+  const NavSidebar({
+    super.key,
+    required this.destinations,
+    this.extended = true,
+    this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final location = GoRouterState.of(context).matchedLocation;
+    // Prefer the live policy; fall back to the stored session flag while it loads.
+    final liveAdmin =
+        ref.watch(currentUserProvider).asData?.value?.isAdministrator;
+    final storedAdmin =
+        ref.watch(sessionControllerProvider).asData?.value?.isAdmin ?? false;
+    final isAdmin = liveAdmin ?? storedAdmin;
+    return Column(
+      children: [
+        _BrandHeader(extended: extended, onToggle: onToggle),
+        const SizedBox(height: 6),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            children: [
+              for (final d in destinations)
+                if (d.route == '/libraries') ...[
+                  _LibrariesNav(extended: extended, location: location),
+                  _BrowseNav(extended: extended, location: location),
+                ] else
+                  _NavTile(
+                    label: d.label,
+                    extended: extended,
+                    selected: location.startsWith(d.route),
+                    icon: d.route == '/discover' ? null : d.icon,
+                    iconBuilder: d.route == '/discover'
+                        ? (color) => _SeerrIcon(color: color)
+                        : null,
+                    onTap: () => context.go(d.route),
+                  ),
+            ],
+          ),
+        ),
+        // An update indicator (only when a newer release is available) sits with
+        // the notifications and account controls at the foot.
+        _UpdateRailButton(extended: extended),
+        _NotifBell(extended: extended),
+        const SizedBox(height: 2),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 14),
+          child: _ProfileMenu(isAdmin: isAdmin, extended: extended),
+        ),
+      ],
+    );
+  }
+}
+
+/// The phone layout: routed content with a slide-out navigation drawer, which is
+/// the same [NavSidebar] the desktop uses as its rail. It's opened by the
+/// hamburger in each top-level screen's app bar ([mobileDrawerLeading]) or an
+/// edge swipe, and dismissed automatically on navigation. Tablets/desktop use
+/// the persistent rail in [AppShell] instead.
+class _MobileShell extends ConsumerStatefulWidget {
+  final List<_Dest> destinations;
+  final String location;
+  final Widget child;
+  const _MobileShell({
+    required this.destinations,
+    required this.location,
+    required this.child,
+  });
+
+  @override
+  ConsumerState<_MobileShell> createState() => _MobileShellState();
+}
+
+class _MobileShellState extends ConsumerState<_MobileShell> {
+  @override
+  void didUpdateWidget(_MobileShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The routed location changed (a navigation happened) — dismiss the drawer
+    // if it's open, so tapping a destination in it closes it behind you.
+    if (oldWidget.location != widget.location) {
+      shellScaffoldKey.currentState?.closeDrawer();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      key: shellScaffoldKey,
+      backgroundColor: scheme.surface,
+      drawer: Drawer(
+        width: 288,
+        backgroundColor: scheme.surface,
+        child: SafeArea(
+          right: false,
+          child: NavSidebar(destinations: widget.destinations),
+        ),
+      ),
+      // The top status-bar inset is reserved once here so the offline banner and
+      // content clear it (SafeArea removes it from the MediaQuery below, so the
+      // nested screens don't double-inset).
+      body: SafeArea(
+        top: true,
+        bottom: false,
+        left: false,
+        right: false,
+        child: Column(
+          children: [
+            const _OfflineBanner(),
+            Expanded(
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: SafeArea(
+                      bottom: false,
+                      child: Material(
+                          color: Colors.transparent, child: widget.child),
+                    ),
+                  ),
+                  const MiniVideo(),
+                ],
+              ),
+            ),
+            const MiniPlayer(),
+          ],
+        ),
       ),
     );
   }
@@ -359,8 +521,9 @@ class _UpdateRailButtonState extends ConsumerState<_UpdateRailButton> {
 /// The branded header at the top of the sidebar: wordmark + collapse toggle.
 class _BrandHeader extends StatelessWidget {
   final bool extended;
-  final VoidCallback onToggle;
-  const _BrandHeader({required this.extended, required this.onToggle});
+  // Null in the phone drawer, which has no collapse toggle.
+  final VoidCallback? onToggle;
+  const _BrandHeader({required this.extended, this.onToggle});
 
   @override
   Widget build(BuildContext context) {
@@ -386,11 +549,12 @@ class _BrandHeader extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800, letterSpacing: -0.3)),
               ),
-              IconButton(
-                tooltip: l.miscCollapseSidebar,
-                icon: const Icon(Icons.menu_open_rounded),
-                onPressed: onToggle,
-              ),
+              if (onToggle != null)
+                IconButton(
+                  tooltip: l.miscCollapseSidebar,
+                  icon: const Icon(Icons.menu_open_rounded),
+                  onPressed: onToggle,
+                ),
             ],
           ),
         ),

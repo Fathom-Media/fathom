@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../models/session.dart';
 import '../state/app_info.dart';
 import '../state/preferences.dart';
 import '../state/session_controller.dart';
@@ -217,11 +218,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => context.push('/accounts'),
       ),
-      ListTile(
-        leading: _leading(context, Icons.dns_rounded),
-        title: Text(session?.serverName ?? l.settingsServer),
-        subtitle: Text(session?.baseUrl ?? '—'),
-      ),
+      _serverTile(context, session as Session?, theme),
       const Divider(height: 24),
       _sectionLabel(context, l.settingsSectionAbout),
       ListTile(
@@ -278,6 +275,131 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
     ];
+  }
+
+  /// The Server row: current address plus, when both Home and Remote are
+  /// configured, a live badge for which one the app is actually on right now.
+  /// The resolver mutates the session's baseUrl, so this updates automatically.
+  Widget _serverTile(BuildContext context, Session? s, ThemeData theme) {
+    final l = AppLocalizations.of(context);
+    final scheme = theme.colorScheme;
+    // Only when BOTH addresses are set is "Home vs Remote" meaningful.
+    String? label;
+    if (s != null && s.internalUrl != null && s.externalUrl != null) {
+      if (s.baseUrl == s.internalUrl) {
+        label = l.serverAddressHome;
+      } else if (s.baseUrl == s.externalUrl) {
+        label = l.serverAddressRemote;
+      }
+    }
+    final url = s?.baseUrl ?? '—';
+    return ListTile(
+      leading: _leading(context, Icons.dns_rounded),
+      title: Text(s?.serverName ?? l.settingsServer),
+      // Inline rich text so the address shows in full and wraps (with the pill
+      // flowing after it) instead of hard-truncating; only clips past 2 lines,
+      // which realistically only a very long DNS on a narrow phone would hit.
+      subtitle: label == null
+          ? Text(url)
+          : Text.rich(
+              TextSpan(children: [
+                TextSpan(text: url),
+                const WidgetSpan(child: SizedBox(width: 8)),
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.middle,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(label,
+                        style: TextStyle(
+                            color: scheme.primary,
+                            fontSize: 11,
+                            height: 1.0,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ]),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+      trailing: const Icon(Icons.chevron_right_rounded),
+      onTap: s == null ? null : () => _editServerAddresses(context, s),
+    );
+  }
+
+  /// Edit the active account's home (internal) and remote (external) addresses.
+  /// The resolver then keeps the app on whichever is reachable.
+  Future<void> _editServerAddresses(
+      BuildContext context, Session session) async {
+    final l = AppLocalizations.of(context);
+    final internalCtrl =
+        TextEditingController(text: session.internalUrl ?? '');
+    final externalCtrl = TextEditingController(
+        text: session.externalUrl ?? session.baseUrl);
+    String clean(String s) => s.trim().replaceAll(RegExp(r'/+$'), '');
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.serverAddressesTitle),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: internalCtrl,
+                autocorrect: false,
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                  labelText: l.serverAddressInternalLabel,
+                  hintText: l.serverAddressInternalHint,
+                  prefixIcon: const Icon(Icons.home_rounded),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: externalCtrl,
+                autocorrect: false,
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                  labelText: l.serverAddressExternalLabel,
+                  hintText: l.serverAddressExternalHint,
+                  prefixIcon: const Icon(Icons.public_rounded),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(l.serverAddressHelp,
+                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.commonCancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.commonSave)),
+        ],
+      ),
+    );
+
+    if (saved == true) {
+      final internal = clean(internalCtrl.text);
+      final external = clean(externalCtrl.text);
+      await ref.read(sessionControllerProvider.notifier).setServerAddresses(
+            internal: internal.isEmpty ? null : internal,
+            external: external.isEmpty ? session.baseUrl : external,
+          );
+    }
+    internalCtrl.dispose();
+    externalCtrl.dispose();
   }
 
   /// A tinted rounded-square icon for settings rows (a more finished, app-like

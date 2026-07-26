@@ -22,6 +22,19 @@ class AppNotifications {
     }
   }
 
+  /// Ask for the Android 13+ runtime notification permission. Without it, every
+  /// notification the app posts — including the media-playback foreground service
+  /// notification — is silently suppressed. Best-effort; needs a resumed
+  /// Activity, so call it after the first frame, not during startup.
+  static Future<void> requestPermission() async {
+    if (!_ready) return;
+    try {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      await android?.requestNotificationsPermission();
+    } catch (_) {}
+  }
+
   static Future<void> show(String title, String body) async {
     if (!_ready) return;
     try {

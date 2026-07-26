@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../models/base_item.dart';
 import '../state/library_providers.dart';
 import '../widgets/empty_state.dart';
@@ -21,6 +22,7 @@ class LiveTvScreen extends ConsumerWidget {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
+          leading: mobileDrawerLeading(context),
           title: Text(l.extraLiveTvTitle),
           actions: [
             IconButton(

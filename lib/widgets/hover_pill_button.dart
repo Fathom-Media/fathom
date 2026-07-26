@@ -1,8 +1,13 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
-/// An action that rests as an icon-only pill and expands to reveal its label on
-/// hover, with a small pop on press. This is the on-a-page counterpart to the
-/// detail header/hero's [HeaderActionButton] (which is styled for over an image).
+/// An action that rests as an icon-only pill and expands to reveal its label,
+/// with a small pop on press. On desktop it expands on hover; on touch (no
+/// hover) it expands while pressed, so a single tap still fires the action.
+/// This is the on-a-page counterpart to the detail header/hero's
+/// [HeaderActionButton] (which is styled for over an image).
 ///
 /// [primary] fills the pill with the accent (a call to action, e.g. Subscribe);
 /// [tinted] gives a soft accent wash (an active/"done" state, e.g. Subscribed);
@@ -35,6 +40,11 @@ class HoverPillButton extends StatefulWidget {
 class _HoverPillButtonState extends State<HoverPillButton>
     with SingleTickerProviderStateMixin {
   bool _hover = false;
+  bool _pressed = false;
+
+  // Touch platforms have no hover, so the label expands on press instead.
+  static final bool _isTouch =
+      !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
   late final AnimationController _tap = AnimationController(
     vsync: this,
@@ -76,6 +86,8 @@ class _HoverPillButtonState extends State<HoverPillButton>
       bg = scheme.surfaceContainerHighest;
     }
     const h = 38.0;
+    // Desktop reveals the label on hover; touch reveals it while pressed.
+    final expanded = _isTouch ? _pressed : _hover;
     final icon = ScaleTransition(
       scale: _tapScale,
       child: Icon(widget.icon, size: 20, color: fg),
@@ -87,24 +99,37 @@ class _HoverPillButtonState extends State<HoverPillButton>
       waitDuration: const Duration(milliseconds: 500),
       child: Opacity(
         opacity: widget.onTap == null ? 0.5 : 1,
-        child: MouseRegion(
-          onEnter: (_) => setState(() => _hover = true),
-          onExit: (_) => setState(() => _hover = false),
-          child: Material(
-            color: bg,
-            shape: const StadiumBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: widget.onTap,
-              onTapDown:
-                  widget.onTap == null ? null : (_) => _tap.forward(from: 0),
-              child: AnimatedSize(
+        // Raw pointer events drive the touch press-to-expand: InkWell's
+        // highlight is deferred inside a scroll view, so holding wouldn't
+        // expand. onPointerDown fires immediately.
+        child: Listener(
+          onPointerDown: widget.onTap == null
+              ? null
+              : (_) => setState(() => _pressed = true),
+          onPointerUp: (_) {
+            if (_pressed) setState(() => _pressed = false);
+          },
+          onPointerCancel: (_) {
+            if (_pressed) setState(() => _pressed = false);
+          },
+          child: MouseRegion(
+            onEnter: (_) => setState(() => _hover = true),
+            onExit: (_) => setState(() => _hover = false),
+            child: Material(
+              color: bg,
+              shape: const StadiumBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: widget.onTap,
+                onTapDown:
+                    widget.onTap == null ? null : (_) => _tap.forward(from: 0),
+                child: AnimatedSize(
                 duration: const Duration(milliseconds: 170),
                 curve: Curves.easeOutCubic,
                 alignment: Alignment.centerLeft,
                 child: SizedBox(
                   height: h,
-                  child: _hover
+                  child: expanded
                       ? Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 14),
                           child: Row(
@@ -125,6 +150,7 @@ class _HoverPillButtonState extends State<HoverPillButton>
               ),
             ),
           ),
+        ),
         ),
       ),
     );
