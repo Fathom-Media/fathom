@@ -314,14 +314,32 @@ class _MobileShell extends ConsumerStatefulWidget {
 }
 
 class _MobileShellState extends ConsumerState<_MobileShell> {
+  GoRouter? _router;
+
   @override
-  void didUpdateWidget(_MobileShell oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // The routed location changed (a navigation happened) — dismiss the drawer
-    // if it's open, so tapping a destination in it closes it behind you.
-    if (oldWidget.location != widget.location) {
-      shellScaffoldKey.currentState?.closeDrawer();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Close the drawer on ANY navigation. The router delegate notifies on every
+    // route change (both go() and push()), which is reliable — comparing the
+    // shell's matchedLocation missed pushed routes (Settings, a library), so the
+    // drawer stayed open over them.
+    final router = GoRouter.of(context);
+    if (router != _router) {
+      _router?.routerDelegate.removeListener(_closeDrawer);
+      _router = router;
+      _router!.routerDelegate.addListener(_closeDrawer);
     }
+  }
+
+  void _closeDrawer() {
+    final state = shellScaffoldKey.currentState;
+    if (state != null && state.isDrawerOpen) state.closeDrawer();
+  }
+
+  @override
+  void dispose() {
+    _router?.routerDelegate.removeListener(_closeDrawer);
+    super.dispose();
   }
 
   @override
@@ -331,7 +349,9 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
       key: shellScaffoldKey,
       backgroundColor: scheme.surface,
       drawer: Drawer(
-        width: 288,
+        // Match the desktop rail's extended width (228) rather than Material's
+        // wide default, so it doesn't hog the phone screen.
+        width: 236,
         backgroundColor: scheme.surface,
         child: SafeArea(
           right: false,

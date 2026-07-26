@@ -16,6 +16,7 @@ import '../models/base_item.dart';
 import '../state/admin_providers.dart';
 import '../models/media_segment.dart';
 import '../models/session.dart';
+import '../services/diagnostics.dart';
 import '../state/audio_player.dart';
 import '../state/downloads.dart';
 import '../state/preferences.dart';
@@ -89,6 +90,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // torn-down player and throw "[Player] has been disposed".
   bool _disposed = false;
   bool _isPlaying = false;
+  // True while the video is floating in a system Picture-in-Picture window
+  // (Android). The on-screen controls hide themselves so the PiP window shows
+  // just the video.
+  bool _inPip = false;
   bool _triedTranscode = false;
   bool _appliedTracks = false;
   String? _error;
@@ -102,6 +107,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   List<BaseItemDto> _episodes = const [];
   int _epIndex = -1;
   StreamSubscription<Duration>? _positionSub;
+  // Verbose libmpv log capture, only active when Diagnostic logging is on.
+  StreamSubscription<PlayerLog>? _logSub;
   StreamSubscription<dynamic>? _tracksSub;
   StreamSubscription<bool>? _completedSub;
   // Captured while alive so dispose() never has to touch ref (which throws).
@@ -137,10 +144,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
+  // System Picture-in-Picture (Android). The native side floats the activity
+  // into a PiP window on Home while [_pipChannel]'s "setActive" flag is set,
+  // and reports mode changes back so we can hide the controls.
+  static const _pipChannel = MethodChannel('app.fathom.player/pip');
+
+  void _enableSystemPip() {
+    if (!Platform.isAndroid) return;
+    _pipChannel.setMethodCallHandler((call) async {
+      if (call.method == 'pipModeChanged' && mounted) {
+        final inPip = call.arguments as bool? ?? false;
+        setState(() => _inPip = inPip);
+        // In a PiP window the system owns sizing/orientation; the fullscreen
+        // landscape lock + immersive bars fight it and cause jank (worse the
+        // second time, after the in-app dock has already reset orientation).
+        // Drop the lock while floating, restore the immersive look on return.
+        if (inPip) {
+          _restoreSystemUi();
+        } else {
+          _enterImmersiveLandscape();
+        }
+      }
+    });
+    _pipChannel.invokeMethod('setActive', true);
+  }
+
+  void _disableSystemPip() {
+    if (!Platform.isAndroid) return;
+    _pipChannel.invokeMethod('setActive', false);
+    _pipChannel.setMethodCallHandler(null);
+  }
+
   @override
   void initState() {
     super.initState();
     _enterImmersiveLandscape();
+    _enableSystemPip();
     // Reopening from the mini dock: take back the still-playing player instead
     // of opening the stream again. Read the dock's fields here but defer the
     // state change (mutating a provider in initState throws).
@@ -164,8 +203,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       WidgetsBinding.instance
           .addPostFrameCallback((_) => pipNotifier.detachForReclaim());
     } else {
-      _player = Player();
+      // With Diagnostic logging on, spin the player up with a verbose libmpv
+      // logger and pipe its lines into the diagnostics buffer so a real decode
+      // trace (codec, hwdec path, vo, frame drops) can be exported later.
+      final diag =
+          ref.read(preferencesProvider).asData?.value.diagnosticLogging ??
+              false;
+      _player = Player(
+        configuration: PlayerConfiguration(
+          // Verbose, not debug: verbose keeps the decoder/hwdec/VO selection,
+          // fps, and warnings readable, where debug floods per-frame timing and
+          // scrolls the useful startup lines out of the ring buffer in seconds.
+          logLevel: diag ? MPVLogLevel.v : MPVLogLevel.error,
+        ),
+      );
       _controller = VideoController(_player);
+      if (diag) {
+        Diagnostics.instance.enabled = true;
+        _logSub = _player.stream.log.listen((e) => Diagnostics.instance
+            .add('mpv', '${e.prefix} [${e.level}] ${e.text}'));
+      }
       // A different video (or none) may be docked; silence it after this frame.
       if (dockedPlayer != null) {
         WidgetsBinding.instance
@@ -339,9 +396,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       } else {
         url = await _videoUrlForQuality();
       }
-      // Apply hardware-decoding preference before the file loads.
+      // Apply hardware-decoding preference before the file loads. Live TV on
+      // mobile forces software decoding regardless: the hardware VPU chokes on
+      // the real-time HLS transcode ("VPU reported error 0x100000" every frame,
+      // so nothing renders and play/pause looks dead), while libavcodec on the
+      // CPU decodes it fine. VOD is unaffected (a well-formed file decodes fine
+      // in hardware).
       final startPrefs = ref.read(preferencesProvider).asData?.value;
-      if (startPrefs != null && !startPrefs.hardwareDecoding) {
+      final forceSoftware = _isMobile && widget.item.isLiveChannel;
+      if (forceSoftware ||
+          (startPrefs != null && !startPrefs.hardwareDecoding)) {
         try {
           await (_player.platform as dynamic).setProperty('hwdec', 'no');
         } catch (_) {}
@@ -360,6 +424,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         await mpv.setProperty('cache-secs', '30');
         await mpv.setProperty('network-timeout', '30');
       } catch (_) {}
+      // Optional smoother motion: pace frames to the monitor refresh instead of
+      // libmpv's default audio-clock sync, and interpolate across non-integer
+      // fps/refresh ratios (the 24fps-on-60Hz judder). Desktop only (mobile
+      // renders through the platform mediacodec surface, not this GL path), and
+      // opt-in because on setups already smooth it's a no-op or a small cost.
+      if (!_isMobile && (startPrefs?.displaySync ?? false)) {
+        try {
+          final mpv = _player.platform as dynamic;
+          await mpv.setProperty('video-sync', 'display-resample');
+          await mpv.setProperty('interpolation', 'yes');
+          await mpv.setProperty('tscale', 'oversample');
+        } catch (_) {}
+      }
       // In a SyncPlay group (VOD): a FOLLOWER (we opened this because the group
       // switched to it) opens PAUSED and waits for the server's synchronized
       // Unpause. An INITIATOR (user picked this) plays immediately so it doesn't
@@ -369,6 +446,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final syncSession = ref.read(syncPlaySessionProvider);
       final inGroupVod = !widget.item.isLiveChannel && _inGroup;
       final syncing = inGroupVod && syncSession.isFollowOpen(widget.item.id);
+      if (Diagnostics.instance.enabled) {
+        Diagnostics.instance.add(
+            'playback',
+            'open "${widget.item.name}" live=${widget.item.isLiveChannel} '
+                'transcode=$_triedTranscode hwdec='
+                '${startPrefs?.hardwareDecoding ?? true} '
+                'url=${redactUrl(url)}');
+      }
       await _player.open(Media(url), play: !syncing);
 
       final prefs = ref.read(preferencesProvider).asData?.value;
@@ -896,6 +981,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // rotate freely and show the system bars again. Done here, not just
     // dispose(), because dispose isn't guaranteed to run on the way out.
     _restoreSystemUi();
+    _disableSystemPip();
     // From here on the element is inactive: block ref use in stream callbacks.
     _deactivated = true;
     // Handed to the dock: it owns playback now, so don't release the session or
@@ -928,6 +1014,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _disposed = true;
+    // The verbose logger belongs to this screen; drop it on either exit path
+    // (a handed-off dock player keeps playing but stops feeding diagnostics).
+    _logSub?.cancel();
     _syncSessionRef?.notifyPlayerClosed();
     // Ownership transferred to the dock: leave the player, session, and
     // subscriptions (already cancelled in _minimize) alone.
@@ -1087,7 +1176,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         subtitleViewConfiguration: subtitleConfig,
                         // Controls live inside Video so fullscreen lookups
                         // (toggleFullscreen/isFullscreen) resolve correctly.
-                        controls: (state) => FathomPlayerControls(
+                        // In a system PiP window, show just the video (the OS
+                        // draws its own play/pause), so hide our chrome.
+                        controls: (state) => _inPip
+                            ? const SizedBox.shrink()
+                            : FathomPlayerControls(
                           player: _player,
                           trickItemId: widget.item.id,
                           title: _title,
@@ -1157,7 +1250,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                     // Slides + fades in with a slight pop instead of appearing
-                    // abruptly, matching the animated chrome around it.
+                    // abruptly, matching the animated chrome around it. Hidden
+                    // in a PiP window (just the bare video floats there).
+                    if (!_inPip)
                     Positioned(
                       right: 28,
                       bottom: 116,
@@ -1199,7 +1294,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                     // SyncPlay status cue (waiting/aligning, or SkipToSync).
-                    Positioned.fill(child: _SyncCueOverlay(cue: _syncCue)),
+                    if (!_inPip)
+                      Positioned.fill(child: _SyncCueOverlay(cue: _syncCue)),
                   ],
                 ),
               ),

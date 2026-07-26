@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'l10n/l10n.dart';
 import 'routing/app_router.dart';
+import 'services/diagnostics.dart';
 import 'services/live_players.dart';
 import 'services/live_streams.dart';
 import 'services/notifications.dart';
@@ -157,6 +158,9 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
     // active account has both addresses configured).
     ref.watch(serverAddressResolverProvider);
     final prefs = ref.watch(preferencesProvider).asData?.value ?? const Prefs();
+    // Mirror the diagnostic-logging pref into the app-wide capture flag, so
+    // global error hooks and app logs record from launch when it's on.
+    Diagnostics.instance.enabled = prefs.diagnosticLogging;
     final accent = Color(prefs.accentColor);
     final mode = switch (prefs.themeMode) {
       'dark' => ThemeMode.dark,

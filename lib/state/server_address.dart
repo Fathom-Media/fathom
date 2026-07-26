@@ -61,9 +61,16 @@ class ServerAddressResolver {
           timeout: const Duration(seconds: 2));
       final desired = internalOk ? internal : external;
       if (desired != session.baseUrl) {
-        await _ref
-            .read(sessionControllerProvider.notifier)
-            .setActiveBaseUrl(desired);
+        // Land the switch at the frame boundary, never synchronously inside a
+        // build or a route/dialog teardown. A background probe can finish right
+        // as a modal is being dismissed; emitting the session change mid-pop
+        // deactivates an inherited scope while a widget still depends on it and
+        // trips framework's `_dependents.isEmpty` assertion.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _ref
+              .read(sessionControllerProvider.notifier)
+              .setActiveBaseUrl(desired);
+        });
       }
     } finally {
       _resolving = false;
