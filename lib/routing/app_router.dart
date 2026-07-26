@@ -105,7 +105,16 @@ final routerProvider = Provider<GoRouter>((ref) {
   // Rebuild the router's redirect whenever the session changes.
   final refresh = ValueNotifier<int>(0);
   ref.onDispose(refresh.dispose);
-  ref.listen(sessionControllerProvider, (_, _) => refresh.value++);
+  // Only refresh the router when the redirect-relevant state changes: whether
+  // the session is loading, and whether it's signed in. In-place session edits
+  // (an internal/external address swap) must NOT churn the router — doing so
+  // while on a deep route trips a framework teardown assertion.
+  ref.listen(sessionControllerProvider, (prev, next) {
+    if ((prev?.isLoading ?? true) != next.isLoading ||
+        (prev?.value != null) != (next.value != null)) {
+      refresh.value++;
+    }
+  });
   ref.listen(splashReadyProvider, (_, _) => refresh.value++);
 
   return GoRouter(
@@ -237,6 +246,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       // Signed-in content routes share the shell + docked mini now-playing bar.
       ShellRoute(
+        navigatorKey: shellNavigatorKey,
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(

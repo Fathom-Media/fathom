@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../state/library_providers.dart';
 import '../widgets/item_grid.dart';
 
@@ -15,6 +16,7 @@ class FavoritesScreen extends ConsumerWidget {
     final items = ref.watch(favoriteItemsProvider);
     return Scaffold(
       appBar: AppBar(
+        leading: mobileDrawerLeading(context),
         title: Text(l.browseFavorites),
         actions: [
           IconButton(

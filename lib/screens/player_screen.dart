@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -114,9 +115,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   TrickplayInfo? _trickplay;
   int? _trickWidth;
 
+  /// Phones/tablets only: a dedicated video screen belongs in landscape with the
+  /// system bars out of the way, like every other mobile player. No-op on
+  /// desktop, where media_kit's window fullscreen handles this instead.
+  bool get _isMobile => Platform.isAndroid || Platform.isIOS;
+
+  void _enterImmersiveLandscape() {
+    if (!_isMobile) return;
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  void _restoreSystemUi() {
+    if (!_isMobile) return;
+    // Empty list = no lock (restore whatever the app allowed before), and bring
+    // the status/nav bars back edge-to-edge.
+    SystemChrome.setPreferredOrientations(const []);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
   @override
   void initState() {
     super.initState();
+    _enterImmersiveLandscape();
     // Reopening from the mini dock: take back the still-playing player instead
     // of opening the stream again. Read the dock's fields here but defer the
     // state change (mutating a provider in initState throws).
@@ -868,6 +892,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void deactivate() {
+    // Leaving the player (backing out OR minimizing to the dock): let the app
+    // rotate freely and show the system bars again. Done here, not just
+    // dispose(), because dispose isn't guaranteed to run on the way out.
+    _restoreSystemUi();
     // From here on the element is inactive: block ref use in stream callbacks.
     _deactivated = true;
     // Handed to the dock: it owns playback now, so don't release the session or
@@ -1067,6 +1095,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               isLive ? widget.item.channelNumber : null,
                           isLive: widget.item.isLiveChannel,
                           barStyle: prefs?.playerBarStyle ?? 'glass',
+                          // On a phone the route is already fullscreen and we
+                          // force landscape, so hide the redundant fullscreen
+                          // control (and its double-tap gesture).
+                          showFullscreen: !_isMobile,
+                          // Left-swipe brightness / right-swipe volume, phone only.
+                          touchGestures: _isMobile,
                           // Hide the generic spinner while a SyncPlay cue is
                           // shown — the sync glyph is the status indicator then,
                           // and two overlapping spinners just fight for space.

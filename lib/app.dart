@@ -12,11 +12,13 @@ import 'l10n/l10n.dart';
 import 'routing/app_router.dart';
 import 'services/live_players.dart';
 import 'services/live_streams.dart';
+import 'services/notifications.dart';
 import 'state/syncplay_session.dart';
 import 'state/mpris_integration.dart';
 import 'state/pip_controller.dart';
 import 'state/popout_controller.dart';
 import 'state/preferences.dart';
+import 'state/server_address.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_snack.dart';
 import 'widgets/popout_video.dart';
@@ -116,17 +118,26 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
     super.initState();
     _lifecycle; // create the listener
     if (_isDesktop) windowManager.addListener(this);
+    // Android 13+: request the notification permission once the first frame is
+    // up (needs a resumed Activity). Without it every notification — including
+    // the media-playback controls — is silently blocked.
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        AppNotifications.requestPermission();
+      });
+    }
   }
 
   @override
   void onWindowClose() async {
     await _teardown();
-    // Windows stalls for several seconds finalizing the Flutter engine and
-    // libmpv on a normal window destroy. SyncPlay is already disconnected and
-    // the players disposed above, so terminate the process directly instead of
-    // grinding through the native teardown. Linux does the equivalent via
-    // _exit() in its runner; other desktops destroy the window normally.
-    if (!kIsWeb && Platform.isWindows) exit(0);
+    // Windows stalls, and Linux SEGFAULTS, finalizing the Flutter engine +
+    // libmpv on a normal window destroy: media_kit's video output races the
+    // view removal (FlutterEngineRemoveView / "message handler without an
+    // engine"). SyncPlay is disconnected and every player disposed above, so
+    // terminate the process directly instead of grinding through that teardown.
+    // macOS destroys the window normally.
+    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) exit(0);
     await windowManager.destroy();
   }
 
@@ -142,6 +153,9 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
     final router = ref.watch(routerProvider);
     // Keep the desktop media integration (MPRIS) alive for the app's lifetime.
     ref.watch(mprisProvider);
+    // Keep the internal/external address resolver alive (no-op unless the
+    // active account has both addresses configured).
+    ref.watch(serverAddressResolverProvider);
     final prefs = ref.watch(preferencesProvider).asData?.value ?? const Prefs();
     final accent = Color(prefs.accentColor);
     final mode = switch (prefs.themeMode) {

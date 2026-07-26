@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -79,6 +80,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       canDelete: auth.user.enableContentDeletion || auth.user.isAdministrator,
     );
     await ref.read(sessionControllerProvider.notifier).signIn(session);
+    // Commit the autofill context so the OS/password manager offers to save the
+    // credentials just entered. No-op for the Quick Connect path (no fields).
+    TextInput.finishAutofillContext();
     if (mounted) context.go('/home');
   }
 
@@ -158,32 +162,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 36),
-                TextField(
-                  controller: _userCtrl,
-                  autofocus: true,
-                  enabled: !_loading,
-                  autocorrect: false,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    labelText: l.appUsername,
-                    prefixIcon: const Icon(Icons.person_outline_rounded),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _passCtrl,
-                  enabled: !_loading,
-                  obscureText: _obscure,
-                  onSubmitted: (_) => _loading ? null : _signIn(),
-                  decoration: InputDecoration(
-                    labelText: l.appPassword,
-                    prefixIcon: const Icon(Icons.lock_outline_rounded),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscure
-                          ? Icons.visibility_rounded
-                          : Icons.visibility_off_rounded),
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
+                // Group the credential fields so a password manager (Bitwarden,
+                // Google) treats them as one login, keyed to the app package and
+                // its "Fathom" label rather than a server URL.
+                AutofillGroup(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
+                        controller: _userCtrl,
+                        autofocus: true,
+                        enabled: !_loading,
+                        autocorrect: false,
+                        autofillHints: const [AutofillHints.username],
+                        textInputAction: TextInputAction.next,
+                        decoration: InputDecoration(
+                          labelText: l.appUsername,
+                          prefixIcon: const Icon(Icons.person_outline_rounded),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: _passCtrl,
+                        enabled: !_loading,
+                        obscureText: _obscure,
+                        autofillHints: const [AutofillHints.password],
+                        onSubmitted: (_) => _loading ? null : _signIn(),
+                        decoration: InputDecoration(
+                          labelText: l.appPassword,
+                          prefixIcon: const Icon(Icons.lock_outline_rounded),
+                          suffixIcon: IconButton(
+                            icon: Icon(_obscure
+                                ? Icons.visibility_rounded
+                                : Icons.visibility_off_rounded),
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (_error != null) ...[

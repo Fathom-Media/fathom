@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../models/base_item.dart';
 import '../state/library_providers.dart';
 import '../state/palette.dart';
@@ -203,6 +204,19 @@ class HomeScreen extends ConsumerWidget {
               ],
             ),
           ),
+          // Home has no app bar (the hero fills the top), so on a phone a small
+          // floating button opens the navigation drawer, with a scrim behind it
+          // for legibility over bright hero art.
+          if (MediaQuery.of(context).size.shortestSide < 600)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 4,
+              left: 8,
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                    color: Colors.black26, shape: BoxShape.circle),
+                child: DrawerMenuButton(),
+              ),
+            ),
         ],
       ),
     );

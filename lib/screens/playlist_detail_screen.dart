@@ -11,7 +11,7 @@ import '../state/session_controller.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/media_image.dart';
-import '../theme/app_theme.dart';
+import '../widgets/hover_pill_button.dart';
 
 /// Shows the contents of a playlist with play, reorder-free removal, and
 /// delete-playlist actions.
@@ -159,11 +159,11 @@ class PlaylistDetailScreen extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                 child: Row(
                   children: [
-                    FilledButton.icon(
-                      onPressed: () => _openItem(context, ref, items, 0),
-                      style: kInlineButtonStyle,
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: Text(l.commonPlay),
+                    HoverPillButton(
+                      icon: Icons.play_arrow_rounded,
+                      label: l.commonPlay,
+                      primary: true,
+                      onTap: () => _openItem(context, ref, items, 0),
                     ),
                     const SizedBox(width: 16),
                     Text(

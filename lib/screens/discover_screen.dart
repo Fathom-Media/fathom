@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../api/seerr_client.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../data/seerr_companies.dart';
 import '../models/seerr_custom_slider.dart';
 import '../models/seerr_genre.dart';
@@ -38,7 +39,9 @@ class DiscoverScreen extends ConsumerWidget {
     final configured = ref.watch(seerrConfiguredProvider);
     if (!configured) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Seerr')),
+        appBar: AppBar(
+            leading: mobileDrawerLeading(context),
+            title: const Text('Seerr')),
         body: EmptyState(
           icon: Icons.travel_explore_rounded,
           title: l.browseConnectSeerr,
@@ -54,6 +57,7 @@ class DiscoverScreen extends ConsumerWidget {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
+          leading: mobileDrawerLeading(context),
           title: const Text('Seerr'),
           actions: [
             // Only meaningful on the Discover tab, so it appears there alone.

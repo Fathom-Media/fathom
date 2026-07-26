@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../models/base_item.dart';
 import '../state/library_providers.dart';
 import '../state/preferences.dart';
@@ -128,6 +129,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final l = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
+        leading: mobileDrawerLeading(context),
         title: TextField(
           controller: _controller,
           autofocus: true,

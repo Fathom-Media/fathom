@@ -4,7 +4,15 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/session.dart';
 
-String accountKey(Session s) => '${s.baseUrl}|${s.userId}';
+/// Stable per-account identity. Keys on the server id (which survives an
+/// internal/external address swap) plus the user, so the active [Session.baseUrl]
+/// can float between addresses without forking the account. Falls back to the
+/// URL only for older sessions saved before the server id was captured.
+String accountKey(Session s) => '${s.serverId ?? s.baseUrl}|${s.userId}';
+
+/// The pre-address-switching key (URL + user), kept only to migrate a stored
+/// `active` pointer to the new [accountKey] scheme on load.
+String _legacyAccountKey(Session s) => '${s.baseUrl}|${s.userId}';
 
 /// All signed-in accounts (server + user) and which one is active.
 class Accounts {
@@ -54,7 +62,22 @@ class AccountsStore {
           .whereType<Map>()
           .map((e) => Session.fromJson(Map<String, dynamic>.from(e)))
           .toList();
-      return Accounts(sessions: sessions, activeKey: data['active'] as String?);
+      final activeKey = data['active'] as String?;
+      // Migrate a stored `active` written under the old URL-based key scheme to
+      // the stable serverId-based one, so no one gets bumped to the wrong (or
+      // no) active account after the key change.
+      if (activeKey != null &&
+          !sessions.any((s) => accountKey(s) == activeKey)) {
+        final matches =
+            sessions.where((s) => _legacyAccountKey(s) == activeKey);
+        if (matches.isNotEmpty) {
+          final migrated = Accounts(
+              sessions: sessions, activeKey: accountKey(matches.first));
+          await save(migrated);
+          return migrated;
+        }
+      }
+      return Accounts(sessions: sessions, activeKey: activeKey);
     } catch (_) {
       await _storage.delete(key: _key);
       return const Accounts();

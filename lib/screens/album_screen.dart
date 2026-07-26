@@ -6,7 +6,7 @@ import '../models/base_item.dart';
 import '../state/audio_player.dart';
 import '../state/library_providers.dart';
 import '../widgets/media_image.dart';
-import '../theme/app_theme.dart';
+import '../widgets/hover_pill_button.dart';
 
 /// Album detail: cover, artist, a play button, and the track list. Rendered by
 /// DetailScreen when the item is a MusicAlbum.
@@ -20,15 +20,14 @@ class AlbumView extends ConsumerWidget {
     final tracksAsync = ref.watch(albumTracksProvider(album.id));
     final theme = Theme.of(context);
     final playing = ref.watch(audioControllerProvider).current;
+    final shuffleOn =
+        ref.watch(audioControllerProvider.select((s) => s.shuffle));
     final tracks = tracksAsync.asData?.value ?? const [];
     final controller = ref.read(audioControllerProvider.notifier);
 
     Future<void> shufflePlay() async {
       if (tracks.isEmpty) return;
-      await controller.playQueue(tracks, 0);
-      if (!ref.read(audioControllerProvider).shuffle) {
-        await controller.toggleShuffle();
-      }
+      await controller.playQueue(tracks, 0, shuffle: true);
     }
 
     return CustomScrollView(
@@ -83,22 +82,28 @@ class AlbumView extends ConsumerWidget {
                           style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant)),
                       const SizedBox(height: 16),
-                      Row(
+                      // Icon pills matching the rest of the app: they expand to
+                      // the label on hover (desktop) or press (touch). Wrapped so
+                      // they never overflow beside the cover art.
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
                         children: [
-                          FilledButton.icon(
-                            onPressed: tracks.isEmpty
+                          HoverPillButton(
+                            icon: Icons.play_arrow_rounded,
+                            label: l.commonPlay,
+                            primary: true,
+                            onTap: tracks.isEmpty
                                 ? null
                                 : () => controller.playQueue(tracks, 0),
-                            style: kInlineButtonStyle,
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: Text(l.commonPlay),
                           ),
-                          const SizedBox(width: 12),
-                          OutlinedButton.icon(
-                            onPressed: tracks.isEmpty ? null : shufflePlay,
-                            style: kInlineButtonStyle,
-                            icon: const Icon(Icons.shuffle_rounded),
-                            label: Text(l.browseShuffle),
+                          HoverPillButton(
+                            icon: Icons.shuffle_rounded,
+                            label: l.browseShuffle,
+                            // Accent wash while shuffle is on, so the button
+                            // reads as an active toggle, not a dead press.
+                            tinted: shuffleOn,
+                            onTap: tracks.isEmpty ? null : shufflePlay,
                           ),
                         ],
                       ),

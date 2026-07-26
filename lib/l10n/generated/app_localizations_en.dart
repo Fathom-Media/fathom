@@ -180,6 +180,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsServer => 'Server';
 
   @override
+  String get serverAddressesTitle => 'Server Addresses';
+
+  @override
+  String get serverAddressInternalLabel => 'Home Address';
+
+  @override
+  String get serverAddressExternalLabel => 'Remote Address';
+
+  @override
+  String get serverAddressInternalHint => 'http://192.168.1.10:8096';
+
+  @override
+  String get serverAddressExternalHint => 'https://jellyfin.example.com';
+
+  @override
+  String get serverAddressHelp =>
+      'Fathom uses the Home address on your local network and the Remote address elsewhere, switching automatically. Leave Home blank to always use the Remote address.';
+
+  @override
+  String get serverAddressHome => 'Home';
+
+  @override
+  String get serverAddressRemote => 'Remote';
+
+  @override
   String settingsVersion(String version) {
     return 'Version $version';
   }
@@ -2869,6 +2894,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appNavLiveTv => 'Live TV';
+
+  @override
+  String get appNavMore => 'More';
 
   @override
   String get appServerUnreachableOffline =>

@@ -33,9 +33,12 @@ void main() {
   float c2 = sin(p.x * 1.6 - t * 0.7) + sin(p.y * 1.9 + t * 0.6);
   veins += 0.35 * pow(max(0.0, 1.0 - abs(c2 * 0.5)), 3.0);
 
-  // Soft radial pool centered in the window, fading out well before the edges.
+  // Soft radial pool centered in the window, scaled to the window so the
+  // caustics fill it at any size: full through the center, fading gently out
+  // toward the corners (no hard boundary) instead of clipping to a fixed spot.
   float d = distance(fc, uSize * 0.5);
-  float fall = smoothstep(340.0, 40.0, d);
+  float r = 0.5 * length(uSize); // center-to-corner distance
+  float fall = smoothstep(r, r * 0.12, d);
 
   float a = clamp(veins, 0.0, 1.0) * fall * 0.13; // deliberately faint
   vec3 tint = vec3(0.82, 0.95, 1.0); // pale aqua
