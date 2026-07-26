@@ -13,6 +13,7 @@ import '../state/session_controller.dart';
 import '../widgets/add_to_playlist.dart';
 import '../widgets/score_pills.dart';
 import '../widgets/glass.dart';
+import '../widgets/hover_pill_button.dart';
 import '../widgets/motion.dart';
 import '../widgets/media_cards.dart';
 import '../widgets/media_image.dart';
@@ -1094,10 +1095,6 @@ class _ActionBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final playStyle = FilledButton.styleFrom(
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-    );
 
     // For a series, the primary Play targets the next-up episode.
     if (item.isSeries) {
@@ -1111,15 +1108,15 @@ class _ActionBar extends ConsumerWidget {
         runSpacing: 10,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          FilledButton.icon(
-            onPressed: next == null ? null : () => onPlay(next),
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: Text(next == null
+          HoverPillButton(
+            primary: true,
+            icon: Icons.play_arrow_rounded,
+            label: next == null
                 ? l.commonPlay
                 : (next.canResume
                     ? (code == null ? l.detailResume : l.detailResumeCode(code))
-                    : (code == null ? l.commonPlay : l.detailPlayCode(code)))),
-            style: playStyle,
+                    : (code == null ? l.commonPlay : l.detailPlayCode(code))),
+            onTap: next == null ? null : () => onPlay(next),
           ),
           if (item.trailerUrl != null) _TrailerButton(item: item),
         ],
@@ -1131,20 +1128,19 @@ class _ActionBar extends ConsumerWidget {
       runSpacing: 10,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        FilledButton.icon(
-          onPressed: () => onPlay(item),
-          icon: const Icon(Icons.play_arrow_rounded),
-          label: Text(item.canResume
+        HoverPillButton(
+          primary: true,
+          icon: Icons.play_arrow_rounded,
+          label: item.canResume
               ? l.detailResumeFrom(_fmtTicks(item.resumePositionTicks))
-              : l.commonPlay),
-          style: playStyle,
+              : l.commonPlay,
+          onTap: () => onPlay(item),
         ),
         if (item.canResume)
-          OutlinedButton.icon(
-            onPressed: () => onPlay(item, resume: false),
-            icon: const Icon(Icons.replay_rounded),
-            label: Text(l.detailPlayFromStart),
-            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+          HoverPillButton(
+            icon: Icons.replay_rounded,
+            label: l.detailPlayFromStart,
+            onTap: () => onPlay(item, resume: false),
           ),
         if (item.trailerUrl != null) _TrailerButton(item: item),
         if (!item.isAlbum) ...[

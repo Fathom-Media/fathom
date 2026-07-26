@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
 
@@ -2084,13 +2085,19 @@ class JellyfinClient {
     required String token,
     required String channelId,
   }) async {
+    // On mobile, media_kit can't play a raw broadcast MPEG-TS the way desktop
+    // libmpv does, so drop the direct-play profiles to force the server down its
+    // HLS h264/aac transcode path (which media_kit plays on Android/iOS).
+    final profile = (Platform.isAndroid || Platform.isIOS)
+        ? {..._liveDeviceProfile, 'DirectPlayProfiles': const <Map>[]}
+        : _liveDeviceProfile;
     try {
       return await _requestLiveStream(
         baseUrl: baseUrl,
         userId: userId,
         token: token,
         channelId: channelId,
-        deviceProfile: _liveDeviceProfile,
+        deviceProfile: profile,
       );
     } on JellyfinException {
       // Some channels 500 with a custom profile but work when the server picks.

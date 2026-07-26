@@ -71,6 +71,14 @@ class Prefs {
   /// lyrics and LrcLib is a sanctioned open API, not a scrape.
   final bool lookUpMissingLyrics;
   final bool hardwareDecoding; // mpv hwdec on/off
+  // mpv video-sync=display-resample + interpolation: paces frames to the
+  // monitor refresh instead of libmpv's default audio-clock sync. Smooths
+  // judder/stutter on displays whose refresh doesn't divide the content fps.
+  // Opt-in (desktop): it can be a no-op or worse on setups already smooth.
+  final bool displaySync;
+  // Verbose mpv + app logging captured to a file the user can export, so
+  // playback/streaming issues can be diagnosed from a real log, not guesswork.
+  final bool diagnosticLogging;
   final bool previewThumbnailsWhileSeeking; // hover scrub previews
   final bool desktopNotifications; // downloads / requests
   final bool autoSkipIntro;
@@ -260,6 +268,8 @@ class Prefs {
     this.showLyricsAutomatically = true,
     this.lookUpMissingLyrics = true,
     this.hardwareDecoding = true,
+    this.displaySync = false,
+    this.diagnosticLogging = false,
     this.previewThumbnailsWhileSeeking = true,
     this.desktopNotifications = true,
     this.autoSkipIntro = false,
@@ -369,6 +379,8 @@ class Prefs {
     bool? showLyricsAutomatically,
     bool? lookUpMissingLyrics,
     bool? hardwareDecoding,
+    bool? displaySync,
+    bool? diagnosticLogging,
     bool? previewThumbnailsWhileSeeking,
     bool? desktopNotifications,
     bool? autoSkipIntro,
@@ -472,6 +484,8 @@ class Prefs {
         lookUpMissingLyrics:
             lookUpMissingLyrics ?? this.lookUpMissingLyrics,
         hardwareDecoding: hardwareDecoding ?? this.hardwareDecoding,
+        displaySync: displaySync ?? this.displaySync,
+        diagnosticLogging: diagnosticLogging ?? this.diagnosticLogging,
         previewThumbnailsWhileSeeking:
             previewThumbnailsWhileSeeking ?? this.previewThumbnailsWhileSeeking,
         desktopNotifications: desktopNotifications ?? this.desktopNotifications,
@@ -588,6 +602,8 @@ class Prefs {
         'showLyricsAutomatically': showLyricsAutomatically,
         'lookUpMissingLyrics': lookUpMissingLyrics,
         'hardwareDecoding': hardwareDecoding,
+        'displaySync': displaySync,
+        'diagnosticLogging': diagnosticLogging,
         'previewThumbnailsWhileSeeking': previewThumbnailsWhileSeeking,
         'desktopNotifications': desktopNotifications,
         'autoSkipIntro': autoSkipIntro,
@@ -694,6 +710,8 @@ class Prefs {
             j['showLyricsAutomatically'] as bool? ?? true,
         lookUpMissingLyrics: j['lookUpMissingLyrics'] as bool? ?? true,
         hardwareDecoding: j['hardwareDecoding'] as bool? ?? true,
+        displaySync: j['displaySync'] as bool? ?? false,
+        diagnosticLogging: j['diagnosticLogging'] as bool? ?? false,
         previewThumbnailsWhileSeeking:
             j['previewThumbnailsWhileSeeking'] as bool? ?? true,
         desktopNotifications: j['desktopNotifications'] as bool? ?? true,

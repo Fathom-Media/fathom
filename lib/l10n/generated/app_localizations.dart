@@ -1672,6 +1672,84 @@ abstract class AppLocalizations {
   /// **'Turn off if some videos glitch or fail'**
   String get prefsHardwareDecodingSub;
 
+  /// Player toggle title: pace video to the display refresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Smooth Motion (Display Sync)'**
+  String get prefsDisplaySync;
+
+  /// Display-sync toggle subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pace video to your monitor\'s refresh rate to reduce judder and stutter. Try it if playback isn\'t as smooth as another player.'**
+  String get prefsDisplaySyncSub;
+
+  /// Player toggle title: capture a verbose playback log.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostic Logging'**
+  String get prefsDiagnosticLogging;
+
+  /// Diagnostic-logging toggle subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture a verbose playback log to copy into a bug report. Turn on, reproduce the issue, then copy. Slightly slower while on.'**
+  String get prefsDiagnosticLoggingSub;
+
+  /// Action title: copy the captured diagnostic report to the clipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Diagnostics'**
+  String get prefsCopyDiagnostics;
+
+  /// Copy-diagnostics action subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy the captured log and system info to the clipboard'**
+  String get prefsCopyDiagnosticsSub;
+
+  /// Snackbar shown after copying diagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostics copied to clipboard'**
+  String get prefsDiagnosticsCopied;
+
+  /// Snackbar shown when there is no captured diagnostic log yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Play something with logging on first, then copy'**
+  String get prefsDiagnosticsEmpty;
+
+  /// Title of the app-wide Diagnostics/troubleshooting screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostics'**
+  String get diagnosticsTitle;
+
+  /// Settings About-row subtitle for Diagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture logs to troubleshoot a problem'**
+  String get diagnosticsSubtitle;
+
+  /// Explanatory paragraph at the top of the Diagnostics screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn on Diagnostic Logging, reproduce the problem, then copy the log into a bug report. Capture covers errors, app activity, and detailed playback info. It stays off until you turn it on, and credentials are removed from anything captured.'**
+  String get diagnosticsIntro;
+
+  /// Action to empty the diagnostics buffer.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Captured Log'**
+  String get diagnosticsClear;
+
+  /// Snackbar shown after clearing the diagnostics buffer.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostic log cleared'**
+  String get diagnosticsCleared;
+
   /// Audio setting title: preferred audio language.
   ///
   /// In en, this message translates to:

@@ -883,6 +883,16 @@ class PreferencesScreen extends ConsumerWidget {
         value: p.hardwareDecoding,
         onChanged: (v) => c.edit((x) => x.copyWith(hardwareDecoding: v)),
       ),
+      // Desktop-only smoother motion. Hidden on mobile, where playback runs
+      // through the platform mediacodec surface rather than this GL path.
+      if (!Platform.isAndroid && !Platform.isIOS)
+        SwitchListTile(
+          secondary: const Icon(Icons.motion_photos_on_rounded),
+          title: Text(l.prefsDisplaySync),
+          subtitle: Text(l.prefsDisplaySyncSub),
+          value: p.displaySync,
+          onChanged: (v) => c.edit((x) => x.copyWith(displaySync: v)),
+        ),
     ];
   }
 
@@ -1418,3 +1428,4 @@ class _StorageTileState extends State<_StorageTile> {
     );
   }
 }
+

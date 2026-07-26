@@ -845,6 +845,50 @@ class AppLocalizationsEn extends AppLocalizations {
       'Turn off if some videos glitch or fail';
 
   @override
+  String get prefsDisplaySync => 'Smooth Motion (Display Sync)';
+
+  @override
+  String get prefsDisplaySyncSub =>
+      'Pace video to your monitor\'s refresh rate to reduce judder and stutter. Try it if playback isn\'t as smooth as another player.';
+
+  @override
+  String get prefsDiagnosticLogging => 'Diagnostic Logging';
+
+  @override
+  String get prefsDiagnosticLoggingSub =>
+      'Capture a verbose playback log to copy into a bug report. Turn on, reproduce the issue, then copy. Slightly slower while on.';
+
+  @override
+  String get prefsCopyDiagnostics => 'Copy Diagnostics';
+
+  @override
+  String get prefsCopyDiagnosticsSub =>
+      'Copy the captured log and system info to the clipboard';
+
+  @override
+  String get prefsDiagnosticsCopied => 'Diagnostics copied to clipboard';
+
+  @override
+  String get prefsDiagnosticsEmpty =>
+      'Play something with logging on first, then copy';
+
+  @override
+  String get diagnosticsTitle => 'Diagnostics';
+
+  @override
+  String get diagnosticsSubtitle => 'Capture logs to troubleshoot a problem';
+
+  @override
+  String get diagnosticsIntro =>
+      'Turn on Diagnostic Logging, reproduce the problem, then copy the log into a bug report. Capture covers errors, app activity, and detailed playback info. It stays off until you turn it on, and credentials are removed from anything captured.';
+
+  @override
+  String get diagnosticsClear => 'Clear Captured Log';
+
+  @override
+  String get diagnosticsCleared => 'Diagnostic log cleared';
+
+  @override
   String get prefsAudioLanguage => 'Audio Language';
 
   @override

@@ -71,6 +71,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   SettingResult(title: l.searchSeerrConnection, section: l.settingsSectionIntegrations, icon: _integrations, route: '/seerr-settings', keywords: ['seerr', 'jellyseerr', 'overseerr', 'connect', 'connection', 'login', 'log in', 'sign in', 'signin', 'account', 'jellyfin', 'local', 'api key', 'apikey', 'token', 'email', 'password', 'url', 'server', 'requests']),
   // About — Updates
   SettingResult(title: l.settingsUpdates, section: l.settingsSectionAbout, icon: _about, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'beta', 'stable', 'latest']),
+  SettingResult(title: l.diagnosticsTitle, section: l.settingsSectionAbout, icon: _about, route: '/diagnostics', keywords: ['diagnostic', 'diagnostics', 'log', 'logging', 'verbose', 'debug', 'troubleshoot', 'troubleshooting', 'bug report', 'mpv log', 'copy log', 'crash', 'issue']),
   SettingResult(title: l.searchDownloadComplete, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'download', 'complete', 'finished', 'youtube']),
   // General — Storage
   SettingResult(title: l.searchImageCache, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['cache', 'storage', 'clear cache', 'disk', 'data', 'space', 'thumbnails', 'posters']),
@@ -97,6 +98,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   SettingResult(title: l.searchAutoSkipIntros, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['skip', 'intro', 'opening', 'media segments']),
   SettingResult(title: l.searchAutoSkipCredits, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['skip', 'credits', 'outro', 'ending', 'media segments']),
   SettingResult(title: l.searchHardwareDecoding, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['hardware', 'hwdec', 'gpu', 'decode', 'acceleration', 'glitch']),
+  SettingResult(title: l.prefsDisplaySync, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['smooth', 'motion', 'display sync', 'vsync', 'judder', 'stutter', 'tearing', 'refresh', 'frame pacing', 'interpolation']),
 
   // Audio & Subtitles
   SettingResult(title: l.searchAudioLanguage, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['audio', 'language', 'dub', 'track', 'default audio']),

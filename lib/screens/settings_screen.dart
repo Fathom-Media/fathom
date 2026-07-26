@@ -235,6 +235,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onTap: () => context.push('/updates'),
       ),
       ListTile(
+        leading: _leading(context, Icons.bug_report_rounded),
+        title: Text(l.diagnosticsTitle),
+        subtitle: Text(l.diagnosticsSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/diagnostics'),
+      ),
+      ListTile(
         leading: _leading(context, Icons.favorite_rounded),
         title: Text(l.settingsSupport),
         subtitle: Text(l.settingsSupportSubtitle),

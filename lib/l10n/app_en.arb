@@ -988,6 +988,58 @@
   "@prefsHardwareDecodingSub": {
     "description": "Hardware-decoding toggle subtitle."
   },
+  "prefsDisplaySync": "Smooth Motion (Display Sync)",
+  "@prefsDisplaySync": {
+    "description": "Player toggle title: pace video to the display refresh."
+  },
+  "prefsDisplaySyncSub": "Pace video to your monitor's refresh rate to reduce judder and stutter. Try it if playback isn't as smooth as another player.",
+  "@prefsDisplaySyncSub": {
+    "description": "Display-sync toggle subtitle."
+  },
+  "prefsDiagnosticLogging": "Diagnostic Logging",
+  "@prefsDiagnosticLogging": {
+    "description": "Player toggle title: capture a verbose playback log."
+  },
+  "prefsDiagnosticLoggingSub": "Capture a verbose playback log to copy into a bug report. Turn on, reproduce the issue, then copy. Slightly slower while on.",
+  "@prefsDiagnosticLoggingSub": {
+    "description": "Diagnostic-logging toggle subtitle."
+  },
+  "prefsCopyDiagnostics": "Copy Diagnostics",
+  "@prefsCopyDiagnostics": {
+    "description": "Action title: copy the captured diagnostic report to the clipboard."
+  },
+  "prefsCopyDiagnosticsSub": "Copy the captured log and system info to the clipboard",
+  "@prefsCopyDiagnosticsSub": {
+    "description": "Copy-diagnostics action subtitle."
+  },
+  "prefsDiagnosticsCopied": "Diagnostics copied to clipboard",
+  "@prefsDiagnosticsCopied": {
+    "description": "Snackbar shown after copying diagnostics."
+  },
+  "prefsDiagnosticsEmpty": "Play something with logging on first, then copy",
+  "@prefsDiagnosticsEmpty": {
+    "description": "Snackbar shown when there is no captured diagnostic log yet."
+  },
+  "diagnosticsTitle": "Diagnostics",
+  "@diagnosticsTitle": {
+    "description": "Title of the app-wide Diagnostics/troubleshooting screen."
+  },
+  "diagnosticsSubtitle": "Capture logs to troubleshoot a problem",
+  "@diagnosticsSubtitle": {
+    "description": "Settings About-row subtitle for Diagnostics."
+  },
+  "diagnosticsIntro": "Turn on Diagnostic Logging, reproduce the problem, then copy the log into a bug report. Capture covers errors, app activity, and detailed playback info. It stays off until you turn it on, and credentials are removed from anything captured.",
+  "@diagnosticsIntro": {
+    "description": "Explanatory paragraph at the top of the Diagnostics screen."
+  },
+  "diagnosticsClear": "Clear Captured Log",
+  "@diagnosticsClear": {
+    "description": "Action to empty the diagnostics buffer."
+  },
+  "diagnosticsCleared": "Diagnostic log cleared",
+  "@diagnosticsCleared": {
+    "description": "Snackbar shown after clearing the diagnostics buffer."
+  },
   "prefsAudioLanguage": "Audio Language",
   "@prefsAudioLanguage": {
     "description": "Audio setting title: preferred audio language."

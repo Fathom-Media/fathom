@@ -13,6 +13,7 @@ import 'package:audio_service/audio_service.dart';
 
 import 'app.dart';
 import 'services/desktop_integration.dart';
+import 'services/diagnostics.dart';
 import 'services/notifications.dart';
 import 'state/audio_handler.dart';
 import 'state/providers.dart';
@@ -21,6 +22,25 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Initialize libmpv-backed playback before the UI starts.
   MediaKit.ensureInitialized();
+
+  // App-wide diagnostics capture. These hooks are always installed but only
+  // record while the user has Diagnostic Logging on (Diagnostics.add no-ops
+  // otherwise), so errors and app logs from anywhere in the app land in the
+  // one exportable buffer, not just playback.
+  final priorOnError = FlutterError.onError;
+  FlutterError.onError = (details) {
+    Diagnostics.instance.add('flutter', details.exceptionAsString());
+    priorOnError?.call(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    Diagnostics.instance.add('error', '$error');
+    return false;
+  };
+  final priorDebugPrint = debugPrint;
+  debugPrint = (String? message, {int? wrapWidth}) {
+    if (message != null) Diagnostics.instance.add('app', message);
+    priorDebugPrint(message, wrapWidth: wrapWidth);
+  };
 
   // The OS title bar is suppressed natively (empty CSD titlebar in the Linux
   // runner). window_manager handles show/min-size + the custom window buttons.
