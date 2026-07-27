@@ -42,10 +42,25 @@ jobs:
             libsecret-1-dev libjsoncpp-dev \
             libmpv-dev mpv patchelf wget file desktop-file-utils xvfb
 
-      - uses: subosito/flutter-action@v2
+      - name: Set up Flutter (x86_64)
+        if: matrix.arch == 'x86_64'
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+
+      # subosito/flutter-action has no arm64 Linux SDK in its manifest ("Unable
+      # to determine Flutter version ... architecture: arm64"), so install from
+      # git on the arm64 runner — the flutter tool bootstraps the arm64 Dart SDK
+      # and linux engine artifacts itself.
+      - name: Set up Flutter (aarch64, from git)
+        if: matrix.arch == 'aarch64'
+        run: |
+          git clone --depth 1 -b stable https://github.com/flutter/flutter.git "$HOME/flutter"
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+          "$HOME/flutter/bin/flutter" config --enable-linux-desktop
+          "$HOME/flutter/bin/flutter" precache --linux
+          "$HOME/flutter/bin/flutter" --version
 
       - name: Build self-contained AppImage
         env:
