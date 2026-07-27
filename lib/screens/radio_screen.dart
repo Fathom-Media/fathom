@@ -1,0 +1,802 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../l10n/generated/app_localizations.dart';
+import '../models/radio_station.dart';
+import '../routing/app_shell.dart';
+import '../state/audio_player.dart';
+import '../state/radio.dart';
+import '../widgets/empty_state.dart';
+import '../widgets/motion.dart';
+import '../widgets/reorder.dart';
+import '../widgets/search_field.dart';
+
+/// Internet radio: your saved stations (favorites first, then by group), a
+/// radio-browser.info directory search to discover and add stations, and
+/// add-by-URL. Tapping a station plays it through the shared audio stack.
+class RadioScreen extends ConsumerStatefulWidget {
+  const RadioScreen({super.key});
+
+  @override
+  ConsumerState<RadioScreen> createState() => _RadioScreenState();
+}
+
+class _RadioScreenState extends ConsumerState<RadioScreen> {
+  final _searchCtrl = TextEditingController();
+  List<RadioStation> _results = const [];
+  bool _searching = false;
+  Timer? _searchDebounce;
+  // false = My Stations (saved), true = Browse (radio-browser directory search).
+  bool _browse = false;
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  // Search as you type (like every other search box), debounced since it hits
+  // the external radio-browser directory.
+  void _onSearchChanged(String v) {
+    _searchDebounce?.cancel();
+    if (v.trim().isEmpty) {
+      setState(() => _results = const []);
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 450), _runSearch);
+  }
+
+  Future<void> _runSearch() async {
+    final q = _searchCtrl.text.trim();
+    if (q.isEmpty) {
+      setState(() => _results = const []);
+      return;
+    }
+    setState(() => _searching = true);
+    final r = await ref.read(radioControllerProvider.notifier).search(q);
+    if (mounted) {
+      setState(() {
+        _results = r;
+        _searching = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final async = ref.watch(radioControllerProvider);
+    final stations = async.asData?.value ?? const <RadioStation>[];
+    final playingId =
+        ref.watch(audioControllerProvider.select((a) => a.radioStation?.id));
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: mobileLeading(context),
+        title: Text(l.radioTitle),
+        actions: [
+          IconButton(
+            tooltip: l.radioAddByUrl,
+            icon: const Icon(Icons.add_link_rounded),
+            onPressed: () => _addByUrl(context),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: _SlidingTabs(
+              value: _browse,
+              leftIcon: Icons.library_music_rounded,
+              leftLabel: l.radioTabMyStations,
+              rightIcon: Icons.travel_explore_rounded,
+              rightLabel: l.radioTabBrowse,
+              onChanged: (v) => setState(() => _browse = v),
+            ),
+          ),
+          if (_browse)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: SearchField(
+                controller: _searchCtrl,
+                hint: l.radioSearchHint,
+                autofocus: true,
+                onChanged: _onSearchChanged,
+                onSubmitted: (_) => _runSearch(),
+              ),
+            ),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 260),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              // Top-align (the default centres children, which left a big gap
+              // above a short, content-sized My Stations list).
+              layoutBuilder: (currentChild, previousChildren) => Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  ...previousChildren,
+                  ?currentChild,
+                ],
+              ),
+              transitionBuilder: (child, animation) {
+                // Slide the tabs past each other: Browse (right tab) enters from
+                // the right, My Stations (left tab) from the left; the outgoing
+                // one slides off the opposite edge. Fades along the way.
+                final incoming = child.key == ValueKey(_browse);
+                final sign = _browse ? 1.0 : -1.0;
+                final begin = Offset(incoming ? sign : -sign, 0);
+                return ClipRect(
+                  child: SlideTransition(
+                    position: Tween(begin: begin, end: Offset.zero)
+                        .animate(animation),
+                    child: FadeTransition(opacity: animation, child: child),
+                  ),
+                );
+              },
+              child: KeyedSubtree(
+                key: ValueKey(_browse),
+                child: _browse
+                    ? _directoryResults(l)
+                    : _savedStations(l, stations, playingId),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _directoryResults(AppLocalizations l) {
+    if (_searching) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_searchCtrl.text.trim().isEmpty) {
+      return EmptyState(
+          icon: Icons.travel_explore_rounded, title: l.radioSearchPrompt);
+    }
+    if (_results.isEmpty) {
+      return EmptyState(icon: Icons.radio_rounded, title: l.radioNoResults);
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 24),
+      itemCount: _results.length,
+      itemBuilder: (context, i) {
+        final s = _results[i];
+        return _StationTile(
+          station: s,
+          playing: false,
+          trailing: IconButton(
+            tooltip: l.radioAdd,
+            icon: const Icon(Icons.add_circle_outline_rounded),
+            onPressed: () async {
+              await ref.read(radioControllerProvider.notifier).add(s);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(l.radioAdded(s.name))));
+              }
+            },
+          ),
+          onTap: () =>
+              // Tapping a browse result just previews it (plays now) without
+              // saving. Use the + button to add it to My Stations. The tab bar
+              // stays put, so switching back to My Stations is one tap.
+              ref.read(audioControllerProvider.notifier).playStation(s),
+        );
+      },
+    );
+  }
+
+  Widget _savedStations(
+      AppLocalizations l, List<RadioStation> stations, String? playingId) {
+    if (stations.isEmpty) {
+      return EmptyState(
+        icon: Icons.radio_rounded,
+        title: l.radioNoStations,
+        message: l.radioNoStationsSub,
+      );
+    }
+    final favorites = stations.where((s) => s.favorite).toList();
+    final groups = <String, List<RadioStation>>{};
+    final ungrouped = <RadioStation>[];
+    for (final s in stations) {
+      if (s.group != null && s.group!.isNotEmpty) {
+        groups.putIfAbsent(s.group!, () => []).add(s);
+      } else {
+        ungrouped.add(s);
+      }
+    }
+    final groupNames = groups.keys.toList()..sort();
+
+    // Each section is its own reorderable list, so dragging rearranges stations
+    // WITHIN a section (Favorites / a group / Other) and never across them. Uses
+    // the same ReorderableListView the Home/Navigation editors use (drops
+    // correctly), shrink-wrapped and non-scrolling inside the page scroll view.
+    final sections = <Widget>[];
+    void section(String? label, List<RadioStation> items,
+        {Widget? headerTrailing}) {
+      if (items.isEmpty) return;
+      if (label != null) {
+        sections.add(_sectionHeader(label, trailing: headerTrailing));
+      }
+      sections.add(ReorderableListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        buildDefaultDragHandles: false,
+        itemCount: items.length,
+        // ignore: deprecated_member_use
+        onReorder: (o, n) => _onReorder(items, o, n),
+        itemBuilder: (context, i) => _tile(items[i], playingId, dragIndex: i),
+      ));
+    }
+
+    if (favorites.isNotEmpty) section(l.radioFavorites, favorites);
+    for (final g in groupNames) {
+      section(g, groups[g]!, headerTrailing: _groupMenu(g));
+    }
+    if (ungrouped.isNotEmpty) {
+      section(
+          groupNames.isNotEmpty || favorites.isNotEmpty
+              ? l.radioUngrouped
+              : null,
+          ungrouped);
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: sections,
+      ),
+    );
+  }
+
+  void _onReorder(List<RadioStation> bucket, int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex -= 1;
+    final ids = bucket.map((s) => s.id).toList();
+    final moved = ids.removeAt(oldIndex);
+    ids.insert(newIndex, moved);
+    ref.read(radioControllerProvider.notifier).reorderBucket(ids);
+  }
+
+  Widget _sectionHeader(String label, {Widget? trailing}) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, trailing == null ? 16 : 4, 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.primary)),
+            ),
+            ?trailing,
+          ],
+        ),
+      );
+
+  /// Overflow menu on a group header: rename the group or delete it (moving its
+  /// stations to Other, keeping the stations).
+  Widget _groupMenu(String group) {
+    final l = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<String>(
+      tooltip: l.radioGroupOptions,
+      // A pencil (not the station rows' vertical ⋮) so a group-level action
+      // reads as distinct: "manage this group", not "options for a station".
+      icon: Icon(Icons.edit_rounded, size: 18, color: scheme.onSurfaceVariant),
+      splashRadius: 20,
+      onSelected: (v) {
+        if (v == 'rename') _renameGroup(group);
+        if (v == 'delete') _deleteGroup(group);
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'rename',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.drive_file_rename_outline_rounded),
+            title: Text(l.radioRenameGroup),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.delete_outline_rounded),
+            title: Text(l.radioDeleteGroup),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _renameGroup(String group) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _RenameGroupDialog(initial: group),
+    );
+    if (name != null && name.isNotEmpty && name != group) {
+      await ref.read(radioControllerProvider.notifier).renameGroup(group, name);
+    }
+  }
+
+  Future<void> _deleteGroup(String group) async {
+    final l = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.radioDeleteGroup),
+        content: Text(l.radioDeleteGroupBody(group)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.commonCancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.commonRemove)),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await ref.read(radioControllerProvider.notifier).deleteGroup(group);
+    }
+  }
+
+  Widget _tile(RadioStation s, String? playingId, {int? dragIndex}) {
+    final l = AppLocalizations.of(context);
+    final di = dragIndex;
+    final tile = _StationTile(
+      station: s,
+      playing: s.id == playingId,
+      // The dots are just a "this moves" hint; the whole row is draggable
+      // (wrapped below), so you can grab a station from anywhere on it.
+      dragHandle: di == null
+          ? null
+          : Icon(Icons.drag_indicator, color: dragGripColor(context)),
+      trailing: PopupMenuButton<String>(
+        icon: const Icon(Icons.more_vert_rounded),
+        onSelected: (v) => _onAction(v, s),
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            value: 'favorite',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(s.favorite
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded),
+              title: Text(s.favorite ? l.radioUnfavorite : l.radioFavorite),
+            ),
+          ),
+          PopupMenuItem(
+            value: 'group',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.folder_rounded),
+              title: Text(l.radioSetGroup),
+            ),
+          ),
+          PopupMenuItem(
+            value: 'edit',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.edit_rounded),
+              title: Text(l.commonEdit),
+            ),
+          ),
+          PopupMenuItem(
+            value: 'remove',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.delete_outline_rounded,
+                  color: Theme.of(context).colorScheme.error),
+              title: Text(l.commonRemove,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
+          ),
+        ],
+      ),
+      onTap: () =>
+          ref.read(audioControllerProvider.notifier).playStation(s),
+    );
+    if (di == null) return KeyedSubtree(key: ValueKey(s.id), child: tile);
+    // Drag from anywhere on the row (press-drag on desktop, long-press on touch).
+    return dragAnywhere(key: ValueKey(s.id), index: di, child: tile);
+  }
+
+  Future<void> _onAction(String action, RadioStation s) async {
+    final ctrl = ref.read(radioControllerProvider.notifier);
+    switch (action) {
+      case 'favorite':
+        await ctrl.toggleFavorite(s.id);
+      case 'group':
+        await _setGroup(context, s);
+      case 'edit':
+        await _edit(context, s);
+      case 'remove':
+        await ctrl.remove(s.id);
+    }
+  }
+
+  Future<void> _addByUrl(BuildContext context) async {
+    final l = AppLocalizations.of(context);
+    final nameCtrl = TextEditingController();
+    final urlCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.radioAddByUrl),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: InputDecoration(labelText: l.radioStationName),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: urlCtrl,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              decoration: InputDecoration(labelText: l.radioStreamUrl),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.commonCancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.commonAdd)),
+        ],
+      ),
+    );
+    final url = urlCtrl.text.trim();
+    final name = nameCtrl.text.trim();
+    nameCtrl.dispose();
+    urlCtrl.dispose();
+    if (ok == true && url.isNotEmpty) {
+      await ref.read(radioControllerProvider.notifier).add(RadioStation(
+            id: url,
+            name: name.isEmpty ? url : name,
+            url: url,
+          ));
+    }
+  }
+
+  Future<void> _edit(BuildContext context, RadioStation s) async {
+    final l = AppLocalizations.of(context);
+    final nameCtrl = TextEditingController(text: s.name);
+    final urlCtrl = TextEditingController(text: s.url);
+    final homeCtrl = TextEditingController(text: s.homepage ?? '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.commonEdit),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(labelText: l.radioStationName),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: urlCtrl,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                decoration: InputDecoration(labelText: l.radioStreamUrl),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: homeCtrl,
+                keyboardType: TextInputType.url,
+                autocorrect: false,
+                decoration: InputDecoration(labelText: l.radioHomepage),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.commonCancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.commonSave)),
+        ],
+      ),
+    );
+    final name = nameCtrl.text.trim();
+    final url = urlCtrl.text.trim();
+    final home = homeCtrl.text.trim();
+    nameCtrl.dispose();
+    urlCtrl.dispose();
+    homeCtrl.dispose();
+    if (ok == true && url.isNotEmpty) {
+      await ref.read(radioControllerProvider.notifier).updateStation(
+            s.copyWith(
+                name: name.isEmpty ? s.name : name,
+                url: url,
+                homepage: home.isEmpty ? null : home),
+          );
+    }
+  }
+
+  Future<void> _setGroup(BuildContext context, RadioStation s) async {
+    final l = AppLocalizations.of(context);
+    final existing = ref.read(radioControllerProvider.notifier).groups;
+    final ctrl = TextEditingController(text: s.group ?? '');
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.radioSetGroup),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: ctrl,
+              decoration: InputDecoration(labelText: l.radioGroup),
+            ),
+            if (existing.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final g in existing)
+                    ActionChip(
+                        label: Text(g),
+                        onPressed: () => Navigator.pop(ctx, g)),
+                ],
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: Text(l.commonCancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: Text(l.commonSave)),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (result != null) {
+      await ref.read(radioControllerProvider.notifier).updateStation(
+          s.copyWith(group: result.isEmpty ? null : result));
+    }
+  }
+}
+
+/// A row for a station: logo (or a radio glyph), name, and a subtitle of group
+/// / tags / country, with a playing indicator or a supplied trailing control.
+class _StationTile extends StatelessWidget {
+  final RadioStation station;
+  final bool playing;
+  final Widget? trailing;
+  final Widget? dragHandle;
+  final VoidCallback onTap;
+  const _StationTile({
+    required this.station,
+    required this.playing,
+    required this.onTap,
+    this.trailing,
+    this.dragHandle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final sub = [
+      if (station.group != null && station.group!.isNotEmpty) station.group!,
+      if (station.country != null && station.country!.isNotEmpty)
+        station.country!,
+      if (station.tags != null && station.tags!.isNotEmpty)
+        station.tags!.split(',').take(2).join(', '),
+    ].join(' · ');
+    final logo = SizedBox(
+      width: 44,
+      height: 44,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: station.favicon != null
+            ? Image.network(
+                station.favicon!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => _fallback(scheme),
+              )
+            : _fallback(scheme),
+      ),
+    );
+    return ListTile(
+      // Drag grip (when reorderable) sits at the very left, before the logo,
+      // consistent with the Navigation screen.
+      leading: dragHandle == null
+          ? logo
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [dragHandle!, const SizedBox(width: 6), logo],
+            ),
+      title: Text(station.name,
+          maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: sub.isEmpty
+          ? null
+          : Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: playing
+          ? Icon(Icons.graphic_eq_rounded, color: scheme.primary)
+          : trailing,
+      onTap: onTap,
+    );
+  }
+
+  Widget _fallback(ColorScheme scheme) => Container(
+        color: scheme.surfaceContainerHighest,
+        alignment: Alignment.center,
+        child: Icon(Icons.radio_rounded, color: scheme.onSurfaceVariant),
+      );
+}
+
+/// A two-option segmented toggle whose selected "pill" slides between the two
+/// choices, matching the tab content's slide. Text/icon colours cross-fade as
+/// the pill passes under them.
+class _SlidingTabs extends StatelessWidget {
+  final bool value; // false = left, true = right
+  final IconData leftIcon;
+  final String leftLabel;
+  final IconData rightIcon;
+  final String rightLabel;
+  final ValueChanged<bool> onChanged;
+  const _SlidingTabs({
+    required this.value,
+    required this.leftIcon,
+    required this.leftLabel,
+    required this.rightIcon,
+    required this.rightLabel,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dur = reduceMotion(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 260);
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(23),
+      ),
+      child: LayoutBuilder(
+        builder: (context, c) {
+          return Stack(
+            children: [
+              // The sliding selection pill.
+              AnimatedAlign(
+                duration: dur,
+                curve: Curves.easeOutCubic,
+                alignment:
+                    value ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  width: c.maxWidth / 2,
+                  height: double.infinity,
+                  decoration: BoxDecoration(
+                    color: scheme.primary,
+                    borderRadius: BorderRadius.circular(19),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _seg(scheme, dur, leftIcon, leftLabel,
+                        selected: !value, onTap: () => onChanged(false)),
+                  ),
+                  Expanded(
+                    child: _seg(scheme, dur, rightIcon, rightLabel,
+                        selected: value, onTap: () => onChanged(true)),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _seg(ColorScheme scheme, Duration dur, IconData icon, String label,
+          {required bool selected, required VoidCallback onTap}) =>
+      GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: TweenAnimationBuilder<double>(
+          duration: dur,
+          curve: Curves.easeOut,
+          tween: Tween(begin: 0, end: selected ? 1 : 0),
+          builder: (context, t, _) {
+            final color =
+                Color.lerp(scheme.onSurfaceVariant, scheme.onPrimary, t)!;
+            // Center the icon+label as a group: a Flexible in a full-width Row
+            // eats the free space, so center it with a min-width Row instead.
+            return Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 18, color: color),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            color: color, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+}
+
+/// Rename-group dialog. Owns its own controller so it's disposed when the dialog
+/// unmounts (after the exit animation) — disposing it synchronously right after
+/// showDialog() returns crashed the tree (`_dependents.isEmpty`).
+class _RenameGroupDialog extends StatefulWidget {
+  final String initial;
+  const _RenameGroupDialog({required this.initial});
+
+  @override
+  State<_RenameGroupDialog> createState() => _RenameGroupDialogState();
+}
+
+class _RenameGroupDialogState extends State<_RenameGroupDialog> {
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l.radioRenameGroup),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        decoration: InputDecoration(labelText: l.radioGroup),
+        onSubmitted: (_) => Navigator.pop(context, _ctrl.text.trim()),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l.commonCancel)),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
+            child: Text(l.commonSave)),
+      ],
+    );
+  }
+}

@@ -2075,6 +2075,86 @@ class JellyfinClient {
     }
   }
 
+  /// Resolves a Chromecast-playable stream for [itemId]. The server direct-plays
+  /// when the source codecs fit a Cast device (returning the raw file URL and
+  /// its container's MIME, so an h264/aac MKV casts as-is on a Chromecast with
+  /// Google TV / Android TV), or hands back an HLS transcode URL when they don't.
+  /// Returns the URL and the content type to give the Cast receiver.
+  Future<({String url, String contentType})> castStream({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '$baseUrl/Items/$itemId/PlaybackInfo',
+        queryParameters: {
+          'UserId': userId,
+          'MaxStreamingBitrate': '120000000',
+          'EnableDirectPlay': 'true',
+          'EnableDirectStream': 'true',
+          'EnableTranscoding': 'true',
+          'AllowVideoStreamCopy': 'true',
+          'AllowAudioStreamCopy': 'true',
+        },
+        data: {'DeviceProfile': _castDeviceProfile},
+        options: _authed(token),
+      );
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final playSessionId = data['PlaySessionId'] as String?;
+      final sources = (data['MediaSources'] as List?) ?? const [];
+      if (sources.isEmpty) {
+        throw JellyfinException('No playable source for this video.');
+      }
+      final ms = Map<String, dynamic>.from(sources.first as Map);
+      final transcodingUrl = ms['TranscodingUrl'] as String?;
+      if (transcodingUrl != null && transcodingUrl.isNotEmpty) {
+        final url = transcodingUrl.startsWith('http')
+            ? transcodingUrl
+            : '$baseUrl$transcodingUrl';
+        return (url: url, contentType: 'application/x-mpegurl');
+      }
+      final container =
+          (ms['Container'] as String?)?.split(',').first.trim().toLowerCase();
+      final params = {
+        'static': 'true',
+        'mediaSourceId': ?(ms['Id'] as String?),
+        'playSessionId': ?playSessionId,
+        'api_key': token,
+        'deviceId': deviceId,
+      };
+      final q = params.entries
+          .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+          .join('&');
+      return (
+        url: '$baseUrl/Videos/$itemId/stream?$q',
+        contentType: _mimeForContainer(container),
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+  static String _mimeForContainer(String? c) {
+    switch (c) {
+      case 'mp4':
+      case 'm4v':
+      case 'mov':
+        return 'video/mp4';
+      case 'webm':
+        return 'video/webm';
+      case 'mkv':
+        return 'video/x-matroska';
+      case 'ts':
+      case 'mpegts':
+      case 'm2ts':
+        return 'video/mp2t';
+      default:
+        return 'video/mp4';
+    }
+  }
+
   /// Opens a live stream for a channel via PlaybackInfo (the handshake HDHomeRun
   /// and most tuners require). Returns the playable URL plus the ids needed to
   /// close it later (freeing the tuner). Falls back to letting the server choose
@@ -2202,6 +2282,36 @@ class JellyfinClient {
   // profile below, which had no subtitle profiles), Jellyfin would fall back to
   // a full HLS transcode for many files the client can actually play directly,
   // which is what made startup and seeking slow.
+  // What a modern Cast device (Chromecast with Google TV / Android TV) plays
+  // directly. Broad enough that an h264/aac MKV direct-plays (cast as-is), while
+  // codecs a Chromecast can't handle fall back to an h264/aac HLS transcode.
+  static const _castDeviceProfile = {
+    'MaxStreamingBitrate': 120000000,
+    'MaxStaticBitrate': 120000000,
+    'DirectPlayProfiles': [
+      {
+        'Type': 'Video',
+        'Container': 'mp4,mkv,webm,m4v,mov',
+        'VideoCodec': 'h264,hevc,vp8,vp9',
+        'AudioCodec': 'aac,mp3,ac3,eac3,opus,vorbis,flac',
+      },
+    ],
+    'TranscodingProfiles': [
+      {
+        'Type': 'Video',
+        'Container': 'ts',
+        'Protocol': 'hls',
+        'VideoCodec': 'h264',
+        'AudioCodec': 'aac,mp3',
+        'Context': 'Streaming',
+      },
+    ],
+    'SubtitleProfiles': [
+      {'Format': 'vtt', 'Method': 'External'},
+      {'Format': 'webvtt', 'Method': 'External'},
+    ],
+  };
+
   static const _videoDeviceProfile = {
     'MaxStreamingBitrate': 120000000,
     'MaxStaticBitrate': 120000000,
@@ -2333,6 +2443,32 @@ class JellyfinClient {
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
         .join('&');
     return '$baseUrl/Audio/$itemId/stream?$q';
+  }
+
+  /// An audio-only HLS stream of [itemId]'s primary audio track, for casting a
+  /// video's audio to an audio-only speaker (Nest/Home Mini) which can't render
+  /// a video stream. Uses the universal audio endpoint, which extracts and
+  /// transcodes the audio to AAC-in-HLS.
+  String castAudioUrl({
+    required String baseUrl,
+    required String userId,
+    required String itemId,
+    required String token,
+  }) {
+    // A plain progressive MP3 stream, which Google speakers play the most
+    // reliably (HLS-in-TS tended to load but never start on a Nest/Home Mini).
+    final params = {
+      'UserId': userId,
+      'DeviceId': deviceId,
+      'api_key': token,
+      'AudioCodec': 'mp3',
+      'Container': 'mp3',
+      'MaxStreamingBitrate': '320000',
+    };
+    final q = params.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    return '$baseUrl/Audio/$itemId/universal?$q';
   }
 
   Future<void> reportPlaybackStart({

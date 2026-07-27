@@ -14,6 +14,9 @@ class FathomLogo extends StatelessWidget {
       width: size,
       height: size,
       filterQuality: FilterQuality.medium,
+      // Don't throw/log if the asset ever fails to resolve — show a glyph.
+      errorBuilder: (context, _, _) => Icon(Icons.waves_rounded,
+          size: size, color: Theme.of(context).colorScheme.primary),
     );
   }
 }
@@ -36,6 +39,8 @@ class FathomGlyph extends StatelessWidget {
       color: color,
       colorBlendMode: BlendMode.srcIn,
       filterQuality: FilterQuality.medium,
+      errorBuilder: (context, _, _) =>
+          Icon(Icons.waves_rounded, size: size, color: color),
     );
   }
 }

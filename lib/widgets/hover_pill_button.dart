@@ -23,6 +23,10 @@ class HoverPillButton extends StatefulWidget {
   /// actions like Approve (green) / Decline (red). Overrides [primary]/[tinted].
   final Color? color;
 
+  /// Replaces the [icon] glyph (e.g. a small progress spinner for a download in
+  /// flight). Still gets the tap-pop scale and the expand-on-hover/press label.
+  final Widget? iconWidget;
+
   const HoverPillButton({
     super.key,
     required this.icon,
@@ -31,6 +35,7 @@ class HoverPillButton extends StatefulWidget {
     this.tinted = false,
     this.primary = false,
     this.color,
+    this.iconWidget,
   });
 
   @override
@@ -90,7 +95,7 @@ class _HoverPillButtonState extends State<HoverPillButton>
     final expanded = _isTouch ? _pressed : _hover;
     final icon = ScaleTransition(
       scale: _tapScale,
-      child: Icon(widget.icon, size: 20, color: fg),
+      child: widget.iconWidget ?? Icon(widget.icon, size: 20, color: fg),
     );
 
     // Tooltip so the label is reachable without a hover (touch, quick glance).
@@ -103,9 +108,10 @@ class _HoverPillButtonState extends State<HoverPillButton>
         // highlight is deferred inside a scroll view, so holding wouldn't
         // expand. onPointerDown fires immediately.
         child: Listener(
-          onPointerDown: widget.onTap == null
-              ? null
-              : (_) => setState(() => _pressed = true),
+          // Press-to-expand works even when the action is disabled, so a
+          // "done"/inert pill (e.g. Requested, Downloading) can still expand on
+          // touch to reveal its label, matching the hover behaviour on desktop.
+          onPointerDown: (_) => setState(() => _pressed = true),
           onPointerUp: (_) {
             if (_pressed) setState(() => _pressed = false);
           },

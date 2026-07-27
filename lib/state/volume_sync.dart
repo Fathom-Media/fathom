@@ -33,6 +33,16 @@ class VolumeSync {
   /// as though the viewer had chosen it.
   double? _lastSeen;
 
+  /// Re-reads the remembered volume and applies it to the player. Use when the
+  /// stored value wasn't available at [attach] time (e.g. preferences loaded
+  /// asynchronously after the player was created) so the player would otherwise
+  /// be stuck at its default while the UI shows the remembered level.
+  void reapply() {
+    final stored = read().clamp(0.0, 100.0);
+    _lastSeen = stored;
+    unawaited(player.setVolume(stored));
+  }
+
   /// Applies the remembered volume, then keeps it up to date.
   void attach() {
     final stored = read().clamp(0.0, 100.0);

@@ -12,14 +12,13 @@ import '../state/library_providers.dart';
 import '../state/notifications_controller.dart';
 import '../state/preferences.dart';
 import '../state/providers.dart';
-import '../state/seerr_providers.dart';
 import '../state/seerr_request_watcher.dart';
 import '../state/session_controller.dart';
 import '../state/syncplay.dart';
 import '../state/ui_providers.dart';
 import '../state/updates.dart';
 import '../widgets/window_frame.dart';
-import '../state/youtube_providers.dart';
+import 'nav_destinations.dart';
 import '../widgets/glass.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/mini_player.dart';
@@ -27,7 +26,6 @@ import '../widgets/mini_video.dart';
 import '../widgets/user_avatar.dart';
 import '../widgets/ui_common.dart';
 
-typedef _Dest = ({String route, IconData icon, String label});
 
 /// The shell's inner navigator. Held here so navigation code can pop any pushed
 /// pages (a detail screen, Settings) when needed. Wired onto the [ShellRoute] in
@@ -44,6 +42,18 @@ final shellScaffoldKey = GlobalKey<ScaffoldState>();
 /// `AppBar(leading: mobileDrawerLeading(context), ...)`.
 Widget? mobileDrawerLeading(BuildContext context) {
   if (MediaQuery.of(context).size.shortestSide >= 600) return null;
+  return const DrawerMenuButton();
+}
+
+/// Leading control for a secondary screen's AppBar on phones. Shows a Back
+/// button when the route can pop (reached via push, e.g. the offline banner's
+/// jump to Downloads, or an artist opened from the Artists list), otherwise the
+/// drawer hamburger (reached as a drawer destination via `go`, e.g. Playlists,
+/// Genres, Downloads), so those screens are never a dead end. Null on
+/// tablet/desktop, which navigate from the persistent rail.
+Widget? mobileLeading(BuildContext context) {
+  if (MediaQuery.of(context).size.shortestSide >= 600) return null;
+  if (Navigator.of(context).canPop()) return const BackButton();
   return const DrawerMenuButton();
 }
 
@@ -93,41 +103,15 @@ class AppShell extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final location = GoRouterState.of(context).matchedLocation;
     final extended = ref.watch(railExtendedProvider);
-    final seerrOn = ref.watch(seerrConfiguredProvider);
-    final youtubeOn = ref.watch(youtubeEnabledProvider);
     // Keep the Seerr request poller alive for the app's lifetime (no-op until
     // Seerr is configured), so request status changes fire notifications.
     ref.watch(seerrRequestWatcherProvider);
-    // Only surface Live TV when the server actually has a Live TV library.
-    final views = ref.watch(userViewsProvider).asData?.value;
-    final hasLiveTv =
-        views?.any((v) => v.collectionType == 'livetv') ?? true;
 
-    // Search sits second — it's a primary action, not a buried library tool.
-    final destinations = <_Dest>[
-      (route: '/home', icon: Icons.home_rounded, label: l.appNavHome),
-      (route: '/search', icon: Icons.search_rounded, label: l.commonSearch),
-      (
-        route: '/libraries',
-        icon: Icons.video_library_rounded,
-        label: l.appNavLibraries
-      ),
-      (route: '/favorites', icon: Icons.favorite_rounded, label: l.appNavFavorites),
-      if (hasLiveTv)
-        (route: '/livetv', icon: Icons.live_tv_rounded, label: l.appNavLiveTv),
-      if (seerrOn)
-        (
-          route: '/discover',
-          icon: Icons.travel_explore_rounded,
-          label: 'Seerr'
-        ),
-      if (youtubeOn)
-        (
-          route: '/youtube',
-          icon: Icons.smart_display_rounded,
-          label: 'YouTube'
-        ),
-    ];
+    // Destinations come from the shared registry, then get the user's saved
+    // order + hidden set applied (Settings > Navigation).
+    final prefs = ref.watch(preferencesProvider).asData?.value ?? const Prefs();
+    final destinations =
+        orderNavDestinations(availableNavDestinations(ref, l), prefs);
     final scheme = Theme.of(context).colorScheme;
 
     // Phones get a slide-out drawer shell; tablets and desktop keep the rail.
@@ -148,11 +132,20 @@ class AppShell extends ConsumerWidget {
 
     // A Material ancestor so all shell chrome (profile menu, tooltips, ink)
     // always has one, regardless of what the child route provides.
+    //
+    // The top SafeArea clears the status bar when this rail shell runs on an
+    // Android tablet (shortestSide >= 600). On desktop the WindowFrame injects a
+    // 34px top padding for full-bleed art to run BEHIND the transparent title
+    // bar, so we must NOT consume it here (that left a solid strip above heroes)
+    // — the nested Scaffolds drop their app bars below the title bar instead.
     return Material(
       color: scheme.surface,
-      child: Column(
-        children: [
-          const _OfflineBanner(),
+      child: SafeArea(
+        top: !isDesktopWindowFrame,
+        bottom: false,
+        child: Column(
+          children: [
+            const _OfflineBanner(),
           Expanded(
             child: Stack(
               children: [
@@ -221,7 +214,8 @@ class AppShell extends ConsumerWidget {
             ),
           ),
           const MiniPlayer(),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -232,7 +226,7 @@ class AppShell extends ConsumerWidget {
 /// controls at the foot. Shared by the desktop rail and the phone's slide-out
 /// drawer, so both look and behave the same.
 class NavSidebar extends ConsumerWidget {
-  final List<_Dest> destinations;
+  final List<NavDest> destinations;
   final bool extended;
 
   /// The rail's collapse toggle; null hides it (the phone drawer has no collapse).
@@ -300,7 +294,7 @@ class NavSidebar extends ConsumerWidget {
 /// edge swipe, and dismissed automatically on navigation. Tablets/desktop use
 /// the persistent rail in [AppShell] instead.
 class _MobileShell extends ConsumerStatefulWidget {
-  final List<_Dest> destinations;
+  final List<NavDest> destinations;
   final String location;
   final Widget child;
   const _MobileShell({
@@ -360,9 +354,10 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
       ),
       // The top status-bar inset is reserved once here so the offline banner and
       // content clear it (SafeArea removes it from the MediaQuery below, so the
-      // nested screens don't double-inset).
+      // nested screens don't double-inset). On desktop the WindowFrame's 34px is
+      // left in place so full-bleed art runs behind the transparent title bar.
       body: SafeArea(
-        top: true,
+        top: !isDesktopWindowFrame,
         bottom: false,
         left: false,
         right: false,
@@ -374,6 +369,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
                 children: [
                   Positioned.fill(
                     child: SafeArea(
+                      top: !isDesktopWindowFrame,
                       bottom: false,
                       child: Material(
                           color: Colors.transparent, child: widget.child),
@@ -754,6 +750,9 @@ class _NavTile extends StatefulWidget {
 
 class _NavTileState extends State<_NavTile> {
   bool _hover = false;
+  // D-pad/keyboard focus (TV remotes) reuses the hover highlight.
+  bool _focused = false;
+  bool get _active => _hover || _focused;
 
   @override
   Widget build(BuildContext context) {
@@ -761,10 +760,10 @@ class _NavTileState extends State<_NavTile> {
     final selected = widget.selected;
     final fg = selected
         ? scheme.primary
-        : (_hover ? scheme.onSurface : scheme.onSurfaceVariant);
+        : (_active ? scheme.onSurface : scheme.onSurfaceVariant);
     final bg = selected
         ? scheme.primary.withValues(alpha: 0.14)
-        : (_hover
+        : (_active
             ? scheme.onSurface.withValues(alpha: 0.06)
             : Colors.transparent);
 
@@ -775,7 +774,17 @@ class _NavTileState extends State<_NavTile> {
     Widget tile = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
+      child: FocusableActionDetector(
+        onShowFocusHighlight: (v) => setState(() => _focused = v),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap();
+              return null;
+            },
+          ),
+        },
+        child: GestureDetector(
         onTap: widget.onTap,
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
@@ -813,6 +822,7 @@ class _NavTileState extends State<_NavTile> {
               : Center(child: iconWidget),
         ),
       ),
+      ),
     );
 
     if (!widget.extended) {
@@ -842,6 +852,12 @@ class _BrowseNav extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     final expanded = ref.watch(browseNavExpandedProvider);
+    // On phones these are drill-downs, so push (a real Back button, uniform with
+    // Settings/details). On the desktop rail they're peers you switch between, so
+    // keep the replace so the rail selection tracks and pages don't stack.
+    final mobile = MediaQuery.of(context).size.shortestSide < 600;
+    void openBrowse(String route) =>
+        mobile ? context.push(route) : context.go(route);
     final items = <(String, String, IconData)>[
       (l.miscNavPlaylists, '/playlists', Icons.playlist_play_rounded),
       (l.miscNavGenres, '/genres', Icons.category_rounded),
@@ -905,7 +921,7 @@ class _BrowseNav extends ConsumerWidget {
                       _NavSubTile(
                         label: i.$1,
                         icon: i.$3,
-                        onTap: () => context.go(i.$2),
+                        onTap: () => openBrowse(i.$2),
                       ),
                   ],
                 ),

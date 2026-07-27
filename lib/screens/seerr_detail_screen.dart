@@ -14,6 +14,7 @@ import '../state/providers.dart';
 import '../state/seerr_providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/app_snack.dart';
+import '../widgets/hover_pill_button.dart';
 import '../widgets/media_section.dart';
 import '../widgets/cached_image.dart';
 import '../widgets/detail_header.dart';
@@ -22,7 +23,6 @@ import '../widgets/score_pills.dart';
 import '../widgets/seerr_manage_dialog.dart';
 import '../widgets/seerr_poster_card.dart';
 import '../widgets/seerr_request_dialog.dart';
-import '../theme/app_theme.dart';
 
 /// Rich Seerr detail page: backdrop, overview, cast, and requesting
 /// (movie whole, or per-season for TV).
@@ -230,32 +230,30 @@ class _DetailBody extends ConsumerWidget {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       if (d.jellyfinMediaId != null)
-                        FilledButton.icon(
-                          style: kInlineButtonStyle,
-                          onPressed: () => context.push('/item',
+                        HoverPillButton(
+                          primary: true,
+                          icon: Icons.play_arrow_rounded,
+                          label: l.detailWatch,
+                          onTap: () => context.push('/item',
                               extra: BaseItemDto(
                                   id: d.jellyfinMediaId!, name: d.title)),
-                          icon: const Icon(Icons.play_arrow_rounded),
-                          label: Text(l.detailWatch),
                         ),
                       if (showViewRequest)
                         _ViewRequestButton(detail: d)
                       else
                         _RequestButton(detail: d),
                       if (d.trailerUrl != null)
-                        OutlinedButton.icon(
-                          style: kInlineButtonStyle,
-                          onPressed: () => context.push('/trailer',
+                        HoverPillButton(
+                          icon: Icons.movie_outlined,
+                          label: l.detailTrailer,
+                          onTap: () => context.push('/trailer',
                               extra: (url: d.trailerUrl!, title: d.title)),
-                          icon: const Icon(Icons.movie_outlined),
-                          label: Text(l.detailTrailer),
                         ),
                       if (showManage)
-                        OutlinedButton.icon(
-                          style: kInlineButtonStyle,
-                          onPressed: () => showSeerrManageDialog(context, d),
-                          icon: const Icon(Icons.settings_rounded),
-                          label: Text(l.detailManage),
+                        HoverPillButton(
+                          icon: Icons.settings_rounded,
+                          label: l.detailManage,
+                          onTap: () => showSeerrManageDialog(context, d),
                         ),
                     ],
                   ),
@@ -478,13 +476,13 @@ class _RequestButtonState extends ConsumerState<_RequestButton> {
         onTap: movieRequested ? null : _openRequest,
       );
     }
-    return FilledButton.icon(
-      style: kInlineButtonStyle,
-      onPressed: movieRequested ? null : _openRequest,
-      icon: Icon(movieRequested
+    return HoverPillButton(
+      primary: true,
+      icon: movieRequested
           ? Icons.hourglass_top_rounded
-          : Icons.add_rounded),
-      label: Text(movieRequested ? l.detailRequested : l.detailRequest),
+          : Icons.add_rounded,
+      label: movieRequested ? l.detailRequested : l.detailRequest,
+      onTap: movieRequested ? null : _openRequest,
     );
   }
 }

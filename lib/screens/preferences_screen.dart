@@ -760,6 +760,13 @@ class PreferencesScreen extends ConsumerWidget {
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => context.push('/home-layout'),
       ),
+      ListTile(
+        leading: const Icon(Icons.view_sidebar_rounded),
+        title: Text(l.prefsNavLayout),
+        subtitle: Text(l.prefsNavLayoutSub),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/navigation-layout'),
+      ),
     ];
   }
 

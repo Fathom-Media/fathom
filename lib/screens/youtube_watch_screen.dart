@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import '../widgets/reorder.dart';
 import '../widgets/cached_image.dart';
 
 import 'package:flutter/gestures.dart';
@@ -716,35 +717,53 @@ class _QueueSheet extends ConsumerWidget {
                     )
                   : ReorderableListView.builder(
                       shrinkWrap: true,
+                      buildDefaultDragHandles: false,
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
                       itemCount: queue.length,
                       onReorderItem: notifier.reorder,
                       itemBuilder: (context, i) {
                         final v = queue[i];
-                        return Padding(
+                        return dragAnywhere(
                           key: ValueKey(v.id),
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: YoutubeVideoRow(
-                            video: v,
-                            compact: true,
-                            showMenu: false,
-                            onTap: () {
-                              notifier.remove(v.id);
-                              Navigator.pop(context);
-                              context.push('/youtube/watch',
-                                  extra: (videoId: v.id, title: v.title));
-                            },
-                            extraMenuItems: [
-                              PopupMenuItem(
-                                value: () => notifier.remove(v.id),
-                                child: Row(children: [
-                                  const Icon(Icons.remove_circle_outline_rounded,
-                                      size: 18),
-                                  const SizedBox(width: 12),
-                                  Text(l.ytRemoveFromQueue),
-                                ]),
-                              ),
-                            ],
+                          index: i,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Icon(Icons.drag_indicator,
+                                    color: dragGripColor(context)),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: YoutubeVideoRow(
+                                    video: v,
+                                    compact: true,
+                                    showMenu: false,
+                                    onTap: () {
+                                      notifier.remove(v.id);
+                                      Navigator.pop(context);
+                                      context.push('/youtube/watch',
+                                          extra: (
+                                            videoId: v.id,
+                                            title: v.title
+                                          ));
+                                    },
+                                    extraMenuItems: [
+                                      PopupMenuItem(
+                                        value: () => notifier.remove(v.id),
+                                        child: Row(children: [
+                                          const Icon(
+                                              Icons
+                                                  .remove_circle_outline_rounded,
+                                              size: 18),
+                                          const SizedBox(width: 12),
+                                          Text(l.ytRemoveFromQueue),
+                                        ]),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       },

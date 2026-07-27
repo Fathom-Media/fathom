@@ -14,9 +14,11 @@ import '../models/seerr_request.dart';
 import '../models/seerr_result.dart';
 import '../state/preferences.dart';
 import '../state/seerr_providers.dart';
+import '../widgets/reorder.dart';
 import '../widgets/app_dropdown.dart';
 import '../widgets/app_snack.dart';
 import '../widgets/cached_image.dart';
+import '../widgets/search_field.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/hover_pill_button.dart';
@@ -1279,8 +1281,8 @@ class SeerrDiscoverLayoutScreen extends ConsumerWidget {
                               child: Padding(
                                 padding:
                                     const EdgeInsets.fromLTRB(12, 16, 6, 16),
-                                child: Icon(Icons.drag_indicator_rounded,
-                                    color: scheme.onSurfaceVariant),
+                                child: Icon(Icons.drag_indicator,
+                                    color: dragGripColor(context)),
                               ),
                             ),
                             Expanded(
@@ -1407,21 +1409,11 @@ class _SeerrSearchTabState extends ConsumerState<_SeerrSearchTab> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: SearchBar(
+          child: SearchField(
             controller: _controller,
-            hintText: l.browseSeerrSearchHint,
-            leading: const Icon(Icons.search_rounded),
-            trailing: [
-              if (query.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () {
-                    _controller.clear();
-                    ref.read(seerrQueryProvider.notifier).set('');
-                  },
-                ),
-            ],
+            hint: l.browseSeerrSearchHint,
             onChanged: (v) => ref.read(seerrQueryProvider.notifier).set(v),
+            onClear: () => ref.read(seerrQueryProvider.notifier).set(''),
           ),
         ),
         Expanded(

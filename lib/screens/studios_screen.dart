@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../state/library_providers.dart';
 import '../widgets/browse_tile.dart';
 import '../widgets/empty_state.dart';
@@ -20,7 +21,7 @@ class StudiosScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final async = ref.watch(studiosProvider);
     return Scaffold(
-      appBar: AppBar(title: Text(l.browseStudios)),
+      appBar: AppBar(leading: mobileLeading(context), title: Text(l.browseStudios)),
       body: async.when(
         loading: () => const ChipWrapSkeleton(),
         error: (e, _) => ErrorView(message: '$e', onRetry: () => ref.invalidate(studiosProvider)),

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_updates.dart';
@@ -22,7 +23,29 @@ Future<void> downloadAndInstall(
 }) async {
   if (Platform.isLinux) return _installLinuxAppImage(asset, onProgress);
   if (Platform.isWindows) return _installWindowsZip(asset, onProgress);
+  if (Platform.isAndroid) return _installAndroidApk(asset, onProgress);
   throw UnsupportedError('In-app install is not supported on this platform.');
+}
+
+/// Android: download the APK and hand it to the system package installer. This
+/// does NOT replace-and-relaunch like desktop; the OS shows its install prompt
+/// (the user grants "install unknown apps" once), so we return normally and let
+/// the installer take over.
+Future<void> _installAndroidApk(
+    ReleaseAsset asset, void Function(double)? onProgress) async {
+  final dir = await getExternalStorageDirectory() ??
+      await getTemporaryDirectory();
+  final apkPath = '${dir.path}/fathom_update.apk';
+  final dio = await secureDio();
+  await dio.download(asset.url, apkPath,
+      onReceiveProgress: (r, t) => _report(onProgress, r, t));
+  final result = await OpenFilex.open(
+    apkPath,
+    type: 'application/vnd.android.package-archive',
+  );
+  if (result.type != ResultType.done) {
+    throw StateError('Could not open the installer: ${result.message}');
+  }
 }
 
 void _report(void Function(double)? cb, int received, int total) {

@@ -9,6 +9,7 @@ import '../state/app_info.dart';
 import '../state/preferences.dart';
 import '../state/session_controller.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/search_field.dart';
 import '../widgets/user_avatar.dart';
 import 'settings_search.dart';
 
@@ -53,31 +54,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
+            child: SearchField(
               controller: _searchCtrl,
+              hint: l.settingsSearchHint,
               onChanged: (v) => setState(() => _query = v),
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: l.settingsSearchHint,
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: searching
-                    ? IconButton(
-                        tooltip: l.commonClear,
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () =>
-                            setState(() {
-                          _query = '';
-                          _searchCtrl.clear();
-                        }),
-                      )
-                    : null,
-                filled: true,
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
             ),
           ),
           Expanded(
@@ -191,6 +171,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         subtitle: Text(l.settingsYouTubeSubtitle),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => context.push('/preferences', extra: 'youtube'),
+      ),
+      SwitchListTile(
+        secondary: _leading(context, Icons.radio_rounded),
+        title: Text(l.settingsRadio),
+        subtitle: Text(l.settingsRadioSubtitle),
+        value: ref.watch(preferencesProvider
+            .select((p) => p.asData?.value.radioEnabled ?? false)),
+        onChanged: (v) => ref
+            .read(preferencesProvider.notifier)
+            .edit((x) => x.copyWith(radioEnabled: v)),
       ),
       SwitchListTile(
         secondary: _leading(context, Icons.groups_rounded),

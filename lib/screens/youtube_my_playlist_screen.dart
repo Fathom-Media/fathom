@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/youtube_local_playlist.dart';
 import '../state/youtube_providers.dart';
 import '../theme/app_theme.dart';
+import '../widgets/reorder.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/youtube_cards.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -68,6 +69,7 @@ class YoutubeMyPlaylistScreen extends ConsumerWidget {
                 Expanded(
                   child: ReorderableListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                    buildDefaultDragHandles: false,
                     itemCount: playlist.videos.length,
                     // onReorderItem, not the deprecated onReorder: it hands
                     // over the index with the lifted item already accounted
@@ -76,24 +78,38 @@ class YoutubeMyPlaylistScreen extends ConsumerWidget {
                         notifier.reorder(playlist.id, oldIndex, newIndex),
                     itemBuilder: (context, i) {
                       final v = playlist.videos[i];
-                      return Padding(
+                      return dragAnywhere(
                         key: ValueKey('${v.id}-$i'),
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: YoutubeVideoRow(
-                          video: v,
-                          // Already in a playlist: Remove is the useful action.
-                          showMenu: false,
-                          extraMenuItems: [
-                            PopupMenuItem(
-                              value: () =>
-                                  notifier.removeVideo(playlist.id, v.id),
-                              child: Row(children: [
-                                const Icon(Icons.playlist_remove_rounded, size: 18),
-                                const SizedBox(width: 12),
-                                Text(l.ytRemoveFromPlaylist),
-                              ]),
-                            ),
-                          ],
+                        index: i,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              Icon(Icons.drag_indicator,
+                                  color: dragGripColor(context)),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: YoutubeVideoRow(
+                                  video: v,
+                                  // Already in a playlist: Remove is useful.
+                                  showMenu: false,
+                                  extraMenuItems: [
+                                    PopupMenuItem(
+                                      value: () => notifier.removeVideo(
+                                          playlist.id, v.id),
+                                      child: Row(children: [
+                                        const Icon(
+                                            Icons.playlist_remove_rounded,
+                                            size: 18),
+                                        const SizedBox(width: 12),
+                                        Text(l.ytRemoveFromPlaylist),
+                                      ]),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },

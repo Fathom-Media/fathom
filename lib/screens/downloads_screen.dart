@@ -7,6 +7,7 @@ import '../state/downloads.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 
 /// Offline downloads: play, see progress, or remove downloaded items.
 class DownloadsScreen extends ConsumerWidget {
@@ -19,7 +20,7 @@ class DownloadsScreen extends ConsumerWidget {
     final controller = ref.read(downloadsProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l.ytDownloads)),
+      appBar: AppBar(leading: mobileLeading(context), title: Text(l.ytDownloads)),
       body: downloads.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorView(message: '$e'),

@@ -15,6 +15,7 @@ import '../state/session_controller.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/media_cards.dart';
+import '../widgets/search_field.dart';
 import '../widgets/motion.dart';
 import '../widgets/shimmer.dart';
 
@@ -130,28 +131,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: mobileDrawerLeading(context),
-        title: TextField(
+        title: SearchField(
           controller: _controller,
           autofocus: true,
+          hint: l.browseSearchHint,
           onChanged: _onChanged,
           onSubmitted: (v) => _saveRecent(v),
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            hintText: l.browseSearchHint,
-            border: InputBorder.none,
-            filled: false,
-          ),
+          onClear: () => _search(''),
         ),
-        actions: [
-          if (_controller.text.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.clear_rounded),
-              onPressed: () {
-                _controller.clear();
-                _search('');
-              },
-            ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(52),
           child: SizedBox(
