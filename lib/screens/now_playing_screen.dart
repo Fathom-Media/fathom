@@ -301,6 +301,7 @@ class _RadioNowPlaying extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final audio = ref.watch(audioControllerProvider);
     final player = ref.watch(audioPlayerProvider);
+    final cast = ref.watch(castControllerProvider);
     final s = audio.radioStation;
     if (s == null) return const SizedBox.shrink();
     final theme = Theme.of(context);
@@ -350,7 +351,7 @@ class _RadioNowPlaying extends ConsumerWidget {
               final wide = c.maxWidth >= 840;
               final info = ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
-                child: _info(context, ref, l, audio, player, s, theme),
+                child: _info(context, ref, l, audio, player, s, theme, cast),
               );
               // Wide: art on the LEFT, info on the RIGHT, the whole pair centered
               // both ways on screen. Narrow: the same, stacked in a column.
@@ -359,7 +360,7 @@ class _RadioNowPlaying extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        _hero(context, ref, player, audio, s, theme, 280),
+                        _hero(context, ref, player, audio, s, theme, cast, 280),
                         const SizedBox(width: 48),
                         info,
                       ],
@@ -369,7 +370,7 @@ class _RadioNowPlaying extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        _hero(context, ref, player, audio, s, theme, 250),
+                        _hero(context, ref, player, audio, s, theme, cast, 250),
                         const SizedBox(height: 28),
                         info,
                       ],
@@ -391,15 +392,18 @@ class _RadioNowPlaying extends ConsumerWidget {
   }
 
   Widget _hero(BuildContext context, WidgetRef ref, Player player,
-      AudioState audio, RadioStation s, ThemeData theme, double size) {
+      AudioState audio, RadioStation s, ThemeData theme, CastState cast,
+      double size) {
     return StreamBuilder<bool>(
       stream: player.stream.playing,
       initialData: player.state.playing,
       builder: (context, snap) {
         final art = audio.radioArtwork;
         final hasArt = art != null && art.isNotEmpty;
+        // While casting the local player is paused, so pulse to the cast state.
+        final playing = cast.casting ? cast.playing : (snap.data ?? false);
         return _AuraGlow(
-          playing: snap.data ?? false,
+          playing: playing,
           borderRadius: 18,
           color: theme.colorScheme.primary,
           child: Container(
@@ -435,7 +439,8 @@ class _RadioNowPlaying extends ConsumerWidget {
   }
 
   Widget _info(BuildContext context, WidgetRef ref, AppLocalizations l,
-      AudioState audio, Player player, RadioStation s, ThemeData theme) {
+      AudioState audio, Player player, RadioStation s, ThemeData theme,
+      CastState cast) {
     final scheme = theme.colorScheme;
     final controller = ref.read(audioControllerProvider.notifier);
     final hasIcy = audio.radioTitle != null && audio.radioTitle!.isNotEmpty;
@@ -472,11 +477,14 @@ class _RadioNowPlaying extends ConsumerWidget {
             style: theme.textTheme.bodyLarge
                 ?.copyWith(color: scheme.onSurfaceVariant)),
         const SizedBox(height: 20),
-        _liveRow(context, l, audio, controller, theme),
-        const SizedBox(height: 14),
+        // Time-shift only applies to the local buffer — hide it while casting.
+        if (!cast.casting) ...[
+          _liveRow(context, l, audio, controller, theme),
+          const SizedBox(height: 14),
+        ],
         VolumeSlider(player: player),
         const SizedBox(height: 10),
-        _controls(context, l, audio, controller, player, theme),
+        _controls(context, l, audio, controller, player, theme, cast),
       ],
     );
   }
@@ -511,13 +519,17 @@ class _RadioNowPlaying extends ConsumerWidget {
   }
 
   Widget _controls(BuildContext context, AppLocalizations l, AudioState audio,
-      AudioController controller, Player player, ThemeData theme) {
+      AudioController controller, Player player, ThemeData theme,
+      CastState cast) {
     final scheme = theme.colorScheme;
+    // Rewind/skip act on the local buffer, so they're only meaningful when NOT
+    // casting.
+    final showSeek = audio.radioSeekable && !cast.casting;
     return Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        if (audio.radioSeekable) ...[
+        if (showSeek) ...[
           ControlButton(
             icon: Icons.fast_rewind_rounded,
             tooltip: l.radioRewind,
@@ -532,7 +544,9 @@ class _RadioNowPlaying extends ConsumerWidget {
           stream: player.stream.playing,
           initialData: player.state.playing,
           builder: (context, snap) {
-            final playing = snap.data ?? false;
+            // While casting the local player is paused; reflect the cast's state
+            // (togglePlay already routes to the cast device).
+            final playing = cast.casting ? cast.playing : (snap.data ?? false);
             return ControlButton(
               icon: playing
                   ? Icons.pause_circle_filled_rounded
@@ -543,7 +557,7 @@ class _RadioNowPlaying extends ConsumerWidget {
             );
           },
         ),
-        if (audio.radioSeekable) ...[
+        if (showSeek) ...[
           const SizedBox(width: 10),
           ControlButton(
             icon: Icons.fast_forward_rounded,

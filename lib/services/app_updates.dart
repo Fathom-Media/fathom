@@ -1,3 +1,4 @@
+import 'dart:ffi' show Abi;
 import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
@@ -66,7 +67,13 @@ class GithubRelease {
       return null;
     }
 
-    if (Platform.isLinux) return pick((n) => n.endsWith('.appimage'));
+    if (Platform.isLinux) {
+      // Releases now ship both x86_64 and aarch64 AppImages, so match this
+      // host's arch (falling back to any AppImage for older single-arch tags).
+      final arch = Abi.current() == Abi.linuxArm64 ? 'aarch64' : 'x86_64';
+      return pick((n) => n.endsWith('.appimage') && n.contains(arch)) ??
+          pick((n) => n.endsWith('.appimage'));
+    }
     if (Platform.isWindows) {
       return pick((n) => n.endsWith('.zip') && n.contains('windows'));
     }

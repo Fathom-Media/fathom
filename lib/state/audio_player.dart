@@ -142,6 +142,7 @@ class AudioController extends Notifier<AudioState> {
   DateTime? _radioTickWall;
   static const _radioMaxWindow = Duration(minutes: 30);
   String? _artLookupKey; // the song title whose artwork we're currently resolving
+  int _emptyIcyCount = 0; // consecutive empty ICY reads (debounces ad/gap clears)
   String? _reportedId;
   int _lastPositionTicks = 0;
   final Map<String, BaseItemDto> _byId = {};
@@ -364,6 +365,7 @@ class AudioController extends Notifier<AudioState> {
       radioWindow: Duration.zero,
     );
     _radioEdge = Duration.zero;
+    _emptyIcyCount = 0;
     _radioTickWall = null;
     await _configureRadioBuffer();
     await _player.open(Media(s.url));
@@ -406,6 +408,7 @@ class AudioController extends Notifier<AudioState> {
     final s = state.radioStation;
     if (s == null) return;
     _radioEdge = Duration.zero;
+    _emptyIcyCount = 0;
     _radioTickWall = null;
     state = state.copyWith(radioBehindLive: Duration.zero);
     await _player.open(Media(s.url));
@@ -483,31 +486,40 @@ class AudioController extends Notifier<AudioState> {
         // Per-song album art if the station embeds it (iHeart amgArtworkURL).
         final embedded = _extractArtwork(raw);
         if (title.isEmpty) {
-          // Ad break or metadata with no track: drop to the station's live
-          // label + logo instead of holding a stale song.
-          _artLookupKey = null;
-          if (state.radioTitle != null || state.radioArtwork != null) {
-            state = state.copyWith(radioTitle: null, radioArtwork: null);
-            final s = state.radioStation;
-            if (s != null) _pushRadioNowPlaying(s, null);
+          // A single empty read is usually a transient blip (seeking / a short
+          // re-buffer) — clearing then would flash the logo and force an art
+          // re-download when the same title returns a beat later. Only treat it
+          // as a real gap/ad after a couple in a row.
+          _emptyIcyCount++;
+          if (_emptyIcyCount >= 2) {
+            _artLookupKey = null;
+            if (state.radioTitle != null || state.radioArtwork != null) {
+              state = state.copyWith(radioTitle: null, radioArtwork: null);
+              final s = state.radioStation;
+              if (s != null) _pushRadioNowPlaying(s, null);
+            }
           }
           return;
         }
+        _emptyIcyCount = 0;
         final titleChanged = title != state.radioTitle;
         if (titleChanged) {
           // New song: adopt embedded art if present, else clear the old art and
-          // look it up generically (iTunes) so any station gets cover art.
+          // look it up generically (iTunes) — but only for something that looks
+          // like a real "Artist - Title", so ad text doesn't pull a random cover.
           state = state.copyWith(
             radioTitle: title,
             radioArtwork: embedded.isNotEmpty ? embedded : null,
           );
           final s = state.radioStation;
           if (s != null) _pushRadioNowPlaying(s, title);
-          if (embedded.isEmpty) {
+          if (embedded.isNotEmpty) {
+            _artLookupKey = title.toLowerCase();
+          } else if (_looksLikeSong(title)) {
             _artLookupKey = null;
             unawaited(_resolveArtwork(title));
           } else {
-            _artLookupKey = title.toLowerCase();
+            _artLookupKey = null;
           }
         } else if (embedded.isNotEmpty && embedded != state.radioArtwork) {
           state = state.copyWith(radioArtwork: embedded);
@@ -711,7 +723,22 @@ class AudioController extends Notifier<AudioState> {
       final decoded = body is String ? jsonDecode(body) : body;
       final results = (decoded is Map) ? decoded['results'] as List? : null;
       if (results == null || results.isEmpty) return;
-      final art100 = (results.first as Map)['artworkUrl100'] as String?;
+      final match = results.first as Map;
+      // Guard against iTunes returning an unrelated "best guess" (its default
+      // for junk queries, e.g. a random greatest-hits): require the result to
+      // share a real word with what we searched for.
+      final resultText =
+          '${match['trackName'] ?? ''} ${match['artistName'] ?? ''} '
+                  '${match['collectionName'] ?? ''}'
+              .toLowerCase();
+      final queryWords = (term.isEmpty ? title : term)
+          .toLowerCase()
+          .split(RegExp(r'\s+'))
+          .where((w) => w.length >= 3)
+          .toSet();
+      final overlap = queryWords.where(resultText.contains).length;
+      if (queryWords.isNotEmpty && overlap == 0) return;
+      final art100 = match['artworkUrl100'] as String?;
       if (art100 == null || art100.isEmpty) return;
       // iTunes serves 100px; bump the size token for a crisp cover.
       final big = art100.replaceAll('100x100bb', '600x600bb');
@@ -721,6 +748,17 @@ class AudioController extends Notifier<AudioState> {
         if (s != null) _pushRadioNowPlaying(s, title);
       }
     } catch (_) {}
+  }
+
+  /// True when an ICY line looks like a real song we can search art for: an
+  /// "Artist - Title" with both sides non-trivial. Ad taglines / bare station
+  /// text fail this, so we don't pull a random cover (e.g. a "greatest hits").
+  static bool _looksLikeSong(String s) {
+    final m = RegExp(r'^(.{2,}?)\s+-\s+(.{2,})$').firstMatch(s.trim());
+    if (m == null) return false;
+    final a = m.group(1)!.trim();
+    final b = m.group(2)!.trim();
+    return a.length >= 2 && b.length >= 2 && s.length <= 120;
   }
 
   /// Called when a resolved artwork URL fails to load, so the UI falls back to
