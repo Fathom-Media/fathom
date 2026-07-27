@@ -1,10 +1,12 @@
 name: AppImage
 
-# Builds a portable, self-contained Linux AppImage and bundles libmpv+codecs
-# (BUNDLE_MPV=1) so no host mpv is required. Built on Ubuntu 24.04: older bases
-# (22.04) ship libmpv too old for media_kit's video renderer (video comes up as
-# a solid colour), so 24.04's libmpv 0.38 is the floor. Its glibc still runs on
-# current distros. Run manually via "Run workflow", or on a v* tag.
+# Builds portable, self-contained Linux AppImages (libmpv+codecs bundled via
+# BUNDLE_MPV=1, so no host mpv is required) for BOTH x86_64 and aarch64. Built on
+# Ubuntu 24.04: older bases (22.04) ship libmpv too old for media_kit's video
+# renderer (video comes up as a solid colour), so 24.04's libmpv 0.38 is the
+# floor. Its glibc still runs on current distros. aarch64 builds natively on a
+# GitHub-hosted arm64 runner (Flutter can't cross-compile Linux desktop). Run
+# manually via "Run workflow", or on a v* tag.
 on:
   workflow_dispatch:
     inputs:
@@ -17,8 +19,16 @@ on:
 
 jobs:
   appimage:
-    name: Build portable AppImage (Ubuntu 24.04)
-    runs-on: ubuntu-24.04
+    name: Build AppImage (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
     permissions:
       contents: write # attach the AppImage to the release on a tag
     steps:
@@ -40,6 +50,7 @@ jobs:
       - name: Build self-contained AppImage
         env:
           BUNDLE_MPV: '1'
+          ARCH: ${{ matrix.arch }}
         run: |
           # Set the pubspec version so the build reports the right version for
           # update checks: a manual "version" input wins, else a v* tag uses its
@@ -60,7 +71,7 @@ jobs:
         run: |
           set -x
           code=0
-          timeout 60 xvfb-run -a ./build/Fathom-x86_64.AppImage --appimage-extract-and-run &>/tmp/smoke.log || code=$?
+          timeout 60 xvfb-run -a ./build/Fathom-${{ matrix.arch }}.AppImage --appimage-extract-and-run &>/tmp/smoke.log || code=$?
           echo "exit=$code"
           tail -20 /tmp/smoke.log || true
           # A clean start that we then time out is fine; a loader/link crash is not.
@@ -69,10 +80,10 @@ jobs:
       - name: Upload AppImage
         uses: actions/upload-artifact@v4
         with:
-          name: Fathom-x86_64-AppImage
+          name: Fathom-${{ matrix.arch }}-AppImage
           path: |
-            build/Fathom-x86_64.AppImage
-            build/Fathom-x86_64.AppImage.zsync
+            build/Fathom-${{ matrix.arch }}.AppImage
+            build/Fathom-${{ matrix.arch }}.AppImage.zsync
           if-no-files-found: error
           retention-days: 7
 
@@ -80,18 +91,19 @@ jobs:
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: build/Fathom-x86_64.AppImage
+          files: build/Fathom-${{ matrix.arch }}.AppImage
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
 
       # For -dev.N tags, also point the floating "dev-latest" pre-release at this
-      # build so testers have one stable "always latest dev" download URL.
+      # build so testers have one stable "always latest dev" download URL. Each
+      # arch attaches its own file (distinct names), so both live on dev-latest.
       - name: Update dev-latest alias
         if: github.ref_type == 'tag' && contains(github.ref_name, '-dev.')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: dev-latest
           name: Dev Build (latest)
-          files: build/Fathom-x86_64.AppImage
+          files: build/Fathom-${{ matrix.arch }}.AppImage
           prerelease: true
           make_latest: false

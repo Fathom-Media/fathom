@@ -15,12 +15,19 @@ set -euo pipefail
 
 APP_ID="app.fathom.player"
 BIN="fathom"
-ARCH="x86_64"
+# Target arch: x86_64 (default) or aarch64. Set ARCH=aarch64 on an arm64 host
+# (Flutter can't cross-compile Linux desktop, so build natively on that arch).
+ARCH="${ARCH:-x86_64}"
+case "$ARCH" in
+  x86_64)  flutter_arch="x64" ;;
+  aarch64) flutter_arch="arm64" ;;
+  *) echo "Unsupported ARCH: $ARCH (use x86_64 or aarch64)" >&2; exit 1 ;;
+esac
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/.." && pwd)"
 pkg="$root/linux/packaging"
-bundle="$root/build/linux/x64/release/bundle"
+bundle="$root/build/linux/${flutter_arch}/release/bundle"
 work="$root/build/appimage"
 cache="$work/tools"
 
