@@ -4,6 +4,7 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -126,6 +127,16 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         AppNotifications.requestPermission();
       });
+      // Draw edge-to-edge with transparent system bars (required behaviour on
+      // Android 15+, and a cleaner look elsewhere): the app paints behind the
+      // status and gesture-nav bars, and SafeArea insets the content. No forced
+      // nav-bar contrast scrim; AppBars still set their own icon brightness.
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarContrastEnforced: false,
+      ));
     }
   }
 

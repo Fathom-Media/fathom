@@ -154,6 +154,8 @@
   "settingsYouTubeSubtitle": "Search & watch, ad-free",
   "settingsWatchTogether": "Watch Together",
   "settingsWatchTogetherSubtitle": "Sync playback with others, from your profile menu",
+  "settingsRadio": "Internet Radio",
+  "settingsRadioSubtitle": "Search, save, and play radio stations from the sidebar",
   "settingsProfileSubtitle": "View profile, change picture",
   "settingsAccounts": "Accounts",
   "settingsAccountsSubtitle": "Switch server or user, add account",
@@ -888,6 +890,18 @@
   "@prefsHomeLayoutSub": {
     "description": "Home-layout setting subtitle."
   },
+  "prefsNavLayout": "Navigation",
+  "@prefsNavLayout": {
+    "description": "Setting title: opens the sidebar/nav customization editor."
+  },
+  "prefsNavLayoutSub": "Reorder & hide the sidebar items",
+  "@prefsNavLayoutSub": {
+    "description": "Navigation-layout setting subtitle."
+  },
+  "navLayoutTitle": "Navigation",
+  "@navLayoutTitle": {"description": "Navigation customization screen title."},
+  "navLayoutSubtitle": "Drag to reorder. Turn items off to hide them from the sidebar.",
+  "@navLayoutSubtitle": {"description": "Navigation customization screen subtitle."},
   "prefsVideoFit": "Video Fit",
   "@prefsVideoFit": {
     "description": "Player setting title: how video fills the screen."
@@ -1855,7 +1869,7 @@
       }
     }
   },
-  "detailCastAction": "Cast",
+  "detailCastAction": "Play On",
   "@detailCastAction": {
     "description": "Button label to cast/play the item on another device."
   },
@@ -3826,6 +3840,70 @@
   "@appNavMore": {
     "description": "Bottom navigation label opening a sheet of overflow destinations on phones."
   },
+  "appNavRadio": "Radio",
+  "@appNavRadio": {
+    "description": "Navigation label for the internet radio section."
+  },
+  "radioTitle": "Radio",
+  "@radioTitle": {"description": "Radio screen title."},
+  "radioNowPlaying": "Radio",
+  "@radioNowPlaying": {"description": "Now Playing title while a station plays."},
+  "radioLiveStream": "Live stream",
+  "@radioLiveStream": {"description": "Shown under the station when there is no ICY track info."},
+  "radioSearchDirectory": "Search directory",
+  "@radioSearchDirectory": {"description": "Toggles the station directory search."},
+  "radioTabMyStations": "My Stations",
+  "@radioTabMyStations": {"description": "Radio tab: the user's saved stations."},
+  "radioTabBrowse": "Browse",
+  "@radioTabBrowse": {"description": "Radio tab: search and add stations from the directory."},
+  "radioStop": "Stop",
+  "@radioStop": {"description": "Tooltip for the radio stop/dismiss button."},
+  "radioRewind": "Rewind 15 seconds",
+  "@radioRewind": {"description": "Tooltip for the radio rewind button."},
+  "radioSkip": "Skip 15 seconds",
+  "@radioSkip": {"description": "Tooltip for the radio skip-forward button."},
+  "radioGroupOptions": "Group options",
+  "@radioGroupOptions": {"description": "Tooltip for the group header overflow menu."},
+  "radioRenameGroup": "Rename Group",
+  "@radioRenameGroup": {"description": "Menu action: rename a station group."},
+  "radioDeleteGroup": "Delete Group",
+  "@radioDeleteGroup": {"description": "Menu action: delete a station group."},
+  "radioDeleteGroupBody": "Stations in \"{group}\" move to Other. The stations themselves aren't removed.",
+  "@radioDeleteGroupBody": {"description": "Confirm body for deleting a group.", "placeholders": {"group": {"type": "String"}}},
+  "radioSearchHint": "Search stations…",
+  "@radioSearchHint": {"description": "Placeholder in the radio directory search field."},
+  "radioSearchPrompt": "Search for a station to add",
+  "@radioSearchPrompt": {"description": "Empty state before a directory search is run."},
+  "radioNoResults": "No stations found",
+  "@radioNoResults": {"description": "Empty state when a directory search returns nothing."},
+  "radioNoStations": "No saved stations yet",
+  "@radioNoStations": {"description": "Empty state when the station library is empty."},
+  "radioNoStationsSub": "Search the directory or add a station by URL",
+  "@radioNoStationsSub": {"description": "Empty-state hint for the station library."},
+  "radioFavorites": "Favorites",
+  "@radioFavorites": {"description": "Section header for favorite stations."},
+  "radioUngrouped": "Other",
+  "@radioUngrouped": {"description": "Section header for stations with no group."},
+  "radioAddByUrl": "Add by URL",
+  "@radioAddByUrl": {"description": "Adds a radio station by its stream URL."},
+  "radioAdd": "Add",
+  "@radioAdd": {"description": "Add a directory station to the library."},
+  "radioAdded": "Added {name}",
+  "@radioAdded": {"description": "Confirmation after saving a station.", "placeholders": {"name": {"type": "String"}}},
+  "radioFavorite": "Add to favorites",
+  "@radioFavorite": {"description": "Mark a station as favorite."},
+  "radioUnfavorite": "Remove from favorites",
+  "@radioUnfavorite": {"description": "Unmark a favorite station."},
+  "radioSetGroup": "Set group",
+  "@radioSetGroup": {"description": "Assign a station to a group/category."},
+  "radioGroup": "Group",
+  "@radioGroup": {"description": "Group/category field label."},
+  "radioStationName": "Station name",
+  "@radioStationName": {"description": "Station name field label."},
+  "radioStreamUrl": "Stream URL",
+  "@radioStreamUrl": {"description": "Stream URL field label."},
+  "radioHomepage": "Homepage (optional)",
+  "@radioHomepage": {"description": "Station homepage field label."},
   "appServerUnreachableOffline": "Server unreachable. You are offline.",
   "@appServerUnreachableOffline": {
     "description": "Banner shown across the top of the app when the active server cannot be reached."
@@ -6127,6 +6205,44 @@
   "notifDownloadComplete": "Download complete",
   "@notifDownloadComplete": {
     "description": "OS notification title when a download finishes."
+  },
+  "castTo": "Cast to",
+  "@castTo": {
+    "description": "Title of the Chromecast device-picker sheet."
+  },
+  "castSearching": "Searching for devices…",
+  "@castSearching": {
+    "description": "Shown while scanning for Chromecast devices."
+  },
+  "castFailed": "Couldn't start casting",
+  "@castFailed": {
+    "description": "Snackbar when resolving/starting a cast fails."
+  },
+  "castDisconnect": "Disconnect",
+  "@castDisconnect": {
+    "description": "Ends the current Chromecast session."
+  },
+  "castStop": "Stop Casting",
+  "@castStop": {
+    "description": "Button to end casting and return to local playback."
+  },
+  "castConnectedTo": "Casting to {device}",
+  "@castConnectedTo": {
+    "description": "Header showing the connected Chromecast.",
+    "placeholders": { "device": { "type": "String" } }
+  },
+  "castConnecting": "Connecting to {device}…",
+  "@castConnecting": {
+    "description": "Header shown while a cast session is starting.",
+    "placeholders": { "device": { "type": "String" } }
+  },
+  "notifDownloading": "Downloading",
+  "@notifDownloading": {
+    "description": "OS notification title while a download is in progress."
+  },
+  "notifDownloadFailed": "Download failed",
+  "@notifDownloadFailed": {
+    "description": "OS notification title when a download fails."
   },
   "notifNewRequest": "New request",
   "@notifNewRequest": {

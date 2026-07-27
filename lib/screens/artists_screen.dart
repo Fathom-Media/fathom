@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../models/base_item.dart';
 import '../state/library_providers.dart';
 import '../widgets/empty_state.dart';
@@ -21,7 +22,7 @@ class ArtistsScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final async = ref.watch(artistsProvider);
     return Scaffold(
-      appBar: AppBar(title: Text(l.browseArtists)),
+      appBar: AppBar(leading: mobileLeading(context), title: Text(l.browseArtists)),
       body: async.when(
         loading: () => const PosterGridSkeleton(
             maxExtent: 150, aspectRatio: 0.8, circular: true),

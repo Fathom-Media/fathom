@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../state/playlist_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
@@ -62,6 +63,7 @@ class PlaylistsScreen extends ConsumerWidget {
     final async = ref.watch(playlistsProvider);
     return Scaffold(
       appBar: AppBar(
+        leading: mobileLeading(context),
         title: Text(l.appPlaylists),
         actions: [
           IconButton(

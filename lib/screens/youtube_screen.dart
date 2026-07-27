@@ -15,6 +15,7 @@ import '../state/youtube_providers.dart';
 import '../widgets/cached_image.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
+import '../widgets/search_field.dart';
 import '../widgets/youtube_cards.dart';
 import '../models/youtube_playlist.dart';
 import '../models/youtube_local_playlist.dart';
@@ -1069,38 +1070,21 @@ class _SearchTabState extends ConsumerState<_SearchTab>
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: TextField(
+          child: SearchField(
             controller: _controller,
             focusNode: _focus,
-            textInputAction: TextInputAction.search,
+            hint: l.ytSearchYoutube,
             onChanged: _onChanged,
             onSubmitted: _submit,
-            decoration: InputDecoration(
-              hintText: l.ytSearchYoutube,
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _controller.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: l.commonClear,
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () {
-                        _controller.clear();
-                        _debounce?.cancel();
-                        setState(() {
-                          _typed = '';
-                          _suggestionsOpen = false;
-                        });
-                        ref.read(youtubeQueryProvider.notifier).set('');
-                        _focus.requestFocus();
-                      },
-                    ),
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(28),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
+            onClear: () {
+              _debounce?.cancel();
+              setState(() {
+                _typed = '';
+                _suggestionsOpen = false;
+              });
+              ref.read(youtubeQueryProvider.notifier).set('');
+              _focus.requestFocus();
+            },
           ),
         ),
         // Always shown, including before a query: hiding these until you'd

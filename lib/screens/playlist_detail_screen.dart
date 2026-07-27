@@ -11,6 +11,7 @@ import '../state/session_controller.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/media_image.dart';
+import '../widgets/reorder.dart';
 import '../widgets/hover_pill_button.dart';
 
 /// Shows the contents of a playlist with play, reorder-free removal, and
@@ -177,21 +178,32 @@ class PlaylistDetailScreen extends ConsumerWidget {
               Expanded(
                 child: ReorderableListView.builder(
                   padding: const EdgeInsets.only(bottom: 24),
+                  buildDefaultDragHandles: false,
                   itemCount: items.length,
                   // ignore: deprecated_member_use
                   onReorder: (oldIndex, newIndex) =>
                       _reorder(context, ref, items, oldIndex, newIndex),
                   itemBuilder: (context, i) {
                     final item = items[i];
-                    return ListTile(
+                    return dragAnywhere(
                       key: ValueKey(item.playlistItemId ?? item.id),
-                      leading: SizedBox(
-                        width: 56,
-                        height: 40,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: MediaImage(item: item, landscape: true),
-                        ),
+                      index: i,
+                      child: ListTile(
+                      leading: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.drag_indicator,
+                              color: dragGripColor(context)),
+                          const SizedBox(width: 6),
+                          SizedBox(
+                            width: 56,
+                            height: 40,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: MediaImage(item: item, landscape: true),
+                            ),
+                          ),
+                        ],
                       ),
                       title: Text(item.name,
                           maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -208,6 +220,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
                         onPressed: () => _removeEntry(context, ref, item),
                       ),
                       onTap: () => _openItem(context, ref, items, i),
+                    ),
                     );
                   },
                 ),

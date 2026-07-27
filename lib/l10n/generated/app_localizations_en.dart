@@ -168,6 +168,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sync playback with others, from your profile menu';
 
   @override
+  String get settingsRadio => 'Internet Radio';
+
+  @override
+  String get settingsRadioSubtitle =>
+      'Search, save, and play radio stations from the sidebar';
+
+  @override
   String get settingsProfileSubtitle => 'View profile, change picture';
 
   @override
@@ -765,6 +772,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get prefsHomeLayoutSub => 'Reorder & toggle the Home rows';
+
+  @override
+  String get prefsNavLayout => 'Navigation';
+
+  @override
+  String get prefsNavLayoutSub => 'Reorder & hide the sidebar items';
+
+  @override
+  String get navLayoutTitle => 'Navigation';
+
+  @override
+  String get navLayoutSubtitle =>
+      'Drag to reorder. Turn items off to hide them from the sidebar.';
 
   @override
   String get prefsVideoFit => 'Video Fit';
@@ -1491,7 +1511,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get detailCastAction => 'Cast';
+  String get detailCastAction => 'Play On';
 
   @override
   String get detailPlayOnAnotherDevice => 'Play on another device';
@@ -2941,6 +2961,104 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appNavMore => 'More';
+
+  @override
+  String get appNavRadio => 'Radio';
+
+  @override
+  String get radioTitle => 'Radio';
+
+  @override
+  String get radioNowPlaying => 'Radio';
+
+  @override
+  String get radioLiveStream => 'Live stream';
+
+  @override
+  String get radioSearchDirectory => 'Search directory';
+
+  @override
+  String get radioTabMyStations => 'My Stations';
+
+  @override
+  String get radioTabBrowse => 'Browse';
+
+  @override
+  String get radioStop => 'Stop';
+
+  @override
+  String get radioRewind => 'Rewind 15 seconds';
+
+  @override
+  String get radioSkip => 'Skip 15 seconds';
+
+  @override
+  String get radioGroupOptions => 'Group options';
+
+  @override
+  String get radioRenameGroup => 'Rename Group';
+
+  @override
+  String get radioDeleteGroup => 'Delete Group';
+
+  @override
+  String radioDeleteGroupBody(String group) {
+    return 'Stations in \"$group\" move to Other. The stations themselves aren\'t removed.';
+  }
+
+  @override
+  String get radioSearchHint => 'Search stations…';
+
+  @override
+  String get radioSearchPrompt => 'Search for a station to add';
+
+  @override
+  String get radioNoResults => 'No stations found';
+
+  @override
+  String get radioNoStations => 'No saved stations yet';
+
+  @override
+  String get radioNoStationsSub =>
+      'Search the directory or add a station by URL';
+
+  @override
+  String get radioFavorites => 'Favorites';
+
+  @override
+  String get radioUngrouped => 'Other';
+
+  @override
+  String get radioAddByUrl => 'Add by URL';
+
+  @override
+  String get radioAdd => 'Add';
+
+  @override
+  String radioAdded(String name) {
+    return 'Added $name';
+  }
+
+  @override
+  String get radioFavorite => 'Add to favorites';
+
+  @override
+  String get radioUnfavorite => 'Remove from favorites';
+
+  @override
+  String get radioSetGroup => 'Set group';
+
+  @override
+  String get radioGroup => 'Group';
+
+  @override
+  String get radioStationName => 'Station name';
+
+  @override
+  String get radioStreamUrl => 'Stream URL';
+
+  @override
+  String get radioHomepage => 'Homepage (optional)';
 
   @override
   String get appServerUnreachableOffline =>
@@ -4672,6 +4790,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notifDownloadComplete => 'Download complete';
+
+  @override
+  String get castTo => 'Cast to';
+
+  @override
+  String get castSearching => 'Searching for devices…';
+
+  @override
+  String get castFailed => 'Couldn\'t start casting';
+
+  @override
+  String get castDisconnect => 'Disconnect';
+
+  @override
+  String get castStop => 'Stop Casting';
+
+  @override
+  String castConnectedTo(String device) {
+    return 'Casting to $device';
+  }
+
+  @override
+  String castConnecting(String device) {
+    return 'Connecting to $device…';
+  }
+
+  @override
+  String get notifDownloading => 'Downloading';
+
+  @override
+  String get notifDownloadFailed => 'Download failed';
 
   @override
   String get notifNewRequest => 'New request';

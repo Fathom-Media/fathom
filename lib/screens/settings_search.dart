@@ -85,6 +85,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // Home
   SettingResult(title: l.searchHomeBanner, section: l.searchHome, icon: _home, route: '/preferences', extra: 'home', keywords: ['banner', 'hero', 'featured', 'spotlight']),
   SettingResult(title: l.searchHomeLayout, section: l.searchHome, icon: _home, route: '/preferences', extra: 'home', keywords: ['layout', 'rows', 'reorder', 'sections', 'customize home']),
+  SettingResult(title: l.navLayoutTitle, section: l.searchHome, icon: Icons.view_sidebar_rounded, route: '/navigation-layout', keywords: ['navigation', 'sidebar', 'nav', 'rail', 'reorder', 'hide', 'menu', 'tabs', 'bottom bar', 'destinations', 'order', 'move']),
 
   // Player
   SettingResult(title: l.searchVideoFit, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['fit', 'contain', 'cover', 'fill', 'aspect', 'zoom', 'stretch']),
@@ -148,6 +149,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   SettingResult(title: l.searchSayWhenSomethingIsSkipped, section: l.searchYouTube, icon: _youtube, route: '/preferences', extra: 'youtube', keywords: ['youtube', 'sponsorblock', 'skipped', 'notify', 'toast', 'undo']),
   // Integrations
   SettingResult(title: l.searchWatchTogether, section: l.searchIntegrations, icon: Icons.groups_rounded, route: '/settings', keywords: ['syncplay', 'sync play', 'watch together', 'watch party', 'group', 'together', 'enable', 'shared playback', 'sync']),
+  SettingResult(title: l.settingsRadio, section: l.searchIntegrations, icon: Icons.radio_rounded, route: '/settings', keywords: ['radio', 'internet radio', 'stations', 'station', 'stream', 'icy', 'shoutcast', 'icecast', 'fm', 'am', 'enable', 'music']),
 ];
 
 // Admin section icons, mirroring the Server Admin hub.

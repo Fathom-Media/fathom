@@ -7,6 +7,7 @@ import '../state/admin_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/error_view.dart';
+import '../widgets/search_field.dart';
 import '../widgets/user_avatar.dart';
 import '../widgets/ui_common.dart';
 import 'settings_search.dart';
@@ -41,30 +42,10 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
+            child: SearchField(
               controller: _searchCtrl,
+              hint: l.adminSearchHint,
               onChanged: (v) => setState(() => _query = v),
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: l.adminSearchHint,
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: searching
-                    ? IconButton(
-                        tooltip: l.commonClear,
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () => setState(() {
-                          _query = '';
-                          _searchCtrl.clear();
-                        }),
-                      )
-                    : null,
-                filled: true,
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
             ),
           ),
           Expanded(

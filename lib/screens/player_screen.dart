@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +18,10 @@ import '../state/admin_providers.dart';
 import '../models/media_segment.dart';
 import '../models/session.dart';
 import '../services/diagnostics.dart';
+import '../widgets/cast_button.dart';
+import '../widgets/cast_remote.dart';
 import '../state/audio_player.dart';
+import '../state/cast.dart';
 import '../state/downloads.dart';
 import '../state/preferences.dart';
 import '../state/library_providers.dart';
@@ -90,6 +94,67 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // torn-down player and throw "[Player] has been disposed".
   bool _disposed = false;
   bool _isPlaying = false;
+  // Resolves what to hand the chosen video Cast target (only video-capable
+  // receivers are offered): a direct-play file when the codecs fit a Cast
+  // device (raw URL + container MIME, so an h264/aac MKV casts as-is), else an
+  // HLS transcode.
+  Future<({String url, String contentType})?> _castMedia() async {
+    final session = ref.read(sessionControllerProvider).asData?.value;
+    if (session == null) return null;
+    try {
+      return await ref.read(jellyfinClientProvider).castStream(
+            baseUrl: session.baseUrl,
+            userId: session.userId,
+            token: session.accessToken,
+            itemId: widget.item.id,
+          );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The current title for the cast screen: the episode being cast (updates as
+  /// you skip on the device) or the item's title.
+  String _castTitle() =>
+      (_epIndex >= 0 && _epIndex < _episodes.length)
+          ? _episodes[_epIndex].name
+          : _title;
+
+  /// A blurred backdrop for the cast screen: the item's primary image.
+  String? _castArtworkUrl() {
+    final session = ref.read(sessionControllerProvider).asData?.value;
+    if (session == null || widget.item.primaryImageTag == null) return null;
+    return ref.read(jellyfinClientProvider).imageUrl(
+          baseUrl: session.baseUrl,
+          itemId: widget.item.id,
+          type: 'Primary',
+          tag: widget.item.primaryImageTag,
+        );
+  }
+
+  /// Cast a sibling episode: load its stream onto the receiver (single-item, so
+  /// this replaces what's playing) and track the new index for skip + title.
+  Future<void> _castEpisodeAt(int i) async {
+    if (i < 0 || i >= _episodes.length) return;
+    final ep = _episodes[i];
+    final session = ref.read(sessionControllerProvider).asData?.value;
+    if (session == null) return;
+    try {
+      final media = await ref.read(jellyfinClientProvider).castStream(
+            baseUrl: session.baseUrl,
+            userId: session.userId,
+            token: session.accessToken,
+            itemId: ep.id,
+          );
+      await ref.read(castControllerProvider.notifier).loadMedia(
+            url: media.url,
+            contentType: media.contentType,
+            title: ep.name,
+          );
+      if (mounted) setState(() => _epIndex = i);
+    } catch (_) {}
+  }
+
   // True while the video is floating in a system Picture-in-Picture window
   // (Android). The on-screen controls hide themselves so the PiP window shows
   // just the video.
@@ -109,6 +174,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   StreamSubscription<Duration>? _positionSub;
   // Verbose libmpv log capture, only active when Diagnostic logging is on.
   StreamSubscription<PlayerLog>? _logSub;
+  // Audio interruptions (headphone unplug, phone call, focus loss) — media_kit
+  // doesn't manage these for a bare player, so pause the video on them.
+  StreamSubscription<void>? _noisySub;
+  StreamSubscription<AudioInterruptionEvent>? _interruptSub;
   StreamSubscription<dynamic>? _tracksSub;
   StreamSubscription<bool>? _completedSub;
   // Captured while alive so dispose() never has to touch ref (which throws).
@@ -142,6 +211,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // the status/nav bars back edge-to-edge.
     SystemChrome.setPreferredOrientations(const []);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  /// Pause the video on audio interruptions the way any media app should: a
+  /// headphone/Bluetooth disconnect ("becoming noisy"), or another app / a call
+  /// taking audio focus. Mobile only; media_kit doesn't do this for us.
+  Future<void> _setupAudioSession() async {
+    if (!_isMobile) return;
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+      _noisySub = session.becomingNoisyEventStream.listen((_) {
+        if (!_disposed && !_deactivated) _safePause();
+      });
+      _interruptSub = session.interruptionEventStream.listen((e) {
+        if (_disposed || _deactivated) return;
+        if (e.begin && _isPlaying) _safePause();
+      });
+      await session.setActive(true);
+    } catch (_) {}
   }
 
   // System Picture-in-Picture (Android). The native side floats the activity
@@ -180,6 +268,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     super.initState();
     _enterImmersiveLandscape();
     _enableSystemPip();
+    _setupAudioSession();
     // Reopening from the mini dock: take back the still-playing player instead
     // of opening the stream again. Read the dock's fields here but defer the
     // state change (mutating a provider in initState throws).
@@ -1017,6 +1106,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // The verbose logger belongs to this screen; drop it on either exit path
     // (a handed-off dock player keeps playing but stops feeding diagnostics).
     _logSub?.cancel();
+    _noisySub?.cancel();
+    _interruptSub?.cancel();
     _syncSessionRef?.notifyPlayerClosed();
     // Ownership transferred to the dock: leave the player, session, and
     // subscriptions (already cancelled in _minimize) alone.
@@ -1116,6 +1207,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget build(BuildContext context) {
     // Follow SyncPlay commands from the group (experimental, best-effort).
     ref.listen(syncCommandProvider, (_, next) => _applySyncCommand(next));
+    // Hand off to a Chromecast: while a cast session is connected, local
+    // playback stays paused so audio isn't coming from both the phone and the
+    // cast target. Fires on connect, and (via the post-frame guard below) also
+    // covers a session that was already live when this player opened.
+    ref.listen(castControllerProvider.select((s) => s.casting), (prev, next) {
+      if (next == true) {
+        _safePause();
+      } else if (prev == true) {
+        // Cast ended: hand back to local at the position the TV reached, and
+        // resume if it was playing (matches the music hand-back).
+        final c = ref.read(castControllerProvider);
+        if (c.positionMs > 0) _safeSeek(Duration(milliseconds: c.positionMs));
+        if (c.playing) _player.play();
+      }
+    });
+    final castStatus = ref.watch(castControllerProvider);
+    if (castStatus.casting) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed && !_deactivated) _safePause();
+      });
+    }
     final l = AppLocalizations.of(context);
     final prefs = ref.watch(preferencesProvider).asData?.value;
     final fit = switch (prefs?.playerFit ?? 'contain') {
@@ -1296,6 +1408,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     // SyncPlay status cue (waiting/aligning, or SkipToSync).
                     if (!_inPip)
                       Positioned.fill(child: _SyncCueOverlay(cue: _syncCue)),
+                    // Chromecast entry point (Android; hides itself where Cast is
+                    // unavailable). Adapts the stream to the chosen target: a
+                    // direct/HLS video for a TV, an HLS transcode for a speaker.
+                    if (_isMobile && !_inPip)
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 4,
+                        right: 8,
+                        child: CastButton(
+                          resolve: _castMedia,
+                          title: _title,
+                          position: () => _player.state.position.inMilliseconds,
+                          color: Colors.white,
+                        ),
+                      ),
+                    // While a cast session is live (or connecting), local
+                    // playback is paused and this covers the video so it's clear
+                    // playback moved to the cast target, with a way to stop.
+                    if (castStatus.casting && !_inPip)
+                      Positioned.fill(
+                        child: CastRemote(
+                          artworkUrl: _castArtworkUrl(),
+                          title: _castTitle(),
+                          onPrevious: _epIndex > 0
+                              ? () => _castEpisodeAt(_epIndex - 1)
+                              : null,
+                          onNext: (_epIndex >= 0 &&
+                                  _epIndex < _episodes.length - 1)
+                              ? () => _castEpisodeAt(_epIndex + 1)
+                              : null,
+                        ),
+                      ),
                   ],
                 ),
               ),

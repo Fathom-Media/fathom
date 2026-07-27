@@ -94,6 +94,8 @@ class Prefs {
   final bool showLibraryLatest; // per-library "Latest in X" rows
   final bool showGenreRows; // editorial genre rows on Home
   final List<String> homeRowOrder; // order of the home rows
+  final List<String> navOrder; // order of the sidebar destinations (empty = default)
+  final List<String> navHidden; // sidebar destination ids the user hid
   final Map<String, int> keyBindings; // player shortcut overrides
   final String playerFit; // 'contain' | 'cover' | 'fill'
   final String playerBarStyle; // 'none' | 'glass' | 'dark' — control-bar chrome
@@ -113,6 +115,10 @@ class Prefs {
 
   // Watch Together (SyncPlay): surfaces the entry in the profile menu.
   final bool syncPlayEnabled;
+
+  // Internet radio: shows the Radio section in the sidebar. Off by default —
+  // this is primarily a Jellyfin client, so radio is an opt-in integration.
+  final bool radioEnabled;
 
   // Notifications (Seerr request status + downloads). Each gates whether that
   // event notifies at all; the existing [desktopNotifications] gates the OS
@@ -288,6 +294,8 @@ class Prefs {
       'recentlyAdded',
       'myMedia'
     ],
+    this.navOrder = const [],
+    this.navHidden = const [],
     this.keyBindings = const {},
     this.playerFit = 'contain',
     this.playerBarStyle = 'glass',
@@ -299,6 +307,7 @@ class Prefs {
     this.rememberTracks = true,
     this.trailerQuality = 'auto',
     this.syncPlayEnabled = true,
+    this.radioEnabled = false,
     this.notifNewRequest = true,
     this.notifSeerrApproved = true,
     this.notifSeerrDeclined = true,
@@ -394,6 +403,8 @@ class Prefs {
     bool? showLibraryLatest,
     bool? showGenreRows,
     List<String>? homeRowOrder,
+    List<String>? navOrder,
+    List<String>? navHidden,
     Map<String, int>? keyBindings,
     String? playerFit,
     String? playerBarStyle,
@@ -405,6 +416,7 @@ class Prefs {
     bool? rememberTracks,
     String? trailerQuality,
     bool? syncPlayEnabled,
+    bool? radioEnabled,
     bool? notifNewRequest,
     bool? notifSeerrApproved,
     bool? notifSeerrDeclined,
@@ -501,6 +513,8 @@ class Prefs {
         showLibraryLatest: showLibraryLatest ?? this.showLibraryLatest,
         showGenreRows: showGenreRows ?? this.showGenreRows,
         homeRowOrder: homeRowOrder ?? this.homeRowOrder,
+        navOrder: navOrder ?? this.navOrder,
+        navHidden: navHidden ?? this.navHidden,
         keyBindings: keyBindings ?? this.keyBindings,
         playerFit: playerFit ?? this.playerFit,
         playerBarStyle: playerBarStyle ?? this.playerBarStyle,
@@ -512,6 +526,7 @@ class Prefs {
         rememberTracks: rememberTracks ?? this.rememberTracks,
         trailerQuality: trailerQuality ?? this.trailerQuality,
         syncPlayEnabled: syncPlayEnabled ?? this.syncPlayEnabled,
+        radioEnabled: radioEnabled ?? this.radioEnabled,
         notifNewRequest: notifNewRequest ?? this.notifNewRequest,
         notifSeerrApproved: notifSeerrApproved ?? this.notifSeerrApproved,
         notifSeerrDeclined: notifSeerrDeclined ?? this.notifSeerrDeclined,
@@ -617,6 +632,8 @@ class Prefs {
         'showLibraryLatest': showLibraryLatest,
         'showGenreRows': showGenreRows,
         'homeRowOrder': homeRowOrder,
+        'navOrder': navOrder,
+        'navHidden': navHidden,
         'keyBindings': keyBindings.map((k, v) => MapEntry(k, v)),
         'playerFit': playerFit,
         'playerBarStyle': playerBarStyle,
@@ -628,6 +645,7 @@ class Prefs {
         'rememberTracks': rememberTracks,
         'trailerQuality': trailerQuality,
         'syncPlayEnabled': syncPlayEnabled,
+        'radioEnabled': radioEnabled,
         'notifNewRequest': notifNewRequest,
         'notifSeerrApproved': notifSeerrApproved,
         'notifSeerrDeclined': notifSeerrDeclined,
@@ -727,6 +745,8 @@ class Prefs {
         showGenreRows: j['showGenreRows'] as bool? ?? true,
         homeRowOrder: (j['homeRowOrder'] as List?)?.cast<String>() ??
             const ['continueWatching', 'recentlyAdded', 'myMedia'],
+        navOrder: (j['navOrder'] as List?)?.cast<String>() ?? const [],
+        navHidden: (j['navHidden'] as List?)?.cast<String>() ?? const [],
         keyBindings: (j['keyBindings'] as Map?)
                 ?.map((k, v) => MapEntry('$k', (v as num).toInt())) ??
             const {},
@@ -740,6 +760,7 @@ class Prefs {
         rememberTracks: j['rememberTracks'] as bool? ?? true,
         trailerQuality: j['trailerQuality'] as String? ?? 'auto',
         syncPlayEnabled: j['syncPlayEnabled'] as bool? ?? true,
+        radioEnabled: j['radioEnabled'] as bool? ?? false,
         notifNewRequest: j['notifNewRequest'] as bool? ?? true,
         notifSeerrApproved: j['notifSeerrApproved'] as bool? ?? true,
         notifSeerrDeclined: j['notifSeerrDeclined'] as bool? ?? true,

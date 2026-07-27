@@ -13,6 +13,7 @@ import '../state/session_controller.dart';
 import '../widgets/add_to_playlist.dart';
 import '../widgets/score_pills.dart';
 import '../widgets/glass.dart';
+import '../widgets/cast_button.dart';
 import '../widgets/hover_pill_button.dart';
 import '../widgets/motion.dart';
 import '../widgets/media_cards.dart';
@@ -510,10 +511,12 @@ class _DownloadButton extends ConsumerWidget {
               label: label,
               onTap: onTap,
               iconOverride: iconOverride)
-          : IconButton.filledTonal(
-              tooltip: tooltip,
-              onPressed: onTap,
-              icon: iconOverride ?? Icon(icon));
+          : HoverPillButton(
+              icon: icon,
+              label: label,
+              onTap: onTap,
+              iconWidget: iconOverride,
+            );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -592,16 +595,16 @@ class _RemoteButton extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     if (header) {
       return HeaderActionButton(
-        icon: Icons.cast_rounded,
+        icon: Icons.settings_remote_rounded,
         tooltip: l.detailPlayOnAnotherDevice,
         label: l.detailCastAction,
         onTap: () => _showDevices(context, ref),
       );
     }
-    return IconButton.filledTonal(
-      tooltip: l.detailPlayOnAnotherDevice,
-      icon: const Icon(Icons.cast_rounded),
-      onPressed: () => _showDevices(context, ref),
+    return HoverPillButton(
+      icon: Icons.settings_remote_rounded,
+      label: l.detailCastAction,
+      onTap: () => _showDevices(context, ref),
     );
   }
 
@@ -1118,6 +1121,7 @@ class _ActionBar extends ConsumerWidget {
                     : (code == null ? l.commonPlay : l.detailPlayCode(code))),
             onTap: next == null ? null : () => onPlay(next),
           ),
+          if (next != null) _ChromecastButton(target: next),
           if (item.trailerUrl != null) _TrailerButton(item: item),
         ],
       );
@@ -1144,10 +1148,42 @@ class _ActionBar extends ConsumerWidget {
           ),
         if (item.trailerUrl != null) _TrailerButton(item: item),
         if (!item.isAlbum) ...[
+          _ChromecastButton(target: item),
           _RemoteButton(item: item),
           _DownloadButton(item: item),
         ],
       ],
+    );
+  }
+}
+
+/// A Chromecast button on the detail page: casts [target] to a Cast device and
+/// opens the player so its cast remote is shown. Hides itself where Cast isn't
+/// available (desktop, or no Google Play Services), so it only appears when
+/// there's actually something to cast to.
+class _ChromecastButton extends ConsumerWidget {
+  final BaseItemDto target;
+  const _ChromecastButton({required this.target});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return CastButton(
+      title: target.name,
+      resolve: () async {
+        final session = ref.read(sessionControllerProvider).asData?.value;
+        if (session == null) return null;
+        try {
+          return await ref.read(jellyfinClientProvider).castStream(
+                baseUrl: session.baseUrl,
+                userId: session.userId,
+                token: session.accessToken,
+                itemId: target.id,
+              );
+        } catch (_) {
+          return null;
+        }
+      },
+      onStarted: () => context.push('/player', extra: target),
     );
   }
 }
@@ -1170,10 +1206,10 @@ class _TrailerButton extends StatelessWidget {
           label: l.detailTrailer,
           onTap: open);
     }
-    return IconButton.filledTonal(
-      tooltip: l.detailWatchTrailer,
-      icon: const Icon(Icons.movie_outlined),
-      onPressed: open,
+    return HoverPillButton(
+      icon: Icons.movie_outlined,
+      label: l.detailTrailer,
+      onTap: open,
     );
   }
 }

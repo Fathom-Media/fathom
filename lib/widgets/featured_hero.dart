@@ -205,8 +205,9 @@ class _FeaturedHeroState extends State<FeaturedHero> {
             ),
           ),
           // Content overlay — in the OUTER stack (bounded), so bottom-left is
-          // reliable. Crossfades as the page changes. left+bottom only (no
-          // right) keeps the width loose so the 620px limit is honoured.
+          // reliable. Crossfades as the page changes. Width is capped at 620 on
+          // wide windows but shrinks to fit the screen on a phone (left inset +
+          // a right margin), so the logo and overview never clip off the edge.
           Positioned(
             left: 40,
             bottom: 34,
@@ -214,7 +215,7 @@ class _FeaturedHeroState extends State<FeaturedHero> {
               duration: const Duration(milliseconds: 400),
               child: SizedBox(
                 key: ValueKey(current.id),
-                width: 620,
+                width: (width - 64).clamp(0.0, 620.0),
                 child: _HeroContent(item: current),
               ),
             ),

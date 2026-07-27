@@ -16,6 +16,11 @@ class HoverPosterArt extends ConsumerStatefulWidget {
   final Widget? hoverOverlay; // revealed on hover and clickable (e.g. a button)
   final VoidCallback? onTap;
   final double borderRadius;
+  // Overrides the shared-element hero tag. Defaults to `art-<id>`, which the
+  // detail header flies to. Rows that can show the SAME item more than once on
+  // one screen (Home's Continue Watching vs Next Up) pass a row-scoped tag so
+  // the two don't collide into a duplicate-tag error.
+  final String? heroTag;
   const HoverPosterArt(
       {super.key,
       this.item,
@@ -23,7 +28,8 @@ class HoverPosterArt extends ConsumerStatefulWidget {
       this.overlay,
       this.hoverOverlay,
       this.onTap,
-      this.borderRadius = 12})
+      this.borderRadius = 12,
+      this.heroTag})
       : assert(item != null || art != null);
 
   @override
@@ -32,6 +38,11 @@ class HoverPosterArt extends ConsumerStatefulWidget {
 
 class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
   bool _hover = false;
+  // Set when a D-pad/keyboard focus lands on the card (TV remotes). Reuses the
+  // exact hover visuals (scale, accent ring, revealed overlay) so a focused
+  // card on a TV reads the same as a moused-over one on desktop.
+  bool _focused = false;
+  bool get _active => _hover || _focused;
 
   @override
   Widget build(BuildContext context) {
@@ -49,22 +60,33 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: AnimatedScale(
-        scale: _hover ? 1.05 : 1.0,
+        scale: _active ? 1.05 : 1.0,
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
-        child: GestureDetector(
+        child: FocusableActionDetector(
+          mouseCursor: SystemMouseCursors.click,
+          onShowFocusHighlight: (v) => setState(() => _focused = v),
+          actions: {
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                widget.onTap?.call();
+                return null;
+              },
+            ),
+          },
+          child: GestureDetector(
           onTap: widget.onTap,
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(widget.borderRadius),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: _hover ? 0.5 : 0.35),
-                  blurRadius: _hover ? 20 : 12,
+                  color: Colors.black.withValues(alpha: _active ? 0.5 : 0.35),
+                  blurRadius: _active ? 20 : 12,
                   offset: const Offset(0, 6),
                 ),
-                // A soft accent glow blooms on hover so cards lift off the page.
-                if (_hover)
+                // A soft accent glow blooms on hover/focus so cards lift.
+                if (_active)
                   BoxShadow(
                     color: scheme.primary.withValues(alpha: 0.45),
                     blurRadius: 26,
@@ -79,7 +101,7 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
                 children: [
                   widget.art ??
                       Hero(
-                          tag: 'art-${widget.item!.id}',
+                          tag: widget.heroTag ?? 'art-${widget.item!.id}',
                           child: MediaImage(item: widget.item!)),
                   if (widget.overlay != null) widget.overlay!,
                   if (widget.item != null) _WatchedBadge(item: widget.item!),
@@ -109,7 +131,7 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
                   // a play promise (tapping opens the detail page).
                   IgnorePointer(
                     child: AnimatedOpacity(
-                      opacity: _hover ? 1 : 0,
+                      opacity: _active ? 1 : 0,
                       duration: const Duration(milliseconds: 150),
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -138,10 +160,10 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
                       right: 0,
                       bottom: 0,
                       child: AnimatedOpacity(
-                        opacity: _hover ? 1 : 0,
+                        opacity: _active ? 1 : 0,
                         duration: const Duration(milliseconds: 150),
                         child: IgnorePointer(
-                          ignoring: !_hover,
+                          ignoring: !_active,
                           child: widget.hoverOverlay!,
                         ),
                       ),
@@ -150,6 +172,7 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );
@@ -283,9 +306,12 @@ class _WatchedBadge extends StatelessWidget {
 class PosterCard extends StatelessWidget {
   final BaseItemDto item;
   final VoidCallback? onTap;
+  // Row-scoped hero tag; see [HoverPosterArt.heroTag]. Home passes one so an
+  // item that appears in several rows doesn't collide on a duplicate tag.
+  final String? heroTag;
   static const double width = 176;
 
-  const PosterCard({super.key, required this.item, this.onTap});
+  const PosterCard({super.key, required this.item, this.onTap, this.heroTag});
 
   @override
   Widget build(BuildContext context) {
@@ -301,7 +327,7 @@ class PosterCard extends StatelessWidget {
           Flexible(
             child: AspectRatio(
               aspectRatio: 2 / 3,
-              child: HoverPosterArt(item: item, onTap: onTap),
+              child: HoverPosterArt(item: item, onTap: onTap, heroTag: heroTag),
             ),
           ),
           const SizedBox(height: 8),

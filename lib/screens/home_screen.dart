@@ -141,6 +141,7 @@ class HomeScreen extends ConsumerWidget {
                         onRetry: () => ref.invalidate(latestItemsProvider),
                         cardBuilder: (item) => PosterCard(
                           item: item,
+                          heroTag: 'home-recent-${item.id}',
                           onTap: () => context.push('/item', extra: item),
                         ),
                       )
@@ -150,7 +151,12 @@ class HomeScreen extends ConsumerWidget {
                         context,
                         title: l.browseMyMedia,
                         height: _landscapeRowHeight,
-                        async: views,
+                        // Live TV has its own nav destination and opens nothing
+                        // as a /library tile, so exclude it here like the
+                        // Libraries hub and the sidebar do.
+                        async: views.whenData((list) => list
+                            .where((v) => v.collectionType != 'livetv')
+                            .toList()),
                         hideWhenEmpty: false,
                         cardBuilder: (item) => LibraryCard(
                           item: item,
@@ -177,6 +183,7 @@ class HomeScreen extends ConsumerWidget {
                   onSeeAll: () => context.push('/library', extra: view),
                   cardBuilder: (item) => PosterCard(
                     item: item,
+                    heroTag: 'home-latest-${view.id}-${item.id}',
                     onTap: () => context.push('/item', extra: item),
                   ),
                 ),
@@ -196,6 +203,7 @@ class HomeScreen extends ConsumerWidget {
                   onSeeAll: () => context.push('/genre', extra: genre.name),
                   cardBuilder: (item) => PosterCard(
                     item: item,
+                    heroTag: 'home-genre-${genre.name}-${item.id}',
                     onTap: () => context.push('/item', extra: item),
                   ),
                 ),

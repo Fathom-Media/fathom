@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../widgets/hover_pill_button.dart';
 import '../models/base_item.dart';
 import '../services/image_cache.dart';
 import '../state/library_providers.dart';
@@ -153,33 +154,36 @@ class ProgramDetailScreen extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () => context.push('/player', extra: args.channel),
-            icon: Icon(
-                args.isNow ? Icons.play_arrow_rounded : Icons.live_tv_rounded),
-            label: Text(args.isNow ? l.detailWatchNow : l.detailWatchChannel),
-            style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(50)),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              HoverPillButton(
+                primary: true,
+                icon: args.isNow
+                    ? Icons.play_arrow_rounded
+                    : Icons.live_tv_rounded,
+                label: args.isNow ? l.detailWatchNow : l.detailWatchChannel,
+                onTap: () => context.push('/player', extra: args.channel),
+              ),
+              if (scheduled)
+                HoverPillButton(
+                  color: Colors.redAccent,
+                  icon: Icons.cancel_rounded,
+                  label: l.detailCancelRecording,
+                  onTap: () => _cancel(context, ref),
+                )
+              else
+                HoverPillButton(
+                  color: Colors.redAccent,
+                  icon: Icons.fiber_manual_record_rounded,
+                  label: l.detailRecord,
+                  onTap: () => showRecordDialog(context, ref,
+                      programId: p.id, allowSeries: true),
+                ),
+            ],
           ),
-          const SizedBox(height: 12),
-          if (scheduled)
-            OutlinedButton.icon(
-              onPressed: () => _cancel(context, ref),
-              icon: const Icon(Icons.cancel_rounded, color: Colors.redAccent),
-              label: Text(l.detailCancelRecording),
-              style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50)),
-            )
-          else
-            OutlinedButton.icon(
-              onPressed: () => showRecordDialog(context, ref,
-                  programId: p.id, allowSeries: true),
-              icon: const Icon(Icons.fiber_manual_record_rounded,
-                  color: Colors.redAccent),
-              label: Text(l.detailRecord),
-              style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50)),
-            ),
         ],
           ),
         ),

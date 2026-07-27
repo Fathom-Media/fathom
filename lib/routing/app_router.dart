@@ -18,6 +18,7 @@ import '../screens/favorites_screen.dart';
 import '../screens/artists_screen.dart';
 import '../screens/genres_screen.dart';
 import '../screens/home_layout_screen.dart';
+import '../screens/navigation_layout_screen.dart';
 import '../screens/keyboard_shortcuts_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/libraries_screen.dart';
@@ -29,6 +30,7 @@ import '../screens/now_playing_screen.dart';
 import '../screens/player_screen.dart';
 import '../screens/youtube_channel_screen.dart';
 import '../screens/youtube_player_screen.dart';
+import '../screens/radio_screen.dart';
 import '../screens/youtube_screen.dart';
 import '../screens/youtube_watch_screen.dart';
 import '../screens/playlist_detail_screen.dart';
@@ -276,6 +278,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: '/youtube',
               pageBuilder: (_, _) => _fadePage(const YoutubeScreen())),
           GoRoute(
+              path: '/radio',
+              pageBuilder: (_, _) => _fadePage(const RadioScreen())),
+          GoRoute(
             path: '/program',
             pageBuilder: (context, state) =>
                 _fadePage(ProgramDetailScreen(args: state.extra as ProgramArgs)),
@@ -294,6 +299,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/home-layout',
               pageBuilder: (_, _) => _fadePage(const HomeLayoutScreen())),
+          GoRoute(
+              path: '/navigation-layout',
+              pageBuilder: (_, _) =>
+                  _fadePage(const NavigationLayoutScreen())),
           GoRoute(
               path: '/shortcuts',
               pageBuilder: (_, _) =>

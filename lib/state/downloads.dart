@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dio/dio.dart';
+import 'package:background_downloader/background_downloader.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../l10n/l10n.dart';
 import '../models/app_notification.dart';
@@ -51,14 +52,33 @@ class DownloadEntry {
       );
 }
 
-/// Manages offline downloads: downloading video files to local storage,
-/// tracking progress, and persisting the completed set.
+/// Manages offline downloads. Downloads run through [FileDownloader], which on
+/// Android hands them to a foreground service + WorkManager so they continue
+/// (with a system progress notification) when the app is backgrounded, instead
+/// of dying with the Dart isolate the way an in-process HTTP download would.
+/// Desktop uses the same API and just downloads normally.
 class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
   static const _key = 'fathom_downloads';
-  final _dio = Dio();
+  static const _dir = 'fathom_downloads';
+  final _downloader = FileDownloader();
+  StreamSubscription<TaskUpdate>? _updatesSub;
 
   @override
   Future<Map<String, DownloadEntry>> build() async {
+    // System download notification (Android shows a progress bar; a no-op where
+    // unsupported). Configured once for the app's lifetime.
+    _downloader.configureNotification(
+      running: TaskNotification(tr.notifDownloading, '{displayName}'),
+      complete: TaskNotification(tr.notifDownloadComplete, '{displayName}'),
+      error: TaskNotification(tr.notifDownloadFailed, '{displayName}'),
+      progressBar: true,
+    );
+    // Reconnect to any task that finished/advanced while the app was away, then
+    // listen for live status/progress updates from the native downloader.
+    _updatesSub = _downloader.updates.listen(_onUpdate);
+    ref.onDispose(() => _updatesSub?.cancel());
+    unawaited(_downloader.resumeFromBackground());
+
     final raw = await ref.read(secureStorageProvider).read(key: _key);
     if (raw == null) return {};
     try {
@@ -69,6 +89,61 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     } catch (_) {
       return {};
     }
+  }
+
+  /// Handle a native status/progress update. Task ids are the item ids.
+  void _onUpdate(TaskUpdate update) {
+    final id = update.task.taskId;
+    if (update is TaskProgressUpdate) {
+      final m = _map;
+      final e = m[id];
+      if (e == null || update.progress < 0) return;
+      m[id] = e.copyWith(progress: update.progress.clamp(0.0, 1.0));
+      state = AsyncData(m);
+    } else if (update is TaskStatusUpdate) {
+      switch (update.status) {
+        case TaskStatus.complete:
+          _markComplete(id, update.task.metaData);
+        case TaskStatus.failed:
+        case TaskStatus.notFound:
+        case TaskStatus.canceled:
+          debugPrint('[download] $id ${update.status.name}: '
+              'code=${update.responseStatusCode} '
+              'exception=${update.exception}');
+          final m = _map;
+          final e = m[id];
+          if (e != null) {
+            m[id] = e.copyWith(status: DownloadStatus.failed);
+            state = AsyncData(m);
+          }
+        case TaskStatus.enqueued:
+        case TaskStatus.running:
+        case TaskStatus.waitingToRetry:
+        case TaskStatus.paused:
+          final m = _map;
+          final e = m[id];
+          if (e != null && e.status != DownloadStatus.downloading) {
+            m[id] = e.copyWith(status: DownloadStatus.downloading);
+            state = AsyncData(m);
+          }
+      }
+    }
+  }
+
+  Future<void> _markComplete(String id, String name) async {
+    final m = _map;
+    final e = m[id];
+    if (e == null) return;
+    m[id] = e.copyWith(status: DownloadStatus.complete, progress: 1);
+    state = AsyncData(m);
+    await _persistComplete();
+    await pushAppNotification(ref,
+        kind: AppNotifKind.downloadComplete,
+        title: tr.notifDownloadComplete,
+        body: name.isEmpty ? e.name : name,
+        enabled:
+            ref.read(preferencesProvider).asData?.value.notifDownloads ?? true,
+        route: '/downloads');
   }
 
   Map<String, DownloadEntry> get _map =>
@@ -99,10 +174,21 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       token: session.accessToken,
     );
 
-    final dir = Directory('${(await getApplicationSupportDirectory()).path}'
-        '/fathom_downloads');
-    if (!dir.existsSync()) dir.createSync(recursive: true);
-    final path = '${dir.path}/${item.id}';
+    // taskId = item id so updates map straight back; displayName drives the
+    // system notification text; metaData carries the name across an app restart.
+    final task = DownloadTask(
+      taskId: item.id,
+      url: url,
+      filename: item.id,
+      directory: _dir,
+      baseDirectory: BaseDirectory.applicationSupport,
+      updates: Updates.statusAndProgress,
+      retries: 2,
+      allowPause: true,
+      displayName: item.name,
+      metaData: item.name,
+    );
+    final path = await task.filePath();
 
     final map = _map;
     map[item.id] = DownloadEntry(
@@ -113,36 +199,22 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     );
     state = AsyncData(map);
 
-    try {
-      await _dio.download(url, path, onReceiveProgress: (received, total) {
-        if (total <= 0) return;
-        final m = _map;
-        final e = m[item.id];
-        if (e == null) return;
-        m[item.id] = e.copyWith(progress: received / total);
-        state = AsyncData(m);
-      });
-      final done = _map;
-      done[item.id] = done[item.id]!
-          .copyWith(status: DownloadStatus.complete, progress: 1);
-      state = AsyncData(done);
-      await _persistComplete();
-      await pushAppNotification(ref,
-          kind: AppNotifKind.downloadComplete,
-          title: tr.notifDownloadComplete,
-          body: item.name,
-          enabled:
-              ref.read(preferencesProvider).asData?.value.notifDownloads ?? true,
-          route: '/downloads');
-    } catch (_) {
+    debugPrint('[download] enqueue ${item.id} "${item.name}" -> $path');
+    final ok = await _downloader.enqueue(task);
+    debugPrint('[download] enqueue ${item.id} accepted=$ok');
+    if (!ok) {
       final failed = _map;
-      failed[item.id] =
-          failed[item.id]!.copyWith(status: DownloadStatus.failed);
-      state = AsyncData(failed);
+      final e = failed[item.id];
+      if (e != null) {
+        failed[item.id] = e.copyWith(status: DownloadStatus.failed);
+        state = AsyncData(failed);
+      }
     }
   }
 
   Future<void> delete(String itemId) async {
+    // Cancel first, in case it's still running natively.
+    await _downloader.cancelTaskWithId(itemId);
     final map = _map;
     final e = map.remove(itemId);
     if (e != null) {

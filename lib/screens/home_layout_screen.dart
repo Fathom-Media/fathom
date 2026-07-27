@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../state/preferences.dart';
+import '../widgets/reorder.dart';
 
 /// Reorder and toggle the Home screen rows (Continue Watching / Recently Added
 /// / My Media), Moonfin-style. Saved to preferences.
@@ -51,6 +52,8 @@ class HomeLayoutScreen extends ConsumerWidget {
           Expanded(
             child: ReorderableListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
+              // Single left-side grip (below); no default right-side handles.
+              buildDefaultDragHandles: false,
               // ignore: deprecated_member_use
               onReorder: (oldIndex, newIndex) {
                 final list = [...rows];
@@ -59,14 +62,20 @@ class HomeLayoutScreen extends ConsumerWidget {
                 c.edit((x) => x.copyWith(homeRowOrder: list));
               },
               children: [
-                for (final id in rows)
-                  ListTile(
+                for (final (i, id) in rows.indexed)
+                  // Drag from anywhere on the row (press-drag desktop / long-press
+                  // touch); the dots are just a hint.
+                  dragAnywhere(
                     key: ValueKey(id),
-                    leading: const Icon(Icons.drag_handle_rounded),
-                    title: Text(titles[id] ?? id),
-                    trailing: Switch(
-                      value: _visible(p, id),
-                      onChanged: (v) => c.edit((x) => _toggle(x, id, v)),
+                    index: i,
+                    child: ListTile(
+                      leading: Icon(Icons.drag_indicator,
+                          color: dragGripColor(context)),
+                      title: Text(titles[id] ?? id),
+                      trailing: Switch(
+                        value: _visible(p, id),
+                        onChanged: (v) => c.edit((x) => _toggle(x, id, v)),
+                      ),
                     ),
                   ),
               ],

@@ -406,6 +406,18 @@ abstract class AppLocalizations {
   /// **'Sync playback with others, from your profile menu'**
   String get settingsWatchTogetherSubtitle;
 
+  /// No description provided for @settingsRadio.
+  ///
+  /// In en, this message translates to:
+  /// **'Internet Radio'**
+  String get settingsRadio;
+
+  /// No description provided for @settingsRadioSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Search, save, and play radio stations from the sidebar'**
+  String get settingsRadioSubtitle;
+
   /// No description provided for @settingsProfileSubtitle.
   ///
   /// In en, this message translates to:
@@ -1521,6 +1533,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reorder & toggle the Home rows'**
   String get prefsHomeLayoutSub;
+
+  /// Setting title: opens the sidebar/nav customization editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation'**
+  String get prefsNavLayout;
+
+  /// Navigation-layout setting subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder & hide the sidebar items'**
+  String get prefsNavLayoutSub;
+
+  /// Navigation customization screen title.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigation'**
+  String get navLayoutTitle;
+
+  /// Navigation customization screen subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to reorder. Turn items off to hide them from the sidebar.'**
+  String get navLayoutSubtitle;
 
   /// Player setting title: how video fills the screen.
   ///
@@ -2821,7 +2857,7 @@ abstract class AppLocalizations {
   /// Button label to cast/play the item on another device.
   ///
   /// In en, this message translates to:
-  /// **'Cast'**
+  /// **'Play On'**
   String get detailCastAction;
 
   /// Tooltip for the cast-to-another-device action.
@@ -5283,6 +5319,192 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'More'**
   String get appNavMore;
+
+  /// Navigation label for the internet radio section.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get appNavRadio;
+
+  /// Radio screen title.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get radioTitle;
+
+  /// Now Playing title while a station plays.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get radioNowPlaying;
+
+  /// Shown under the station when there is no ICY track info.
+  ///
+  /// In en, this message translates to:
+  /// **'Live stream'**
+  String get radioLiveStream;
+
+  /// Toggles the station directory search.
+  ///
+  /// In en, this message translates to:
+  /// **'Search directory'**
+  String get radioSearchDirectory;
+
+  /// Radio tab: the user's saved stations.
+  ///
+  /// In en, this message translates to:
+  /// **'My Stations'**
+  String get radioTabMyStations;
+
+  /// Radio tab: search and add stations from the directory.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse'**
+  String get radioTabBrowse;
+
+  /// Tooltip for the radio stop/dismiss button.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get radioStop;
+
+  /// Tooltip for the radio rewind button.
+  ///
+  /// In en, this message translates to:
+  /// **'Rewind 15 seconds'**
+  String get radioRewind;
+
+  /// Tooltip for the radio skip-forward button.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip 15 seconds'**
+  String get radioSkip;
+
+  /// Tooltip for the group header overflow menu.
+  ///
+  /// In en, this message translates to:
+  /// **'Group options'**
+  String get radioGroupOptions;
+
+  /// Menu action: rename a station group.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename Group'**
+  String get radioRenameGroup;
+
+  /// Menu action: delete a station group.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Group'**
+  String get radioDeleteGroup;
+
+  /// Confirm body for deleting a group.
+  ///
+  /// In en, this message translates to:
+  /// **'Stations in \"{group}\" move to Other. The stations themselves aren\'t removed.'**
+  String radioDeleteGroupBody(String group);
+
+  /// Placeholder in the radio directory search field.
+  ///
+  /// In en, this message translates to:
+  /// **'Search stations…'**
+  String get radioSearchHint;
+
+  /// Empty state before a directory search is run.
+  ///
+  /// In en, this message translates to:
+  /// **'Search for a station to add'**
+  String get radioSearchPrompt;
+
+  /// Empty state when a directory search returns nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No stations found'**
+  String get radioNoResults;
+
+  /// Empty state when the station library is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'No saved stations yet'**
+  String get radioNoStations;
+
+  /// Empty-state hint for the station library.
+  ///
+  /// In en, this message translates to:
+  /// **'Search the directory or add a station by URL'**
+  String get radioNoStationsSub;
+
+  /// Section header for favorite stations.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get radioFavorites;
+
+  /// Section header for stations with no group.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get radioUngrouped;
+
+  /// Adds a radio station by its stream URL.
+  ///
+  /// In en, this message translates to:
+  /// **'Add by URL'**
+  String get radioAddByUrl;
+
+  /// Add a directory station to the library.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get radioAdd;
+
+  /// Confirmation after saving a station.
+  ///
+  /// In en, this message translates to:
+  /// **'Added {name}'**
+  String radioAdded(String name);
+
+  /// Mark a station as favorite.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to favorites'**
+  String get radioFavorite;
+
+  /// Unmark a favorite station.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from favorites'**
+  String get radioUnfavorite;
+
+  /// Assign a station to a group/category.
+  ///
+  /// In en, this message translates to:
+  /// **'Set group'**
+  String get radioSetGroup;
+
+  /// Group/category field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Group'**
+  String get radioGroup;
+
+  /// Station name field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Station name'**
+  String get radioStationName;
+
+  /// Stream URL field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Stream URL'**
+  String get radioStreamUrl;
+
+  /// Station homepage field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Homepage (optional)'**
+  String get radioHomepage;
 
   /// Banner shown across the top of the app when the active server cannot be reached.
   ///
@@ -8475,6 +8697,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download complete'**
   String get notifDownloadComplete;
+
+  /// Title of the Chromecast device-picker sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Cast to'**
+  String get castTo;
+
+  /// Shown while scanning for Chromecast devices.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching for devices…'**
+  String get castSearching;
+
+  /// Snackbar when resolving/starting a cast fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t start casting'**
+  String get castFailed;
+
+  /// Ends the current Chromecast session.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get castDisconnect;
+
+  /// Button to end casting and return to local playback.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop Casting'**
+  String get castStop;
+
+  /// Header showing the connected Chromecast.
+  ///
+  /// In en, this message translates to:
+  /// **'Casting to {device}'**
+  String castConnectedTo(String device);
+
+  /// Header shown while a cast session is starting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to {device}…'**
+  String castConnecting(String device);
+
+  /// OS notification title while a download is in progress.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading'**
+  String get notifDownloading;
+
+  /// OS notification title when a download fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed'**
+  String get notifDownloadFailed;
 
   /// OS notification title when a new Seerr request is made.
   ///

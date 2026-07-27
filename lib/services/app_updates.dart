@@ -70,6 +70,12 @@ class GithubRelease {
     if (Platform.isWindows) {
       return pick((n) => n.endsWith('.zip') && n.contains('windows'));
     }
+    if (Platform.isAndroid) {
+      // Prefer an arm64 build if the release ships split APKs, else the
+      // universal one. (Requires an .apk to actually be attached to releases.)
+      return pick((n) => n.endsWith('.apk') && n.contains('arm64')) ??
+          pick((n) => n.endsWith('.apk'));
+    }
     return null;
   }
 }
@@ -81,6 +87,10 @@ class GithubRelease {
 bool get canSelfInstall {
   if (Platform.isLinux) return Platform.environment.containsKey('APPIMAGE');
   if (Platform.isWindows) return true;
+  // Android hands the downloaded APK to the system package installer (the user
+  // still confirms). A Play-store install would update through the store, but
+  // Fathom's Android build is sideloaded, so this is the right path.
+  if (Platform.isAndroid) return true;
   return false;
 }
 
