@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -136,6 +138,7 @@ class AudioController extends Notifier<AudioState> {
   Timer? _progressTimer;
   Timer? _radioIcyTimer; // polls the live ICY "now playing" while on radio
   Timer? _radioTick; // 1s ticker for live time-shift (behind-live / seekable)
+  StreamSubscription<void>? _noisySub; // pause on BT/headphone disconnect (mobile)
   // Live edge in playback time: advances by wall-clock every tick, so pausing or
   // rewinding leaves playback behind it. Reset on tune / go-live.
   Duration _radioEdge = Duration.zero;
@@ -189,6 +192,14 @@ class AudioController extends Notifier<AudioState> {
       h.onPrevious = _player.previous;
       h.onSeek = _player.seek;
       h.onStop = () async => _player.stop();
+      // Pause on Bluetooth/headphone disconnect (audio "becoming noisy"), like
+      // every media app: blasting out of the phone speaker after you unplug is
+      // jarring. Mobile-only (h != null). No-op while casting (local is paused).
+      AudioSession.instance.then((session) {
+        _noisySub = session.becomingNoisyEventStream.listen((_) {
+          if (_player.state.playing) _player.pause();
+        });
+      }).catchError((_) {});
     }
 
     final subPlaylist = _player.stream.playlist.listen((pl) {
@@ -240,6 +251,7 @@ class AudioController extends Notifier<AudioState> {
       _progressTimer?.cancel();
       _radioIcyTimer?.cancel();
       _radioTick?.cancel();
+      _noisySub?.cancel();
       _reportStopped();
     });
     return const AudioState();
@@ -402,11 +414,18 @@ class AudioController extends Notifier<AudioState> {
     );
   }
 
-  /// Jump back to the live edge. Reconnecting is the one move that works on every
-  /// stream (seekable or not), so we reopen rather than seek.
+  /// Jump back to the live edge. When the stream is seekable (the bar is showing)
+  /// we seek to the buffered edge — instant, keeps the rewind buffer, and avoids
+  /// the reconnect flicker that briefly drops `seekable` and hides the bar. Only
+  /// a non-seekable stream needs a reconnect to get back to live.
   Future<void> radioGoLive() async {
     final s = state.radioStation;
     if (s == null) return;
+    if (state.radioSeekable) {
+      state = state.copyWith(radioBehindLive: Duration.zero);
+      await _player.seek(_radioEdge);
+      return;
+    }
     _radioEdge = Duration.zero;
     _emptyIcyCount = 0;
     _radioTickWall = null;
@@ -437,7 +456,7 @@ class AudioController extends Notifier<AudioState> {
 
   void _startRadioTick() {
     _radioTick?.cancel();
-    _radioTick = Timer.periodic(const Duration(seconds: 1), (_) async {
+    Future<void> tick() async {
       if (!state.isRadio) return;
       final now = DateTime.now();
       final last = _radioTickWall ?? now;
@@ -471,7 +490,13 @@ class AudioController extends Notifier<AudioState> {
           radioWindow: window,
         );
       }
-    });
+    }
+
+    // Run once now so seekable/window begin updating immediately instead of
+    // after the first one-second delay, then keep ticking every second.
+    unawaited(tick());
+    _radioTick =
+        Timer.periodic(const Duration(seconds: 1), (_) => unawaited(tick()));
   }
 
   void _startIcyPolling() {
@@ -519,6 +544,9 @@ class AudioController extends Notifier<AudioState> {
             _artLookupKey = null;
             unawaited(_resolveArtwork(title));
           } else {
+            // Not a song (ad text / station tagline): keep the station logo,
+            // don't guess a cover. Logged so mystery art is traceable.
+            debugPrint('[radio-art] "$title" is not a song — keeping logo');
             _artLookupKey = null;
           }
         } else if (embedded.isNotEmpty && embedded != state.radioArtwork) {
@@ -727,22 +755,35 @@ class AudioController extends Notifier<AudioState> {
       // Guard against iTunes returning an unrelated "best guess" (its default
       // for junk queries, e.g. a random greatest-hits): require the result to
       // share a real word with what we searched for.
-      final resultText =
-          '${match['trackName'] ?? ''} ${match['artistName'] ?? ''} '
-                  '${match['collectionName'] ?? ''}'
-              .toLowerCase();
+      final resultWords = ('${match['trackName'] ?? ''} '
+                  '${match['artistName'] ?? ''} '
+                  '${match['collectionName'] ?? ''}')
+              .toLowerCase()
+              .split(RegExp(r'[^a-z0-9]+'))
+              .where((w) => w.length >= 3)
+              .toSet();
       final queryWords = (term.isEmpty ? title : term)
           .toLowerCase()
-          .split(RegExp(r'\s+'))
+          .split(RegExp(r'[^a-z0-9]+'))
           .where((w) => w.length >= 3)
           .toSet();
-      final overlap = queryWords.where(resultText.contains).length;
-      if (queryWords.isNotEmpty && overlap == 0) return;
+      // Whole-word overlap, NOT substring: a tagline like "...Hit Music..."
+      // must not match a "Greatest Hits" album (which is how a Z100 branding
+      // line pulled Hank Williams art). A junk query that shares no whole word
+      // with iTunes' best guess -> skip the art entirely.
+      final overlap = queryWords.intersection(resultWords).length;
+      if (queryWords.isNotEmpty && overlap == 0) {
+        debugPrint('[radio-art] no match for "$title" — itunes returned '
+            '"${match['artistName']} - ${match['trackName']}", dropped');
+        return;
+      }
       final art100 = match['artworkUrl100'] as String?;
       if (art100 == null || art100.isEmpty) return;
       // iTunes serves 100px; bump the size token for a crisp cover.
       final big = art100.replaceAll('100x100bb', '600x600bb');
       if (_artLookupKey == key && state.isRadio && state.radioTitle == title) {
+        debugPrint('[radio-art] set art for "$title" -> '
+            '${match['artistName']} - ${match['trackName']}');
         state = state.copyWith(radioArtwork: big);
         final s = state.radioStation;
         if (s != null) _pushRadioNowPlaying(s, title);
@@ -750,15 +791,32 @@ class AudioController extends Notifier<AudioState> {
     } catch (_) {}
   }
 
+  /// Station-branding / promo text that has a "-" but is NOT a song, so it
+  /// shouldn't drive an art lookup: a broadcast frequency (100.3), a callsign
+  /// ("WHTZ FM"), "hit music", a "#1"/"your #1" boast, or a URL. Kept narrow so
+  /// real titles ("I Am the Walrus", "Radio Ga Ga") aren't caught — no bare
+  /// "am"/"fm"/"radio" words.
+  static final RegExp _brandingRe = RegExp(
+      r'\b\d{2,3}[.,]\d\b'
+      r'|\b[kw][a-z]{2,3}[\s\-]?fm\b'
+      r'|hit\s*music'
+      r'|\byour\s+#?\s*1\b'
+      r'|#\s*1\b'
+      r'|https?://|\bwww\.|\.com\b',
+      caseSensitive: false);
+
   /// True when an ICY line looks like a real song we can search art for: an
-  /// "Artist - Title" with both sides non-trivial. Ad taglines / bare station
-  /// text fail this, so we don't pull a random cover (e.g. a "greatest hits").
+  /// "Artist - Title" with both sides non-trivial, and not station branding.
+  /// Ad taglines / bare station text fail this, so we don't pull a random cover
+  /// (e.g. a "greatest hits").
   static bool _looksLikeSong(String s) {
-    final m = RegExp(r'^(.{2,}?)\s+-\s+(.{2,})$').firstMatch(s.trim());
+    final t = s.trim();
+    if (_brandingRe.hasMatch(t)) return false;
+    final m = RegExp(r'^(.{2,}?)\s+-\s+(.{2,})$').firstMatch(t);
     if (m == null) return false;
     final a = m.group(1)!.trim();
     final b = m.group(2)!.trim();
-    return a.length >= 2 && b.length >= 2 && s.length <= 120;
+    return a.length >= 2 && b.length >= 2 && t.length <= 120;
   }
 
   /// Called when a resolved artwork URL fails to load, so the UI falls back to

@@ -162,6 +162,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _triedTranscode = false;
   bool _appliedTracks = false;
   String? _error;
+
+  // The URL currently open, so the stats overlay can report the server play
+  // method (direct vs transcode). Its open state is shared with the fullscreen
+  // route via a notifier so toggling fullscreen doesn't close it.
+  String? _playUrl;
+  final ValueNotifier<bool> _statsOpen = ValueNotifier<bool>(false);
   String? _liveStreamId;
   String? _livePlaySessionId;
   List<MediaSegment> _segments = const [];
@@ -543,6 +549,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 '${startPrefs?.hardwareDecoding ?? true} '
                 'url=${redactUrl(url)}');
       }
+      _playUrl = url;
       await _player.open(Media(url), play: !syncing);
 
       final prefs = ref.read(preferencesProvider).asData?.value;
@@ -725,6 +732,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     setState(() => _qualityBitrate = bitrate);
     try {
       final url = await _videoUrlForQuality();
+      _playUrl = url;
       await _player.open(Media(url));
       _appliedTracks = false;
       if (pos > Duration.zero) {
@@ -752,6 +760,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  /// How the current stream is being delivered, for the stats overlay. Fathom
+  /// prefers true client-side direct play (mpv plays the raw file); it only
+  /// transcodes as a fallback or when a bitrate cap forces a downscale, which
+  /// the server signals with an HLS (.m3u8) URL.
+  String _playMethodLabel(AppLocalizations l) {
+    final u = _playUrl;
+    if (u == null) return l.playerPlayMethodDirect;
+    if (!u.startsWith('http')) return l.playerPlayMethodDownloaded;
+    return (u.contains('.m3u8') || _triedTranscode)
+        ? l.playerPlayMethodTranscode
+        : l.playerPlayMethodDirect;
+  }
+
   /// On playback failure for a regular video, retry once via server transcode
   /// before giving up. Live channels don't fall back this way.
   void _maybeFallbackOrError(String reason) {
@@ -777,6 +798,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         itemId: widget.item.id,
         forceTranscode: true,
       );
+      _playUrl = url;
       await _player.open(Media(url));
       final resumeTicks = widget.item.resumePositionTicks;
       if (resumeTicks > 0) {
@@ -1103,6 +1125,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _disposed = true;
+    _statsOpen.dispose();
     // The verbose logger belongs to this screen; drop it on either exit path
     // (a handed-off dock player keeps playing but stops feeding diagnostics).
     _logSub?.cancel();
@@ -1328,6 +1351,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onChapters: widget.item.chapters.isNotEmpty
                               ? _showChapters
                               : null,
+                          statsPlayMethod: _playMethodLabel(l),
+                          statsOpen: _statsOpen,
                           markers: [
                             for (final c in widget.item.chapters)
                               (position: c.start, label: c.name ?? l.playerChapter),

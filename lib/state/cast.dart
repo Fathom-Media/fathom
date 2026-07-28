@@ -24,6 +24,7 @@ class CastState {
   final int positionMs;
   final int durationMs;
   final String? currentUrl; // the item the receiver is actually playing
+  final double volume; // the cast device's volume, 0-100 (mirrors the receiver)
   const CastState({
     this.available = false,
     this.devices = const [],
@@ -34,6 +35,7 @@ class CastState {
     this.positionMs = 0,
     this.durationMs = 0,
     this.currentUrl,
+    this.volume = 100,
   });
 
   /// Either connected or mid-connection: local playback should be handed off.
@@ -49,6 +51,7 @@ class CastState {
     int? positionMs,
     int? durationMs,
     String? currentUrl,
+    double? volume,
   }) =>
       CastState(
         available: available ?? this.available,
@@ -60,6 +63,7 @@ class CastState {
         positionMs: positionMs ?? this.positionMs,
         durationMs: durationMs ?? this.durationMs,
         currentUrl: currentUrl ?? this.currentUrl,
+        volume: volume ?? this.volume,
       );
 }
 
@@ -113,6 +117,8 @@ class CastController extends Notifier<CastState> {
             positionMs: (m['position'] as num?)?.toInt() ?? 0,
             durationMs: (m['duration'] as num?)?.toInt() ?? 0,
             currentUrl: m['currentUrl'] as String?,
+            // Native reports the device volume 0-1; the app works in 0-100.
+            volume: ((m['volume'] as num?)?.toDouble() ?? 1.0) * 100,
           );
         case 'error':
           debugPrint('[cast] error: ${m['message']}');
@@ -186,6 +192,16 @@ class CastController extends Notifier<CastState> {
       _supported ? _methods.invokeMethod('stop') : null;
   Future<void> seek(int position) async =>
       _supported ? _methods.invokeMethod('seek', {'position': position}) : null;
+
+  /// Set the cast device's volume (0-100). Updates state optimistically so the
+  /// slider tracks the drag; the receiver echoes the real value back shortly.
+  Future<void> setVolume(double v) async {
+    final vol = v.clamp(0.0, 100.0);
+    state = state.copyWith(volume: vol);
+    if (_supported) {
+      await _methods.invokeMethod('setVolume', {'volume': vol / 100});
+    }
+  }
   Future<void> endSession() async {
     if (!_supported) return;
     state = state.copyWith(connected: false, connecting: false);

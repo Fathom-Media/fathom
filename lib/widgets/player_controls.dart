@@ -9,6 +9,7 @@ import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
 import 'glass.dart';
+import 'playback_stats.dart';
 
 class _TrickplayThumb extends StatelessWidget {
   final JellyfinClient client;
@@ -169,6 +170,15 @@ class FathomPlayerControls extends StatefulWidget {
   final String qualityLabel;
   final VoidCallback? onChapters;
 
+  /// When both are non-null, a "Playback Info" entry appears in the settings
+  /// gear that toggles a read-only stats overlay showing [statsPlayMethod] as
+  /// the Play Method. The overlay renders inside the controls so it survives the
+  /// fullscreen route, and its open state is a shared [ValueNotifier] (owned by
+  /// the player screen) so it stays open across the windowed⇄fullscreen swap —
+  /// each route has its own controls instance, but both watch the same notifier.
+  final String? statsPlayMethod;
+  final ValueNotifier<bool>? statsOpen;
+
   /// Live TV record control. Lives in the bottom bar with the other actions,
   /// not floating in the title bar.
   final Widget? recordButton;
@@ -277,6 +287,8 @@ class FathomPlayerControls extends StatefulWidget {
     this.onQuality,
     this.qualityLabel = '',
     this.onChapters,
+    this.statsPlayMethod,
+    this.statsOpen,
     this.recordButton,
     this.trickplay,
     this.trickplayWidth,
@@ -564,6 +576,37 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
               ),
             ),
           ),
+          // Playback-details panel: above the fading chrome so it persists once
+          // opened, and inside the controls so it survives the fullscreen route.
+          // A ValueListenableBuilder on the shared notifier keeps it open across
+          // the windowed⇄fullscreen swap. Bounded to the video area (top clears
+          // the title bar, bottom clears the control bar) so a tall panel scrolls
+          // instead of getting clipped, but grows to fit where there's room.
+          if (widget.statsOpen != null && widget.statsPlayMethod != null)
+            Positioned.fill(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: widget.statsOpen!,
+                builder: (context, open, _) {
+                  if (!open) return const SizedBox.shrink();
+                  final pad = MediaQuery.of(context).padding;
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      top: (widget.showTopBar ? 64 : 14) + pad.top,
+                      left: 14 + pad.left,
+                      bottom: 96 + pad.bottom,
+                    ),
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: PlaybackStatsOverlay(
+                        player: _p,
+                        playMethod: widget.statsPlayMethod!,
+                        onClose: () => widget.statsOpen!.value = false,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -753,6 +796,8 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                     // where settings-style controls live. Matches YouTube/VLC
                     // muscle memory rather than evening out the bar for its own
                     // sake.
+                    // The track pickers you toggle mid-watch keep their one-tap
+                    // spot on the bar.
                     final tracks = <(IconData, String, VoidCallback)>[
                       if (widget.onSubtitles != null)
                         (
@@ -766,24 +811,34 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                           l.playerAudio,
                           widget.onAudio!
                         ),
+                    ];
+                    // The settings gear (⚙) holds the occasional / settings-ish
+                    // items, in order: Quality, Chapters, Speed, then the
+                    // diagnostic Playback Info toggle. Mirrors YouTube's gear.
+                    final overflow = <(IconData, String, VoidCallback)>[
                       if (widget.onQuality != null)
                         (
                           Icons.high_quality_rounded,
                           l.playerQualityLabel(widget.qualityLabel),
                           widget.onQuality!
                         ),
-                    ];
-                    final nav = <(IconData, String, VoidCallback)>[
                       if (widget.onChapters != null)
-                        // A numbered-list glyph reads as chapters; the old
-                        // generic list icon was the bar's least legible.
                         (Icons.format_list_numbered_rounded, l.playerChapters,
                             widget.onChapters!),
                       if (widget.onSpeed != null)
                         (Icons.speed_rounded, l.playerPlaybackSpeed,
                             widget.onSpeed!),
+                      if (widget.statsPlayMethod != null &&
+                          widget.statsOpen != null)
+                        (
+                          Icons.info_outline_rounded,
+                          l.playerPlaybackInfo,
+                          () => widget.statsOpen!.value = !widget.statsOpen!.value
+                        ),
                     ];
-                    final optional = [...tracks, ...nav];
+                    // A narrow bar folds everything (tracks + overflow) into the
+                    // single ⋮ menu.
+                    final optional = [...tracks, ...overflow];
 
                     if (folded) {
                       return Row(
@@ -923,8 +978,31 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                                 widget.onNext!();
                                 _show();
                               }),
-                        for (final o in [...tracks, ...nav])
+                        for (final o in tracks)
                           _BarButton(icon: o.$1, tooltip: o.$2, onTap: o.$3),
+                        // Occasional items live behind a single "More" (⋮) menu,
+                        // like YouTube's settings gear, so the bar stays lean.
+                        if (overflow.isNotEmpty)
+                          PopupMenuButton<VoidCallback>(
+                            tooltip: l.playerSettings,
+                            icon: const Icon(Icons.settings_rounded,
+                                color: Colors.white, size: 22),
+                            onSelected: (fn) {
+                              fn();
+                              _show();
+                            },
+                            itemBuilder: (_) => [
+                              for (final o in overflow)
+                                PopupMenuItem(
+                                  value: o.$3,
+                                  child: Row(children: [
+                                    Icon(o.$1, size: 18),
+                                    const SizedBox(width: 12),
+                                    Text(o.$2),
+                                  ]),
+                                ),
+                            ],
+                          ),
                         // Theater mode is a non-fullscreen concept, so the
                         // button hides in fullscreen, like YouTube.
                         if (widget.onToggleTheater != null &&

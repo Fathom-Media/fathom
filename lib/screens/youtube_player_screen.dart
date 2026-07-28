@@ -134,6 +134,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   YtStreams _streams = const YtStreams();
   List<YtQuality> _qualities = const [];
   String _qualityLabel = 'Auto';
+  // Stats-overlay open state, shared with the fullscreen route (a new controls
+  // instance) so toggling fullscreen keeps it open.
+  final ValueNotifier<bool> _statsOpen = ValueNotifier<bool>(false);
   List<YoutubeCaption> _captions = const [];
   YoutubeCaption? _caption; // null = subtitles off
 
@@ -677,6 +680,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   @override
   void dispose() {
     routeObserver.unsubscribe(this);
+    _statsOpen.dispose();
     // Ownership was transferred to the PiP dock; don't tear the player down.
     if (_minimized) {
       super.dispose();
@@ -735,6 +739,14 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
       _player.setVolume(_preMuteVolume == 0 ? 100 : _preMuteVolume);
     }
   }
+
+  /// How the stream is being delivered, for the stats overlay. YouTube is always
+  /// direct HTTP streaming; the meaningful distinction is whether it's a separate
+  /// high-quality video+audio (adaptive/DASH) or the muxed fallback.
+  String _playMethodLabel(AppLocalizations l) =>
+      (!_fellBack && _audioUrl != null)
+          ? l.playerPlayMethodAdaptive
+          : l.playerPlayMethodMuxed;
 
   Future<void> _changeQuality(YtQuality? q) async {
     final label = q?.label ?? 'Auto';
@@ -937,6 +949,8 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         qualityLabel: _qualityLabel == 'Auto' ? l.playerAuto : _qualityLabel,
         onSubtitles: _captions.isNotEmpty ? _showSubtitleMenu : null,
         onChapters: widget.chapters.isNotEmpty ? _showChapterMenu : null,
+        statsPlayMethod: _playMethodLabel(l),
+        statsOpen: _statsOpen,
         seekBackSeconds: widget.seekBackSeconds,
         seekForwardSeconds: widget.seekForwardSeconds,
         markers: [

@@ -120,10 +120,8 @@ class NowPlayingScreen extends ConsumerWidget {
           ),
           _LyricsToggle(track: track),
           _FavoriteButton(track: track),
-          IconButton(
-            tooltip: l.playerQueue,
-            icon: const Icon(Icons.queue_music_rounded),
-            onPressed: () => showModalBottomSheet<void>(
+          _QueueButton(
+            onTap: () => showModalBottomSheet<void>(
               context: context,
               isScrollControlled: true,
               backgroundColor: theme.colorScheme.surface,
@@ -206,10 +204,16 @@ class NowPlayingScreen extends ConsumerWidget {
                             : null,
                       ),
                       const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      Stack(
+                        alignment: Alignment.center,
                         children: [
-                          IconButton(
+                          // Transport clusters in the true center; volume floats
+                          // at the right edge and expands leftward over the empty
+                          // space, so opening it never shoves the controls.
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
                             icon: const Icon(Icons.shuffle_rounded),
                             isSelected: audio.shuffle,
                             color: audio.shuffle
@@ -262,10 +266,15 @@ class NowPlayingScreen extends ConsumerWidget {
                                 : null,
                             onPressed: controller.cycleRepeat,
                           ),
+                            ],
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: InlineVolume(
+                                player: player, expandLeft: true),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      VolumeSlider(player: player),
                       const SizedBox(height: 12),
                       _UpNextPeek(
                         audio: audio,
@@ -482,8 +491,6 @@ class _RadioNowPlaying extends ConsumerWidget {
           _liveRow(context, l, audio, controller, theme),
           const SizedBox(height: 14),
         ],
-        VolumeSlider(player: player),
-        const SizedBox(height: 10),
         _controls(context, l, audio, controller, player, theme, cast),
       ],
     );
@@ -494,27 +501,51 @@ class _RadioNowPlaying extends ConsumerWidget {
   Widget _liveRow(BuildContext context, AppLocalizations l, AudioState audio,
       AudioController controller, ThemeData theme) {
     final scheme = theme.colorScheme;
-    if (audio.radioSeekable && audio.radioWindow.inSeconds > 3) {
-      return _RadioScrubBar(
+    // Show the scrub bar as soon as the stream is seekable — the same gate the
+    // rewind/skip buttons use — so the two never appear out of step. The window
+    // starts small and grows; the bar just fills in. The swap eases in (crossfade
+    // + height) rather than popping.
+    final Widget child;
+    if (audio.radioSeekable) {
+      child = _RadioScrubBar(
+        key: const ValueKey('scrub'),
         window: audio.radioWindow,
         behind: audio.radioBehindLive,
         onSeekBehind: controller.radioSeekBehind,
         onGoLive: controller.radioGoLive,
       );
+    } else {
+      // Full width (badge centered) so swapping to the equally wide scrub bar
+      // only eases the height, not the width.
+      child = SizedBox(
+        key: const ValueKey('live'),
+        width: double.infinity,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (!audio.radioAtLive) ...[
+              Text('-${_fmtDur(audio.radioBehindLive)}',
+                  style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(width: 10),
+            ],
+            radioLiveBadge(context,
+                atLive: audio.radioAtLive, onTap: controller.radioGoLive),
+          ],
+        ),
+      );
     }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (!audio.radioAtLive) ...[
-          Text('-${_fmtDur(audio.radioBehindLive)}',
-              style: TextStyle(
-                  color: scheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
-          const SizedBox(width: 10),
-        ],
-        radioLiveBadge(context,
-            atLive: audio.radioAtLive, onTap: controller.radioGoLive),
-      ],
+    final d =
+        reduceMotion(context) ? Duration.zero : const Duration(milliseconds: 320);
+    return AnimatedSize(
+      duration: d,
+      curve: Curves.easeOutCubic,
+      child: AnimatedSwitcher(
+        duration: d,
+        switchInCurve: Curves.easeOut,
+        child: child,
+      ),
     );
   }
 
@@ -525,9 +556,10 @@ class _RadioNowPlaying extends ConsumerWidget {
     // Rewind/skip act on the local buffer, so they're only meaningful when NOT
     // casting.
     final showSeek = audio.radioSeekable && !cast.casting;
+    // Transport clusters at the LEFT; volume sits at the far RIGHT (level with
+    // the seek bar's LIVE badge above) and expands leftward, so its open width
+    // reaches back to that same right edge.
     return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         if (showSeek) ...[
           ControlButton(
@@ -544,8 +576,8 @@ class _RadioNowPlaying extends ConsumerWidget {
           stream: player.stream.playing,
           initialData: player.state.playing,
           builder: (context, snap) {
-            // While casting the local player is paused; reflect the cast's state
-            // (togglePlay already routes to the cast device).
+            // While casting the local player is paused; reflect the cast's
+            // state (togglePlay already routes to the cast device).
             final playing = cast.casting ? cast.playing : (snap.data ?? false);
             return ControlButton(
               icon: playing
@@ -568,6 +600,8 @@ class _RadioNowPlaying extends ConsumerWidget {
             onTap: () => controller.radioSeekBy(const Duration(seconds: 15)),
           ),
         ],
+        const Spacer(),
+        InlineVolume(player: player, expandLeft: true),
       ],
     );
   }
@@ -637,6 +671,7 @@ class _RadioScrubBar extends StatefulWidget {
   final Future<void> Function(Duration behind) onSeekBehind;
   final Future<void> Function() onGoLive;
   const _RadioScrubBar({
+    super.key,
     required this.window,
     required this.behind,
     required this.onSeekBehind,
@@ -945,6 +980,51 @@ class _QueueSheet extends ConsumerWidget {
   }
 }
 
+/// The queue button, with a quick press-in / elastic spring-back bump so the
+/// tap feels tactile (no highlight), then opens the queue sheet.
+class _QueueButton extends StatefulWidget {
+  final VoidCallback onTap;
+  const _QueueButton({required this.onTap});
+
+  @override
+  State<_QueueButton> createState() => _QueueButtonState();
+}
+
+class _QueueButtonState extends State<_QueueButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 340));
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(
+        tween:
+            Tween(begin: 1.0, end: 0.8).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 40),
+    TweenSequenceItem(
+        tween: Tween(begin: 0.8, end: 1.0)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 60),
+  ]).animate(_c);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: AppLocalizations.of(context).playerQueue,
+      icon: ScaleTransition(
+          scale: _scale, child: const Icon(Icons.queue_music_rounded)),
+      onPressed: () {
+        if (!reduceMotion(context)) _c.forward(from: 0);
+        widget.onTap();
+      },
+    );
+  }
+}
+
 /// Heart toggle for the current track. Optimistic + resets when the track
 /// changes, since the audio queue items aren't backed by a refreshable provider.
 class _FavoriteButton extends ConsumerStatefulWidget {
@@ -955,9 +1035,31 @@ class _FavoriteButton extends ConsumerStatefulWidget {
   ConsumerState<_FavoriteButton> createState() => _FavoriteButtonState();
 }
 
-class _FavoriteButtonState extends ConsumerState<_FavoriteButton> {
+class _FavoriteButtonState extends ConsumerState<_FavoriteButton>
+    with SingleTickerProviderStateMixin {
   late bool _fav = widget.track.userData.isFavorite;
   late String _forId = widget.track.id;
+
+  late final AnimationController _pop = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 460));
+  // A quick swell then an elastic settle: the heart gives a little beat the
+  // moment you favourite a track.
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(
+        tween:
+            Tween(begin: 1.0, end: 1.4).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 35),
+    TweenSequenceItem(
+        tween: Tween(begin: 1.4, end: 1.0)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 65),
+  ]).animate(_pop);
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -968,28 +1070,40 @@ class _FavoriteButtonState extends ConsumerState<_FavoriteButton> {
     }
     final l = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
-    return IconButton(
-      tooltip: _fav ? l.playerRemoveFavorite : l.playerAddFavorite,
-      isSelected: _fav,
-      color: _fav ? scheme.primary : null,
-      icon: Icon(_fav ? Icons.favorite_rounded : Icons.favorite_border_rounded),
-      onPressed: () async {
-        final session = ref.read(sessionControllerProvider).asData?.value;
-        if (session == null) return;
-        final next = !_fav;
-        setState(() => _fav = next);
-        try {
-          await ref.read(jellyfinClientProvider).setFavorite(
-                baseUrl: session.baseUrl,
-                userId: session.userId,
-                token: session.accessToken,
-                itemId: widget.track.id,
-                favorite: next,
-              );
-        } catch (_) {
-          if (mounted) setState(() => _fav = !next);
-        }
-      },
+    return ScaleTransition(
+      scale: _scale,
+      child: IconButton(
+        tooltip: _fav ? l.playerRemoveFavorite : l.playerAddFavorite,
+        color: _fav ? scheme.primary : null,
+        // The glyph itself swaps with a soft scale/fade so the fill "blooms" in.
+        icon: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 240),
+          transitionBuilder: (child, anim) => ScaleTransition(
+              scale: anim, child: FadeTransition(opacity: anim, child: child)),
+          child: Icon(
+            _fav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+            key: ValueKey(_fav),
+          ),
+        ),
+        onPressed: () async {
+          final session = ref.read(sessionControllerProvider).asData?.value;
+          if (session == null) return;
+          final next = !_fav;
+          setState(() => _fav = next);
+          if (next && !reduceMotion(context)) _pop.forward(from: 0);
+          try {
+            await ref.read(jellyfinClientProvider).setFavorite(
+                  baseUrl: session.baseUrl,
+                  userId: session.userId,
+                  token: session.accessToken,
+                  itemId: widget.track.id,
+                  favorite: next,
+                );
+          } catch (_) {
+            if (mounted) setState(() => _fav = !next);
+          }
+        },
+      ),
     );
   }
 }
@@ -1115,8 +1229,20 @@ class _LyricsToggle extends ConsumerWidget {
       tooltip: showing
           ? AppLocalizations.of(context).playerShowArtwork
           : AppLocalizations.of(context).playerShowLyrics,
-      isSelected: showing,
-      icon: Icon(showing ? Icons.image_rounded : Icons.lyrics_rounded),
+      color: showing ? Theme.of(context).colorScheme.primary : null,
+      // The glyph rotates/fades as it swaps, echoing the artwork flip it drives.
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: RotationTransition(
+            turns: Tween<double>(begin: 0.6, end: 1.0).animate(anim),
+            child: child,
+          ),
+        ),
+        child: Icon(showing ? Icons.image_rounded : Icons.lyrics_rounded,
+            key: ValueKey(showing)),
+      ),
       onPressed: () => ref.read(showingLyricsProvider.notifier).set(!showing),
     );
   }
@@ -1144,20 +1270,7 @@ class _CoverOrLyrics extends ConsumerWidget {
         true;
     final showing = hasLyrics && (ref.watch(showingLyricsProvider) ?? auto);
 
-    if (showing) {
-      return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.35),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: LyricsView(lyrics: lyrics, player: player),
-      );
-    }
-
-    return Hero(
+    final art = Hero(
       tag: 'nowPlayingArt',
       child: Container(
         decoration: BoxDecoration(
@@ -1180,6 +1293,61 @@ class _CoverOrLyrics extends ConsumerWidget {
           ),
         ),
       ),
+    );
+
+    final lyricsFace = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: hasLyrics ? LyricsView(lyrics: lyrics, player: player) : null,
+    );
+
+    // Turn the square over like a record sleeve to reveal the lyrics.
+    return reduceMotion(context)
+        ? (showing ? lyricsFace : art)
+        : _FlipCard(showBack: showing, front: art, back: lyricsFace);
+  }
+}
+
+/// A Y-axis card flip between two same-size faces. Toggling [showBack] animates
+/// a half-turn, swapping faces at the midpoint (and un-mirroring the back), so
+/// it reads as physically flipping the artwork over to the lyrics and back.
+class _FlipCard extends StatelessWidget {
+  final bool showBack;
+  final Widget front;
+  final Widget back;
+  const _FlipCard({
+    required this.showBack,
+    required this.front,
+    required this.back,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: showBack ? 1 : 0),
+      duration: const Duration(milliseconds: 460),
+      curve: Curves.easeInOutCubic,
+      builder: (context, t, _) {
+        final showingBack = t >= 0.5;
+        return Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.0012) // a little perspective
+            ..rotateY(t * math.pi),
+          child: showingBack
+              ? Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.identity()..rotateY(math.pi),
+                  child: back,
+                )
+              : front,
+        );
+      },
     );
   }
 }
