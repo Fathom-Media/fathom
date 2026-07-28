@@ -190,7 +190,7 @@
   "@updatesTitle": {
     "description": "Title of the Updates screen."
   },
-  "updateCurrentVersion": "Current version: {version}",
+  "updateCurrentVersion": "Current Version: {version}",
   "@updateCurrentVersion": {
     "description": "Shows the running app version on the Updates screen.",
     "placeholders": {
@@ -341,7 +341,7 @@
   "@prefsSettingsFallback": {
     "description": "Fallback AppBar title when the settings section is unknown."
   },
-  "prefsLanguageServerDefault": "Server default",
+  "prefsLanguageServerDefault": "Server Default",
   "@prefsLanguageServerDefault": {
     "description": "Audio language option: use the Jellyfin server's default language."
   },
@@ -790,19 +790,19 @@
   "@prefsCheckRequestUpdatesSub": {
     "description": "Check-for-request-updates setting subtitle."
   },
-  "prefsEveryMinute": "Every minute",
+  "prefsEveryMinute": "Every Minute",
   "@prefsEveryMinute": {
     "description": "Poll-interval option: once a minute."
   },
-  "prefsEvery5Minutes": "Every 5 minutes",
+  "prefsEvery5Minutes": "Every 5 Minutes",
   "@prefsEvery5Minutes": {
     "description": "Poll-interval option: every 5 minutes."
   },
-  "prefsEvery15Minutes": "Every 15 minutes",
+  "prefsEvery15Minutes": "Every 15 Minutes",
   "@prefsEvery15Minutes": {
     "description": "Poll-interval option: every 15 minutes."
   },
-  "prefsEvery30Minutes": "Every 30 minutes",
+  "prefsEvery30Minutes": "Every 30 Minutes",
   "@prefsEvery30Minutes": {
     "description": "Poll-interval option: every 30 minutes."
   },
@@ -910,7 +910,7 @@
   "@prefsFitContain": {
     "description": "Video fit option: contain (letterbox to fit)."
   },
-  "prefsFitCover": "Fill screen",
+  "prefsFitCover": "Fill Screen",
   "@prefsFitCover": {
     "description": "Video fit option: cover (crop to fill)."
   },
@@ -926,7 +926,7 @@
   "@prefsControlBarSub": {
     "description": "Control-bar setting subtitle."
   },
-  "prefsBarNoGlass": "No glass",
+  "prefsBarNoGlass": "No Glass",
   "@prefsBarNoGlass": {
     "description": "Control bar option: no frosted-glass background."
   },
@@ -934,7 +934,7 @@
   "@prefsBarGlass": {
     "description": "Control bar option: frosted-glass background."
   },
-  "prefsBarDarkGlass": "Dark glass",
+  "prefsBarDarkGlass": "Dark Glass",
   "@prefsBarDarkGlass": {
     "description": "Control bar option: dark frosted-glass background."
   },
@@ -1288,7 +1288,7 @@
   "@seerrApiKeySegment": {
     "description": "Segmented button label for API-key authentication mode."
   },
-  "seerrApiKeyLabel": "API key",
+  "seerrApiKeyLabel": "API Key",
   "@seerrApiKeyLabel": {
     "description": "Field label for the Seerr admin API key."
   },
@@ -1312,7 +1312,7 @@
   "@seerrSignInHelp": {
     "description": "Helper text above the Seerr sign-in form."
   },
-  "seerrUsernameLabel": "Jellyfin username",
+  "seerrUsernameLabel": "Jellyfin Username",
   "@seerrUsernameLabel": {
     "description": "Field label for the Jellyfin username used to sign in to Seerr."
   },
@@ -1490,6 +1490,102 @@
   "@playerMore": {
     "description": "Tooltip for the overflow (more options) menu button in the narrow player control bar."
   },
+  "playerSettings": "Settings",
+  "@playerSettings": {
+    "description": "Tooltip for the player's settings gear menu (chapters, speed, playback info)."
+  },
+  "playerPlaybackInfo": "Playback Info",
+  "@playerPlaybackInfo": {
+    "description": "Menu item / title for the playback details (stats) overlay."
+  },
+  "playerStatPlayMethod": "Play Method",
+  "@playerStatPlayMethod": {
+    "description": "Playback stats label: how the server delivers the stream (direct play vs transcode)."
+  },
+  "playerStatVideo": "Video",
+  "@playerStatVideo": {
+    "description": "Playback stats section heading for the video stream."
+  },
+  "playerStatAudio": "Audio",
+  "@playerStatAudio": {
+    "description": "Playback stats section heading for the audio stream."
+  },
+  "playerStatGeneral": "General",
+  "@playerStatGeneral": {
+    "description": "Playback stats section heading for container/buffer info."
+  },
+  "playerStatResolution": "Resolution",
+  "@playerStatResolution": {
+    "description": "Playback stats label: video pixel dimensions."
+  },
+  "playerStatCodec": "Codec",
+  "@playerStatCodec": {
+    "description": "Playback stats label: the video or audio codec."
+  },
+  "playerStatFrameRate": "Frame Rate",
+  "@playerStatFrameRate": {
+    "description": "Playback stats label: video frames per second."
+  },
+  "playerStatBitrate": "Bitrate",
+  "@playerStatBitrate": {
+    "description": "Playback stats label: the stream bitrate."
+  },
+  "playerStatDecoder": "Decoder",
+  "@playerStatDecoder": {
+    "description": "Playback stats label: which decode path is active (hardware or software)."
+  },
+  "playerStatDroppedFrames": "Dropped Frames",
+  "@playerStatDroppedFrames": {
+    "description": "Playback stats label: dropped frame counts (decoder / output)."
+  },
+  "playerStatChannels": "Channels",
+  "@playerStatChannels": {
+    "description": "Playback stats label: audio channel count / layout."
+  },
+  "playerStatSampleRate": "Sample Rate",
+  "@playerStatSampleRate": {
+    "description": "Playback stats label: audio sample rate."
+  },
+  "playerStatContainer": "Container",
+  "@playerStatContainer": {
+    "description": "Playback stats label: the media container/file format."
+  },
+  "playerStatBuffer": "Buffer",
+  "@playerStatBuffer": {
+    "description": "Playback stats label: seconds of demuxer buffer ahead."
+  },
+  "playerStatAvSync": "A/V Sync",
+  "@playerStatAvSync": {
+    "description": "Playback stats label: audio/video sync offset in seconds."
+  },
+  "playerStatHardware": "Hardware",
+  "@playerStatHardware": {
+    "description": "Playback stats value: hardware video decoding is active."
+  },
+  "playerStatSoftware": "Software",
+  "@playerStatSoftware": {
+    "description": "Playback stats value: software video decoding is active."
+  },
+  "playerPlayMethodDirect": "Direct Play",
+  "@playerPlayMethodDirect": {
+    "description": "Play method value: the file plays as-is with no server transcoding."
+  },
+  "playerPlayMethodTranscode": "Transcoding",
+  "@playerPlayMethodTranscode": {
+    "description": "Play method value: the server is transcoding the stream."
+  },
+  "playerPlayMethodDownloaded": "Direct Play (Downloaded)",
+  "@playerPlayMethodDownloaded": {
+    "description": "Play method value: playing a locally downloaded copy."
+  },
+  "playerPlayMethodAdaptive": "Adaptive (DASH)",
+  "@playerPlayMethodAdaptive": {
+    "description": "Play method value (YouTube): separate high-quality video and audio streams."
+  },
+  "playerPlayMethodMuxed": "Muxed Stream",
+  "@playerPlayMethodMuxed": {
+    "description": "Play method value (YouTube): a single combined video+audio stream (fallback)."
+  },
   "playerMute": "Mute",
   "@playerMute": {
     "description": "Tooltip for the volume mute button."
@@ -1506,11 +1602,11 @@
   "@playerMiniplayer": {
     "description": "Player control tooltip: minimize the video into the floating mini player (picture-in-picture)."
   },
-  "playerTheaterMode": "Theater mode",
+  "playerTheaterMode": "Theater Mode",
   "@playerTheaterMode": {
     "description": "Player control tooltip: switch to theater mode (a wider in-page player with the side rail hidden)."
   },
-  "playerDefaultView": "Default view",
+  "playerDefaultView": "Default View",
   "@playerDefaultView": {
     "description": "Player control tooltip: leave theater mode and return to the default view."
   },
@@ -1754,11 +1850,11 @@
   "@playerPadding": {
     "description": "Section label in the record dialog for the pre/post recording padding fields."
   },
-  "playerStartBefore": "Start before",
+  "playerStartBefore": "Start Before",
   "@playerStartBefore": {
     "description": "Label for the field setting how many minutes early a recording starts."
   },
-  "playerStopAfter": "Stop after",
+  "playerStopAfter": "Stop After",
   "@playerStopAfter": {
     "description": "Label for the field setting how many minutes late a recording stops."
   },
@@ -1766,11 +1862,11 @@
   "@playerMinutesSuffix": {
     "description": "Suffix (abbreviation for minutes) shown inside the recording padding input fields."
   },
-  "playerPopOut": "Pop out to desktop",
+  "playerPopOut": "Pop Out to Desktop",
   "@playerPopOut": {
     "description": "Tooltip for the button that pops the mini video out into a separate always-on-top desktop window."
   },
-  "playerBackToApp": "Back to app",
+  "playerBackToApp": "Back to App",
   "@playerBackToApp": {
     "description": "Tooltip for the button that returns the popped-out desktop video back into the app window."
   },
@@ -1873,7 +1969,7 @@
   "@detailCastAction": {
     "description": "Button label to cast/play the item on another device."
   },
-  "detailPlayOnAnotherDevice": "Play on another device",
+  "detailPlayOnAnotherDevice": "Play on Another Device",
   "@detailPlayOnAnotherDevice": {
     "description": "Tooltip for the cast-to-another-device action."
   },
@@ -2150,11 +2246,11 @@
       }
     }
   },
-  "detailReadMore": "Read more",
+  "detailReadMore": "Read More",
   "@detailReadMore": {
     "description": "Toggle to expand a truncated biography."
   },
-  "detailReadLess": "Read less",
+  "detailReadLess": "Read Less",
   "@detailReadLess": {
     "description": "Toggle to collapse an expanded biography."
   },
@@ -2380,7 +2476,7 @@
   "@detailSomeone": {
     "description": "Fallback requester name when the requester is unknown."
   },
-  "detailDeleteRequestTooltip": "Delete request",
+  "detailDeleteRequestTooltip": "Delete Request",
   "@detailDeleteRequestTooltip": {
     "description": "Tooltip on the delete-request button."
   },
@@ -2410,7 +2506,7 @@
   "@detailNoEditableOptions": {
     "description": "Shown when a request has no editable advanced options."
   },
-  "detailSelectTags": "Select tags",
+  "detailSelectTags": "Select Tags",
   "@detailSelectTags": {
     "description": "Placeholder for the multi-select tags field."
   },
@@ -2657,11 +2753,11 @@
   "@browseSortName": {
     "description": "Sort option: by name."
   },
-  "browseSortDateAdded": "Date added",
+  "browseSortDateAdded": "Date Added",
   "@browseSortDateAdded": {
     "description": "Sort option: by date added."
   },
-  "browseSortReleaseDate": "Release date",
+  "browseSortReleaseDate": "Release Date",
   "@browseSortReleaseDate": {
     "description": "Sort option: by release date."
   },
@@ -2834,19 +2930,19 @@
   "@browseReorderHint": {
     "description": "Instructions on the Discover layout editor."
   },
-  "browseCustomSlider": "Custom slider",
+  "browseCustomSlider": "Custom Slider",
   "@browseCustomSlider": {
     "description": "Subtitle marking a row as a user-created custom slider."
   },
-  "browseMoveUp": "Move up",
+  "browseMoveUp": "Move Up",
   "@browseMoveUp": {
     "description": "Tooltip to move a Discover row up."
   },
-  "browseMoveDown": "Move down",
+  "browseMoveDown": "Move Down",
   "@browseMoveDown": {
     "description": "Tooltip to move a Discover row down."
   },
-  "browseDeleteSlider": "Delete slider",
+  "browseDeleteSlider": "Delete Slider",
   "@browseDeleteSlider": {
     "description": "Tooltip to delete a custom Discover slider."
   },
@@ -2910,7 +3006,7 @@
   "@browseSortLastModified": {
     "description": "Request sort: last modified."
   },
-  "browseToggleSortDirection": "Toggle sort direction",
+  "browseToggleSortDirection": "Toggle Sort Direction",
   "@browseToggleSortDirection": {
     "description": "Tooltip to flip the request sort direction."
   },
@@ -3755,7 +3851,7 @@
   "@ytDownloadsScreenEmptyMessage": {
     "description": "Empty-state message on the offline Downloads screen."
   },
-  "ytAvailableOffline": "Available offline",
+  "ytAvailableOffline": "Available Offline",
   "@ytAvailableOffline": {
     "description": "Subtitle on a completed offline download."
   },
@@ -3808,7 +3904,7 @@
   "@appConnectToServer": {
     "description": "Server connect screen: subtitle under the Fathom logo."
   },
-  "appServerAddress": "Server address",
+  "appServerAddress": "Server Address",
   "@appServerAddress": {
     "description": "Server connect screen: label for the server address text field."
   },
@@ -3848,9 +3944,9 @@
   "@radioTitle": {"description": "Radio screen title."},
   "radioNowPlaying": "Radio",
   "@radioNowPlaying": {"description": "Now Playing title while a station plays."},
-  "radioLiveStream": "Live stream",
+  "radioLiveStream": "Live Stream",
   "@radioLiveStream": {"description": "Shown under the station when there is no ICY track info."},
-  "radioSearchDirectory": "Search directory",
+  "radioSearchDirectory": "Search Directory",
   "@radioSearchDirectory": {"description": "Toggles the station directory search."},
   "radioTabMyStations": "My Stations",
   "@radioTabMyStations": {"description": "Radio tab: the user's saved stations."},
@@ -3862,7 +3958,7 @@
   "@radioRewind": {"description": "Tooltip for the radio rewind button."},
   "radioSkip": "Skip 15 seconds",
   "@radioSkip": {"description": "Tooltip for the radio skip-forward button."},
-  "radioGroupOptions": "Group options",
+  "radioGroupOptions": "Group Options",
   "@radioGroupOptions": {"description": "Tooltip for the group header overflow menu."},
   "radioRenameGroup": "Rename Group",
   "@radioRenameGroup": {"description": "Menu action: rename a station group."},
@@ -3890,19 +3986,23 @@
   "@radioAdd": {"description": "Add a directory station to the library."},
   "radioAdded": "Added {name}",
   "@radioAdded": {"description": "Confirmation after saving a station.", "placeholders": {"name": {"type": "String"}}},
-  "radioFavorite": "Add to favorites",
+  "radioFavorite": "Add to Favorites",
   "@radioFavorite": {"description": "Mark a station as favorite."},
-  "radioUnfavorite": "Remove from favorites",
+  "radioUnfavorite": "Remove from Favorites",
   "@radioUnfavorite": {"description": "Unmark a favorite station."},
-  "radioSetGroup": "Set group",
+  "radioSetGroup": "Set Group",
   "@radioSetGroup": {"description": "Assign a station to a group/category."},
   "radioGroup": "Group",
   "@radioGroup": {"description": "Group/category field label."},
-  "radioStationName": "Station name",
+  "radioStationName": "Station Name",
   "@radioStationName": {"description": "Station name field label."},
   "radioStreamUrl": "Stream URL",
   "@radioStreamUrl": {"description": "Stream URL field label."},
-  "radioHomepage": "Homepage (optional)",
+  "radioLogoUrl": "Logo URL (Optional)",
+  "@radioLogoUrl": {"description": "Edit-station field: the station logo image URL."},
+  "radioGenre": "Genre (Optional)",
+  "@radioGenre": {"description": "Edit-station field: the station genre/tags."},
+  "radioHomepage": "Homepage (Optional)",
   "@radioHomepage": {"description": "Station homepage field label."},
   "appServerUnreachableOffline": "Server unreachable. You are offline.",
   "@appServerUnreachableOffline": {
@@ -3916,7 +4016,7 @@
   "@appNotifications": {
     "description": "Notifications screen title."
   },
-  "appClearAll": "Clear all",
+  "appClearAll": "Clear All",
   "@appClearAll": {
     "description": "Notifications screen: action that removes all notifications."
   },
@@ -3963,7 +4063,7 @@
   "@appCreateGroup": {
     "description": "Watch Together: title of the create-group dialog and label of the create-group button."
   },
-  "appGroupName": "Group name",
+  "appGroupName": "Group Name",
   "@appGroupName": {
     "description": "Watch Together: hint for the group name text field."
   },
@@ -4008,7 +4108,7 @@
   "@appSyncPlayIntro": {
     "description": "Watch Together: explanatory intro shown when you are not in a group."
   },
-  "appWatchTogetherGroup": "Watch Together group",
+  "appWatchTogetherGroup": "Watch Together Group",
   "@appWatchTogetherGroup": {
     "description": "Watch Together: fallback display name for the current group when the server does not provide one."
   },
@@ -4069,7 +4169,7 @@
   "@appNewPlaylist": {
     "description": "Title of the create-playlist dialog and label of the new-playlist action."
   },
-  "appPlaylistName": "Playlist name",
+  "appPlaylistName": "Playlist Name",
   "@appPlaylistName": {
     "description": "Label for the playlist name text field in the create-playlist dialog."
   },
@@ -4458,7 +4558,7 @@
       }
     }
   },
-  "adminRunNow": "Run now",
+  "adminRunNow": "Run Now",
   "@adminRunNow": {
     "description": "Tooltip: run a scheduled task now."
   },
@@ -4888,7 +4988,7 @@
   "@adminNewApiKey": {
     "description": "Dialog title: create a new API key."
   },
-  "adminAppName": "App name",
+  "adminAppName": "App Name",
   "@adminAppName": {
     "description": "Field label: name of the app the API key is for."
   },
@@ -5061,7 +5161,7 @@
   "@adminDeviceUrl": {
     "description": "Field label: tuner device URL."
   },
-  "adminFriendlyName": "Friendly name",
+  "adminFriendlyName": "Friendly Name",
   "@adminFriendlyName": {
     "description": "Field label: optional friendly name for a tuner."
   },
@@ -5089,7 +5189,7 @@
   "@adminAddXmltvGuide": {
     "description": "Dialog title: add an XMLTV guide."
   },
-  "adminXmltvPathLabel": "XMLTV file path or URL",
+  "adminXmltvPathLabel": "XMLTV File Path or URL",
   "@adminXmltvPathLabel": {
     "description": "Field label: XMLTV guide file path or URL."
   },
@@ -5138,7 +5238,7 @@
   "@adminSectionGuide": {
     "description": "Section label: TV guide options."
   },
-  "adminGuideDays": "Guide days",
+  "adminGuideDays": "Guide Days",
   "@adminGuideDays": {
     "description": "Field label: number of guide days to keep."
   },
@@ -5150,15 +5250,15 @@
   "@adminSectionRecordingPaths": {
     "description": "Section label: recording paths."
   },
-  "adminRecordingPath": "Recording path",
+  "adminRecordingPath": "Recording Path",
   "@adminRecordingPath": {
     "description": "Field label: default recording path."
   },
-  "adminMovieRecordingPath": "Movie recording path",
+  "adminMovieRecordingPath": "Movie Recording Path",
   "@adminMovieRecordingPath": {
     "description": "Field label: movie recording path."
   },
-  "adminSeriesRecordingPath": "Series recording path",
+  "adminSeriesRecordingPath": "Series Recording Path",
   "@adminSeriesRecordingPath": {
     "description": "Field label: series recording path."
   },
@@ -5190,11 +5290,11 @@
   "@adminSaveRecordingImages": {
     "description": "Toggle label: save recording images."
   },
-  "adminStartBefore": "Start before",
+  "adminStartBefore": "Start Before",
   "@adminStartBefore": {
     "description": "Field label: minutes to start recording before scheduled time."
   },
-  "adminStopAfter": "Stop after",
+  "adminStopAfter": "Stop After",
   "@adminStopAfter": {
     "description": "Field label: minutes to stop recording after scheduled time."
   },
@@ -5242,7 +5342,7 @@
   "@adminNoDevices": {
     "description": "Empty state: no client devices."
   },
-  "adminPostalCode": "Postal code",
+  "adminPostalCode": "Postal Code",
   "@adminPostalCode": {
     "description": "Field label: postal code for Schedules Direct lineup lookup."
   },

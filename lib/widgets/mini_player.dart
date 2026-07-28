@@ -101,7 +101,7 @@ class MiniPlayer extends ConsumerWidget {
                   ),
                 ),
               ),
-              VolumeMenuButton(player: player),
+              InlineVolume(player: player, expandLeft: true),
               IconButton(
                 icon: const Icon(Icons.skip_previous_rounded),
                 onPressed: controller.previous,
@@ -222,7 +222,7 @@ class _RadioMiniBar extends StatelessWidget {
                     ),
                   ),
                 ),
-                VolumeMenuButton(player: player),
+                InlineVolume(player: player, expandLeft: true),
                 StreamBuilder<bool>(
                   stream: player.stream.playing,
                   initialData: player.state.playing,

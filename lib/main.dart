@@ -95,6 +95,10 @@ Future<void> main() async {
           androidNotificationChannelName: 'Playback',
           androidNotificationOngoing: true,
           androidStopForegroundOnPause: true,
+          // The status/notification small icon (upper-left): the Fathom mark as
+          // a white silhouette (res/drawable-*/ic_stat_fathom.png). Without this
+          // it falls back to a blank launcher-derived square.
+          androidNotificationIcon: 'drawable/ic_stat_fathom',
         ),
       );
     } catch (_) {

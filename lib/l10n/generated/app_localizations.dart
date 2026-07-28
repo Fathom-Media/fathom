@@ -517,7 +517,7 @@ abstract class AppLocalizations {
   /// Shows the running app version on the Updates screen.
   ///
   /// In en, this message translates to:
-  /// **'Current version: {version}'**
+  /// **'Current Version: {version}'**
   String updateCurrentVersion(String version);
 
   /// Label above the stable/beta update channel selector.
@@ -721,7 +721,7 @@ abstract class AppLocalizations {
   /// Audio language option: use the Jellyfin server's default language.
   ///
   /// In en, this message translates to:
-  /// **'Server default'**
+  /// **'Server Default'**
   String get prefsLanguageServerDefault;
 
   /// Language name: English.
@@ -1387,25 +1387,25 @@ abstract class AppLocalizations {
   /// Poll-interval option: once a minute.
   ///
   /// In en, this message translates to:
-  /// **'Every minute'**
+  /// **'Every Minute'**
   String get prefsEveryMinute;
 
   /// Poll-interval option: every 5 minutes.
   ///
   /// In en, this message translates to:
-  /// **'Every 5 minutes'**
+  /// **'Every 5 Minutes'**
   String get prefsEvery5Minutes;
 
   /// Poll-interval option: every 15 minutes.
   ///
   /// In en, this message translates to:
-  /// **'Every 15 minutes'**
+  /// **'Every 15 Minutes'**
   String get prefsEvery15Minutes;
 
   /// Poll-interval option: every 30 minutes.
   ///
   /// In en, this message translates to:
-  /// **'Every 30 minutes'**
+  /// **'Every 30 Minutes'**
   String get prefsEvery30Minutes;
 
   /// Notification toggle title: a download finished.
@@ -1573,7 +1573,7 @@ abstract class AppLocalizations {
   /// Video fit option: cover (crop to fill).
   ///
   /// In en, this message translates to:
-  /// **'Fill screen'**
+  /// **'Fill Screen'**
   String get prefsFitCover;
 
   /// Video fit option: stretch to fill.
@@ -1597,7 +1597,7 @@ abstract class AppLocalizations {
   /// Control bar option: no frosted-glass background.
   ///
   /// In en, this message translates to:
-  /// **'No glass'**
+  /// **'No Glass'**
   String get prefsBarNoGlass;
 
   /// Control bar option: frosted-glass background.
@@ -1609,7 +1609,7 @@ abstract class AppLocalizations {
   /// Control bar option: dark frosted-glass background.
   ///
   /// In en, this message translates to:
-  /// **'Dark glass'**
+  /// **'Dark Glass'**
   String get prefsBarDarkGlass;
 
   /// Player setting title: maximum transcode quality cap.
@@ -2095,7 +2095,7 @@ abstract class AppLocalizations {
   /// Field label for the Seerr admin API key.
   ///
   /// In en, this message translates to:
-  /// **'API key'**
+  /// **'API Key'**
   String get seerrApiKeyLabel;
 
   /// Helper text under the API key field.
@@ -2131,7 +2131,7 @@ abstract class AppLocalizations {
   /// Field label for the Jellyfin username used to sign in to Seerr.
   ///
   /// In en, this message translates to:
-  /// **'Jellyfin username'**
+  /// **'Jellyfin Username'**
   String get seerrUsernameLabel;
 
   /// Field label for the password used to sign in to Seerr.
@@ -2380,6 +2380,150 @@ abstract class AppLocalizations {
   /// **'More'**
   String get playerMore;
 
+  /// Tooltip for the player's settings gear menu (chapters, speed, playback info).
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get playerSettings;
+
+  /// Menu item / title for the playback details (stats) overlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback Info'**
+  String get playerPlaybackInfo;
+
+  /// Playback stats label: how the server delivers the stream (direct play vs transcode).
+  ///
+  /// In en, this message translates to:
+  /// **'Play Method'**
+  String get playerStatPlayMethod;
+
+  /// Playback stats section heading for the video stream.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get playerStatVideo;
+
+  /// Playback stats section heading for the audio stream.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio'**
+  String get playerStatAudio;
+
+  /// Playback stats section heading for container/buffer info.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get playerStatGeneral;
+
+  /// Playback stats label: video pixel dimensions.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolution'**
+  String get playerStatResolution;
+
+  /// Playback stats label: the video or audio codec.
+  ///
+  /// In en, this message translates to:
+  /// **'Codec'**
+  String get playerStatCodec;
+
+  /// Playback stats label: video frames per second.
+  ///
+  /// In en, this message translates to:
+  /// **'Frame Rate'**
+  String get playerStatFrameRate;
+
+  /// Playback stats label: the stream bitrate.
+  ///
+  /// In en, this message translates to:
+  /// **'Bitrate'**
+  String get playerStatBitrate;
+
+  /// Playback stats label: which decode path is active (hardware or software).
+  ///
+  /// In en, this message translates to:
+  /// **'Decoder'**
+  String get playerStatDecoder;
+
+  /// Playback stats label: dropped frame counts (decoder / output).
+  ///
+  /// In en, this message translates to:
+  /// **'Dropped Frames'**
+  String get playerStatDroppedFrames;
+
+  /// Playback stats label: audio channel count / layout.
+  ///
+  /// In en, this message translates to:
+  /// **'Channels'**
+  String get playerStatChannels;
+
+  /// Playback stats label: audio sample rate.
+  ///
+  /// In en, this message translates to:
+  /// **'Sample Rate'**
+  String get playerStatSampleRate;
+
+  /// Playback stats label: the media container/file format.
+  ///
+  /// In en, this message translates to:
+  /// **'Container'**
+  String get playerStatContainer;
+
+  /// Playback stats label: seconds of demuxer buffer ahead.
+  ///
+  /// In en, this message translates to:
+  /// **'Buffer'**
+  String get playerStatBuffer;
+
+  /// Playback stats label: audio/video sync offset in seconds.
+  ///
+  /// In en, this message translates to:
+  /// **'A/V Sync'**
+  String get playerStatAvSync;
+
+  /// Playback stats value: hardware video decoding is active.
+  ///
+  /// In en, this message translates to:
+  /// **'Hardware'**
+  String get playerStatHardware;
+
+  /// Playback stats value: software video decoding is active.
+  ///
+  /// In en, this message translates to:
+  /// **'Software'**
+  String get playerStatSoftware;
+
+  /// Play method value: the file plays as-is with no server transcoding.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct Play'**
+  String get playerPlayMethodDirect;
+
+  /// Play method value: the server is transcoding the stream.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcoding'**
+  String get playerPlayMethodTranscode;
+
+  /// Play method value: playing a locally downloaded copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Direct Play (Downloaded)'**
+  String get playerPlayMethodDownloaded;
+
+  /// Play method value (YouTube): separate high-quality video and audio streams.
+  ///
+  /// In en, this message translates to:
+  /// **'Adaptive (DASH)'**
+  String get playerPlayMethodAdaptive;
+
+  /// Play method value (YouTube): a single combined video+audio stream (fallback).
+  ///
+  /// In en, this message translates to:
+  /// **'Muxed Stream'**
+  String get playerPlayMethodMuxed;
+
   /// Tooltip for the volume mute button.
   ///
   /// In en, this message translates to:
@@ -2407,13 +2551,13 @@ abstract class AppLocalizations {
   /// Player control tooltip: switch to theater mode (a wider in-page player with the side rail hidden).
   ///
   /// In en, this message translates to:
-  /// **'Theater mode'**
+  /// **'Theater Mode'**
   String get playerTheaterMode;
 
   /// Player control tooltip: leave theater mode and return to the default view.
   ///
   /// In en, this message translates to:
-  /// **'Default view'**
+  /// **'Default View'**
   String get playerDefaultView;
 
   /// Player control tooltip: enter fullscreen.
@@ -2707,13 +2851,13 @@ abstract class AppLocalizations {
   /// Label for the field setting how many minutes early a recording starts.
   ///
   /// In en, this message translates to:
-  /// **'Start before'**
+  /// **'Start Before'**
   String get playerStartBefore;
 
   /// Label for the field setting how many minutes late a recording stops.
   ///
   /// In en, this message translates to:
-  /// **'Stop after'**
+  /// **'Stop After'**
   String get playerStopAfter;
 
   /// Suffix (abbreviation for minutes) shown inside the recording padding input fields.
@@ -2725,13 +2869,13 @@ abstract class AppLocalizations {
   /// Tooltip for the button that pops the mini video out into a separate always-on-top desktop window.
   ///
   /// In en, this message translates to:
-  /// **'Pop out to desktop'**
+  /// **'Pop Out to Desktop'**
   String get playerPopOut;
 
   /// Tooltip for the button that returns the popped-out desktop video back into the app window.
   ///
   /// In en, this message translates to:
-  /// **'Back to app'**
+  /// **'Back to App'**
   String get playerBackToApp;
 
   /// Play button label/tooltip when a title can resume from a saved position.
@@ -2863,7 +3007,7 @@ abstract class AppLocalizations {
   /// Tooltip for the cast-to-another-device action.
   ///
   /// In en, this message translates to:
-  /// **'Play on another device'**
+  /// **'Play on Another Device'**
   String get detailPlayOnAnotherDevice;
 
   /// Title of the device-picker bottom sheet.
@@ -3181,13 +3325,13 @@ abstract class AppLocalizations {
   /// Toggle to expand a truncated biography.
   ///
   /// In en, this message translates to:
-  /// **'Read more'**
+  /// **'Read More'**
   String get detailReadMore;
 
   /// Toggle to collapse an expanded biography.
   ///
   /// In en, this message translates to:
-  /// **'Read less'**
+  /// **'Read Less'**
   String get detailReadLess;
 
   /// A person's birth date (place of birth, when known, is appended separately).
@@ -3451,7 +3595,7 @@ abstract class AppLocalizations {
   /// Tooltip on the delete-request button.
   ///
   /// In en, this message translates to:
-  /// **'Delete request'**
+  /// **'Delete Request'**
   String get detailDeleteRequestTooltip;
 
   /// Label listing the requested season numbers, e.g. Season 1, 2.
@@ -3481,7 +3625,7 @@ abstract class AppLocalizations {
   /// Placeholder for the multi-select tags field.
   ///
   /// In en, this message translates to:
-  /// **'Select tags'**
+  /// **'Select Tags'**
   String get detailSelectTags;
 
   /// Title of the dialog to add a custom Discover slider.
@@ -3829,13 +3973,13 @@ abstract class AppLocalizations {
   /// Sort option: by date added.
   ///
   /// In en, this message translates to:
-  /// **'Date added'**
+  /// **'Date Added'**
   String get browseSortDateAdded;
 
   /// Sort option: by release date.
   ///
   /// In en, this message translates to:
-  /// **'Release date'**
+  /// **'Release Date'**
   String get browseSortReleaseDate;
 
   /// Sort option: by rating.
@@ -4057,25 +4201,25 @@ abstract class AppLocalizations {
   /// Subtitle marking a row as a user-created custom slider.
   ///
   /// In en, this message translates to:
-  /// **'Custom slider'**
+  /// **'Custom Slider'**
   String get browseCustomSlider;
 
   /// Tooltip to move a Discover row up.
   ///
   /// In en, this message translates to:
-  /// **'Move up'**
+  /// **'Move Up'**
   String get browseMoveUp;
 
   /// Tooltip to move a Discover row down.
   ///
   /// In en, this message translates to:
-  /// **'Move down'**
+  /// **'Move Down'**
   String get browseMoveDown;
 
   /// Tooltip to delete a custom Discover slider.
   ///
   /// In en, this message translates to:
-  /// **'Delete slider'**
+  /// **'Delete Slider'**
   String get browseDeleteSlider;
 
   /// Search field placeholder on the Seerr search tab.
@@ -4171,7 +4315,7 @@ abstract class AppLocalizations {
   /// Tooltip to flip the request sort direction.
   ///
   /// In en, this message translates to:
-  /// **'Toggle sort direction'**
+  /// **'Toggle Sort Direction'**
   String get browseToggleSortDirection;
 
   /// Request action: approve.
@@ -5203,7 +5347,7 @@ abstract class AppLocalizations {
   /// Subtitle on a completed offline download.
   ///
   /// In en, this message translates to:
-  /// **'Available offline'**
+  /// **'Available Offline'**
   String get ytAvailableOffline;
 
   /// Login validation error shown when the username field is empty.
@@ -5275,7 +5419,7 @@ abstract class AppLocalizations {
   /// Server connect screen: label for the server address text field.
   ///
   /// In en, this message translates to:
-  /// **'Server address'**
+  /// **'Server Address'**
   String get appServerAddress;
 
   /// Server connect screen: button that validates and connects to the entered server.
@@ -5341,13 +5485,13 @@ abstract class AppLocalizations {
   /// Shown under the station when there is no ICY track info.
   ///
   /// In en, this message translates to:
-  /// **'Live stream'**
+  /// **'Live Stream'**
   String get radioLiveStream;
 
   /// Toggles the station directory search.
   ///
   /// In en, this message translates to:
-  /// **'Search directory'**
+  /// **'Search Directory'**
   String get radioSearchDirectory;
 
   /// Radio tab: the user's saved stations.
@@ -5383,7 +5527,7 @@ abstract class AppLocalizations {
   /// Tooltip for the group header overflow menu.
   ///
   /// In en, this message translates to:
-  /// **'Group options'**
+  /// **'Group Options'**
   String get radioGroupOptions;
 
   /// Menu action: rename a station group.
@@ -5467,19 +5611,19 @@ abstract class AppLocalizations {
   /// Mark a station as favorite.
   ///
   /// In en, this message translates to:
-  /// **'Add to favorites'**
+  /// **'Add to Favorites'**
   String get radioFavorite;
 
   /// Unmark a favorite station.
   ///
   /// In en, this message translates to:
-  /// **'Remove from favorites'**
+  /// **'Remove from Favorites'**
   String get radioUnfavorite;
 
   /// Assign a station to a group/category.
   ///
   /// In en, this message translates to:
-  /// **'Set group'**
+  /// **'Set Group'**
   String get radioSetGroup;
 
   /// Group/category field label.
@@ -5491,7 +5635,7 @@ abstract class AppLocalizations {
   /// Station name field label.
   ///
   /// In en, this message translates to:
-  /// **'Station name'**
+  /// **'Station Name'**
   String get radioStationName;
 
   /// Stream URL field label.
@@ -5500,10 +5644,22 @@ abstract class AppLocalizations {
   /// **'Stream URL'**
   String get radioStreamUrl;
 
+  /// Edit-station field: the station logo image URL.
+  ///
+  /// In en, this message translates to:
+  /// **'Logo URL (Optional)'**
+  String get radioLogoUrl;
+
+  /// Edit-station field: the station genre/tags.
+  ///
+  /// In en, this message translates to:
+  /// **'Genre (Optional)'**
+  String get radioGenre;
+
   /// Station homepage field label.
   ///
   /// In en, this message translates to:
-  /// **'Homepage (optional)'**
+  /// **'Homepage (Optional)'**
   String get radioHomepage;
 
   /// Banner shown across the top of the app when the active server cannot be reached.
@@ -5527,7 +5683,7 @@ abstract class AppLocalizations {
   /// Notifications screen: action that removes all notifications.
   ///
   /// In en, this message translates to:
-  /// **'Clear all'**
+  /// **'Clear All'**
   String get appClearAll;
 
   /// Notifications screen empty state title.
@@ -5575,7 +5731,7 @@ abstract class AppLocalizations {
   /// Watch Together: hint for the group name text field.
   ///
   /// In en, this message translates to:
-  /// **'Group name'**
+  /// **'Group Name'**
   String get appGroupName;
 
   /// Confirm button that creates a new group or playlist.
@@ -5635,7 +5791,7 @@ abstract class AppLocalizations {
   /// Watch Together: fallback display name for the current group when the server does not provide one.
   ///
   /// In en, this message translates to:
-  /// **'Watch Together group'**
+  /// **'Watch Together Group'**
   String get appWatchTogetherGroup;
 
   /// Watch Together: status line inside the current-group card.
@@ -5707,7 +5863,7 @@ abstract class AppLocalizations {
   /// Label for the playlist name text field in the create-playlist dialog.
   ///
   /// In en, this message translates to:
-  /// **'Playlist name'**
+  /// **'Playlist Name'**
   String get appPlaylistName;
 
   /// Snackbar confirming a named playlist was created.
@@ -6211,7 +6367,7 @@ abstract class AppLocalizations {
   /// Tooltip: run a scheduled task now.
   ///
   /// In en, this message translates to:
-  /// **'Run now'**
+  /// **'Run Now'**
   String get adminRunNow;
 
   /// Snackbar after starting a scheduled task.
@@ -6841,7 +6997,7 @@ abstract class AppLocalizations {
   /// Field label: name of the app the API key is for.
   ///
   /// In en, this message translates to:
-  /// **'App name'**
+  /// **'App Name'**
   String get adminAppName;
 
   /// Confirmation dialog title: revoke an API key.
@@ -7063,7 +7219,7 @@ abstract class AppLocalizations {
   /// Field label: optional friendly name for a tuner.
   ///
   /// In en, this message translates to:
-  /// **'Friendly name'**
+  /// **'Friendly Name'**
   String get adminFriendlyName;
 
   /// Field hint: this field is optional.
@@ -7105,7 +7261,7 @@ abstract class AppLocalizations {
   /// Field label: XMLTV guide file path or URL.
   ///
   /// In en, this message translates to:
-  /// **'XMLTV file path or URL'**
+  /// **'XMLTV File Path or URL'**
   String get adminXmltvPathLabel;
 
   /// Confirmation dialog title: remove the named thing.
@@ -7171,7 +7327,7 @@ abstract class AppLocalizations {
   /// Field label: number of guide days to keep.
   ///
   /// In en, this message translates to:
-  /// **'Guide days'**
+  /// **'Guide Days'**
   String get adminGuideDays;
 
   /// Helper text for the guide days field.
@@ -7189,19 +7345,19 @@ abstract class AppLocalizations {
   /// Field label: default recording path.
   ///
   /// In en, this message translates to:
-  /// **'Recording path'**
+  /// **'Recording Path'**
   String get adminRecordingPath;
 
   /// Field label: movie recording path.
   ///
   /// In en, this message translates to:
-  /// **'Movie recording path'**
+  /// **'Movie Recording Path'**
   String get adminMovieRecordingPath;
 
   /// Field label: series recording path.
   ///
   /// In en, this message translates to:
-  /// **'Series recording path'**
+  /// **'Series Recording Path'**
   String get adminSeriesRecordingPath;
 
   /// Section label: recording padding.
@@ -7249,13 +7405,13 @@ abstract class AppLocalizations {
   /// Field label: minutes to start recording before scheduled time.
   ///
   /// In en, this message translates to:
-  /// **'Start before'**
+  /// **'Start Before'**
   String get adminStartBefore;
 
   /// Field label: minutes to stop recording after scheduled time.
   ///
   /// In en, this message translates to:
-  /// **'Stop after'**
+  /// **'Stop After'**
   String get adminStopAfter;
 
   /// Fallback title for a series recording rule with no name.
@@ -7315,7 +7471,7 @@ abstract class AppLocalizations {
   /// Field label: postal code for Schedules Direct lineup lookup.
   ///
   /// In en, this message translates to:
-  /// **'Postal code'**
+  /// **'Postal Code'**
   String get adminPostalCode;
 
   /// Button label: search for Schedules Direct lineups.

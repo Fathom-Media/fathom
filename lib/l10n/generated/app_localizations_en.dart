@@ -227,7 +227,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String updateCurrentVersion(String version) {
-    return 'Current version: $version';
+    return 'Current Version: $version';
   }
 
   @override
@@ -341,7 +341,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsSettingsFallback => 'Settings';
 
   @override
-  String get prefsLanguageServerDefault => 'Server default';
+  String get prefsLanguageServerDefault => 'Server Default';
 
   @override
   String get prefsLanguageEnglish => 'English';
@@ -698,16 +698,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'How often to poll Seerr for status changes';
 
   @override
-  String get prefsEveryMinute => 'Every minute';
+  String get prefsEveryMinute => 'Every Minute';
 
   @override
-  String get prefsEvery5Minutes => 'Every 5 minutes';
+  String get prefsEvery5Minutes => 'Every 5 Minutes';
 
   @override
-  String get prefsEvery15Minutes => 'Every 15 minutes';
+  String get prefsEvery15Minutes => 'Every 15 Minutes';
 
   @override
-  String get prefsEvery30Minutes => 'Every 30 minutes';
+  String get prefsEvery30Minutes => 'Every 30 Minutes';
 
   @override
   String get prefsDownloadComplete => 'Download Complete';
@@ -793,7 +793,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsFitContain => 'Fit';
 
   @override
-  String get prefsFitCover => 'Fill screen';
+  String get prefsFitCover => 'Fill Screen';
 
   @override
   String get prefsFitFill => 'Stretch';
@@ -805,13 +805,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsControlBarSub => 'Background behind the playback controls';
 
   @override
-  String get prefsBarNoGlass => 'No glass';
+  String get prefsBarNoGlass => 'No Glass';
 
   @override
   String get prefsBarGlass => 'Glass';
 
   @override
-  String get prefsBarDarkGlass => 'Dark glass';
+  String get prefsBarDarkGlass => 'Dark Glass';
 
   @override
   String get prefsMaxQuality => 'Max Quality';
@@ -1091,7 +1091,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get seerrApiKeySegment => 'API Key';
 
   @override
-  String get seerrApiKeyLabel => 'API key';
+  String get seerrApiKeyLabel => 'API Key';
 
   @override
   String get seerrApiKeyHelper =>
@@ -1111,7 +1111,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sign in with your Jellyfin username and password. Requests are made as you, following your Seerr permissions.';
 
   @override
-  String get seerrUsernameLabel => 'Jellyfin username';
+  String get seerrUsernameLabel => 'Jellyfin Username';
 
   @override
   String get seerrPasswordLabel => 'Password';
@@ -1247,6 +1247,78 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerMore => 'More';
 
   @override
+  String get playerSettings => 'Settings';
+
+  @override
+  String get playerPlaybackInfo => 'Playback Info';
+
+  @override
+  String get playerStatPlayMethod => 'Play Method';
+
+  @override
+  String get playerStatVideo => 'Video';
+
+  @override
+  String get playerStatAudio => 'Audio';
+
+  @override
+  String get playerStatGeneral => 'General';
+
+  @override
+  String get playerStatResolution => 'Resolution';
+
+  @override
+  String get playerStatCodec => 'Codec';
+
+  @override
+  String get playerStatFrameRate => 'Frame Rate';
+
+  @override
+  String get playerStatBitrate => 'Bitrate';
+
+  @override
+  String get playerStatDecoder => 'Decoder';
+
+  @override
+  String get playerStatDroppedFrames => 'Dropped Frames';
+
+  @override
+  String get playerStatChannels => 'Channels';
+
+  @override
+  String get playerStatSampleRate => 'Sample Rate';
+
+  @override
+  String get playerStatContainer => 'Container';
+
+  @override
+  String get playerStatBuffer => 'Buffer';
+
+  @override
+  String get playerStatAvSync => 'A/V Sync';
+
+  @override
+  String get playerStatHardware => 'Hardware';
+
+  @override
+  String get playerStatSoftware => 'Software';
+
+  @override
+  String get playerPlayMethodDirect => 'Direct Play';
+
+  @override
+  String get playerPlayMethodTranscode => 'Transcoding';
+
+  @override
+  String get playerPlayMethodDownloaded => 'Direct Play (Downloaded)';
+
+  @override
+  String get playerPlayMethodAdaptive => 'Adaptive (DASH)';
+
+  @override
+  String get playerPlayMethodMuxed => 'Muxed Stream';
+
+  @override
   String get playerMute => 'Mute';
 
   @override
@@ -1259,10 +1331,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerMiniplayer => 'Miniplayer';
 
   @override
-  String get playerTheaterMode => 'Theater mode';
+  String get playerTheaterMode => 'Theater Mode';
 
   @override
-  String get playerDefaultView => 'Default view';
+  String get playerDefaultView => 'Default View';
 
   @override
   String get playerFullscreen => 'Fullscreen';
@@ -1430,19 +1502,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerPadding => 'Padding';
 
   @override
-  String get playerStartBefore => 'Start before';
+  String get playerStartBefore => 'Start Before';
 
   @override
-  String get playerStopAfter => 'Stop after';
+  String get playerStopAfter => 'Stop After';
 
   @override
   String get playerMinutesSuffix => 'min';
 
   @override
-  String get playerPopOut => 'Pop out to desktop';
+  String get playerPopOut => 'Pop Out to Desktop';
 
   @override
-  String get playerBackToApp => 'Back to app';
+  String get playerBackToApp => 'Back to App';
 
   @override
   String get detailResume => 'Resume';
@@ -1514,7 +1586,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get detailCastAction => 'Play On';
 
   @override
-  String get detailPlayOnAnotherDevice => 'Play on another device';
+  String get detailPlayOnAnotherDevice => 'Play on Another Device';
 
   @override
   String get detailPlayOnAnotherDeviceTitle => 'Play on Another Device';
@@ -1705,10 +1777,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get detailReadMore => 'Read more';
+  String get detailReadMore => 'Read More';
 
   @override
-  String get detailReadLess => 'Read less';
+  String get detailReadLess => 'Read Less';
 
   @override
   String detailBorn(String date) {
@@ -1861,7 +1933,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get detailSomeone => 'Someone';
 
   @override
-  String get detailDeleteRequestTooltip => 'Delete request';
+  String get detailDeleteRequestTooltip => 'Delete Request';
 
   @override
   String detailSeasonList(String seasons) {
@@ -1881,7 +1953,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'No editable options are available for this request.';
 
   @override
-  String get detailSelectTags => 'Select tags';
+  String get detailSelectTags => 'Select Tags';
 
   @override
   String get detailAddSlider => 'Add Slider';
@@ -2069,10 +2141,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get browseSortName => 'Name';
 
   @override
-  String get browseSortDateAdded => 'Date added';
+  String get browseSortDateAdded => 'Date Added';
 
   @override
-  String get browseSortReleaseDate => 'Release date';
+  String get browseSortReleaseDate => 'Release Date';
 
   @override
   String get browseSortRating => 'Rating';
@@ -2207,16 +2279,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Drag the handle or use the arrows to reorder. Toggle a row off to hide it from Discover.';
 
   @override
-  String get browseCustomSlider => 'Custom slider';
+  String get browseCustomSlider => 'Custom Slider';
 
   @override
-  String get browseMoveUp => 'Move up';
+  String get browseMoveUp => 'Move Up';
 
   @override
-  String get browseMoveDown => 'Move down';
+  String get browseMoveDown => 'Move Down';
 
   @override
-  String get browseDeleteSlider => 'Delete slider';
+  String get browseDeleteSlider => 'Delete Slider';
 
   @override
   String get browseSeerrSearchHint => 'Search movies & TV to request';
@@ -2265,7 +2337,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get browseSortLastModified => 'Last Modified';
 
   @override
-  String get browseToggleSortDirection => 'Toggle sort direction';
+  String get browseToggleSortDirection => 'Toggle Sort Direction';
 
   @override
   String get browseApprove => 'Approve';
@@ -2899,7 +2971,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Download a movie or episode to watch it offline.';
 
   @override
-  String get ytAvailableOffline => 'Available offline';
+  String get ytAvailableOffline => 'Available Offline';
 
   @override
   String get appEnterUsername => 'Please enter your username.';
@@ -2939,7 +3011,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appConnectToServer => 'Connect to your Jellyfin server';
 
   @override
-  String get appServerAddress => 'Server address';
+  String get appServerAddress => 'Server Address';
 
   @override
   String get appConnect => 'Connect';
@@ -2972,10 +3044,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get radioNowPlaying => 'Radio';
 
   @override
-  String get radioLiveStream => 'Live stream';
+  String get radioLiveStream => 'Live Stream';
 
   @override
-  String get radioSearchDirectory => 'Search directory';
+  String get radioSearchDirectory => 'Search Directory';
 
   @override
   String get radioTabMyStations => 'My Stations';
@@ -2993,7 +3065,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get radioSkip => 'Skip 15 seconds';
 
   @override
-  String get radioGroupOptions => 'Group options';
+  String get radioGroupOptions => 'Group Options';
 
   @override
   String get radioRenameGroup => 'Rename Group';
@@ -3040,25 +3112,31 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get radioFavorite => 'Add to favorites';
+  String get radioFavorite => 'Add to Favorites';
 
   @override
-  String get radioUnfavorite => 'Remove from favorites';
+  String get radioUnfavorite => 'Remove from Favorites';
 
   @override
-  String get radioSetGroup => 'Set group';
+  String get radioSetGroup => 'Set Group';
 
   @override
   String get radioGroup => 'Group';
 
   @override
-  String get radioStationName => 'Station name';
+  String get radioStationName => 'Station Name';
 
   @override
   String get radioStreamUrl => 'Stream URL';
 
   @override
-  String get radioHomepage => 'Homepage (optional)';
+  String get radioLogoUrl => 'Logo URL (Optional)';
+
+  @override
+  String get radioGenre => 'Genre (Optional)';
+
+  @override
+  String get radioHomepage => 'Homepage (Optional)';
 
   @override
   String get appServerUnreachableOffline =>
@@ -3071,7 +3149,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appNotifications => 'Notifications';
 
   @override
-  String get appClearAll => 'Clear all';
+  String get appClearAll => 'Clear All';
 
   @override
   String get appNoNotifications => 'No notifications';
@@ -3101,7 +3179,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appCreateGroup => 'Create Group';
 
   @override
-  String get appGroupName => 'Group name';
+  String get appGroupName => 'Group Name';
 
   @override
   String get appCreate => 'Create';
@@ -3135,7 +3213,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Watch in sync with others on this server. Create a group or join one below, then everyone opens the same title to keep playback aligned.';
 
   @override
-  String get appWatchTogetherGroup => 'Watch Together group';
+  String get appWatchTogetherGroup => 'Watch Together Group';
 
   @override
   String get appGroupConnected =>
@@ -3177,7 +3255,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appNewPlaylist => 'New Playlist';
 
   @override
-  String get appPlaylistName => 'Playlist name';
+  String get appPlaylistName => 'Playlist Name';
 
   @override
   String appCreatedNamed(String name) {
@@ -3465,7 +3543,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get adminRunNow => 'Run now';
+  String get adminRunNow => 'Run Now';
 
   @override
   String adminTaskStarted(String name) {
@@ -3793,7 +3871,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminNewApiKey => 'New API Key';
 
   @override
-  String get adminAppName => 'App name';
+  String get adminAppName => 'App Name';
 
   @override
   String get adminRevokeApiKeyConfirm => 'Revoke API Key?';
@@ -3918,7 +3996,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminDeviceUrl => 'Device URL';
 
   @override
-  String get adminFriendlyName => 'Friendly name';
+  String get adminFriendlyName => 'Friendly Name';
 
   @override
   String get adminHintOptional => 'Optional';
@@ -3939,7 +4017,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminAddXmltvGuide => 'Add XMLTV Guide';
 
   @override
-  String get adminXmltvPathLabel => 'XMLTV file path or URL';
+  String get adminXmltvPathLabel => 'XMLTV File Path or URL';
 
   @override
   String adminRemoveConfirm(String what) {
@@ -3975,7 +4053,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminSectionGuide => 'Guide';
 
   @override
-  String get adminGuideDays => 'Guide days';
+  String get adminGuideDays => 'Guide Days';
 
   @override
   String get adminGuideDaysHelper =>
@@ -3985,13 +4063,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminSectionRecordingPaths => 'Recording Paths';
 
   @override
-  String get adminRecordingPath => 'Recording path';
+  String get adminRecordingPath => 'Recording Path';
 
   @override
-  String get adminMovieRecordingPath => 'Movie recording path';
+  String get adminMovieRecordingPath => 'Movie Recording Path';
 
   @override
-  String get adminSeriesRecordingPath => 'Series recording path';
+  String get adminSeriesRecordingPath => 'Series Recording Path';
 
   @override
   String get adminSectionPadding => 'Padding';
@@ -4015,10 +4093,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminSaveRecordingImages => 'Save Recording Images';
 
   @override
-  String get adminStartBefore => 'Start before';
+  String get adminStartBefore => 'Start Before';
 
   @override
-  String get adminStopAfter => 'Stop after';
+  String get adminStopAfter => 'Stop After';
 
   @override
   String get adminSeriesFallback => 'Series';
@@ -4050,7 +4128,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminNoDevices => 'No devices.';
 
   @override
-  String get adminPostalCode => 'Postal code';
+  String get adminPostalCode => 'Postal Code';
 
   @override
   String get adminFindLineups => 'Find Lineups';

@@ -428,154 +428,32 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
   }
 
   Future<void> _addByUrl(BuildContext context) async {
-    final l = AppLocalizations.of(context);
-    final nameCtrl = TextEditingController();
-    final urlCtrl = TextEditingController();
-    final ok = await showDialog<bool>(
+    final station = await showDialog<RadioStation>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.radioAddByUrl),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: InputDecoration(labelText: l.radioStationName),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: urlCtrl,
-              keyboardType: TextInputType.url,
-              autocorrect: false,
-              decoration: InputDecoration(labelText: l.radioStreamUrl),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonAdd)),
-        ],
-      ),
+      builder: (_) => const _AddByUrlDialog(),
     );
-    final url = urlCtrl.text.trim();
-    final name = nameCtrl.text.trim();
-    nameCtrl.dispose();
-    urlCtrl.dispose();
-    if (ok == true && url.isNotEmpty) {
-      await ref.read(radioControllerProvider.notifier).add(RadioStation(
-            id: url,
-            name: name.isEmpty ? url : name,
-            url: url,
-          ));
+    if (station != null) {
+      await ref.read(radioControllerProvider.notifier).add(station);
     }
   }
 
   Future<void> _edit(BuildContext context, RadioStation s) async {
-    final l = AppLocalizations.of(context);
-    final nameCtrl = TextEditingController(text: s.name);
-    final urlCtrl = TextEditingController(text: s.url);
-    final homeCtrl = TextEditingController(text: s.homepage ?? '');
-    final ok = await showDialog<bool>(
+    final updated = await showDialog<RadioStation>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.commonEdit),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(labelText: l.radioStationName),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: urlCtrl,
-                keyboardType: TextInputType.url,
-                autocorrect: false,
-                decoration: InputDecoration(labelText: l.radioStreamUrl),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: homeCtrl,
-                keyboardType: TextInputType.url,
-                autocorrect: false,
-                decoration: InputDecoration(labelText: l.radioHomepage),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonSave)),
-        ],
-      ),
+      builder: (_) => _EditStationDialog(station: s),
     );
-    final name = nameCtrl.text.trim();
-    final url = urlCtrl.text.trim();
-    final home = homeCtrl.text.trim();
-    nameCtrl.dispose();
-    urlCtrl.dispose();
-    homeCtrl.dispose();
-    if (ok == true && url.isNotEmpty) {
-      await ref.read(radioControllerProvider.notifier).updateStation(
-            s.copyWith(
-                name: name.isEmpty ? s.name : name,
-                url: url,
-                homepage: home.isEmpty ? null : home),
-          );
+    if (updated != null) {
+      await ref.read(radioControllerProvider.notifier).updateStation(updated);
     }
   }
 
   Future<void> _setGroup(BuildContext context, RadioStation s) async {
-    final l = AppLocalizations.of(context);
     final existing = ref.read(radioControllerProvider.notifier).groups;
-    final ctrl = TextEditingController(text: s.group ?? '');
+    // Returns '' to clear the group, a name to set it, or null on cancel.
     final result = await showDialog<String?>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.radioSetGroup),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: ctrl,
-              decoration: InputDecoration(labelText: l.radioGroup),
-            ),
-            if (existing.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final g in existing)
-                    ActionChip(
-                        label: Text(g),
-                        onPressed: () => Navigator.pop(ctx, g)),
-                ],
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, null),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: Text(l.commonSave)),
-        ],
-      ),
+      builder: (_) => _SetGroupDialog(initial: s.group ?? '', existing: existing),
     );
-    ctrl.dispose();
     if (result != null) {
       await ref.read(radioControllerProvider.notifier).updateStation(
           s.copyWith(group: result.isEmpty ? null : result));
@@ -759,6 +637,217 @@ class _SlidingTabs extends StatelessWidget {
 /// Rename-group dialog. Owns its own controller so it's disposed when the dialog
 /// unmounts (after the exit animation) — disposing it synchronously right after
 /// showDialog() returns crashed the tree (`_dependents.isEmpty`).
+/// Add a station by URL. Owns its controllers (disposed on unmount) so it can't
+/// hit the "_dependents.isEmpty" crash from disposing them mid-teardown.
+class _AddByUrlDialog extends StatefulWidget {
+  const _AddByUrlDialog();
+
+  @override
+  State<_AddByUrlDialog> createState() => _AddByUrlDialogState();
+}
+
+class _AddByUrlDialogState extends State<_AddByUrlDialog> {
+  final _name = TextEditingController();
+  final _url = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _url.dispose();
+    super.dispose();
+  }
+
+  void _add() {
+    final url = _url.text.trim();
+    if (url.isEmpty) return;
+    final name = _name.text.trim();
+    Navigator.pop(
+      context,
+      RadioStation(id: url, name: name.isEmpty ? url : name, url: url),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l.radioAddByUrl),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _name,
+            decoration: InputDecoration(labelText: l.radioStationName),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _url,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            onSubmitted: (_) => _add(),
+            decoration: InputDecoration(labelText: l.radioStreamUrl),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
+        FilledButton(onPressed: _add, child: Text(l.commonAdd)),
+      ],
+    );
+  }
+}
+
+/// Set/clear a station's group, with chips for the groups already in use. Owns
+/// its controller so it's disposed safely on unmount.
+class _SetGroupDialog extends StatefulWidget {
+  final String initial;
+  final List<String> existing;
+  const _SetGroupDialog({required this.initial, required this.existing});
+
+  @override
+  State<_SetGroupDialog> createState() => _SetGroupDialogState();
+}
+
+class _SetGroupDialogState extends State<_SetGroupDialog> {
+  late final _ctrl = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return AlertDialog(
+      title: Text(l.radioSetGroup),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _ctrl,
+            textCapitalization: TextCapitalization.words,
+            onSubmitted: (_) => Navigator.pop(context, _ctrl.text.trim()),
+            decoration: InputDecoration(labelText: l.radioGroup),
+          ),
+          if (widget.existing.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final g in widget.existing)
+                  ActionChip(
+                      label: Text(g),
+                      onPressed: () => Navigator.pop(context, g)),
+              ],
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: Text(l.commonCancel)),
+        FilledButton(
+            onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
+            child: Text(l.commonSave)),
+      ],
+    );
+  }
+}
+
+/// Edit a saved station: name, stream URL, logo, genre, and homepage. Owns its
+/// controllers (disposed on unmount), and returns the updated [RadioStation].
+class _EditStationDialog extends StatefulWidget {
+  final RadioStation station;
+  const _EditStationDialog({required this.station});
+
+  @override
+  State<_EditStationDialog> createState() => _EditStationDialogState();
+}
+
+class _EditStationDialogState extends State<_EditStationDialog> {
+  late final _name = TextEditingController(text: widget.station.name);
+  late final _url = TextEditingController(text: widget.station.url);
+  late final _logo = TextEditingController(text: widget.station.favicon ?? '');
+  late final _genre = TextEditingController(text: widget.station.tags ?? '');
+  late final _home = TextEditingController(text: widget.station.homepage ?? '');
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _url.dispose();
+    _logo.dispose();
+    _genre.dispose();
+    _home.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final s = widget.station;
+    final url = _url.text.trim();
+    if (url.isEmpty) return;
+    final name = _name.text.trim();
+    final logo = _logo.text.trim();
+    final genre = _genre.text.trim();
+    final home = _home.text.trim();
+    // Build directly (not copyWith) so cleared optional fields become null.
+    Navigator.pop(
+      context,
+      RadioStation(
+        id: s.id,
+        name: name.isEmpty ? s.name : name,
+        url: url,
+        homepage: home.isEmpty ? null : home,
+        favicon: logo.isEmpty ? null : logo,
+        group: s.group,
+        favorite: s.favorite,
+        tags: genre.isEmpty ? null : genre,
+        country: s.country,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    Widget field(TextEditingController c, String label, {bool url = false}) =>
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: TextField(
+            controller: c,
+            keyboardType: url ? TextInputType.url : null,
+            autocorrect: !url,
+            decoration: InputDecoration(labelText: label),
+          ),
+        );
+    return AlertDialog(
+      title: Text(l.commonEdit),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            field(_name, l.radioStationName),
+            field(_url, l.radioStreamUrl, url: true),
+            field(_logo, l.radioLogoUrl, url: true),
+            field(_genre, l.radioGenre),
+            field(_home, l.radioHomepage, url: true),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
+        FilledButton(onPressed: _save, child: Text(l.commonSave)),
+      ],
+    );
+  }
+}
+
 class _RenameGroupDialog extends StatefulWidget {
   final String initial;
   const _RenameGroupDialog({required this.initial});
