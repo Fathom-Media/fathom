@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/fathom.png" alt="Fathom" width="140">
+</p>
+
 # Fathom
 
 **Dive into your media.**
@@ -8,12 +12,12 @@ Everything plays through mpv (via [media_kit](https://github.com/media-kit/media
 
 <div class="grid cards" markdown>
 
-- :material-download: **[Install](install.md)** — Linux (AppImage) and Windows, self-contained.
-- :material-play-circle: **[First-run setup](setup.md)** — connect to your Jellyfin server and turn on the optional integrations.
-- :material-tune: **[Features](features.md)** — the library, the player, radio, casting, and more.
-- :material-youtube: **[YouTube](youtube.md)** — a complete built-in client, no account and no ads.
-- :material-update: **[Updates and channels](updates.md)** — how the in-app updater and the Stable / Beta channels work.
-- :material-lifebuoy: **[Troubleshooting](troubleshooting.md)** — the common launch and playback fixes.
+- :material-download: **[Install](install.md)**: Linux (AppImage) and Windows, self-contained.
+- :material-play-circle: **[First-run setup](setup.md)**: connect to your Jellyfin server and turn on the optional integrations.
+- :material-tune: **[Features](features.md)**: the library, the player, radio, casting, and more.
+- :material-youtube: **[YouTube](youtube.md)**: a complete built-in client, no account and no ads.
+- :material-update: **[Updates and channels](updates.md)**: how the in-app updater and the Stable / Beta channels work.
+- :material-lifebuoy: **[Troubleshooting](troubleshooting.md)**: the common launch and playback fixes.
 
 </div>
 
