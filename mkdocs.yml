@@ -1,0 +1,69 @@
+site_name: Fathom
+site_description: >-
+  An all-in-one desktop client for Jellyfin, with a built-in YouTube client,
+  Seerr requests, and internet radio.
+site_url: https://fathom-media.github.io/fathom/
+repo_url: https://github.com/Fathom-Media/fathom
+repo_name: Fathom-Media/fathom
+edit_uri: edit/main/docs/
+copyright: Fathom is free software under the GNU AGPL-3.0 license.
+
+theme:
+  name: material
+  logo: assets/fathom.png
+  favicon: assets/fathom.png
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.action.edit
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Install: install.md
+      - First-run setup: setup.md
+      - Updates and channels: updates.md
+  - Features:
+      - Library and player: features.md
+      - YouTube: youtube.md
+  - Help:
+      - Troubleshooting: troubleshooting.md
+  - Contributing: contributing.md
