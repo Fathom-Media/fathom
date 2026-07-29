@@ -1,3 +1,4 @@
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:open_filex/open_filex.dart';
@@ -39,6 +40,7 @@ Future<void> _installAndroidApk(
   final dio = await secureDio();
   await dio.download(asset.url, apkPath,
       onReceiveProgress: (r, t) => _report(onProgress, r, t));
+  await _verifyDownload(apkPath, asset); // reject a truncated apk
   final result = await OpenFilex.open(
     apkPath,
     type: 'application/vnd.android.package-archive',
@@ -52,6 +54,58 @@ void _report(void Function(double)? cb, int received, int total) {
   if (cb != null && total > 0) cb(received / total);
 }
 
+/// Guards the swap-in: fails (and deletes the bad file) if the download doesn't
+/// match the release asset's expected size, or — on Linux, [checkElf] — isn't an
+/// ELF for this machine's architecture. This is what stops a truncated download
+/// (a mid-upload grab) or a wrong-architecture AppImage (an older updater that
+/// fetched the aarch64 build onto an x86_64 host) from being renamed over the
+/// running app and bricking it: on any mismatch the current version is kept and
+/// a readable error is surfaced instead.
+Future<void> _verifyDownload(String path, ReleaseAsset asset,
+    {bool checkElf = false}) async {
+  final file = File(path);
+  Future<Never> fail(String why) async {
+    try {
+      await file.delete();
+    } catch (_) {}
+    throw StateError('$why Your current version was kept.');
+  }
+
+  final len = await file.length();
+  if (asset.size > 0 && len != asset.size) {
+    await fail('The update download was incomplete '
+        '($len of ${asset.size} bytes).');
+  }
+  if (!checkElf) return;
+
+  // Read just the ELF header: magic (0x7F 'E' 'L' 'F') then e_machine at
+  // offset 18 (2 bytes, little-endian; both arches are LE).
+  final head = <int>[];
+  await for (final chunk in file.openRead(0, 20)) {
+    head.addAll(chunk);
+  }
+  final isElf = head.length >= 20 &&
+      head[0] == 0x7F &&
+      head[1] == 0x45 &&
+      head[2] == 0x4C &&
+      head[3] == 0x46;
+  if (!isElf) {
+    await fail('The update download was not a valid application file.');
+  }
+  const emX8664 = 0x3E; // EM_X86_64
+  const emAarch64 = 0xB7; // EM_AARCH64
+  final machine = head[18] | (head[19] << 8);
+  final want = Abi.current() == Abi.linuxArm64 ? emAarch64 : emX8664;
+  if (machine != want) {
+    final got = machine == emAarch64
+        ? 'ARM64'
+        : (machine == emX8664
+            ? 'x86_64'
+            : '0x${machine.toRadixString(16)}');
+    await fail('The update download was for the wrong architecture ($got).');
+  }
+}
+
 Future<void> _installLinuxAppImage(
     ReleaseAsset asset, void Function(double)? onProgress) async {
   final appImage = Platform.environment['APPIMAGE'];
@@ -63,6 +117,8 @@ Future<void> _installLinuxAppImage(
   await dio.download(asset.url, staged,
       onReceiveProgress: (r, t) => _report(onProgress, r, t));
 
+  // Never rename a truncated or wrong-arch file over the running AppImage.
+  await _verifyDownload(staged, asset, checkElf: true);
   await Process.run('chmod', ['+x', staged]);
   // Atomic replace (same directory), then relaunch the new file detached and
   // exit so the old, still-mounted image is released.
@@ -84,6 +140,7 @@ Future<void> _installWindowsZip(
   final dio = await secureDio();
   await dio.download(asset.url, zipPath,
       onReceiveProgress: (r, t) => _report(onProgress, r, t));
+  await _verifyDownload(zipPath, asset); // reject a truncated zip
 
   // A helper that waits for this process to exit, extracts the new build over
   // the app folder, and relaunches. Windows locks a running exe, hence the
