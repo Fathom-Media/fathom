@@ -1,10 +1,11 @@
 name: Docs
 
-# Builds the MkDocs Material site from docs/ and publishes it to GitHub Pages.
-# Deploys from dev and main while the app is in active development so the docs
-# match the Beta builds testers run; narrow to main only once things stabilise.
-# Pages must be enabled (Settings -> Pages -> Source: GitHub Actions) and the
-# github-pages environment must allow whichever branch deploys here.
+# Builds the MkDocs Material site from docs/ and publishes it with `mkdocs
+# gh-deploy`, which pushes the built HTML to the `gh-pages` branch. Pages then
+# serves that branch (Settings -> Pages -> Source: Deploy from a branch ->
+# gh-pages). This is the classic MkDocs deploy: no github-pages environment and
+# no per-branch allow-list, so it publishes straight from dev while the app is
+# in active development. Narrow the branches below once things stabilise.
 on:
   push:
     branches: [main, dev]
@@ -15,35 +16,26 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
-# Never run two deploys at once; let a newer one supersede an in-flight one.
 concurrency:
-  group: pages
+  group: docs-deploy
   cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
       - run: pip install mkdocs-material
-      - run: mkdocs build --strict
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Configure git identity
+        run: |
+          git config user.name "thebigjoe1"
+          git config user.email "26659217+thebigjoe1@users.noreply.github.com"
+      - name: Build and publish to gh-pages
+        run: mkdocs gh-deploy --force --strict
