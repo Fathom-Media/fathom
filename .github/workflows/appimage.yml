@@ -110,11 +110,12 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
 
-      # For -dev.N tags, also point the floating "dev-latest" pre-release at this
-      # build so testers have one stable "always latest dev" download URL. Each
-      # arch attaches its own file (distinct names), so both live on dev-latest.
+      # For dev tags (v...-devNN, or the legacy v...-dev.N), also point the
+      # floating "dev-latest" pre-release at this build so testers have one stable
+      # "always latest dev" download URL. Each arch attaches its own file
+      # (distinct names), so both live on dev-latest.
       - name: Update dev-latest alias
-        if: github.ref_type == 'tag' && contains(github.ref_name, '-dev.')
+        if: github.ref_type == 'tag' && contains(github.ref_name, '-dev')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: dev-latest
