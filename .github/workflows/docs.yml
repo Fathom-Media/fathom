@@ -1,12 +1,13 @@
 name: Docs
 
 # Builds the MkDocs Material site from docs/ and publishes it to GitHub Pages.
-# Only runs on main (the public face), so dev commits don't publish anything —
-# the docs go live when a change reaches main. Pages must be enabled once in the
-# repo settings (Settings -> Pages -> Source: GitHub Actions).
+# Deploys from dev and main while the app is in active development so the docs
+# match the Beta builds testers run; narrow to main only once things stabilise.
+# Pages must be enabled (Settings -> Pages -> Source: GitHub Actions) and the
+# github-pages environment must allow whichever branch deploys here.
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
