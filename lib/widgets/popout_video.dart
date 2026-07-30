@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -20,7 +22,31 @@ class PopoutVideo extends ConsumerStatefulWidget {
 }
 
 class _PopoutVideoState extends ConsumerState<PopoutVideo> {
-  bool _hover = false;
+  bool _visible = true;
+  Timer? _hideTimer;
+
+  // Reveal the controls on any pointer activity, then fade them after a short
+  // idle even while the cursor rests over the window (mouse-leave alone left
+  // them pinned open). Movement or re-entry brings them back.
+  void _show() {
+    if (!_visible) setState(() => _visible = true);
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _visible = false);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _show(); // brief reveal on open, then auto-hide
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,8 +63,12 @@ class _PopoutVideoState extends ConsumerState<PopoutVideo> {
     }
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+      onEnter: (_) => _show(),
+      onHover: (_) => _show(),
+      onExit: (_) {
+        _hideTimer?.cancel();
+        if (_visible) setState(() => _visible = false);
+      },
       child: ColoredBox(
         color: Colors.black,
         child: Stack(
@@ -56,10 +86,10 @@ class _PopoutVideoState extends ConsumerState<PopoutVideo> {
             // picture, top included) drags the window. Edge/corner resize is the
             // compositor's job on Wayland, so there's no custom grip.
             AnimatedOpacity(
-              opacity: _hover ? 1 : 0,
+              opacity: _visible ? 1 : 0,
               duration: const Duration(milliseconds: 160),
               child: IgnorePointer(
-                ignoring: !_hover,
+                ignoring: !_visible,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [

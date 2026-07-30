@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -151,7 +154,7 @@ class _MiniVideoState extends ConsumerState<MiniVideo> {
   }
 }
 
-class _MiniCard extends ConsumerWidget {
+class _MiniCard extends ConsumerStatefulWidget {
   final PipState pip;
   final PipController notifier;
   final VideoController controller;
@@ -167,9 +170,50 @@ class _MiniCard extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_MiniCard> createState() => _MiniCardState();
+}
+
+class _MiniCardState extends ConsumerState<_MiniCard> {
+  bool _visible = true;
+  Timer? _hideTimer;
+
+  // Desktop reveals the chrome on pointer activity and fades it after a short
+  // idle (even while the cursor rests over the card). Touch has no hover, so
+  // there the chrome stays put and a tap still reopens the watch page.
+  bool get _hoverPlatform =>
+      defaultTargetPlatform == TargetPlatform.linux ||
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS;
+
+  void _show() {
+    if (!_visible) setState(() => _visible = true);
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _visible = false);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (_hoverPlatform) _show(); // brief reveal on open, then auto-hide
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return Material(
+    final pip = widget.pip;
+    final notifier = widget.notifier;
+    final controller = widget.controller;
+    final player = widget.player;
+    final onReopen = widget.onReopen;
+    final card = Material(
       elevation: 12,
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
@@ -186,6 +230,16 @@ class _MiniCard extends ConsumerWidget {
               fit: BoxFit.cover,
             ),
           ),
+          // The top bar and center play/pause fade with the chrome; the bottom
+          // progress line stays visible as a persistent, unobtrusive cue.
+          AnimatedOpacity(
+            opacity: _visible ? 1 : 0,
+            duration: const Duration(milliseconds: 160),
+            child: IgnorePointer(
+              ignoring: !_visible,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
           // Top gradient with title, size toggle, and close.
           Positioned(
             top: 0,
@@ -252,6 +306,10 @@ class _MiniCard extends ConsumerWidget {
               },
             ),
           ),
+                ],
+              ),
+            ),
+          ),
           // Thin playback progress along the very bottom.
           Positioned(
             left: 0,
@@ -276,6 +334,16 @@ class _MiniCard extends ConsumerWidget {
           ),
         ],
       ),
+    );
+    if (!_hoverPlatform) return card;
+    return MouseRegion(
+      onEnter: (_) => _show(),
+      onHover: (_) => _show(),
+      onExit: (_) {
+        _hideTimer?.cancel();
+        if (_visible) setState(() => _visible = false);
+      },
+      child: card,
     );
   }
 }
