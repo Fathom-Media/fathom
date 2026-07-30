@@ -22,6 +22,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cache pub packages so `flutter pub get` is near-instant when
+      # pubspec.lock is unchanged (the SDK itself is cached by subosito below).
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\Pub\Cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-pub-
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable

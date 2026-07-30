@@ -34,6 +34,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Cache the downloaded pub packages so `flutter pub get` is near-instant
+      # when pubspec.lock is unchanged. Safe: a miss just re-downloads. (The
+      # x86_64 Flutter SDK itself is already cached by subosito below; the
+      # aarch64 SDK install is left uncached deliberately to keep the release
+      # pipeline simple.)
+      - name: Cache pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-${{ matrix.arch }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.arch }}-pub-
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
