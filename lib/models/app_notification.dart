@@ -5,6 +5,7 @@ enum AppNotifKind {
   seerrDeclined,
   seerrAvailable,
   downloadComplete,
+  updateAvailable,
   info,
 }
 

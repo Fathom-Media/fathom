@@ -552,13 +552,16 @@ class PreferencesScreen extends ConsumerWidget {
         ),
       ),
       SettingsSectionHeader(l.prefsHeaderNotifications),
-      SwitchListTile(
-        secondary: const Icon(Icons.notifications_active_outlined),
-        title: Text(l.prefsDesktopNotifications),
-        subtitle: Text(l.prefsDesktopNotificationsSub),
-        value: p.desktopNotifications,
-        onChanged: (v) => c.edit((x) => x.copyWith(desktopNotifications: v)),
-      ),
+      // Desktop only: mobile has no system notifications (they go to the in-app
+      // bell instead), so a master OS-pop-up switch there would do nothing.
+      if (!Platform.isAndroid && !Platform.isIOS)
+        SwitchListTile(
+          secondary: const Icon(Icons.notifications_active_outlined),
+          title: Text(l.prefsDesktopNotifications),
+          subtitle: Text(l.prefsDesktopNotificationsSub),
+          value: p.desktopNotifications,
+          onChanged: (v) => c.edit((x) => x.copyWith(desktopNotifications: v)),
+        ),
       SwitchListTile(
         secondary: const Icon(Icons.add_task_rounded),
         title: Text(l.prefsNotifNewRequest),
@@ -610,6 +613,13 @@ class PreferencesScreen extends ConsumerWidget {
         subtitle: Text(l.prefsDownloadCompleteSub),
         value: p.notifDownloads,
         onChanged: (v) => c.edit((x) => x.copyWith(notifDownloads: v)),
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.system_update_rounded),
+        title: Text(l.prefsNotifUpdates),
+        subtitle: Text(l.prefsNotifUpdatesSub),
+        value: p.notifUpdates,
+        onChanged: (v) => c.edit((x) => x.copyWith(notifUpdates: v)),
       ),
       SettingsSectionHeader(l.prefsHeaderStorage),
       const _StorageTile(),

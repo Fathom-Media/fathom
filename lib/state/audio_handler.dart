@@ -54,25 +54,37 @@ class FathomAudioHandler extends BaseAudioHandler with SeekHandler {
 
   /// Publish transport state (playing/paused, position, buffered) so the
   /// notification's controls and scrubber reflect the player.
+  ///
+  /// [radio] switches to the live-stream control set: just play/pause. Radio has
+  /// no track queue, so the music skip buttons would be dead no-ops, and a stop
+  /// button only renders as a stray square in the media player. One control is
+  /// all a live stream needs.
   void setPlayback({
     required bool playing,
     required bool buffering,
     required Duration position,
     required Duration buffered,
     double speed = 1.0,
+    bool radio = false,
   }) {
     playbackState.add(PlaybackState(
-      controls: [
-        MediaControl.skipToPrevious,
-        if (playing) MediaControl.pause else MediaControl.play,
-        MediaControl.skipToNext,
-      ],
-      systemActions: const {
-        MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward,
-      },
-      androidCompactActionIndices: const [0, 1, 2],
+      controls: radio
+          ? [
+              if (playing) MediaControl.pause else MediaControl.play,
+            ]
+          : [
+              MediaControl.skipToPrevious,
+              if (playing) MediaControl.pause else MediaControl.play,
+              MediaControl.skipToNext,
+            ],
+      systemActions: radio
+          ? const {}
+          : const {
+              MediaAction.seek,
+              MediaAction.seekForward,
+              MediaAction.seekBackward,
+            },
+      androidCompactActionIndices: radio ? const [0] : const [0, 1, 2],
       processingState:
           buffering ? AudioProcessingState.buffering : AudioProcessingState.ready,
       playing: playing,

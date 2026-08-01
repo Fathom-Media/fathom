@@ -134,6 +134,10 @@
   "@settingsSectionAbout": {
     "description": "Section header grouping app info rows."
   },
+  "settingsSectionSystem": "System",
+  "@settingsSectionSystem": {
+    "description": "Section header grouping app-maintenance rows: updates, backup, diagnostics."
+  },
   "settingsGeneral": "General",
   "settingsGeneralSubtitle": "Startup, notifications, storage",
   "settingsAppearance": "Appearance",
@@ -742,13 +746,13 @@
   "@prefsStartupLiveTv": {
     "description": "Startup screen option: Live TV."
   },
-  "prefsDesktopNotifications": "Desktop Notifications",
+  "prefsDesktopNotifications": "System Notifications",
   "@prefsDesktopNotifications": {
-    "description": "General toggle title: OS desktop notifications."
+    "description": "General toggle title: OS system notifications (desktop and mobile)."
   },
-  "prefsDesktopNotificationsSub": "Show OS pop-ups (the in-app bell always collects)",
+  "prefsDesktopNotificationsSub": "Show system pop-ups on desktop and mobile (the in-app bell always collects)",
   "@prefsDesktopNotificationsSub": {
-    "description": "Desktop-notifications toggle subtitle."
+    "description": "System-notifications toggle subtitle."
   },
   "prefsNotifNewRequest": "New Request",
   "@prefsNotifNewRequest": {
@@ -813,6 +817,14 @@
   "prefsDownloadCompleteSub": "When a download to this device finishes",
   "@prefsDownloadCompleteSub": {
     "description": "Download-complete notification toggle subtitle."
+  },
+  "prefsNotifUpdates": "Update Available",
+  "@prefsNotifUpdates": {
+    "description": "Notification toggle title: a new app version is available."
+  },
+  "prefsNotifUpdatesSub": "When a new version of Fathom is available",
+  "@prefsNotifUpdatesSub": {
+    "description": "Update-available notification toggle subtitle."
   },
   "prefsTheme": "Theme",
   "@prefsTheme": {
@@ -5810,9 +5822,9 @@
   "@searchOpenOnStartup": {
     "description": "Settings search result title: which screen the app opens on when launched."
   },
-  "searchDesktopNotifications": "Desktop Notifications",
+  "searchDesktopNotifications": "System Notifications",
   "@searchDesktopNotifications": {
-    "description": "Settings search result title: OS-level desktop notifications toggle."
+    "description": "Settings search result title: OS-level system notifications toggle (desktop and mobile)."
   },
   "searchNewRequest": "New Request",
   "@searchNewRequest": {
@@ -6389,5 +6401,55 @@
   "notifAShow": "A TV show",
   "@notifAShow": {
     "description": "Fallback title in a notification when a requested show's name can't be fetched."
-  }
+  },
+  "settingsBackup": "Backup & Restore",
+  "@settingsBackup": { "description": "Settings hub entry to export/import app settings." },
+  "settingsBackupSubtitle": "Export or import your app settings",
+  "@settingsBackupSubtitle": { "description": "Subtitle for the Backup & Restore settings entry." },
+  "backupTitle": "Backup & Restore",
+  "@backupTitle": { "description": "Title of the Backup & Restore screen." },
+  "backupIntro": "Move your app settings and server addresses between devices. Passwords and API keys are never exported, so you'll sign in again after importing.",
+  "@backupIntro": { "description": "Explains what a settings backup contains and excludes." },
+  "backupExportTitle": "Export settings",
+  "@backupExportTitle": { "description": "Action to export settings to a file." },
+  "backupExportSub": "Save your settings to a file.",
+  "@backupExportSub": { "description": "Export subtitle on desktop (save to a file)." },
+  "backupExportSubShare": "Share your settings as a file.",
+  "@backupExportSubShare": { "description": "Export subtitle on mobile (share the file)." },
+  "backupExportSubject": "Fathom settings",
+  "@backupExportSubject": { "description": "Subject line when sharing the settings file." },
+  "backupSavedTo": "Saved to {path}",
+  "@backupSavedTo": { "description": "Confirmation after saving the export.", "placeholders": { "path": {} } },
+  "backupImportTitle": "Import settings",
+  "@backupImportTitle": { "description": "Action to import settings from a file." },
+  "backupImportSub": "Restore from a file, replacing your current settings.",
+  "@backupImportSub": { "description": "Import subtitle." },
+  "backupImportConfirmTitle": "Import settings?",
+  "@backupImportConfirmTitle": { "description": "Title of the import confirmation dialog." },
+  "backupImportConfirmBody": "Your current settings will be replaced, and you'll sign in to your server again.",
+  "@backupImportConfirmBody": { "description": "Body of the import confirmation dialog." },
+  "backupImportAction": "Import",
+  "@backupImportAction": { "description": "Confirm button on the import dialog." },
+  "backupImported": "Settings imported.",
+  "@backupImported": { "description": "Confirmation after a successful import." },
+  "backupImportedWithServers": "Settings imported. Sign in to reconnect: {servers}",
+  "@backupImportedWithServers": { "description": "Import confirmation listing servers to sign back into.", "placeholders": { "servers": {} } },
+  "backupInvalid": "That file is not a valid Fathom settings backup.",
+  "@backupInvalid": { "description": "Error when the chosen file is not a Fathom backup." },
+  "backupFailed": "Backup failed: {error}",
+  "@backupFailed": { "description": "Generic backup or import failure.", "placeholders": { "error": {} } },
+  "backupImportChoose": "Choose what to import",
+  "@backupImportChoose": { "description": "Title of the import group-selection dialog." },
+  "backupGroupAppearance": "Appearance",
+  "@backupGroupAppearance": { "description": "Backup group: theme, accent, Home layout." },
+  "backupGroupPlayer": "Player",
+  "@backupGroupPlayer": { "description": "Backup group: player and playback settings." },
+  "backupGroupYoutube": "YouTube",
+  "@backupGroupYoutube": { "description": "Backup group: YouTube client settings." },
+  "backupGroupGeneral": "General",
+  "@backupGroupGeneral": { "description": "Backup group: everything else (notifications, updates, language)." },
+  "backupGroupRadio": "Internet radio",
+  "@backupGroupRadio": { "description": "Backup group: saved radio stations, groups, favorites." },
+  "backupGroupServers": "Servers",
+  "@backupGroupServers": { "description": "Backup group: server addresses and username." }
 }

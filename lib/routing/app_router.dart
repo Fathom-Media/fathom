@@ -10,6 +10,7 @@ import '../screens/accounts_screen.dart';
 import '../screens/admin_config_screens.dart';
 import '../screens/admin_screen.dart';
 import '../screens/detail_screen.dart';
+import '../screens/backup_screen.dart';
 import '../screens/diagnostics_screen.dart';
 import '../screens/discover_screen.dart';
 import '../screens/downloads_screen.dart';
@@ -442,6 +443,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/diagnostics',
               pageBuilder: (_, _) => _fadePage(const DiagnosticsScreen())),
+          GoRoute(
+              path: '/backup',
+              pageBuilder: (_, _) => _fadePage(const BackupScreen())),
           GoRoute(
             path: '/seerr-detail',
             pageBuilder: (context, state) =>

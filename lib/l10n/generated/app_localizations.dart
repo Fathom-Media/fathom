@@ -286,6 +286,12 @@ abstract class AppLocalizations {
   /// **'About'**
   String get settingsSectionAbout;
 
+  /// Section header grouping app-maintenance rows: updates, backup, diagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'System'**
+  String get settingsSectionSystem;
+
   /// No description provided for @settingsGeneral.
   ///
   /// In en, this message translates to:
@@ -1312,16 +1318,16 @@ abstract class AppLocalizations {
   /// **'Live TV'**
   String get prefsStartupLiveTv;
 
-  /// General toggle title: OS desktop notifications.
+  /// General toggle title: OS system notifications (desktop and mobile).
   ///
   /// In en, this message translates to:
-  /// **'Desktop Notifications'**
+  /// **'System Notifications'**
   String get prefsDesktopNotifications;
 
-  /// Desktop-notifications toggle subtitle.
+  /// System-notifications toggle subtitle.
   ///
   /// In en, this message translates to:
-  /// **'Show OS pop-ups (the in-app bell always collects)'**
+  /// **'Show system pop-ups on desktop and mobile (the in-app bell always collects)'**
   String get prefsDesktopNotificationsSub;
 
   /// Notification toggle title: a new Seerr request was made.
@@ -1419,6 +1425,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'When a download to this device finishes'**
   String get prefsDownloadCompleteSub;
+
+  /// Notification toggle title: a new app version is available.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Available'**
+  String get prefsNotifUpdates;
+
+  /// Update-available notification toggle subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'When a new version of Fathom is available'**
+  String get prefsNotifUpdatesSub;
 
   /// Appearance setting title: light/dark theme.
   ///
@@ -8110,10 +8128,10 @@ abstract class AppLocalizations {
   /// **'Open on Startup'**
   String get searchOpenOnStartup;
 
-  /// Settings search result title: OS-level desktop notifications toggle.
+  /// Settings search result title: OS-level system notifications toggle (desktop and mobile).
   ///
   /// In en, this message translates to:
-  /// **'Desktop Notifications'**
+  /// **'System Notifications'**
   String get searchDesktopNotifications;
 
   /// Settings search result title: notification for a new Seerr request.
@@ -8961,6 +8979,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'A TV show'**
   String get notifAShow;
+
+  /// Settings hub entry to export/import app settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup & Restore'**
+  String get settingsBackup;
+
+  /// Subtitle for the Backup & Restore settings entry.
+  ///
+  /// In en, this message translates to:
+  /// **'Export or import your app settings'**
+  String get settingsBackupSubtitle;
+
+  /// Title of the Backup & Restore screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup & Restore'**
+  String get backupTitle;
+
+  /// Explains what a settings backup contains and excludes.
+  ///
+  /// In en, this message translates to:
+  /// **'Move your app settings and server addresses between devices. Passwords and API keys are never exported, so you\'ll sign in again after importing.'**
+  String get backupIntro;
+
+  /// Action to export settings to a file.
+  ///
+  /// In en, this message translates to:
+  /// **'Export settings'**
+  String get backupExportTitle;
+
+  /// Export subtitle on desktop (save to a file).
+  ///
+  /// In en, this message translates to:
+  /// **'Save your settings to a file.'**
+  String get backupExportSub;
+
+  /// Export subtitle on mobile (share the file).
+  ///
+  /// In en, this message translates to:
+  /// **'Share your settings as a file.'**
+  String get backupExportSubShare;
+
+  /// Subject line when sharing the settings file.
+  ///
+  /// In en, this message translates to:
+  /// **'Fathom settings'**
+  String get backupExportSubject;
+
+  /// Confirmation after saving the export.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to {path}'**
+  String backupSavedTo(Object path);
+
+  /// Action to import settings from a file.
+  ///
+  /// In en, this message translates to:
+  /// **'Import settings'**
+  String get backupImportTitle;
+
+  /// Import subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore from a file, replacing your current settings.'**
+  String get backupImportSub;
+
+  /// Title of the import confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Import settings?'**
+  String get backupImportConfirmTitle;
+
+  /// Body of the import confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current settings will be replaced, and you\'ll sign in to your server again.'**
+  String get backupImportConfirmBody;
+
+  /// Confirm button on the import dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Import'**
+  String get backupImportAction;
+
+  /// Confirmation after a successful import.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings imported.'**
+  String get backupImported;
+
+  /// Import confirmation listing servers to sign back into.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings imported. Sign in to reconnect: {servers}'**
+  String backupImportedWithServers(Object servers);
+
+  /// Error when the chosen file is not a Fathom backup.
+  ///
+  /// In en, this message translates to:
+  /// **'That file is not a valid Fathom settings backup.'**
+  String get backupInvalid;
+
+  /// Generic backup or import failure.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup failed: {error}'**
+  String backupFailed(Object error);
+
+  /// Title of the import group-selection dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose what to import'**
+  String get backupImportChoose;
+
+  /// Backup group: theme, accent, Home layout.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get backupGroupAppearance;
+
+  /// Backup group: player and playback settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Player'**
+  String get backupGroupPlayer;
+
+  /// Backup group: YouTube client settings.
+  ///
+  /// In en, this message translates to:
+  /// **'YouTube'**
+  String get backupGroupYoutube;
+
+  /// Backup group: everything else (notifications, updates, language).
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get backupGroupGeneral;
+
+  /// Backup group: saved radio stations, groups, favorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Internet radio'**
+  String get backupGroupRadio;
+
+  /// Backup group: server addresses and username.
+  ///
+  /// In en, this message translates to:
+  /// **'Servers'**
+  String get backupGroupServers;
 }
 
 class _AppLocalizationsDelegate

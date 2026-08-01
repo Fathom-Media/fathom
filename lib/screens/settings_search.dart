@@ -54,24 +54,25 @@ const _audio = Icons.subtitles_outlined;
 const _ratings = Icons.star_half_rounded;
 const _youtube = Icons.smart_display_rounded;
 const _integrations = Icons.travel_explore_rounded;
-const _about = Icons.system_update_alt_rounded;
 
 /// Every searchable user setting. Grouped by section for upkeep.
 List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // General — Startup
   SettingResult(title: l.searchOpenOnStartup, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['startup', 'launch', 'start screen', 'default screen', 'boot']),
   // General — Notifications
-  SettingResult(title: l.searchDesktopNotifications, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'notify', 'alerts', 'popup', 'toast', 'os', 'bell']),
+  SettingResult(title: l.searchDesktopNotifications, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'notify', 'alerts', 'popup', 'toast', 'os', 'system', 'bell', 'background', 'push']),
   SettingResult(title: l.searchNewRequest, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'seerr', 'request', 'pending', 'approval', 'new']),
+  SettingResult(title: l.prefsNotifUpdates, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'update', 'version', 'upgrade', 'available', 'new version']),
   SettingResult(title: l.searchRequestApproved, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'seerr', 'request', 'approved']),
   SettingResult(title: l.searchRequestDeclined, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'seerr', 'request', 'declined', 'rejected']),
   SettingResult(title: l.searchNowAvailable, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'seerr', 'request', 'available', 'downloaded', 'ready']),
   SettingResult(title: l.searchCheckForRequestUpdates, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['seerr', 'poll', 'interval', 'refresh', 'status', 'updates', 'requests']),
   // Integrations — Seerr connection / sign-in
   SettingResult(title: l.searchSeerrConnection, section: l.settingsSectionIntegrations, icon: _integrations, route: '/seerr-settings', keywords: ['seerr', 'jellyseerr', 'overseerr', 'connect', 'connection', 'login', 'log in', 'sign in', 'signin', 'account', 'jellyfin', 'local', 'api key', 'apikey', 'token', 'email', 'password', 'url', 'server', 'requests']),
-  // About — Updates
-  SettingResult(title: l.settingsUpdates, section: l.settingsSectionAbout, icon: _about, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'beta', 'stable', 'latest']),
-  SettingResult(title: l.diagnosticsTitle, section: l.settingsSectionAbout, icon: _about, route: '/diagnostics', keywords: ['diagnostic', 'diagnostics', 'log', 'logging', 'verbose', 'debug', 'troubleshoot', 'troubleshooting', 'bug report', 'mpv log', 'copy log', 'crash', 'issue']),
+  // System — updates, backup, diagnostics
+  SettingResult(title: l.settingsUpdates, section: l.settingsSectionSystem, icon: Icons.system_update_alt_rounded, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'beta', 'stable', 'latest']),
+  SettingResult(title: l.settingsBackup, section: l.settingsSectionSystem, icon: Icons.settings_backup_restore_rounded, route: '/backup', keywords: ['backup', 'restore', 'export', 'import', 'settings', 'save settings', 'transfer', 'migrate', 'move', 'sync', 'json', 'share', 'download settings']),
+  SettingResult(title: l.diagnosticsTitle, section: l.settingsSectionSystem, icon: Icons.bug_report_rounded, route: '/diagnostics', keywords: ['diagnostic', 'diagnostics', 'log', 'logging', 'verbose', 'debug', 'troubleshoot', 'troubleshooting', 'bug report', 'mpv log', 'copy log', 'crash', 'issue']),
   SettingResult(title: l.searchDownloadComplete, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'download', 'complete', 'finished', 'youtube']),
   // General — Storage
   SettingResult(title: l.searchImageCache, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['cache', 'storage', 'clear cache', 'disk', 'data', 'space', 'thumbnails', 'posters']),

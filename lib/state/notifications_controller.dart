@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -106,6 +107,11 @@ Future<void> pushAppNotification(
         kind: _snackKindFor(kind));
     return;
   }
+  // System (OS) notifications are desktop-only: Android's background delivery
+  // proved too unreliable/laggy to be worth it, so on mobile a backgrounded
+  // event just waits in the in-app bell. The per-event toggles above still
+  // decide whether it's recorded at all.
+  if (Platform.isAndroid || Platform.isIOS) return;
   final popups =
       ref.read(preferencesProvider).asData?.value.desktopNotifications ?? true;
   if (popups) await AppNotifications.show(title, body);

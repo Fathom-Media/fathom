@@ -32,11 +32,31 @@ Future<void> downloadAndInstall(
 /// does NOT replace-and-relaunch like desktop; the OS shows its install prompt
 /// (the user grants "install unknown apps" once), so we return normally and let
 /// the installer take over.
-Future<void> _installAndroidApk(
-    ReleaseAsset asset, void Function(double)? onProgress) async {
+/// Where the Android updater stages its downloaded APK. A single fixed name, so
+/// each download overwrites the last rather than piling up.
+Future<String> _androidApkPath() async {
   final dir = await getExternalStorageDirectory() ??
       await getTemporaryDirectory();
-  final apkPath = '${dir.path}/fathom_update.apk';
+  return '${dir.path}/fathom_update.apk';
+}
+
+/// Deletes the leftover update APK from a previous in-app update. Called at boot:
+/// by the time Fathom runs again the system installer has either swapped in the
+/// new build (so the APK is spent) or the user cancelled (so it's an orphan) —
+/// either way it's safe to remove. Best-effort and Android-only; never throws.
+Future<void> cleanUpdateArtifacts() async {
+  if (!Platform.isAndroid) return;
+  try {
+    final file = File(await _androidApkPath());
+    if (await file.exists()) await file.delete();
+  } catch (_) {
+    // Housekeeping only — a failure here must never block launch.
+  }
+}
+
+Future<void> _installAndroidApk(
+    ReleaseAsset asset, void Function(double)? onProgress) async {
+  final apkPath = await _androidApkPath();
   final dio = await secureDio();
   await dio.download(asset.url, apkPath,
       onReceiveProgress: (r, t) => _report(onProgress, r, t));

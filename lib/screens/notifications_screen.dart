@@ -111,6 +111,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           Icons.download_done_rounded,
           scheme.primary
         ),
+      AppNotifKind.updateAvailable => (
+          Icons.system_update_rounded,
+          scheme.primary
+        ),
       AppNotifKind.info => (Icons.info_rounded, scheme.onSurfaceVariant),
     };
     return CircleAvatar(
