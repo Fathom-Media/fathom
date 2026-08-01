@@ -64,6 +64,7 @@ nav:
       - Install: install.md
       - First-run setup: setup.md
       - Updates and channels: updates.md
+      - Backup and restore: backup.md
   - Features:
       - Library and player: features.md
       - YouTube: youtube.md

@@ -210,13 +210,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
       _serverTile(context, session as Session?, theme),
       const Divider(height: 24),
-      _sectionLabel(context, l.settingsSectionAbout),
-      ListTile(
-        leading: const SizedBox(
-            width: 38, height: 38, child: FathomLogo(size: 38)),
-        title: Text(l.appName),
-        subtitle: Text(l.settingsVersion(version)),
-      ),
+      _sectionLabel(context, l.settingsSectionSystem),
       ListTile(
         leading: _leading(context, Icons.system_update_alt_rounded),
         title: Text(l.settingsUpdates),
@@ -225,11 +219,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onTap: () => context.push('/updates'),
       ),
       ListTile(
+        leading: _leading(context, Icons.settings_backup_restore_rounded),
+        title: Text(l.settingsBackup),
+        subtitle: Text(l.settingsBackupSubtitle),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/backup'),
+      ),
+      ListTile(
         leading: _leading(context, Icons.bug_report_rounded),
         title: Text(l.diagnosticsTitle),
         subtitle: Text(l.diagnosticsSubtitle),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => context.push('/diagnostics'),
+      ),
+      const Divider(height: 24),
+      _sectionLabel(context, l.settingsSectionAbout),
+      ListTile(
+        leading: const SizedBox(
+            width: 38, height: 38, child: FathomLogo(size: 38)),
+        title: Text(l.appName),
+        subtitle: Text(l.settingsVersion(version)),
       ),
       ListTile(
         leading: _leading(context, Icons.favorite_rounded),

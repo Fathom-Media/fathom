@@ -54,10 +54,10 @@ class UpdateController extends AsyncNotifier<UpdateStatus?> {
         .edit((x) => x.copyWith(updateNotifiedVersion: version));
     await pushAppNotification(
       ref,
-      kind: AppNotifKind.info,
+      kind: AppNotifKind.updateAvailable,
       title: tr.updateNotifTitle(version),
       body: tr.updateNotifBody,
-      enabled: true,
+      enabled: prefs.notifUpdates,
       route: '/updates',
     );
   }

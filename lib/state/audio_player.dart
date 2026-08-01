@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../services/secure_http.dart';
 
@@ -153,6 +156,29 @@ class AudioController extends Notifier<AudioState> {
   // The OS media session (mobile only); null on desktop or if init failed.
   FathomAudioHandler? _handler;
 
+  // A bundled radio glyph, copied to a cache file so the media notification has
+  // artwork to show for stations that carry no favicon (audio_service loads art
+  // from a file/content URI, not a Flutter asset). Null until first prepared.
+  Uri? _radioArtUri;
+
+  /// Ensures the radio fallback artwork exists on disk and caches its file URI.
+  /// Best-effort: on any failure the notification simply falls back to no art.
+  Future<void> _ensureRadioArt() async {
+    if (_radioArtUri != null) return;
+    try {
+      final dir = await getTemporaryDirectory();
+      final f = File('${dir.path}/fathom_radio_art.png');
+      if (!await f.exists()) {
+        final data = await rootBundle.load('assets/radio_art.png');
+        await f.writeAsBytes(
+            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      }
+      _radioArtUri = Uri.file(f.path);
+    } catch (_) {
+      // Leave null — _pushRadioNowPlaying just omits art.
+    }
+  }
+
   // The stream URL always contains /Audio/{itemId}/stream — resolve the current
   // track by URL so it stays correct even after shuffling reorders the queue.
   static final _idPattern = RegExp(r'/Audio/([^/]+)/stream');
@@ -191,7 +217,9 @@ class AudioController extends Notifier<AudioState> {
       h.onNext = _player.next;
       h.onPrevious = _player.previous;
       h.onSeek = _player.seek;
-      h.onStop = () async => _player.stop();
+      // Stop from the notification: on radio, leave radio mode entirely (cancels
+      // ICY polling and the live ticker); otherwise just stop the queue.
+      h.onStop = () async => state.isRadio ? await stopRadio() : _player.stop();
       // Pause on Bluetooth/headphone disconnect (audio "becoming noisy"), like
       // every media app: blasting out of the phone speaker after you unplug is
       // jarring. Mobile-only (h != null). No-op while casting (local is paused).
@@ -310,6 +338,7 @@ class AudioController extends Notifier<AudioState> {
       position: s.position,
       buffered: s.buffer,
       speed: s.rate,
+      radio: state.isRadio,
     );
   }
 
@@ -379,6 +408,7 @@ class AudioController extends Notifier<AudioState> {
     _radioEdge = Duration.zero;
     _emptyIcyCount = 0;
     _radioTickWall = null;
+    await _ensureRadioArt(); // ready before the first now-playing push
     await _configureRadioBuffer();
     await _player.open(Media(s.url));
     _pushRadioNowPlaying(s, null);
@@ -835,11 +865,14 @@ class AudioController extends Notifier<AudioState> {
     final art = (state.radioArtwork != null && state.radioArtwork!.isNotEmpty)
         ? state.radioArtwork!
         : (s.favicon ?? '');
+    // Fall back to the bundled radio glyph so the notification never shows an
+    // empty art placeholder for stations without a logo.
+    final artUri = art.isNotEmpty ? Uri.tryParse(art) : _radioArtUri;
     h.setNowPlaying(MediaItem(
       id: s.id,
       title: hasIcy ? icy : s.name,
       artist: hasIcy ? s.name : (s.tags ?? 'Radio'),
-      artUri: art.isNotEmpty ? Uri.tryParse(art) : null,
+      artUri: artUri,
     ));
   }
 

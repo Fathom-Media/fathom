@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0
+
+### Added
+- Backup & Restore: export and import your Fathom settings to a portable file, selectable by group (general, appearance, player, YouTube, internet radio and its stations, and server addresses). Passwords, tokens, and API keys are never included, so you sign in again after importing. Under Settings → System → Backup & Restore.
+
+### Changed
+- Reorganized Settings: a new System section groups Updates, Backup & Restore, and Diagnostics, separate from About.
+- Notifications: "Desktop Notifications" is now "System Notifications", with a new "Update Available" toggle.
+- Seerr request status now refreshes faster while the app is open.
+
+### Fixed
+- Request cards no longer clip a long status label such as "Partially Available".
+
 ## 0.9.1
 
 ### Added

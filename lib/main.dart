@@ -12,6 +12,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:audio_service/audio_service.dart';
 
 import 'app.dart';
+import 'services/app_installer.dart';
 import 'services/desktop_integration.dart';
 import 'services/diagnostics.dart';
 import 'services/notifications.dart';
@@ -77,6 +78,10 @@ Future<void> main() async {
 
   // System notifications (download complete, request available). Best-effort.
   await AppNotifications.init();
+
+  // Clear the leftover update APK from a previous in-app update so it doesn't
+  // sit in storage. Fire-and-forget — never blocks launch.
+  unawaited(cleanUpdateArtifacts());
 
   const storage = FlutterSecureStorage();
   final deviceId = await _getOrCreateDeviceId(storage);

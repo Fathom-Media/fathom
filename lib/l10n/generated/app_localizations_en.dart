@@ -107,6 +107,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSectionAbout => 'About';
 
   @override
+  String get settingsSectionSystem => 'System';
+
+  @override
   String get settingsGeneral => 'General';
 
   @override
@@ -659,11 +662,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsStartupLiveTv => 'Live TV';
 
   @override
-  String get prefsDesktopNotifications => 'Desktop Notifications';
+  String get prefsDesktopNotifications => 'System Notifications';
 
   @override
   String get prefsDesktopNotificationsSub =>
-      'Show OS pop-ups (the in-app bell always collects)';
+      'Show system pop-ups on desktop and mobile (the in-app bell always collects)';
 
   @override
   String get prefsNotifNewRequest => 'New Request';
@@ -715,6 +718,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get prefsDownloadCompleteSub =>
       'When a download to this device finishes';
+
+  @override
+  String get prefsNotifUpdates => 'Update Available';
+
+  @override
+  String get prefsNotifUpdatesSub =>
+      'When a new version of Fathom is available';
 
   @override
   String get prefsTheme => 'Theme';
@@ -4496,7 +4506,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchOpenOnStartup => 'Open on Startup';
 
   @override
-  String get searchDesktopNotifications => 'Desktop Notifications';
+  String get searchDesktopNotifications => 'System Notifications';
 
   @override
   String get searchNewRequest => 'New Request';
@@ -4930,4 +4940,89 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notifAShow => 'A TV show';
+
+  @override
+  String get settingsBackup => 'Backup & Restore';
+
+  @override
+  String get settingsBackupSubtitle => 'Export or import your app settings';
+
+  @override
+  String get backupTitle => 'Backup & Restore';
+
+  @override
+  String get backupIntro =>
+      'Move your app settings and server addresses between devices. Passwords and API keys are never exported, so you\'ll sign in again after importing.';
+
+  @override
+  String get backupExportTitle => 'Export settings';
+
+  @override
+  String get backupExportSub => 'Save your settings to a file.';
+
+  @override
+  String get backupExportSubShare => 'Share your settings as a file.';
+
+  @override
+  String get backupExportSubject => 'Fathom settings';
+
+  @override
+  String backupSavedTo(Object path) {
+    return 'Saved to $path';
+  }
+
+  @override
+  String get backupImportTitle => 'Import settings';
+
+  @override
+  String get backupImportSub =>
+      'Restore from a file, replacing your current settings.';
+
+  @override
+  String get backupImportConfirmTitle => 'Import settings?';
+
+  @override
+  String get backupImportConfirmBody =>
+      'Your current settings will be replaced, and you\'ll sign in to your server again.';
+
+  @override
+  String get backupImportAction => 'Import';
+
+  @override
+  String get backupImported => 'Settings imported.';
+
+  @override
+  String backupImportedWithServers(Object servers) {
+    return 'Settings imported. Sign in to reconnect: $servers';
+  }
+
+  @override
+  String get backupInvalid =>
+      'That file is not a valid Fathom settings backup.';
+
+  @override
+  String backupFailed(Object error) {
+    return 'Backup failed: $error';
+  }
+
+  @override
+  String get backupImportChoose => 'Choose what to import';
+
+  @override
+  String get backupGroupAppearance => 'Appearance';
+
+  @override
+  String get backupGroupPlayer => 'Player';
+
+  @override
+  String get backupGroupYoutube => 'YouTube';
+
+  @override
+  String get backupGroupGeneral => 'General';
+
+  @override
+  String get backupGroupRadio => 'Internet radio';
+
+  @override
+  String get backupGroupServers => 'Servers';
 }

@@ -35,6 +35,9 @@ class RadioController extends AsyncNotifier<List<RadioStation>> {
         key: _key, value: jsonEncode(list.map((s) => s.toJson()).toList()));
   }
 
+  /// Replace the entire saved library (used by settings import).
+  Future<void> importAll(List<RadioStation> stations) => _persist(stations);
+
   /// Group names in use, sorted; ungrouped stations live under a null group.
   List<String> get groups {
     final set = <String>{};

@@ -128,6 +128,7 @@ class Prefs {
   final bool notifSeerrDeclined;
   final bool notifSeerrAvailable;
   final bool notifDownloads;
+  final bool notifUpdates;
 
   /// How often (minutes) to poll Seerr for request status changes. 0 = off.
   final int seerrPollMinutes;
@@ -313,6 +314,7 @@ class Prefs {
     this.notifSeerrDeclined = true,
     this.notifSeerrAvailable = true,
     this.notifDownloads = true,
+    this.notifUpdates = true,
     this.seerrPollMinutes = 5,
     this.youtubeEnabled = false,
     this.youtubeAutoplay = true,
@@ -422,6 +424,7 @@ class Prefs {
     bool? notifSeerrDeclined,
     bool? notifSeerrAvailable,
     bool? notifDownloads,
+    bool? notifUpdates,
     int? seerrPollMinutes,
     bool? youtubeEnabled,
     bool? youtubeAutoplay,
@@ -532,6 +535,7 @@ class Prefs {
         notifSeerrDeclined: notifSeerrDeclined ?? this.notifSeerrDeclined,
         notifSeerrAvailable: notifSeerrAvailable ?? this.notifSeerrAvailable,
         notifDownloads: notifDownloads ?? this.notifDownloads,
+        notifUpdates: notifUpdates ?? this.notifUpdates,
         seerrPollMinutes: seerrPollMinutes ?? this.seerrPollMinutes,
         youtubeEnabled: youtubeEnabled ?? this.youtubeEnabled,
         youtubeAutoplay: youtubeAutoplay ?? this.youtubeAutoplay,
@@ -651,6 +655,7 @@ class Prefs {
         'notifSeerrDeclined': notifSeerrDeclined,
         'notifSeerrAvailable': notifSeerrAvailable,
         'notifDownloads': notifDownloads,
+        'notifUpdates': notifUpdates,
         'seerrPollMinutes': seerrPollMinutes,
         'youtubeEnabled': youtubeEnabled,
         'youtubeAutoplay': youtubeAutoplay,
@@ -766,6 +771,7 @@ class Prefs {
         notifSeerrDeclined: j['notifSeerrDeclined'] as bool? ?? true,
         notifSeerrAvailable: j['notifSeerrAvailable'] as bool? ?? true,
         notifDownloads: j['notifDownloads'] as bool? ?? true,
+        notifUpdates: j['notifUpdates'] as bool? ?? true,
         seerrPollMinutes: (j['seerrPollMinutes'] as num?)?.toInt() ?? 5,
         youtubeEnabled: j['youtubeEnabled'] as bool? ?? false,
         youtubeAutoplay: j['youtubeAutoplay'] as bool? ?? true,

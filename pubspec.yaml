@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # 0.9.x = beta run toward the first stable release; 1.0.0 is reserved for GA,
 # after which versioning follows the TraceApps strict-semver conventions.
-version: 0.9.1+2
+version: 0.10.0+3
 
 environment:
   sdk: ^3.12.2
@@ -48,6 +48,7 @@ dependencies:
   uuid: ^4.5.3
   path_provider: ^2.1.6
   file_picker: ^8.1.7
+  share_plus: ^10.1.4
   palette_generator: ^0.3.3+7
   flutter_colorpicker: ^1.1.0
   flutter_svg: ^2.0.10+1

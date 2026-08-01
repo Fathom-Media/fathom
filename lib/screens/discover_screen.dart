@@ -541,8 +541,11 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
                       Expanded(child: _info(theme, title, statusLabel, statusColor)),
                       const SizedBox(width: 12),
                       if (detail?.posterUrl != null)
-                        AspectRatio(
-                          aspectRatio: 2 / 3,
+                        // Fixed width (not AspectRatio, whose width tracked the
+                        // card's height and could squeeze the text column until
+                        // the status pill overflowed). Cover-crops to fill height.
+                        SizedBox(
+                          width: 92,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: CachedImage(
@@ -638,17 +641,23 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
                       color: Colors.white70,
                       fontSize: 13,
                       fontWeight: FontWeight.w700)),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(
-                    color: statusColor,
-                    borderRadius: BorderRadius.circular(20)),
-                child: Text(statusLabel,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700)),
+              // Flexible + ellipsis so a long status ("Partially Available")
+              // shrinks to fit the narrow info column instead of overflowing.
+              Flexible(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Text(statusLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                ),
               ),
             ],
           ),
