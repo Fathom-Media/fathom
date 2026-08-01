@@ -1,4 +1,5 @@
-import 'dart:io' show Platform, exit;
+import 'dart:io' show Platform, Process, ProcessSignal, exit, pid, sleep;
+import 'dart:isolate';
 import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -17,6 +18,7 @@ import 'services/live_streams.dart';
 import 'services/notifications.dart';
 import 'state/syncplay_session.dart';
 import 'state/mpris_integration.dart';
+import 'state/smtc_integration.dart';
 import 'state/pip_controller.dart';
 import 'state/popout_controller.dart';
 import 'state/preferences.dart';
@@ -25,6 +27,20 @@ import 'theme/app_theme.dart';
 import 'widgets/app_snack.dart';
 import 'widgets/popout_video.dart';
 import 'widgets/window_frame.dart';
+
+/// Runs in a spawned isolate (its own thread) as a hard watchdog on app close:
+/// sleeps, then force-kills the process. Runs off the main isolate, so it still
+/// fires even if native teardown (libmpv) has synchronously blocked the main
+/// thread. Uses SIGKILL rather than exit(): a normal `exit()` coordinates VM
+/// shutdown across isolates and can itself hang when the main isolate is stuck
+/// in a native call, whereas SIGKILL cannot be blocked or caught.
+void _forceKillAfter(int milliseconds) {
+  sleep(Duration(milliseconds: milliseconds));
+  try {
+    Process.killPid(pid, ProcessSignal.sigkill);
+  } catch (_) {}
+  exit(0); // fallback if the signal path is unavailable
+}
 
 /// Lets a mouse and trackpad drag-scroll, not just touch. Without this, the
 /// horizontal rows (Discover, Home) can't be scrolled at all on desktop, so
@@ -88,8 +104,18 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
   Future<void> _teardown() async {
     if (_tearingDown) return;
     _tearingDown = true;
-    // Close the SyncPlay socket + cancel its timers first, so no scheduled
-    // command or keepalive fires against a half-torn-down tree during exit.
+    // Arm the hard SIGKILL watchdog FIRST, before ANY cleanup, so nothing that
+    // hangs (a network disconnect, tuner release, or the mpv disposal) can stop
+    // the process from dying. It fires ~2s later if we're still alive; that's
+    // plenty for the quick cleanup below, and SIGKILL can't be blocked.
+    if (_isDesktop) {
+      try {
+        await Isolate.spawn(_forceKillAfter, 2000);
+      } catch (_) {}
+    }
+    // Quick, important cleanup: close the SyncPlay socket (so no keepalive fires
+    // against a half-torn-down tree) and release the Live TV tuner (so quitting
+    // mid-channel doesn't pin it on the server).
     try {
       await ref.read(syncPlaySessionProvider).disconnect();
     } catch (_) {}
@@ -142,7 +168,7 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
 
   @override
   void onWindowClose() async {
-    await _teardown();
+    await _teardown(); // arms the force-exit watchdog
     // Windows stalls, and Linux SEGFAULTS, finalizing the Flutter engine +
     // libmpv on a normal window destroy: media_kit's video output races the
     // view removal (FlutterEngineRemoveView / "message handler without an
@@ -163,8 +189,10 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
-    // Keep the desktop media integration (MPRIS) alive for the app's lifetime.
+    // Keep the desktop media integrations alive for the app's lifetime: MPRIS on
+    // Linux, SMTC on Windows (each a no-op on the other platform).
     ref.watch(mprisProvider);
+    ref.watch(smtcProvider);
     // Keep the internal/external address resolver alive (no-op unless the
     // active account has both addresses configured).
     ref.watch(serverAddressResolverProvider);

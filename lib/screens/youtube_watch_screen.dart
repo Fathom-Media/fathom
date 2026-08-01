@@ -139,6 +139,8 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
       key: ValueKey(_videoId),
       url: _url,
       title: details.asData?.value.title ?? _title,
+      channel: details.asData?.value.channelName,
+      artUrl: 'https://i.ytimg.com/vi/$_videoId/hqdefault.jpg',
       embedded: true,
       chapters: details.asData?.value.chapters ?? const [],
       handle: _playerHandle,

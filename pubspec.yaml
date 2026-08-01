@@ -67,6 +67,7 @@ dependencies:
   background_downloader: ^9.5.6
   open_filex: ^4.7.0
   audio_session: ^0.2.4
+  smtc_windows: ^1.1.0
 
 dev_dependencies:
   flutter_test:

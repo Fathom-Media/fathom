@@ -11,6 +11,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../services/youtube_streams.dart';
 import '../routing/route_observer.dart';
+import '../state/media_session.dart';
 import '../state/pip_controller.dart';
 import '../state/preferences.dart';
 import '../state/youtube_providers.dart';
@@ -87,6 +88,11 @@ class YoutubeVideoPlayer extends ConsumerStatefulWidget {
   /// null hides it (trailers, standalone).
   final VoidCallback? onNext;
 
+  /// Channel name and thumbnail URL for the OS media session (desktop tray/media
+  /// keys). Optional; trailers pass neither.
+  final String? channel;
+  final String? artUrl;
+
   const YoutubeVideoPlayer({
     super.key,
     required this.url,
@@ -104,6 +110,8 @@ class YoutubeVideoPlayer extends ConsumerStatefulWidget {
     this.onToggleTheater,
     this.theaterActive = false,
     this.onNext,
+    this.channel,
+    this.artUrl,
   });
 
   @override
@@ -127,6 +135,12 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   );
   StreamSubscription<bool>? _playingSub;
   StreamSubscription<bool>? _completedSub;
+  // OS media session (desktop tray / media keys), same mechanism as the Jellyfin
+  // video player. Captured so dispose() can release it without touching ref.
+  StreamSubscription<Duration>? _mediaPosSub;
+  VideoMediaSessionController? _mediaSession;
+  final Object _mediaToken = Object();
+  int _mediaLastPosSec = -1;
   bool _ready = false;
   String? _error;
   double _preMuteVolume = 100;
@@ -247,6 +261,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     // before the engine goes. A reclaimed player is already registered.
     if (!_reclaimed) LivePlayers.add(_player);
     _playingSub = _player.stream.playing.listen((playing) {
+      _mediaSession?.updatePlayback(playing: playing, token: _mediaToken);
       if (playing) {
         // Playback started, so the adaptive path is fine: cancel the fallback.
         _fallbackTimer?.cancel();
@@ -262,7 +277,60 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         if (mounted) _reportProgress();
       });
     }
+    // OS media session: keep its scrubber roughly live (throttled to 1s).
+    _mediaSession = ref.read(videoMediaSessionProvider.notifier);
+    _mediaPosSub = _player.stream.position.listen((p) {
+      if (p.inSeconds != _mediaLastPosSec) {
+        _mediaLastPosSec = p.inSeconds;
+        _mediaSession?.updatePlayback(position: p, token: _mediaToken);
+      }
+    });
+    // Register after the first frame (mutating a provider in initState throws).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _beginMediaSession();
+    });
     _load();
+  }
+
+  void _beginMediaSession() {
+    final ms = _mediaSession;
+    if (ms == null) return;
+    ms.begin(
+      VideoMediaSession(
+        title: widget.title ?? 'YouTube',
+        subtitle: widget.channel,
+        artUrl: widget.artUrl,
+        playing: _player.state.playing,
+        position: _player.state.position,
+        duration: _player.state.duration,
+        canNext: widget.onNext != null,
+        canPrev: false,
+        onPlay: _player.play,
+        onPause: _player.pause,
+        onStop: _player.pause,
+        onNext: widget.onNext != null ? () async => widget.onNext!() : null,
+        onSeek: (d) async => _player.seek(d),
+      ),
+      _mediaToken,
+    );
+  }
+
+  @override
+  void didUpdateWidget(YoutubeVideoPlayer old) {
+    super.didUpdateWidget(old);
+    // Details (title, channel, and whether there's a next) load after the first
+    // frame, so re-register when any of them change — otherwise the tray keeps
+    // the initial state and never gets a Next button once autoplay/queue kick in.
+    if (widget.title != old.title ||
+        widget.channel != old.channel ||
+        widget.artUrl != old.artUrl ||
+        (widget.onNext == null) != (old.onNext == null)) {
+      // Deferred: begin() mutates a provider, which isn't allowed during
+      // didUpdateWidget (the build phase).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _beginMediaSession();
+      });
+    }
   }
 
   void _reportProgress() {
@@ -681,6 +749,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   void dispose() {
     routeObserver.unsubscribe(this);
     _statsOpen.dispose();
+    // Hand the OS media session back (token-guarded so a newer player wins).
+    _mediaSession?.end(_mediaToken);
+    _mediaPosSub?.cancel();
     // Ownership was transferred to the PiP dock; don't tear the player down.
     if (_minimized) {
       super.dispose();

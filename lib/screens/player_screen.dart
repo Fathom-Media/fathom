@@ -21,6 +21,7 @@ import '../services/diagnostics.dart';
 import '../widgets/cast_button.dart';
 import '../widgets/cast_remote.dart';
 import '../state/audio_player.dart';
+import '../state/media_session.dart';
 import '../state/cast.dart';
 import '../state/downloads.dart';
 import '../state/preferences.dart';
@@ -177,6 +178,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // Sibling episodes, for the Previous/Next episode buttons (TV episodes only).
   List<BaseItemDto> _episodes = const [];
   int _epIndex = -1;
+  // Drives the OS media session (MPRIS/SMTC) while this video is on screen.
+  // Captured in initState so dispose() can clear it without touching ref.
+  VideoMediaSessionController? _mediaSession;
+  final Object _sessionToken = Object(); // this screen's ownership of the session
+  int _lastSessionPosSec = -1; // throttle position updates to once a second
   StreamSubscription<Duration>? _positionSub;
   // Verbose libmpv log capture, only active when Diagnostic logging is on.
   StreamSubscription<PlayerLog>? _logSub;
@@ -272,6 +278,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+    _mediaSession = ref.read(videoMediaSessionProvider.notifier);
     _enterImmersiveLandscape();
     _enableSystemPip();
     _setupAudioSession();
@@ -342,6 +349,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           AppLocalizations.of(context).playerPlaybackError(e.toString()));
     });
     _playingSub = _player.stream.playing.listen((playing) {
+      _mediaSession?.updatePlayback(playing: playing, token: _sessionToken);
       if (playing && !_isPlaying) {
         _isPlaying = true;
         _loadTimer?.cancel();
@@ -395,6 +403,64 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) => _start());
     }
+    // Register with the OS media session after the first frame (mutating a
+    // provider in initState throws). No-op for live channels.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _beginMediaSession();
+    });
+  }
+
+  /// Publish (or refresh) this video as the OS media session source, so desktop
+  /// media keys / MPRIS / SMTC control it. Rebuilt on episode change so the
+  /// title, artwork, and next/previous availability stay correct.
+  void _beginMediaSession() {
+    final ms = _mediaSession;
+    if (ms == null) return;
+    final live = widget.item.isLiveChannel;
+    final item = (_epIndex >= 0 && _epIndex < _episodes.length)
+        ? _episodes[_epIndex]
+        : widget.item;
+    ms.begin(VideoMediaSession(
+      title: item.name,
+      subtitle: _sessionSubtitle(item),
+      artUrl: _sessionArtUrl(item),
+      playing: _player.state.playing,
+      position: _player.state.position,
+      // Live has no meaningful duration: report zero so no scrubber is offered.
+      duration: live ? Duration.zero : _player.state.duration,
+      canNext: _epIndex >= 0 && _epIndex < _episodes.length - 1,
+      canPrev: _epIndex > 0,
+      onPlay: _player.play,
+      onPause: _player.pause,
+      onStop: _player.pause, // no true "stop" for video; pause is the safe map
+      onNext: (_epIndex >= 0 && _epIndex < _episodes.length - 1)
+          ? () async => _playEpisodeAt(_epIndex + 1)
+          : null,
+      onPrevious:
+          _epIndex > 0 ? () async => _playEpisodeAt(_epIndex - 1) : null,
+      // Seeking a live channel would disrupt the stream; make it a no-op.
+      onSeek: live ? (_) async {} : (d) async => _player.seek(d),
+    ), _sessionToken);
+  }
+
+  /// "Series · S1:E2" for episodes; null for movies.
+  String? _sessionSubtitle(BaseItemDto item) {
+    if (!widget.item.isEpisode) return null;
+    final show = widget.item.seriesName;
+    final s = item.parentIndexNumber, e = item.indexNumber;
+    final code = (s != null && e != null) ? 'S$s:E$e' : null;
+    final parts = [if (show != null && show.isNotEmpty) show, ?code];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  String? _sessionArtUrl(BaseItemDto item) {
+    final session = ref.read(sessionControllerProvider).asData?.value;
+    if (session == null) return null;
+    final tag = item.primaryImageTag ?? widget.item.primaryImageTag;
+    if (tag == null) return null;
+    final id = item.primaryImageTag != null ? item.id : widget.item.id;
+    return '${session.baseUrl}/Items/$id/Images/Primary'
+        '?api_key=${session.accessToken}&maxHeight=300&tag=$tag';
   }
 
   /// Re-establish the bits [_start] set up, for a player taken back from the
@@ -836,6 +902,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // down; touching ref/providers then looks up a deactivated widget. Bail on
     // both flags — `mounted` is still true during deactivate().
     if (!mounted || _deactivated) return;
+    // Keep the OS media session's scrubber roughly live, throttled to 1/second.
+    if (pos.inSeconds != _lastSessionPosSec) {
+      _lastSessionPosSec = pos.inSeconds;
+      _mediaSession?.updatePlayback(position: pos, token: _sessionToken);
+    }
     // A jump (not normal progression) is a user seek — drive the group.
     if (!widget.item.isLiveChannel && _inGroup && !_groupSuppress) {
       if ((pos - _lastPos).abs() > const Duration(milliseconds: 2500)) {
@@ -888,6 +959,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           _episodes = eps;
           _epIndex = idx;
         });
+        // Refresh the OS media session now that the sibling episodes are known,
+        // so next/previous-episode become available on the desktop controls.
+        _beginMediaSession();
       }
     } catch (_) {}
   }
@@ -1125,6 +1199,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _disposed = true;
+    // Hand the OS media session back to music. Token-guarded so an episode change
+    // (which replaces this screen) doesn't clear the incoming screen's session.
+    _mediaSession?.end(_sessionToken);
     _statsOpen.dispose();
     // The verbose logger belongs to this screen; drop it on either exit path
     // (a handed-off dock player keeps playing but stops feeding diagnostics).
