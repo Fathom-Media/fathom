@@ -132,12 +132,14 @@ Map<String, DBusValue> _radioMetadata(AudioState st) {
   final art = (st.radioArtwork != null && st.radioArtwork!.isNotEmpty)
       ? st.radioArtwork!
       : (s.favicon ?? '');
+  final tags = s.tags;
+  final genre = (tags != null && tags.trim().isNotEmpty) ? tags : 'Live radio';
   final meta = <String, DBusValue>{
     'mpris:trackid': DBusObjectPath('/app/fathom/radio'),
     'xesam:title': DBusString(hasIcy ? icy : s.name),
     // With ICY metadata the station name reads as the "artist"; otherwise fall
-    // back to the station's tags.
-    'xesam:artist': DBusArray.string([hasIcy ? s.name : (s.tags ?? 'Radio')]),
+    // back to the station's genre/tags.
+    'xesam:artist': DBusArray.string([hasIcy ? s.name : genre]),
   };
   if (art.isNotEmpty) meta['mpris:artUrl'] = DBusString(art);
   return meta;

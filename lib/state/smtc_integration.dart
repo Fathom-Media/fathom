@@ -65,11 +65,16 @@ final smtcProvider = Provider<SmtcService?>((ref) {
       final art = (st.radioArtwork != null && st.radioArtwork!.isNotEmpty)
           ? st.radioArtwork
           : s.favicon;
+      // Always a non-empty artist so it overwrites a previous track's (a null/
+      // empty field can linger on the OS control): the station name alongside
+      // the live song, or the genre/"Live radio" when there's no song title.
+      final tags = s.tags;
+      final genre = (tags != null && tags.trim().isNotEmpty) ? tags : 'Live radio';
       smtc.update(
         status: player.state.playing ? 'Playing' : 'Paused',
         metadata: MusicMetadata(
           title: hasIcy ? icy : s.name,
-          artist: hasIcy ? s.name : s.tags,
+          artist: hasIcy ? s.name : genre,
           thumbnail: art,
         ),
         canNext: false,

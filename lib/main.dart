@@ -12,6 +12,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:audio_service/audio_service.dart';
 
 import 'app.dart';
+import 'services/secure_http.dart';
 import 'services/app_installer.dart';
 import 'services/desktop_integration.dart';
 import 'services/diagnostics.dart';
@@ -23,6 +24,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Initialize libmpv-backed playback before the UI starts.
   MediaKit.ensureInitialized();
+
+  // Trust the bundled CA roots for all HTTPS (Windows only; see the function).
+  // Must run before any outbound request (YouTube, fonts, update checks).
+  await installSecureHttpOverrides();
 
   // App-wide diagnostics capture. These hooks are always installed but only
   // record while the user has Diagnostic Logging on (Diagnostics.add no-ops
