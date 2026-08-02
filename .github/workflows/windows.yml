@@ -19,22 +19,30 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write # attach the zip to the release on a tag
+    env:
+      # smtc_windows builds a Rust DLL via cargokit at compile time. cargokit's
+      # symlink resolver fails when the pub cache lives under %AppData%
+      # ("Get-Item : Could not find item C:\Users\...\AppData"), which silently
+      # skips building smtc_windows.dll while still reporting build success — the
+      # media controls then never initialize at runtime. Putting the pub cache on
+      # a short, non-AppData path makes symlink resolution succeed.
+      PUB_CACHE: C:\tmp\pubcache
     steps:
       - uses: actions/checkout@v4
 
-      # Cache pub packages so `flutter pub get` is near-instant when
-      # pubspec.lock is unchanged (the SDK itself is cached by subosito below).
-      - name: Cache pub packages
-        uses: actions/cache@v4
-        with:
-          path: ~\AppData\Local\Pub\Cache
-          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
-          restore-keys: ${{ runner.os }}-pub-
-
+      # cache: true caches the pub packages; pub-cache-path pins them to the
+      # non-AppData PUB_CACHE above (and stops the action resetting PUB_CACHE to
+      # its AppData default, which is what broke the cargokit symlink resolve).
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
+          pub-cache-path: C:\tmp\pubcache
+
+      # cargokit compiles smtc_windows' Rust crate into a DLL during the build,
+      # so the toolchain must be present.
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
         run: flutter pub get
