@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../state/youtube_providers.dart';
 import '../widgets/empty_state.dart';
@@ -73,7 +74,18 @@ class YoutubePlaylistScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             itemCount: list.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (_, i) => YoutubeVideoRow(video: list[i]),
+            itemBuilder: (context, i) => YoutubeVideoRow(
+              video: list[i],
+              // Start the playlist from this item: play it and make the rest the
+              // up-next queue, so Next/autoplay walk the playlist (NewPipe-style).
+              onTap: () {
+                ref
+                    .read(youtubeQueueProvider.notifier)
+                    .playAll(list.sublist(i + 1));
+                context.push('/youtube/watch',
+                    extra: (videoId: list[i].id, title: list[i].title));
+              },
+            ),
           );
         },
       ),

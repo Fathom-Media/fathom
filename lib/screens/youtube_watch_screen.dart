@@ -100,6 +100,16 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
   /// The queue wins over autoplay: it's an explicit instruction, where autoplay
   /// is a guess. Queued videos play even with autoplay off, for the same
   /// reason — you asked for them.
+  /// Jump to an Up Next (queue) item: play it and keep the ones after it as the
+  /// remaining queue. Skips the items before it in the playlist.
+  void _playQueueItem(int index) {
+    final q = ref.read(youtubeQueueProvider);
+    if (index < 0 || index >= q.length) return;
+    final item = q[index];
+    ref.read(youtubeQueueProvider.notifier).playAll(q.sublist(index + 1));
+    _open(item.id, item.title);
+  }
+
   void _playNext(YoutubeWatchDetails d) {
     final queued = ref.read(youtubeQueueProvider.notifier).takeNext();
     if (queued != null) {
@@ -117,6 +127,7 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
   Widget build(BuildContext context) {
     final details = ref.watch(youtubeWatchProvider(_videoId));
     final prefs = ref.watch(preferencesProvider).asData?.value;
+    final queue = ref.watch(youtubeQueueProvider);
     // The rail decision is made in _Body from the box it actually gets. The
     // window is only the same thing while this is a root route with no sidebar.
     _lastDetails = details.asData?.value ?? _lastDetails;
@@ -191,6 +202,8 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
           onToggleDesc: () => setState(() => _descExpanded = !_descExpanded),
           onOpen: _open,
           onSeek: _playerHandle.seek,
+          queue: queue,
+          onPlayQueueItem: _playQueueItem,
           showComments: prefs?.youtubeShowComments ?? true,
           showRelated: prefs?.youtubeShowRelated ?? true,
           showDescription: prefs?.youtubeShowDescription ?? true,
@@ -207,6 +220,8 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
           onToggleDesc: () => setState(() => _descExpanded = !_descExpanded),
           onOpen: _open,
           onSeek: _playerHandle.seek,
+          queue: queue,
+          onPlayQueueItem: _playQueueItem,
           showComments: prefs?.youtubeShowComments ?? true,
           showRelated: prefs?.youtubeShowRelated ?? true,
           showDescription: prefs?.youtubeShowDescription ?? true,
@@ -232,6 +247,12 @@ class _Body extends StatelessWidget {
   final void Function(String videoId, String? title) onOpen;
   final void Function(Duration)? onSeek;
 
+  /// The current play queue (a playlist you started). When non-empty it drives
+  /// the Up Next rail instead of related videos, and [onPlayQueueItem] jumps to
+  /// one of them.
+  final List<YoutubeVideo> queue;
+  final void Function(int index)? onPlayQueueItem;
+
   /// Watch-page sections, from the YouTube settings.
   final bool showComments;
   final bool showRelated;
@@ -245,6 +266,8 @@ class _Body extends StatelessWidget {
     required this.onToggleDesc,
     required this.onOpen,
     this.onSeek,
+    this.queue = const [],
+    this.onPlayQueueItem,
     this.showComments = true,
     this.showRelated = true,
     this.showDescription = true,
@@ -253,6 +276,11 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = details;
+    // A started playlist becomes the Up Next list (NewPipe-style); otherwise
+    // fall back to the video's related list.
+    final upNextIsQueue = queue.isNotEmpty;
+    final upNext =
+        upNextIsQueue ? queue : (d?.related ?? const <YoutubeVideo>[]);
 
     // One LayoutBuilder decides every size on this page, from the box actually
     // available rather than from MediaQuery (which doesn't know about the app
@@ -265,7 +293,8 @@ class _Body extends StatelessWidget {
       // player ALWAYS lives inside `main`, so nothing ever reparents the (live)
       // player, which media_kit can't survive. The rail simply collapses to
       // zero width when hidden, and the related list moves below the video.
-      final railVisible = box.maxWidth >= 1100 && showRelated && !theater;
+      final railVisible =
+          box.maxWidth >= 1100 && (showRelated || upNextIsQueue) && !theater;
       final railW = railVisible ? _railWidth : 0.0;
       final contentWidth = box.maxWidth - railW;
       // The video sits inset from the column edges (like YouTube's watch page)
@@ -344,18 +373,22 @@ class _Body extends StatelessWidget {
                       onSeek: onSeek,
                     ),
                   ],
-                  // Without the rail (narrow window or theater mode), related
-                  // videos go under the description.
-                  if (!railVisible && d.related.isNotEmpty && showRelated) ...[
+                  // Without the rail (narrow window or theater mode), the Up Next
+                  // list (queue or related) goes under the description.
+                  if (!railVisible &&
+                      upNext.isNotEmpty &&
+                      (showRelated || upNextIsQueue)) ...[
                     const SizedBox(height: 24),
                     const _UpNextHeader(),
                     const SizedBox(height: 8),
-                    for (final v in d.related)
+                    for (final (i, v) in upNext.indexed)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
                         child: YoutubeVideoRow(
                           video: v,
-                          onTap: () => onOpen(v.id, v.title),
+                          onTap: upNextIsQueue
+                              ? () => onPlayQueueItem?.call(i)
+                              : () => onOpen(v.id, v.title),
                         ),
                       ),
                   ],
@@ -403,19 +436,19 @@ class _Body extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(12, 0, 16, 24),
                     children: [
-                      // d is null while the page is still loading: the rail
-                      // stays present (fixed layout) and simply fills in here
-                      // once the related list arrives.
-                      if (d != null)
-                        for (final v in d.related)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: YoutubeVideoRow(
-                              video: v,
-                              compact: true,
-                              onTap: () => onOpen(v.id, v.title),
-                            ),
+                      // The queue shows immediately; related fills in once the
+                      // page's details load (the rail stays present regardless).
+                      for (final (i, v) in upNext.indexed)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: YoutubeVideoRow(
+                            video: v,
+                            compact: true,
+                            onTap: upNextIsQueue
+                                ? () => onPlayQueueItem?.call(i)
+                                : () => onOpen(v.id, v.title),
                           ),
+                        ),
                     ],
                   ),
                 ),

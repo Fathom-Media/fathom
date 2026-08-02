@@ -179,6 +179,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   bool _deactivating = false;
 
   String get _qualityPref {
+    // A stalled/failed load can resume after the screen is gone; touching `ref`
+    // then throws. Default to auto rather than read a dead provider.
+    if (!mounted) return 'auto';
     final p = ref.read(preferencesProvider).asData?.value;
     if (p == null) return 'auto';
     return widget.isTrailer ? p.trailerQuality : p.youtubeQuality;
@@ -376,6 +379,10 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
       return;
     }
     final sw = Stopwatch()..start();
+    // Resolve the failure message now, while the context is definitely valid: a
+    // load can fail after the screen is deactivated, and looking it up then is
+    // unsafe.
+    final loadFailedMsg = AppLocalizations.of(context).playerYoutubeLoadFailed;
     try {
       if (!isYoutubeUrl(widget.url)) {
         await _player.open(Media(widget.url));
@@ -436,8 +443,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
       debugPrint('[yt] load failed for ${widget.url}: $e');
       debugPrint('$st');
       if (mounted) {
-        setState(() =>
-            _error = AppLocalizations.of(context).playerYoutubeLoadFailed);
+        setState(() => _error = loadFailedMsg);
       }
     }
   }
@@ -480,7 +486,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
 
   Future<void> _loadSponsors() async {
     final id = youtubeVideoId(widget.url);
-    if (id == null) return;
+    if (id == null || !mounted) return;
     final segments =
         await ref.read(youtubeSponsorSegmentsProvider(id).future);
     if (!mounted || segments.isEmpty) return;

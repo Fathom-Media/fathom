@@ -1,4 +1,5 @@
-import 'dart:io' show Platform, Process, ProcessSignal, exit, pid, sleep;
+import 'dart:async' show unawaited;
+import 'dart:io' show Platform, Process, ProcessSignal, pid, sleep;
 import 'dart:isolate';
 import 'dart:ui' show AppExitResponse;
 
@@ -28,23 +29,20 @@ import 'widgets/app_snack.dart';
 import 'widgets/popout_video.dart';
 import 'widgets/window_frame.dart';
 
-/// Runs in a spawned isolate (its own thread) as a hard watchdog on app close:
-/// sleeps, then force-kills the process. Runs off the main isolate, so it still
-/// fires even if native teardown (libmpv) has synchronously blocked the main
-/// thread. Uses SIGKILL rather than exit(): a normal `exit()` coordinates VM
-/// shutdown across isolates and can itself hang when the main isolate is stuck
-/// in a native call, whereas SIGKILL cannot be blocked or caught.
-void _forceKillAfter(int milliseconds) {
-  sleep(Duration(milliseconds: milliseconds));
-  try {
-    Process.killPid(pid, ProcessSignal.sigkill);
-  } catch (_) {}
-  exit(0); // fallback if the signal path is unavailable
-}
-
 /// Lets a mouse and trackpad drag-scroll, not just touch. Without this, the
 /// horizontal rows (Discover, Home) can't be scrolled at all on desktop, so
 /// only the first few tiles are ever reachable.
+/// Runs in a spawned isolate as the exit backstop. Its own thread keeps
+/// ticking even when the main isolate's event loop is jammed (a stalled/failed
+/// video load, or mpv work), so this SIGKILL still lands. [ms] is passed as the
+/// spawn argument. Kept top-level because isolate entry points must be static.
+void _forceKillAfter(int ms) {
+  sleep(Duration(milliseconds: ms));
+  try {
+    Process.killPid(pid, ProcessSignal.sigkill);
+  } catch (_) {}
+}
+
 class _AppScrollBehavior extends MaterialScrollBehavior {
   @override
   Set<PointerDeviceKind> get dragDevices => {
@@ -104,27 +102,52 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
   Future<void> _teardown() async {
     if (_tearingDown) return;
     _tearingDown = true;
-    // Arm the hard SIGKILL watchdog FIRST, before ANY cleanup, so nothing that
-    // hangs (a network disconnect, tuner release, or the mpv disposal) can stop
-    // the process from dying. It fires ~2s later if we're still alive; that's
-    // plenty for the quick cleanup below, and SIGKILL can't be blocked.
-    if (_isDesktop) {
+
+    // Linux: the window-close kill is handled natively (linux/runner does a
+    // hard _exit on the GTK thread, which also restores the terminal). That path
+    // isn't blocked by the Dart event loop, which is routinely jammed at close
+    // (startup, active playback) — the reason a Dart-side kill lagged for
+    // seconds. So here we only fire the best-effort cleanup (release the SyncPlay
+    // socket + Live TV tuner), never awaited so a network wait can't delay us,
+    // and leave a slow fallback kill for exit paths that don't reach the native
+    // handler (e.g. a framework onExitRequested rather than a window close).
+    if (!kIsWeb && Platform.isLinux) {
+      unawaited(
+          ref.read(syncPlaySessionProvider).disconnect().catchError((_) {}));
+      unawaited(LiveStreams.closeAll().catchError((_) {}));
+      // Don't touch the terminal from here: tcsetattr off the foreground group
+      // (a backgrounded dev run) raises SIGTTOU and can suspend the whole
+      // process. The native close handler restores it safely on its own path.
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
       try {
-        await Isolate.spawn(_forceKillAfter, 2000);
+        Process.killPid(pid, ProcessSignal.sigkill);
       } catch (_) {}
+      return;
     }
-    // Quick, important cleanup: close the SyncPlay socket (so no keepalive fires
-    // against a half-torn-down tree) and release the Live TV tuner (so quitting
-    // mid-channel doesn't pin it on the server).
+
+    // Windows: no native close handler, so do the kill here. The graceful mpv
+    // disposal deadlocks against the live engine, so SIGKILL instead; a
+    // spawned-isolate backstop fires even if the main event loop is jammed, and
+    // a fast main-isolate kill covers the common case.
+    if (!kIsWeb && Platform.isWindows) {
+      Isolate.spawn(_forceKillAfter, 300).ignore();
+      unawaited(
+          ref.read(syncPlaySessionProvider).disconnect().catchError((_) {}));
+      unawaited(LiveStreams.closeAll().catchError((_) {}));
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      try {
+        Process.killPid(pid, ProcessSignal.sigkill);
+      } catch (_) {}
+      return;
+    }
+
+    // macOS (and anything else): destroy the window cleanly, so do the full
+    // graceful teardown first.
     try {
       await ref.read(syncPlaySessionProvider).disconnect();
     } catch (_) {}
     await LiveStreams.closeAll();
     await LivePlayers.disposeAll();
-    // A player handed to the picture-in-picture dock is taken off the
-    // LivePlayers list; it's normally disposed by the pip provider's onDispose,
-    // which never runs at process exit. Dispose it here so quitting with a
-    // mini-player playing doesn't segfault in mpv's teardown.
     try {
       final pip = ref.read(pipProvider.notifier);
       final p = pip.player;
@@ -134,10 +157,6 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
         await p.dispose();
       }
     } catch (_) {}
-    // Let libmpv/the video output drain its in-flight callbacks and release its
-    // Flutter textures before the engine tears down its views — otherwise the
-    // texture unregisters against an engine that is already gone (the
-    // "Callback invoked after it has been deleted" / RemoveView crash on close).
     await Future<void>.delayed(const Duration(milliseconds: 350));
   }
 
@@ -168,15 +187,13 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
 
   @override
   void onWindowClose() async {
-    await _teardown(); // arms the force-exit watchdog
-    // Windows stalls, and Linux SEGFAULTS, finalizing the Flutter engine +
-    // libmpv on a normal window destroy: media_kit's video output races the
-    // view removal (FlutterEngineRemoveView / "message handler without an
-    // engine"). SyncPlay is disconnected and every player disposed above, so
-    // terminate the process directly instead of grinding through that teardown.
-    // macOS destroys the window normally.
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) exit(0);
-    await windowManager.destroy();
+    await _teardown();
+    // On Windows the kill happens in _teardown; on Linux the native handler
+    // hard-exits. Both race the engine shutdown, so don't also destroy the
+    // window here (that can crash). Only macOS does a graceful window destroy.
+    if (!kIsWeb && Platform.isMacOS) {
+      await windowManager.destroy();
+    }
   }
 
   @override

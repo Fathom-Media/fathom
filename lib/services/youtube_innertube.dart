@@ -349,6 +349,50 @@ class YoutubeInnerTube {
     );
   }
 
+  /// A playlist's videos, via the browse endpoint (browseId `VL` + id). This
+  /// reads auto-generated album / mix / "Greatest Hits" playlists that the
+  /// youtube_explode library returns empty for. Follows continuations up to a
+  /// sane cap so long playlists still load a useful chunk.
+  Future<List<YoutubeVideo>> playlist(String playlistId) async {
+    final browseId =
+        playlistId.startsWith('VL') ? playlistId : 'VL$playlistId';
+    final videos = <YoutubeVideo>[];
+    Map<String, dynamic>? data = (await _dio.post<Map<String, dynamic>>(
+      _browseEndpoint,
+      queryParameters: const {'prettyPrint': 'false'},
+      data: {'context': _context, 'browseId': browseId},
+    ))
+        .data;
+    while (data != null && videos.length < 200) {
+      final before = videos.length;
+      // Newer responses present playlist items as video lockupViewModels; older
+      // ones use playlistVideoRenderer. Handle both.
+      for (final r in _findAll(data, 'playlistVideoRenderer')) {
+        if (r is Map) {
+          final v = _video(Map<String, dynamic>.from(r));
+          if (v != null) videos.add(v);
+        }
+      }
+      for (final r in _findAll(data, 'lockupViewModel')) {
+        if (r is Map &&
+            '${r['contentType']}' == 'LOCKUP_CONTENT_TYPE_VIDEO') {
+          final v = _lockup(Map<String, dynamic>.from(r));
+          if (v != null) videos.add(v);
+        }
+      }
+      final token = _continuationToken(data);
+      // Stop on no token, or if a page added nothing (a stale/unrelated token).
+      if (token == null || videos.length == before) break;
+      data = (await _dio.post<Map<String, dynamic>>(
+        _browseEndpoint,
+        queryParameters: const {'prettyPrint': 'false'},
+        data: {'context': _context, 'continuation': token},
+      ))
+          .data;
+    }
+    return videos;
+  }
+
   /// A further page of a channel tab, for a token from [channelTab]. Returns
   /// full video metadata in a single request, so paging a channel costs one
   /// request per page rather than one per video.
@@ -941,7 +985,9 @@ class YoutubeInnerTube {
     final title = _text(r['title']);
     if (title.isEmpty) return null;
 
-    final owner = r['ownerText'] ?? r['longBylineText'];
+    // playlistVideoRenderer uses shortBylineText for the channel; search's
+    // videoRenderer uses ownerText/longBylineText.
+    final owner = r['ownerText'] ?? r['longBylineText'] ?? r['shortBylineText'];
     final author = _text(owner);
     final channelId = _path(owner, [
       'runs',
