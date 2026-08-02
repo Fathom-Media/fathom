@@ -41,6 +41,16 @@ theme:
     - content.code.copy
     - toc.follow
 
+plugins:
+  # Re-declare search: it's on by default only when there's no plugins section.
+  - search
+  # Shows a "Last update" date on each page, from git history (needs
+  # fetch-depth: 0 in the docs workflow, which is set). Build date is a fallback
+  # so a shallow/edge build still renders.
+  - git-revision-date-localized:
+      enable_creation_date: false
+      fallback_to_build_date: true
+
 markdown_extensions:
   - admonition
   - attr_list
