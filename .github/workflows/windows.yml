@@ -30,14 +30,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # cache: true caches the pub packages; pub-cache-path pins them to the
-      # non-AppData PUB_CACHE above (and stops the action resetting PUB_CACHE to
-      # its AppData default, which is what broke the cargokit symlink resolve).
+      # Caching is OFF on purpose: the pub cache also holds cargokit's compiled
+      # smtc_windows.dll, and a restored cache makes cargokit skip rebuilding it,
+      # so the frb-version pin below would never actually get compiled. A fresh
+      # pub cache each run guarantees the Rust crate is rebuilt with the pin.
+      # PUB_CACHE (job env) still points off %AppData% so the cargokit symlink
+      # resolve succeeds.
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: true
-          pub-cache-path: C:\tmp\pubcache
+          cache: false
 
       # cargokit compiles smtc_windows' Rust crate into a DLL during the build,
       # so the toolchain must be present.
@@ -68,6 +70,7 @@ jobs:
             Write-Host "Pinned flutter_rust_bridge_macros=2.11.1 in $toml"
           }
           Remove-Item (Join-Path $pkg.FullName "rust\Cargo.lock") -ErrorAction SilentlyContinue
+          Remove-Item (Join-Path $pkg.FullName "rust\target") -Recurse -Force -ErrorAction SilentlyContinue
 
       - name: Regenerate localizations
         run: flutter gen-l10n
