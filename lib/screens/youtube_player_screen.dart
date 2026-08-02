@@ -11,6 +11,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../services/youtube_streams.dart';
 import '../routing/route_observer.dart';
+import '../state/audio_player.dart';
 import '../state/media_session.dart';
 import '../state/pip_controller.dart';
 import '../state/preferences.dart';
@@ -368,6 +369,12 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   }
 
   Future<void> _load() async {
+    // Starting a video: pause the app-wide music/radio player so we don't hear
+    // both at once (Jellyfin video does the same). Reading the provider and
+    // calling pause is safe here — _load runs from initState but this is a
+    // method call, not a provider mutation.
+    final audio = ref.read(audioPlayerProvider);
+    if (audio.state.playing) unawaited(audio.pause());
     // Reclaimed from the dock: the stream is already open and playing. Don't
     // reopen it (that would restart the video); just repopulate the menus
     // (quality, subtitles, chapters) and sponsor-skip that the old screen held.
