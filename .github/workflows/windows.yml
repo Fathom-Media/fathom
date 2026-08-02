@@ -47,6 +47,28 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # smtc_windows 1.1.0's Dart bindings are generated with flutter_rust_bridge
+      # 2.11.1 and its Cargo.toml exact-pins the main frb crate, but NOT the
+      # companion flutter_rust_bridge_macros crate — so cargo lets it drift to a
+      # newer minor (2.12.0). At runtime that surfaces as the reported bridge
+      # version, and RustLib.init() throws "codegen version (2.11.1) should be the
+      # same as runtime version (2.12.0)", so the media controls silently never
+      # register. Exact-pin the companion crate in the package manifest so the
+      # compiled runtime matches the codegen.
+      - name: Pin smtc_windows' Rust bridge to its codegen version
+        shell: pwsh
+        run: |
+          $pkg = Get-ChildItem "$env:PUB_CACHE\hosted\pub.dev" -Directory -Filter "smtc_windows-*" | Select-Object -First 1
+          if (-not $pkg) { throw "smtc_windows not found under $env:PUB_CACHE" }
+          $toml = Join-Path $pkg.FullName "rust\Cargo.toml"
+          $c = Get-Content $toml -Raw
+          if ($c -notmatch 'flutter_rust_bridge_macros') {
+            $c = $c -replace 'flutter_rust_bridge = "=2\.11\.1"', "flutter_rust_bridge = `"=2.11.1`"`nflutter_rust_bridge_macros = `"=2.11.1`""
+            Set-Content $toml $c
+            Write-Host "Pinned flutter_rust_bridge_macros=2.11.1 in $toml"
+          }
+          Remove-Item (Join-Path $pkg.FullName "rust\Cargo.lock") -ErrorAction SilentlyContinue
+
       - name: Regenerate localizations
         run: flutter gen-l10n
 
