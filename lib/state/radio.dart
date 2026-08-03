@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -160,18 +161,29 @@ class RadioController extends AsyncNotifier<List<RadioStation>> {
           },
           options: opts,
         );
-        final list = (res.data as List?) ?? const [];
-        // A successful response (even empty) is a real answer — return it.
-        return list
+        final data = res.data;
+        // Only a JSON array is a real answer. Anything else (an HTML error page,
+        // a redirect body, a rate-limit notice) means this mirror is misbehaving
+        // — fall through to the next rather than crashing on a bad cast, which is
+        // what silently emptied search on some networks.
+        if (data is! List) {
+          debugPrint('[radio] $host: non-list response'
+              ' (${res.statusCode}, ${data.runtimeType}); trying next');
+          continue;
+        }
+        debugPrint('[radio] $host: ${data.length} results');
+        return data
             .whereType<Map>()
             .map((e) =>
                 RadioStation.fromRadioBrowser(Map<String, dynamic>.from(e)))
             .where((s) => s.url.isNotEmpty && s.name.isNotEmpty)
             .toList();
-      } on DioException {
+      } on DioException catch (e) {
+        debugPrint('[radio] $host: ${e.type} ${e.message ?? ''}; trying next');
         continue; // this mirror failed — try the next
       }
     }
+    debugPrint('[radio] all mirrors failed or returned no usable data');
     return [];
   }
 }

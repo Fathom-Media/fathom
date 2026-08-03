@@ -6,9 +6,37 @@
 #endif
 
 #include <limits.h>
+#include <signal.h>
+#include <termios.h>
 #include <unistd.h>
 
 #include "flutter/generated_plugin_registrant.h"
+
+// The terminal's settings as they were at launch, saved when the app is started
+// from a shell (dev runs). libmpv puts the TTY into raw / no-echo mode for its
+// own input handling; on a graceful exit it restores it, but this app hard-exits
+// on close (see on_window_delete), which would skip that and leave the shell
+// unusable (no echo, needs `reset`). We restore this snapshot just before
+// exiting so the terminal is handed back sane.
+static struct termios g_saved_termios;
+static bool g_termios_saved = false;
+
+static void save_terminal_state() {
+  if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &g_saved_termios) == 0) {
+    g_termios_saved = true;
+  }
+}
+
+static void restore_terminal_state() {
+  if (!g_termios_saved) return;
+  // When launched backgrounded (dev: `./fathom &`), this process isn't in the
+  // terminal's foreground group, so tcsetattr would raise SIGTTOU and, by
+  // default, suspend us instead of applying the change. Ignore it around the
+  // call so the restore actually lands.
+  void (*prev)(int) = signal(SIGTTOU, SIG_IGN);
+  tcsetattr(STDIN_FILENO, TCSANOW, &g_saved_termios);
+  signal(SIGTTOU, prev);
+}
 
 // Point the window/taskbar icon at the bundled app icon. The asset ships next
 // to the executable under data/flutter_assets/, so resolve it relative to the
@@ -42,8 +70,41 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+// GTK-thread watchdog: hard-exit no matter what the Dart side is doing.
+static gboolean force_exit_cb(gpointer data) {
+  restore_terminal_state();
+  _exit(0);
+  return G_SOURCE_REMOVE;
+}
+
+// The user clicked the window's close button (or Alt+F4 / the compositor).
+//
+// The Dart side (window_manager -> onWindowClose) does the graceful-ish
+// teardown and then SIGKILLs the process, but that path runs on the Dart UI
+// thread's event loop, which is routinely jammed at exactly this moment (app
+// startup, active video/audio playback). While it's jammed the close event
+// can't even be delivered, so the window sits there frozen for seconds.
+//
+// This handler runs on the GTK main-loop thread instead, which is not blocked
+// by Dart work, so it fires the instant the user asks to close. It arms a
+// short watchdog that hard-exits regardless of the Dart loop's state, so the
+// window always disappears within a blink. Returning FALSE lets window_manager
+// still intercept (it prevents the default destroy that would otherwise race
+// the engine shutdown and crash) and lets the Dart fast path release the Live
+// TV tuner / SyncPlay socket when its loop is free — whichever kill lands first
+// wins.
+static gboolean on_window_delete(GtkWidget* widget, GdkEvent* event,
+                                 gpointer user_data) {
+  g_timeout_add(200, force_exit_cb, nullptr);
+  return FALSE;
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
+  // Snapshot the terminal now, before libmpv (created later, from Dart) puts it
+  // into raw mode, so the hard-exit path can hand a sane terminal back.
+  save_terminal_state();
+
   MyApplication* self = MY_APPLICATION(application);
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
@@ -67,6 +128,12 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
   set_app_icon(window);
+
+  // Guarantee a snappy close even when the Dart loop is jammed (see
+  // on_window_delete). Connected before the plugins so it runs ahead of
+  // window_manager's own delete-event handler.
+  g_signal_connect(window, "delete-event", G_CALLBACK(on_window_delete),
+                   nullptr);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(

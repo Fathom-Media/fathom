@@ -32,6 +32,12 @@ import '../widgets/ui_common.dart';
 /// app_router.dart.
 final shellNavigatorKey = GlobalKey<NavigatorState>();
 
+/// The GoRouter root navigator (full-screen routes like /player live here). A
+/// stable handle so code outside the widget tree — e.g. the OS media session's
+/// Stop button (SMTC/MPRIS) — can pop the player without a (possibly stale)
+/// BuildContext.
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 /// The phone shell's Scaffold, so a top-level screen's hamburger (see
 /// [mobileDrawerLeading]) can open the slide-out navigation drawer from anywhere.
 final shellScaffoldKey = GlobalKey<ScaffoldState>();

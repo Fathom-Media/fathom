@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # 0.9.x = beta run toward the first stable release; 1.0.0 is reserved for GA,
 # after which versioning follows the TraceApps strict-semver conventions.
-version: 0.10.0+3
+version: 0.10.1+4
 
 environment:
   sdk: ^3.12.2
@@ -67,6 +67,13 @@ dependencies:
   background_downloader: ^9.5.6
   open_filex: ^4.7.0
   audio_session: ^0.2.4
+  smtc_windows: ^1.1.0
+  # smtc_windows 1.1.0's generated bindings are codegen'd with flutter_rust_bridge
+  # 2.11.1, but it only requires ^2.11.1 so pub picks 2.12.0, whose runtime
+  # version constant mismatches the codegen and makes SMTC's RustLib.init() throw
+  # ("codegen version 2.11.1 should be the same as runtime version 2.12.0") — the
+  # media controls then silently never register. Pin the Dart runtime to 2.11.1.
+  flutter_rust_bridge: 2.11.1
 
 dev_dependencies:
   flutter_test:

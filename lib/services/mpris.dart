@@ -68,7 +68,9 @@ class MprisService {
       _status = status;
       changed['PlaybackStatus'] = DBusString(_status);
     }
-    if (metadata != null) {
+    // De-dupe metadata: only emit when it actually changed, or a periodic
+    // re-push would re-announce the same track (and its artwork URL) every tick.
+    if (metadata != null && !_sameMetadata(metadata, _metadata)) {
       _metadata = metadata;
       changed['Metadata'] = _metadataValue();
     }
@@ -87,7 +89,10 @@ class MprisService {
     // Position isn't a change-notified property in MPRIS; callers read it live.
     if (positionUs != null) _positionUs = positionUs;
     if (changed.isNotEmpty) {
-      _object!.emitPropertiesChanged(_playerIface, changedProperties: changed);
+      try {
+        _object!
+            .emitPropertiesChanged(_playerIface, changedProperties: changed);
+      } catch (_) {}
     }
   }
 
@@ -95,6 +100,17 @@ class MprisService {
     await _client?.close();
     _client = null;
     _object = null;
+  }
+
+  // DBusValue types implement value equality, so a shallow entry-wise compare is
+  // enough to tell whether the now-playing metadata actually changed.
+  static bool _sameMetadata(
+      Map<String, DBusValue> a, Map<String, DBusValue> b) {
+    if (a.length != b.length) return false;
+    for (final e in a.entries) {
+      if (b[e.key] != e.value) return false;
+    }
+    return true;
   }
 
   DBusValue _metadataValue() => DBusDict(

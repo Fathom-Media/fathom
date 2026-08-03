@@ -841,24 +841,10 @@ final youtubeFeedProvider =
 /// there's no id-only listing to hydrate afterwards.
 final youtubePlaylistProvider = FutureProvider.autoDispose
     .family<List<YoutubeVideo>, String>((ref, playlistId) async {
-  final yt = ref.watch(youtubeClientProvider);
-  final out = <YoutubeVideo>[];
-  await for (final v in yt.playlists.getVideos(PlaylistId(playlistId))) {
-    out.add(YoutubeVideo(
-      id: v.id.value,
-      title: v.title,
-      author: v.author,
-      url: v.url,
-      channelId: v.channelId.value,
-      thumbnailUrl: v.thumbnails.mediumResUrl,
-      duration: v.duration,
-      viewCount: v.engagement.viewCount,
-      uploadDate: v.uploadDate,
-    ));
-    // Long playlists run to thousands; this is what fits on screen sensibly.
-    if (out.length >= 200) break;
-  }
-  return out;
+  // Fetch via InnerTube (browse VL<id>), not youtube_explode: the library
+  // returns empty for auto-generated album / mix / "Greatest Hits" playlists,
+  // which is exactly what search surfaces.
+  return ref.watch(youtubeInnerTubeProvider).playlist(playlistId);
 });
 
 /// Playlists you make, stored on this device.
@@ -1002,6 +988,10 @@ class YoutubeQueue extends Notifier<List<YoutubeVideo>> {
     if (state.any((v) => v.id == video.id)) return;
     state = [...state, video];
   }
+
+  /// Replaces the whole queue — used when starting a playlist from one of its
+  /// items, so Next/autoplay then walk the rest of the playlist in order.
+  void playAll(List<YoutubeVideo> videos) => state = List.of(videos);
 
   /// Jumps the queue: the next thing to play.
   void playNext(YoutubeVideo video) {

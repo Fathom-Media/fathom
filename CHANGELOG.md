@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.1
+
+### Added
+- OS media controls: Fathom now responds to your system media keys and on-screen controls on Windows (SMTC) and Linux (MPRIS), covering video, Live TV, YouTube, and internet radio, with play, pause, stop, and next/previous.
+- YouTube playlist queue: open a playlist and play straight through it.
+
+### Fixed
+- Windows: HTTPS connections now work reliably (Fathom trusts a bundled set of certificate roots), which fixes YouTube playback and secure Jellyfin servers on Windows.
+- Music now pauses when a YouTube video starts, so the two no longer play over each other.
+- Internet radio search no longer fails on directory mirrors that return a non-standard response.
+- Faster, cleaner window close on desktop.
+
 ## 0.10.0
 
 ### Added
