@@ -122,6 +122,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.listen(splashReadyProvider, (_, _) => refresh.value++);
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/',
     // navWatcher first so its didPush records the route kind before
     // routeObserver dispatches didPushNext to the player.

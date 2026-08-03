@@ -13,6 +13,7 @@ import '../widgets/player_controls.dart';
 
 import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../routing/app_shell.dart';
 import '../models/base_item.dart';
 import '../state/admin_providers.dart';
 import '../models/media_segment.dart';
@@ -432,7 +433,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       canPrev: _epIndex > 0,
       onPlay: _player.play,
       onPause: _player.pause,
-      onStop: _player.pause, // no true "stop" for video; pause is the safe map
+      // Stop (OS media controls) exits the player: pause, then pop back to where
+      // the user was (episode info / wherever they came from). Popping disposes
+      // this screen, which tears the player down. Uses the ROOT navigator key,
+      // not a BuildContext — the SMTC/MPRIS callback fires outside the widget
+      // tree, where the captured context can already be deactivated.
+      onStop: () async {
+        await _player.pause();
+        rootNavigatorKey.currentState?.maybePop();
+      },
       onNext: (_epIndex >= 0 && _epIndex < _episodes.length - 1)
           ? () async => _playEpisodeAt(_epIndex + 1)
           : null,
