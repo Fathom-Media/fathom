@@ -7,6 +7,7 @@ import '../state/youtube_providers.dart';
 import '../theme/app_theme.dart';
 import '../widgets/reorder.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/youtube_cards.dart';
 import '../l10n/generated/app_localizations.dart';
 
@@ -34,6 +35,9 @@ class YoutubeMyPlaylistScreen extends ConsumerWidget {
 
     final notifier = ref.read(youtubeLocalPlaylistsProvider.notifier);
     return Scaffold(
+      // Root route outside the shell: dock the background-audio bar so it stays
+      // visible here too (collapses when idle, hidden on TV).
+      bottomNavigationBar: const MiniPlayer(),
       appBar: AppBar(title: Text(playlist.name)),
       body: playlist.videos.isEmpty
           ? EmptyState(

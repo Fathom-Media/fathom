@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../services/tv_mode.dart';
+import '../state/audio_player.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
+import '../widgets/mini_player.dart';
+import '../widgets/youtube_actions.dart';
 import '../widgets/youtube_cards.dart';
 import '../widgets/youtube_skeletons.dart';
 import '../models/youtube_playlist.dart';
@@ -36,6 +40,23 @@ class YoutubePlaylistScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(title ?? l.ytPlaylistFallback),
         actions: [
+          // Play the whole playlist as background audio: the first item plays and
+          // the rest become the shared up-next queue. Phone/desktop only.
+          if (!isTvDevice)
+            IconButton(
+              tooltip: l.ytListenAll,
+              icon: const Icon(Icons.headset_rounded),
+              onPressed: () {
+                final list = videos.asData?.value ?? const [];
+                if (list.isEmpty) return;
+                ref
+                    .read(youtubeQueueProvider.notifier)
+                    .playAll(list.sublist(1));
+                ref
+                    .read(audioControllerProvider.notifier)
+                    .playYoutubeAudio(youtubeAudioItemOf(list.first));
+              },
+            ),
           IconButton(
             tooltip: saved ? l.ytSaved : l.ytSavePlaylist,
             color: saved ? Theme.of(context).colorScheme.primary : null,
@@ -54,6 +75,10 @@ class YoutubePlaylistScreen extends ConsumerWidget {
           ),
         ],
       ),
+      // Dock the background-audio bar here: this screen is a root route outside
+      // the app shell, so it wouldn't otherwise show the mini-player. Collapses
+      // to nothing when nothing's playing and is hidden on TV.
+      bottomNavigationBar: const MiniPlayer(),
       body: videos.when(
         loading: () => const YoutubeVideosSkeleton(),
         error: (e, _) => Padding(

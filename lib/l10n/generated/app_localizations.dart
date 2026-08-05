@@ -526,7 +526,7 @@ abstract class AppLocalizations {
   /// **'Current Version: {version}'**
   String updateCurrentVersion(String version);
 
-  /// Label above the stable/beta update channel selector.
+  /// Label above the stable/dev update channel selector.
   ///
   /// In en, this message translates to:
   /// **'Update Channel'**
@@ -538,16 +538,16 @@ abstract class AppLocalizations {
   /// **'Stable'**
   String get updateChannelStable;
 
-  /// Update channel option: include pre-release/beta builds.
+  /// Update channel option: include the latest pre-release dev builds.
   ///
   /// In en, this message translates to:
-  /// **'Beta'**
+  /// **'Dev'**
   String get updateChannelBeta;
 
   /// Helper text under the update channel selector.
   ///
   /// In en, this message translates to:
-  /// **'Beta includes pre-release test builds.'**
+  /// **'Dev includes the latest pre-release test builds.'**
   String get updateChannelHelp;
 
   /// Toggle: automatically check for updates when the app starts.
@@ -1479,6 +1479,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pure-black backgrounds in dark mode'**
   String get prefsAmoledBlackSub;
+
+  /// Toggle title: force the 10-foot D-pad interface.
+  ///
+  /// In en, this message translates to:
+  /// **'Force TV Mode'**
+  String get prefsForceTvMode;
+
+  /// Force TV mode toggle subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the 10-foot remote interface even if this device isn\'t a television. Applies after restarting the app.'**
+  String get prefsForceTvModeSub;
 
   /// Appearance setting title: rating badge on poster cards.
   ///
@@ -4522,6 +4534,36 @@ abstract class AppLocalizations {
   /// **'Subscriptions'**
   String get ytSubscriptions;
 
+  /// Button on the YouTube watch page: drop the video and keep the audio playing in the background.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen'**
+  String get ytListen;
+
+  /// Video row menu action: play just this video's audio in the background.
+  ///
+  /// In en, this message translates to:
+  /// **'Play audio'**
+  String get ytPlayAudio;
+
+  /// Button on the background-audio Now Playing: switch back to watching the video at the current position.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch video'**
+  String get ytWatchVideo;
+
+  /// Playlist action: play the whole playlist as background audio.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen to all'**
+  String get ytListenAll;
+
+  /// Shown in the background-audio queue sheet when the up-next queue is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing up next. A related track plays automatically when this one ends.'**
+  String get ytQueueEmpty;
+
   /// YouTube section tab label: newest uploads from subscribed channels.
   ///
   /// In en, this message translates to:
@@ -5445,6 +5487,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connect'**
   String get appConnect;
+
+  /// Settings search: label for the Android video engine (ExoPlayer/media_kit) setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Video Player Engine'**
+  String get searchPlayerBackend;
+
+  /// Preferences: title for the Android video engine selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Video Player (Android)'**
+  String get prefsPlayerBackend;
+
+  /// Preferences: subtitle for the Android video engine selector.
+  ///
+  /// In en, this message translates to:
+  /// **'ExoPlayer plays 4K/HDR smoothly on TV; media_kit is the classic engine.'**
+  String get prefsPlayerBackendSub;
+
+  /// Preferences: automatic video backend option.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic (ExoPlayer on TV)'**
+  String get prefsPlayerBackendAuto;
+
+  /// Preferences: native ExoPlayer video backend option.
+  ///
+  /// In en, this message translates to:
+  /// **'ExoPlayer (native, 4K/HDR)'**
+  String get prefsPlayerBackendExo;
+
+  /// Preferences: media_kit video backend option.
+  ///
+  /// In en, this message translates to:
+  /// **'media_kit (libmpv)'**
+  String get prefsPlayerBackendMediaKit;
+
+  /// Server connect screen: button that scans the local network for Jellyfin servers.
+  ///
+  /// In en, this message translates to:
+  /// **'Find Servers on My Network'**
+  String get appFindServers;
+
+  /// Server connect screen: label shown while scanning the local network for servers.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching your network…'**
+  String get appScanningServers;
+
+  /// Server connect screen: shown when a network scan finds no Jellyfin servers.
+  ///
+  /// In en, this message translates to:
+  /// **'No servers found. Enter the address above instead.'**
+  String get appNoServersFound;
 
   /// Splash screen tagline shown under the Fathom wordmark.
   ///
@@ -9129,6 +9225,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Servers'**
   String get backupGroupServers;
+
+  /// Snackbar shown when the TV has no speech recognizer for the on-screen keyboard's mic button.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice input isn\'t available on this device'**
+  String get tvVoiceUnavailable;
 }
 
 class _AppLocalizationsDelegate

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
 import 'empty_state.dart';
 import 'error_view.dart';
 import 'media_cards.dart';
@@ -47,6 +48,8 @@ class ItemGridBody extends ConsumerWidget {
             onceKey: list[i].id,
             child: PosterTile(
               item: list[i],
+              // On TV the first tile grabs focus so the remote lands on content.
+              autofocus: isTvDevice && i == 0,
               onTap: () => context.push('/item', extra: list[i]),
             ),
           ),

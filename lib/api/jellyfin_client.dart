@@ -10,6 +10,7 @@ import '../models/media_segment.dart';
 import '../models/public_system_info.dart';
 import '../models/user_dto.dart';
 import '../models/lyrics.dart';
+import '../services/tv_mode.dart';
 
 /// A user-facing error carrying a message safe to show in the UI.
 class JellyfinException implements Exception {
@@ -99,6 +100,56 @@ class JellyfinClient {
     }
   }
 
+
+  /// Resolves a user-typed server address to a reachable base URL and its public
+  /// info. When the user omits the scheme, tries `https://` then `http://` (home
+  /// servers on a LAN IP are usually plain http), each with a short timeout so a
+  /// dead scheme fails fast. This is why a user can type `10.0.1.3:8096` without
+  /// the `http://`. If a scheme was typed, it's honoured as-is.
+  Future<({String baseUrl, PublicSystemInfo info})> resolvePublicServer(
+      String input) async {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) {
+      throw JellyfinException('Please enter a server address.');
+    }
+    final hasScheme =
+        trimmed.startsWith('http://') || trimmed.startsWith('https://');
+    final candidates = <String>[];
+    if (hasScheme) {
+      candidates.add(normalizeBaseUrl(trimmed));
+    } else {
+      final host = trimmed.replaceAll(RegExp(r'/+$'), '');
+      candidates
+        ..add('https://$host')
+        ..add('http://$host');
+    }
+    final probe = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 5),
+    ));
+    JellyfinException? lastErr;
+    try {
+      for (final url in candidates) {
+        try {
+          final res = await probe.get('$url/System/Info/Public');
+          final data = res.data;
+          if (data is Map) {
+            return (
+              baseUrl: url,
+              info: PublicSystemInfo.fromJson(Map<String, dynamic>.from(data)),
+            );
+          }
+          lastErr = JellyfinException(
+              'That address did not return a Jellyfin server response.');
+        } on DioException catch (e) {
+          lastErr = JellyfinException(_friendlyDioError(e, connecting: true));
+        }
+      }
+    } finally {
+      probe.close();
+    }
+    throw lastErr ?? JellyfinException('Could not reach that server.');
+  }
 
   /// Validates that [baseUrl] points at a reachable Jellyfin server.
   Future<PublicSystemInfo> getPublicSystemInfo(String baseUrl) async {
@@ -2032,18 +2083,20 @@ class JellyfinClient {
     int? maxBitrate,
   }) async {
     try {
+      final profile = _deviceVideoProfile;
+      final force = forceTranscode;
       final res = await _dio.post(
         '$baseUrl/Items/$itemId/PlaybackInfo',
         queryParameters: {
           'UserId': userId,
           'MaxStreamingBitrate': '${maxBitrate ?? 120000000}',
-          'EnableDirectPlay': forceTranscode ? 'false' : 'true',
-          'EnableDirectStream': forceTranscode ? 'false' : 'true',
+          'EnableDirectPlay': force ? 'false' : 'true',
+          'EnableDirectStream': force ? 'false' : 'true',
           'EnableTranscoding': 'true',
           'AllowVideoStreamCopy': 'true',
           'AllowAudioStreamCopy': 'true',
         },
-        data: {'DeviceProfile': _videoDeviceProfile},
+        data: {'DeviceProfile': profile},
         options: _authed(token),
       );
       final data = Map<String, dynamic>.from(res.data as Map);
@@ -2165,9 +2218,12 @@ class JellyfinClient {
     required String token,
     required String channelId,
   }) async {
-    // On mobile, media_kit can't play a raw broadcast MPEG-TS the way desktop
-    // libmpv does, so drop the direct-play profiles to force the server down its
-    // HLS h264/aac transcode path (which media_kit plays on Android/iOS).
+    // Mobile and Android TV both force the server's HLS h264 transcode. On the TV
+    // this keeps the video in a clean 8-bit h264 the box decodes without wedging
+    // its GPU (raw broadcast MPEG-TS / interlaced wedged the compositor), and the
+    // ExoPlayer path still shows live captions: it injects a CLOSED-CAPTIONS
+    // declaration into the HLS playlist so the embedded CEA-608 becomes selectable
+    // (see ExoVideoPlayer). Desktop (libmpv) direct-plays the TS.
     final profile = (Platform.isAndroid || Platform.isIOS)
         ? {..._liveDeviceProfile, 'DirectPlayProfiles': const <Map>[]}
         : _liveDeviceProfile;
@@ -2181,6 +2237,11 @@ class JellyfinClient {
       );
     } on JellyfinException {
       // Some channels 500 with a custom profile but work when the server picks.
+      // NOT on Android TV: it renders through ExoPlayer, which wedges the Amlogic
+      // GPU compositor on a raw MPEG-2 stream (needs a reboot to clear), and
+      // letting the server pick can hand back exactly that. Surfacing the error is
+      // far better than wedging the box. Phones use media_kit, which plays it fine.
+      if (isTvDevice) rethrow;
       return _requestLiveStream(
         baseUrl: baseUrl,
         userId: userId,
@@ -2285,6 +2346,43 @@ class JellyfinClient {
   // What a modern Cast device (Chromecast with Google TV / Android TV) plays
   // directly. Broad enough that an h264/aac MKV direct-plays (cast as-is), while
   // codecs a Chromecast can't handle fall back to an h264/aac HLS transcode.
+  // The video profile actually sent for playback. On Android it restricts video
+  // direct-play to codecs the device can HARDWARE decode (see
+  // [hardwareVideoCodecs]); everything else transcodes to h264, which the device
+  // decodes in hardware. This is what keeps AV1 (software-only on cheaper TV
+  // sticks) from stuttering. Elsewhere (and until the codec probe runs) it's the
+  // full profile unchanged.
+  static Map<String, dynamic> get _deviceVideoProfile {
+    bool android;
+    try {
+      android = Platform.isAndroid;
+    } catch (_) {
+      android = false;
+    }
+    if (!android || hardwareVideoCodecs.isEmpty) return _videoDeviceProfile;
+    // Always keep h264: it's the transcode target and is hardware-decodable on
+    // essentially every Android device, so it's the safe direct-play floor.
+    final allowed = {...hardwareVideoCodecs, 'h264'};
+    final profile =
+        jsonDecode(jsonEncode(_videoDeviceProfile)) as Map<String, dynamic>;
+    for (final p in (profile['DirectPlayProfiles'] as List)) {
+      final m = p as Map;
+      if (m['Type'] != 'Video') continue;
+      final kept = (m['VideoCodec'] as String)
+          .split(',')
+          .where(allowed.contains)
+          .toList();
+      m['VideoCodec'] = (kept.isEmpty ? ['h264'] : kept).join(',');
+    }
+    // Transcode to h264 for the TV: universal hardware support, so a transcoded
+    // stream is guaranteed to decode in hardware even if hevc isn't available.
+    for (final p in (profile['TranscodingProfiles'] as List)) {
+      final m = p as Map;
+      if (m['Type'] == 'Video') m['VideoCodec'] = 'h264';
+    }
+    return profile;
+  }
+
   static const _castDeviceProfile = {
     'MaxStreamingBitrate': 120000000,
     'MaxStaticBitrate': 120000000,

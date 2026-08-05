@@ -240,10 +240,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateChannelStable => 'Stable';
 
   @override
-  String get updateChannelBeta => 'Beta';
+  String get updateChannelBeta => 'Dev';
 
   @override
-  String get updateChannelHelp => 'Beta includes pre-release test builds.';
+  String get updateChannelHelp =>
+      'Dev includes the latest pre-release test builds.';
 
   @override
   String get updateAutoCheckLabel => 'Check on Startup';
@@ -746,6 +747,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get prefsAmoledBlackSub => 'Pure-black backgrounds in dark mode';
+
+  @override
+  String get prefsForceTvMode => 'Force TV Mode';
+
+  @override
+  String get prefsForceTvModeSub =>
+      'Use the 10-foot remote interface even if this device isn\'t a television. Applies after restarting the app.';
 
   @override
   String get prefsRatingOnCards => 'Rating on Cards';
@@ -2488,6 +2496,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytSubscriptions => 'Subscriptions';
 
   @override
+  String get ytListen => 'Listen';
+
+  @override
+  String get ytPlayAudio => 'Play audio';
+
+  @override
+  String get ytWatchVideo => 'Watch video';
+
+  @override
+  String get ytListenAll => 'Listen to all';
+
+  @override
+  String get ytQueueEmpty =>
+      'Nothing up next. A related track plays automatically when this one ends.';
+
+  @override
   String get ytWhatsNew => 'What\'s New';
 
   @override
@@ -3025,6 +3049,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appConnect => 'Connect';
+
+  @override
+  String get searchPlayerBackend => 'Video Player Engine';
+
+  @override
+  String get prefsPlayerBackend => 'Video Player (Android)';
+
+  @override
+  String get prefsPlayerBackendSub =>
+      'ExoPlayer plays 4K/HDR smoothly on TV; media_kit is the classic engine.';
+
+  @override
+  String get prefsPlayerBackendAuto => 'Automatic (ExoPlayer on TV)';
+
+  @override
+  String get prefsPlayerBackendExo => 'ExoPlayer (native, 4K/HDR)';
+
+  @override
+  String get prefsPlayerBackendMediaKit => 'media_kit (libmpv)';
+
+  @override
+  String get appFindServers => 'Find Servers on My Network';
+
+  @override
+  String get appScanningServers => 'Searching your network…';
+
+  @override
+  String get appNoServersFound =>
+      'No servers found. Enter the address above instead.';
 
   @override
   String get appTagline => 'Dive into your media';
@@ -5025,4 +5078,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupGroupServers => 'Servers';
+
+  @override
+  String get tvVoiceUnavailable =>
+      'Voice input isn\'t available on this device';
 }

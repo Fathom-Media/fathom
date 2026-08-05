@@ -13,6 +13,7 @@ import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/error_view.dart';
+import '../widgets/tv_keyboard.dart';
 import '../widgets/ui_common.dart';
 import '../theme/app_theme.dart';
 
@@ -797,10 +798,10 @@ class AdminApiKeysScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.adminNewApiKey),
-        content: TextField(
+        content: TvTextField(
           controller: ctrl,
           autofocus: true,
-          decoration: InputDecoration(labelText: l.adminAppName),
+          label: l.adminAppName,
         ),
         actions: [
           TextButton(
@@ -1214,17 +1215,16 @@ class _PluginRepositories extends ConsumerWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            TvTextField(
               controller: nameCtrl,
               autofocus: true,
-              decoration: InputDecoration(labelText: l.adminName),
+              label: l.adminName,
             ),
             const SizedBox(height: 12),
-            TextField(
+            TvTextField(
               controller: urlCtrl,
-              decoration: InputDecoration(
-                  labelText: l.adminManifestUrl,
-                  hintText: 'https://.../manifest.json'),
+              label: l.adminManifestUrl,
+              hint: 'https://.../manifest.json',
             ),
           ],
         ),
@@ -1679,18 +1679,16 @@ class AdminLiveTvScreen extends ConsumerWidget {
                 onChanged: (v) => setLocal(() => type = v ?? 'm3u'),
               ),
               const SizedBox(height: 12),
-              TextField(
+              TvTextField(
                 controller: urlCtrl,
-                decoration: InputDecoration(
-                    labelText: type == 'm3u' ? l.adminM3uUrl : l.adminDeviceUrl,
-                    hintText:
-                        type == 'hdhomerun' ? 'http://192.168.1.x' : null),
+                label: type == 'm3u' ? l.adminM3uUrl : l.adminDeviceUrl,
+                hint: type == 'hdhomerun' ? 'http://192.168.1.x' : null,
               ),
               const SizedBox(height: 12),
-              TextField(
+              TvTextField(
                 controller: nameCtrl,
-                decoration: InputDecoration(
-                    labelText: l.adminFriendlyName, hintText: l.adminHintOptional),
+                label: l.adminFriendlyName,
+                hint: l.adminHintOptional,
               ),
             ],
           ),
@@ -1774,12 +1772,11 @@ class AdminLiveTvScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(editing ? l.adminEditXmltvGuide : l.adminAddXmltvGuide),
-        content: TextField(
+        content: TvTextField(
           controller: ctrl,
           autofocus: true,
-          decoration: InputDecoration(
-              labelText: l.adminXmltvPathLabel,
-              hintText: 'https://.../guide.xml'),
+          label: l.adminXmltvPathLabel,
+          hint: 'https://.../guide.xml',
         ),
         actions: [
           TextButton(
@@ -2591,16 +2588,16 @@ class _SchedulesDirectDialogState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_step == 0) ...[
-                TextField(
+                TvTextField(
                   controller: _user,
                   autofocus: true,
-                  decoration: InputDecoration(labelText: loc.adminUsername),
+                  label: loc.adminUsername,
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                TvTextField(
                   controller: _pass,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: loc.adminPassword),
+                  obscure: true,
+                  label: loc.adminPassword,
                   onSubmitted: (_) => _busy ? null : _signIn(),
                 ),
               ] else ...[
@@ -2621,10 +2618,10 @@ class _SchedulesDirectDialogState
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
-                      child: TextField(
+                      child: TvTextField(
                         controller: _zip,
-                        decoration: InputDecoration(
-                            labelText: loc.adminPostalCode, hintText: '10001'),
+                        label: loc.adminPostalCode,
+                        hint: '10001',
                         onSubmitted: (_) => _busy ? null : _findLineups(),
                       ),
                     ),

@@ -67,6 +67,8 @@ dependencies:
   background_downloader: ^9.5.6
   open_filex: ^4.7.0
   audio_session: ^0.2.4
+  # Voice entry on the D-pad keyboard (Android TV remotes with a mic button).
+  speech_to_text: ^7.0.0
   smtc_windows: ^1.1.0
   # smtc_windows 1.1.0's generated bindings are codegen'd with flutter_rust_bridge
   # 2.11.1, but it only requires ^2.11.1 so pub picks 2.12.0, whose runtime

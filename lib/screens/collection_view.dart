@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
 import '../state/library_providers.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
@@ -84,6 +85,7 @@ class CollectionView extends ConsumerWidget {
                   onceKey: list[i].id,
                   child: PosterTile(
                     item: list[i],
+                    autofocus: isTvDevice && i == 0,
                     onTap: () => context.push('/item', extra: list[i]),
                   ),
                 ),

@@ -8,6 +8,7 @@ import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/error_view.dart';
 import '../widgets/search_field.dart';
+import '../widgets/tv_keyboard.dart';
 import '../widgets/user_avatar.dart';
 import '../widgets/ui_common.dart';
 import 'settings_search.dart';
@@ -294,17 +295,16 @@ class _UsersTab extends ConsumerWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            TvTextField(
               controller: nameCtrl,
               autofocus: true,
-              decoration: InputDecoration(labelText: l.adminUsername),
+              label: l.adminUsername,
             ),
             const SizedBox(height: 12),
-            TextField(
+            TvTextField(
               controller: pwCtrl,
-              obscureText: true,
-              decoration:
-                  InputDecoration(labelText: l.adminPasswordOptional),
+              obscure: true,
+              label: l.adminPasswordOptional,
             ),
           ],
         ),
@@ -531,10 +531,11 @@ class _SessionsTab extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.adminSendMessage),
-        content: TextField(
+        content: TvTextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(hintText: l.adminMessageHint),
+          label: l.adminMessageHint,
+          hint: l.adminMessageHint,
         ),
         actions: [
           TextButton(

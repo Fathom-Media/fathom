@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
 import '../state/library_providers.dart';
 import '../state/palette.dart';
 import '../state/preferences.dart';
 import '../widgets/featured_hero.dart';
+import '../widgets/tv_focus.dart';
 import '../widgets/media_cards.dart';
 import '../widgets/media_section.dart';
 import '../widgets/motion.dart';
@@ -89,11 +91,15 @@ class HomeScreen extends ConsumerWidget {
               const SliverToBoxAdapter(child: HomeHeroSkeleton())
             else if (prefs.homeBanner == 'carousel')
               SliverToBoxAdapter(
-                child: FeaturedHero(items: hero.asData?.value ?? const []),
+                child: TvScrollToTopOnFocus(
+                  child: FeaturedHero(items: hero.asData?.value ?? const []),
+                ),
               )
             else if (prefs.homeBanner == 'detailed' && heroItem != null)
               SliverToBoxAdapter(
-                child: DetailedHeroBanner(item: heroItem),
+                child: TvScrollToTopOnFocus(
+                  child: DetailedHeroBanner(item: heroItem),
+                ),
               ),
 
             // Rows in the user's chosen order (each gated by its toggle);
@@ -215,7 +221,7 @@ class HomeScreen extends ConsumerWidget {
           // Home has no app bar (the hero fills the top), so on a phone a small
           // floating button opens the navigation drawer, with a scrim behind it
           // for legibility over bright hero art.
-          if (MediaQuery.of(context).size.shortestSide < 600)
+          if (MediaQuery.of(context).size.shortestSide < 600 && !isTvDevice)
             Positioned(
               top: MediaQuery.of(context).padding.top + 4,
               left: 8,

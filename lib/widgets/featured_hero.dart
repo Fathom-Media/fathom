@@ -6,12 +6,14 @@ import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
 import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import 'detail_header.dart';
 import 'media_image.dart';
 import 'motion.dart';
+import 'tv_focus.dart';
 
 /// A large auto-rotating hero banner at the top of Home, cycling through a few
 /// featured items with their backdrop, title, overview, and quick actions.
@@ -32,6 +34,9 @@ class _FeaturedHeroState extends State<FeaturedHero> {
   final _controller = PageController();
   Timer? _timer;
   int _page = 0;
+  // TV only: true while the hero's own buttons hold the remote's focus, so the
+  // auto-advance holds (see [_scheduleAdvance]).
+  bool _heroFocused = false;
   // Scroll-driven parallax for the backdrop. A ValueNotifier (not setState) so
   // only the backdrop Transform rebuilds per scroll frame, not the whole hero
   // (PageView + scrims + dots), which was janking Home's scroll.
@@ -48,7 +53,10 @@ class _FeaturedHeroState extends State<FeaturedHero> {
 
   /// Arms a one-shot advance 8s out. Re-armed on every page change (see
   /// [_onPageChanged]), so a manual swipe or a dot tap resets the countdown
-  /// instead of the carousel jumping right after you interact with it.
+  /// instead of the carousel jumping right after you interact with it. On TV it
+  /// pauses while the hero itself holds focus, so it doesn't change what "Play"
+  /// does out from under the remote; it rotates while the user is browsing the
+  /// rows below (and resumes when they leave the hero).
   void _scheduleAdvance() {
     _timer?.cancel();
     _timer = Timer(const Duration(seconds: 8), () {
@@ -57,6 +65,12 @@ class _FeaturedHeroState extends State<FeaturedHero> {
       // every 8s to do nothing).
       if (reduceMotion(context)) return;
       if (!_controller.hasClients || _items.length < 2) {
+        _scheduleAdvance();
+        return;
+      }
+      // On TV, hold while the hero has the remote's focus (so Play's target
+      // isn't yanked mid-decision); just re-check in a beat.
+      if (isTvDevice && _heroFocused) {
         _scheduleAdvance();
         return;
       }
@@ -142,7 +156,7 @@ class _FeaturedHeroState extends State<FeaturedHero> {
     final height = (width / 2.6).clamp(360.0, 760.0);
     final current = items[_page.clamp(0, items.length - 1)];
     // Backdrop lags the scroll for a parallax feel; capped to the Ken Burns
-    return SizedBox(
+    final hero = SizedBox(
       height: height,
       child: ClipRect(
         child: Stack(
@@ -161,6 +175,12 @@ class _FeaturedHeroState extends State<FeaturedHero> {
               itemCount: items.length,
               onPageChanged: _onPageChanged,
               itemBuilder: (context, i) => _KenBurns(
+                // Key the backdrop to its item so a re-emitted / reordered hero
+                // list rebuilds the page with a FRESH image instead of reusing
+                // the element and holding the previous backdrop while the overlay
+                // logo already switched — which read as "the logo is wrong for
+                // this image" until the next slide.
+                key: ValueKey(items[i].id),
                 child: MediaImage(
                   item: items[i],
                   landscape: true,
@@ -170,7 +190,11 @@ class _FeaturedHeroState extends State<FeaturedHero> {
               ),
             ),
             builder: (context, scroll, child) {
-              final dy = (scroll * 0.35).clamp(0.0, height * 0.045);
+              // Smaller parallax on TV to match the reduced overscale above, so
+              // the crisper (near-native) backdrop still never reveals an edge.
+              final dy = isTvDevice
+                  ? (scroll * 0.15).clamp(0.0, height * 0.02)
+                  : (scroll * 0.35).clamp(0.0, height * 0.045);
               return Transform.translate(offset: Offset(0, dy), child: child);
             },
           ),
@@ -273,6 +297,18 @@ class _FeaturedHeroState extends State<FeaturedHero> {
       ),
       ),
     );
+    // TV: observe (without adding a focus stop) whether the hero's buttons hold
+    // focus, so the auto-advance can hold while the user is on the hero. Off TV
+    // it's a pass-through.
+    if (!isTvDevice) return hero;
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onFocusChange: (v) {
+        if (v != _heroFocused) setState(() => _heroFocused = v);
+      },
+      child: hero,
+    );
   }
 }
 
@@ -308,6 +344,9 @@ class _HeroContent extends ConsumerWidget {
   final BaseItemDto item;
   const _HeroContent({required this.item});
 
+  // On TV the action buttons form a D-pad row (LEFT past Play jumps to the rail).
+  Widget _maybeTvRow(Widget row) => isTvDevice ? TvFocusRow(child: row) : row;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
@@ -332,13 +371,15 @@ class _HeroContent extends ConsumerWidget {
           ),
         ],
         const SizedBox(height: 18),
-        Row(
+        _maybeTvRow(Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             HeaderActionButton(
               icon: Icons.play_arrow_rounded,
               tooltip: l.commonPlay,
               onTap: () => heroPlay(context, ref, item),
               primary: true,
+              autofocus: isTvDevice,
             ),
             const SizedBox(width: 10),
             HeaderActionButton(
@@ -349,7 +390,7 @@ class _HeroContent extends ConsumerWidget {
             const SizedBox(width: 10),
             _HeroFavButton(item: item),
           ],
-        ),
+        )),
       ],
     );
   }
@@ -448,7 +489,7 @@ class _TitleOrLogo extends ConsumerWidget {
 /// A slow, gentle Ken Burns zoom for hero backdrops.
 class _KenBurns extends StatefulWidget {
   final Widget child;
-  const _KenBurns({required this.child});
+  const _KenBurns({super.key, required this.child});
 
   @override
   State<_KenBurns> createState() => _KenBurnsState();
@@ -473,7 +514,7 @@ class _KenBurnsState extends State<_KenBurns>
     if (reduceMotion(context)) {
       if (_c.isAnimating) _c.stop();
       return Transform.scale(
-        scale: 1.16,
+        scale: isTvDevice ? 1.05 : 1.16,
         filterQuality: FilterQuality.medium,
         child: RepaintBoundary(child: widget.child),
       );
@@ -489,9 +530,13 @@ class _KenBurnsState extends State<_KenBurns>
       child: RepaintBoundary(child: widget.child),
       builder: (_, child) {
         final t = Curves.easeInOut.transform(_c.value);
-        // Base overscale gives parallax headroom so edges never reveal.
+        // Base overscale gives parallax headroom so edges never reveal. On TV
+        // the hero fills a large screen, so the desktop/mobile 1.1–1.22 zoom
+        // magnifies the backdrop enough to read soft; keep it near native there.
+        final base = isTvDevice ? 1.05 : 1.1;
+        final range = isTvDevice ? 0.03 : 0.12;
         return Transform.scale(
-          scale: 1.1 + 0.12 * t,
+          scale: base + range * t,
           filterQuality: FilterQuality.medium,
           child: child,
         );

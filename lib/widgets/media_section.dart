@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../services/tv_mode.dart';
+import 'tv_focus.dart';
 
 /// Shared section header: an accent bar + bold title, optionally with a
 /// trailing action. Used across Home + Discover so rows read consistently.
@@ -96,6 +98,11 @@ class _MediaSectionState extends State<MediaSection> {
         duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
   }
 
+  // On TV the row becomes a self-contained D-pad group (LEFT/RIGHT walk cards,
+  // LEFT-past-first jumps to the nav rail, UP/DOWN move between rows).
+  Widget _maybeTvRow(Widget list) =>
+      isTvDevice ? TvFocusRow(child: list) : list;
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -125,7 +132,7 @@ class _MediaSectionState extends State<MediaSection> {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  ListView.separated(
+                  _maybeTvRow(ListView.separated(
                     controller: _sc,
                     scrollDirection: Axis.horizontal,
                     clipBehavior: Clip.none,
@@ -133,7 +140,7 @@ class _MediaSectionState extends State<MediaSection> {
                     itemCount: widget.children.length,
                     separatorBuilder: (_, _) => const SizedBox(width: 14),
                     itemBuilder: (_, i) => widget.children[i],
-                  ),
+                  )),
                   ScrollAffordance(
                     visible: _hover && _canLeft,
                     left: true,

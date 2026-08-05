@@ -17,7 +17,11 @@ enum _RecState { off, single, series }
 /// watching, hitting record should just record.
 class LiveRecordButton extends ConsumerStatefulWidget {
   final String programId;
-  const LiveRecordButton({super.key, required this.programId});
+
+  /// Optional D-pad focus node so the button can join an explicit traversal
+  /// order (the ExoPlayer TV bar steps through nodes by index).
+  final FocusNode? focusNode;
+  const LiveRecordButton({super.key, required this.programId, this.focusNode});
 
   @override
   ConsumerState<LiveRecordButton> createState() => _LiveRecordButtonState();
@@ -175,6 +179,7 @@ class _LiveRecordButtonState extends ConsumerState<LiveRecordButton> {
         ),
     };
     return IconButton(
+      focusNode: widget.focusNode,
       tooltip: tooltip,
       iconSize: 22,
       onPressed: _busy ? null : _tap,

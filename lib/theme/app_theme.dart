@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../services/tv_mode.dart';
+
 /// The style every Filled/Outlined button that sits directly in a Row needs.
 ///
 /// The button themes below set `minimumSize: Size.fromHeight(52)`, and Flutter
@@ -77,6 +79,11 @@ class AppTheme {
       // in app.dart, so out-of-shell routes still have a solid backdrop.
       scaffoldBackgroundColor: Colors.transparent,
       visualDensity: VisualDensity.comfortable,
+      // TV ONLY: a bold focus tint so D-pad focus is unmistakable from the couch
+      // on ListTile rows / InkWell / native buttons app-wide (the audit found the
+      // old subtle tint read as "nothing selected"). Framework default off TV so
+      // desktop and mobile are unchanged.
+      focusColor: isTvDevice ? scheme.primary.withValues(alpha: 0.34) : null,
       // A softer, more organic ripple than the default.
       splashFactory: InkSparkle.splashFactory,
       // Gentle cross-fades between pages on every platform.
@@ -179,6 +186,13 @@ class AppTheme {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle:
               const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ).copyWith(
+          // TV ONLY: D-pad focus adds a bold ring (fill unchanged). Off TV this
+          // resolves to null, so desktop/mobile buttons are unchanged.
+          side: WidgetStateProperty.resolveWith((states) =>
+              states.contains(WidgetState.focused) && isTvDevice
+                  ? BorderSide(color: scheme.onPrimary, width: 3)
+                  : null),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -188,8 +202,52 @@ class AppTheme {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           textStyle:
               const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ).copyWith(
+          // TV ONLY: focused outlined buttons fill + thick ring. Off TV, the
+          // focused branch is skipped so the default outline is used (unchanged).
+          backgroundColor: WidgetStateProperty.resolveWith((states) =>
+              states.contains(WidgetState.focused) && isTvDevice
+                  ? scheme.primary.withValues(alpha: 0.22)
+                  : null),
+          side: WidgetStateProperty.resolveWith((states) =>
+              states.contains(WidgetState.focused) && isTvDevice
+                  ? BorderSide(color: scheme.primary, width: 3)
+                  : BorderSide(color: scheme.outline)),
         ),
       ),
+      // TV ONLY. A D-pad remote must never land on an invisible target, so
+      // focused IconButtons/TextButtons get a bold accent ring + soft fill. These
+      // themes are applied ONLY on a TV (null elsewhere), so desktop and mobile
+      // keep the framework defaults exactly — including desktop keyboard focus.
+      iconButtonTheme: isTvDevice
+          ? IconButtonThemeData(
+              style: ButtonStyle(
+                shape: const WidgetStatePropertyAll(CircleBorder()),
+                overlayColor: WidgetStateProperty.resolveWith((states) =>
+                    states.contains(WidgetState.focused)
+                        ? scheme.primary.withValues(alpha: 0.22)
+                        : null),
+                side: WidgetStateProperty.resolveWith((states) =>
+                    states.contains(WidgetState.focused)
+                        ? BorderSide(color: scheme.primary, width: 2.5)
+                        : null),
+              ),
+            )
+          : null,
+      textButtonTheme: isTvDevice
+          ? TextButtonThemeData(
+              style: ButtonStyle(
+                backgroundColor: WidgetStateProperty.resolveWith((states) =>
+                    states.contains(WidgetState.focused)
+                        ? scheme.primary.withValues(alpha: 0.16)
+                        : null),
+                side: WidgetStateProperty.resolveWith((states) =>
+                    states.contains(WidgetState.focused)
+                        ? BorderSide(color: scheme.primary, width: 2)
+                        : null),
+              ),
+            )
+          : null,
       cardTheme: CardThemeData(
         elevation: 0,
         color: scheme.surfaceContainer,

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
+import '../widgets/tv_focus.dart';
 import '../state/downloads.dart';
 import '../state/library_providers.dart';
 import '../state/preferences.dart';
@@ -52,9 +55,74 @@ class DetailScreen extends ConsumerWidget {
   }
 }
 
-class _DetailBody extends ConsumerWidget {
+class _DetailBody extends ConsumerStatefulWidget {
   final BaseItemDto item;
   const _DetailBody({required this.item});
+
+  @override
+  ConsumerState<_DetailBody> createState() => _DetailBodyState();
+}
+
+class _DetailBodyState extends ConsumerState<_DetailBody> {
+  BaseItemDto get item => widget.item;
+  // The remote lands back here (the header Play) on UP from the top of the body.
+  final FocusNode _playNode = FocusNode(debugLabel: 'detailPlay');
+  final ScrollController _sc = ScrollController();
+
+  @override
+  void dispose() {
+    _playNode.dispose();
+    _sc.dispose();
+    super.dispose();
+  }
+
+  // UP from the top of the body scrolls the hero header back open and lands on
+  // the header Play, so it stays reachable after the pinned app bar collapses
+  // (whose own toolbar icons would otherwise grab UP first). Mid-content UP still
+  // moves row-by-row, so this only kicks in at the top of the body. Off TV it's
+  // a no-op.
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    if (!isTvDevice) return KeyEventResult.ignored;
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (e.logicalKey != LogicalKeyboardKey.arrowUp) {
+      return KeyEventResult.ignored;
+    }
+    final pf = FocusManager.instance.primaryFocus;
+    if (pf == null || pf == _playNode) return KeyEventResult.ignored;
+    final curTop = pf.rect.top;
+    // Any focusable body row strictly above the current focus (ignoring the
+    // pinned toolbar band and the header Play itself)? Then it's a normal
+    // row-up move — let traversal handle it.
+    const toolbarBand = 100.0;
+    final scope = pf.nearestScope;
+    if (scope != null) {
+      for (final n in scope.traversalDescendants) {
+        if (n == pf ||
+            n == _playNode ||
+            !n.canRequestFocus ||
+            n.context == null) {
+          continue;
+        }
+        final t = n.rect.top;
+        if (t > toolbarBand && t < curTop - 8) return KeyEventResult.ignored;
+      }
+    }
+    // Top of the body → open the header and focus Play.
+    if (_sc.hasClients && _sc.offset > 0) {
+      _sc
+          .animateTo(0,
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic)
+          .then((_) {
+        if (mounted) _playNode.requestFocus();
+      });
+    } else {
+      _playNode.requestFocus();
+    }
+    return KeyEventResult.handled;
+  }
 
   Future<void> _play(
       BuildContext context, WidgetRef ref, BaseItemDto playItem,
@@ -101,7 +169,7 @@ class _DetailBody extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
@@ -177,6 +245,8 @@ class _DetailBody extends ConsumerWidget {
             ? l.commonPlay
             : (playTarget.canResume ? l.detailResume : l.commonPlay),
         primary: true,
+        autofocus: isTvDevice,
+        focusNode: isTvDevice ? _playNode : null,
         onTap:
             playTarget == null ? null : () => _play(context, ref, playTarget),
       ),
@@ -202,7 +272,12 @@ class _DetailBody extends ConsumerWidget {
       ],
     );
 
-    return CustomScrollView(
+    return Focus(
+      onKeyEvent: _onKey,
+      canRequestFocus: false,
+      skipTraversal: true,
+      child: CustomScrollView(
+      controller: _sc,
       slivers: [
         SliverAppBar(
           expandedHeight: headerHeight,
@@ -324,6 +399,7 @@ class _DetailBody extends ConsumerWidget {
         if (item.isSeries) _EpisodeList(seriesId: item.id),
         if (!item.isEpisode) _MoreLikeThis(itemId: item.id),
       ],
+      ),
     );
   }
 
@@ -434,7 +510,14 @@ class _EpisodeTile extends StatelessWidget {
     final label = episode.indexNumber != null
         ? '${episode.indexNumber}. ${episode.name}'
         : episode.name;
-    return ListTile(
+    // On TV, TvFocusable is the single D-pad stop (ring + activate); the ListTile
+    // must not also be focusable or every episode would trap two focus stops.
+    // Off TV this whole wrapper is a pass-through and the ListTile keeps its tap.
+    return TvFocusable(
+      onTap: onTap,
+      borderRadius: const BorderRadius.all(Radius.circular(10)),
+      scale: 1.0,
+      child: ListTile(
       hoverColor: Colors.transparent, // HoverHighlight handles the hover tint
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       leading: SizedBox(
@@ -486,7 +569,8 @@ class _EpisodeTile extends StatelessWidget {
       trailing: Icon(episode.canResume
           ? Icons.play_circle_outline_rounded
           : Icons.play_arrow_rounded),
-      onTap: onTap,
+      onTap: isTvDevice ? null : onTap,
+      ),
     );
   }
 }
@@ -848,6 +932,16 @@ class _CastSection extends StatelessWidget {
     final shown = cast.take(30).toList();
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final Widget castRow = SizedBox(
+      height: 158,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        itemCount: shown.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 14),
+        itemBuilder: (_, i) => _PersonCard(person: shown[i]),
+      ),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -869,16 +963,9 @@ class _CastSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        SizedBox(
-          height: 158,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            clipBehavior: Clip.none,
-            itemCount: shown.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 14),
-            itemBuilder: (_, i) => _PersonCard(person: shown[i]),
-          ),
-        ),
+        // On TV wrap the cast strip as a focus row (like the media rows) so LEFT
+        // escapes to the rail and the focused card scrolls into view.
+        isTvDevice ? TvFocusRow(child: castRow) : castRow,
       ],
     );
   }
@@ -902,16 +989,17 @@ class _PersonCardState extends State<_PersonCard> {
     final role = person.role?.isNotEmpty == true
         ? person.role!
         : (person.type ?? '');
-    return MouseRegion(
+    final onTap = person.id.isEmpty
+        ? null
+        : () => context.push('/person', extra: person);
+    final card = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: person.id.isEmpty
           ? MouseCursor.defer
           : SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: person.id.isEmpty
-            ? null
-            : () => context.push('/person', extra: person),
+        onTap: onTap,
         child: SizedBox(
           width: 100,
           child: Column(
@@ -943,6 +1031,14 @@ class _PersonCardState extends State<_PersonCard> {
           ),
         ),
       ),
+    );
+    // On TV the card is one D-pad target (TvFocusable is a no-op off TV).
+    // Non-navigable people (no id) stay unfocusable.
+    if (onTap == null) return card;
+    return TvFocusable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: card,
     );
   }
 }

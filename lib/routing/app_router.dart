@@ -28,7 +28,9 @@ import '../screens/live_tv_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/person_screen.dart';
 import '../screens/now_playing_screen.dart';
+import '../screens/exo_player_screen.dart';
 import '../screens/player_screen.dart';
+import '../services/tv_mode.dart';
 import '../screens/youtube_channel_screen.dart';
 import '../screens/youtube_player_screen.dart';
 import '../screens/radio_screen.dart';
@@ -171,17 +173,35 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/player',
         pageBuilder: (context, state) {
           final e = state.extra;
+          final backend =
+              ref.read(preferencesProvider).asData?.value.playerBackend ??
+                  'auto';
           // Key the page by item id so replacing the player with a DIFFERENT
           // item (a SyncPlay group switching content) builds a fresh
           // PlayerScreen that actually loads the new media, instead of reusing
           // the old screen (same route path) and keeping the old video playing.
+          final BaseItemDto item;
+          final bool resume;
           if (e is BaseItemDto) {
-            return _fadePage(PlayerScreen(item: e),
-                key: ValueKey('player-${e.id}'));
+            item = e;
+            resume = true;
+          } else {
+            final r = e as ({BaseItemDto item, bool resume});
+            item = r.item;
+            resume = r.resume;
           }
-          final r = e as ({BaseItemDto item, bool resume});
-          return _fadePage(PlayerScreen(item: r.item, resume: r.resume),
-              key: ValueKey('player-${r.item.id}'));
+          // The native ExoPlayer backend handles VOD when selected (tunneled
+          // 4K/HDR). Live TV also uses ExoPlayer on Android TV: it's the only
+          // path that renders the broadcast's embedded CEA-608 captions there
+          // (ExoPlayer decodes them in its own text renderer; media_kit/mpv on
+          // the TV box doesn't surface them). Live stays on media_kit elsewhere.
+          final useExo = item.isLiveChannel
+              ? isTvDevice
+              : exoBackendActive(backend);
+          final Widget screen = useExo
+              ? ExoPlayerScreen(item: item, resume: resume)
+              : PlayerScreen(item: item, resume: resume);
+          return _fadePage(screen, key: ValueKey('player-${item.id}'));
         },
       ),
       GoRoute(

@@ -9,9 +9,12 @@ import 'package:path_provider/path_provider.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../services/image_cache.dart';
+import '../services/tv_mode.dart';
 import '../state/preferences.dart';
 import '../widgets/app_dropdown.dart';
 import '../widgets/score_pills.dart';
+import '../widgets/tv_focus.dart';
+import '../widgets/tv_keyboard.dart';
 import '../widgets/ui_common.dart';
 import '../state/youtube_providers.dart';
 import '../services/youtube_download.dart';
@@ -493,13 +496,8 @@ class PreferencesScreen extends ConsumerWidget {
       ),
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-        child: TextFormField(
-          initialValue: p.mdbListApiKey,
-          decoration: InputDecoration(
-            labelText: l.prefsMdbListApiKey,
-            hintText: l.prefsMdbListApiKeyHint,
-            border: const OutlineInputBorder(),
-          ),
+        child: _MdbListKeyField(
+          initial: p.mdbListApiKey,
           onChanged: (v) => c.edit((x) => x.copyWith(mdbListApiKey: v.trim())),
         ),
       ),
@@ -688,6 +686,13 @@ class PreferencesScreen extends ConsumerWidget {
         subtitle: Text(l.prefsAmoledBlackSub),
         value: p.amoled,
         onChanged: (v) => c.edit((x) => x.copyWith(amoled: v)),
+      ),
+      SwitchListTile(
+        secondary: const Icon(Icons.tv_rounded),
+        title: Text(l.prefsForceTvMode),
+        subtitle: Text(l.prefsForceTvModeSub),
+        value: p.forceTvMode,
+        onChanged: (v) => c.edit((x) => x.copyWith(forceTvMode: v)),
       ),
       ListTile(
         leading: const Icon(Icons.star_border_rounded),
@@ -900,6 +905,30 @@ class PreferencesScreen extends ConsumerWidget {
         value: p.hardwareDecoding,
         onChanged: (v) => c.edit((x) => x.copyWith(hardwareDecoding: v)),
       ),
+      // Android video engine. ExoPlayer (native Media3) tunnels 4K/HDR straight
+      // to the display, smooth on low-power TV sticks; media_kit (libmpv) is the
+      // long-standing engine.
+      if (Platform.isAndroid) ...[
+        ListTile(
+          leading: const Icon(Icons.smart_display_rounded),
+          title: Text(l.prefsPlayerBackend),
+          subtitle: Text(l.prefsPlayerBackendSub),
+        ),
+        for (final (id, label) in [
+          ('auto', l.prefsPlayerBackendAuto),
+          ('exoplayer', l.prefsPlayerBackendExo),
+          ('mediakit', l.prefsPlayerBackendMediaKit),
+        ])
+          ListTile(
+            contentPadding: const EdgeInsets.only(left: 72, right: 24),
+            title: Text(label),
+            trailing: p.playerBackend == id
+                ? Icon(Icons.check_rounded,
+                    color: Theme.of(context).colorScheme.primary)
+                : null,
+            onTap: () => c.edit((x) => x.copyWith(playerBackend: id)),
+          ),
+      ],
       // Desktop-only smoother motion. Hidden on mobile, where playback runs
       // through the platform mediacodec surface rather than this GL path.
       if (!Platform.isAndroid && !Platform.isIOS)
@@ -1048,6 +1077,45 @@ const _subtitleColors = <int>[
   0xFFFF8A65, // orange
 ];
 
+/// The MDBList API key field. Stateful so it owns a controller (needed by the
+/// TV keyboard, which edits the controller rather than firing per-keystroke
+/// onChanged); the listener mirrors the old onChanged on every edit.
+class _MdbListKeyField extends StatefulWidget {
+  const _MdbListKeyField({required this.initial, required this.onChanged});
+  final String initial;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_MdbListKeyField> createState() => _MdbListKeyFieldState();
+}
+
+class _MdbListKeyFieldState extends State<_MdbListKeyField> {
+  late final TextEditingController _c =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void initState() {
+    super.initState();
+    _c.addListener(() => widget.onChanged(_c.text.trim()));
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return TvTextField(
+      controller: _c,
+      label: l.prefsMdbListApiKey,
+      hint: l.prefsMdbListApiKeyHint,
+    );
+  }
+}
+
 class _SubtitleSwatch extends StatelessWidget {
   final Color color;
   final bool selected;
@@ -1057,20 +1125,28 @@ class _SubtitleSwatch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    // Bigger, focusable target on TV (a 28px dot is hard to aim at / see from a
+    // couch); unchanged off TV.
+    final size = isTvDevice ? 40.0 : 28.0;
+    return TvFocusable(
       onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: Container(
-        width: 28,
-        height: 28,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selected
-                ? Theme.of(context).colorScheme.primary
-                : Colors.black26,
-            width: selected ? 3 : 1,
+      scale: 1.15,
+      borderRadius: const BorderRadius.all(Radius.circular(24)),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.black26,
+              width: selected ? 3 : 1,
+            ),
           ),
         ),
       ),
@@ -1087,7 +1163,11 @@ class _Swatch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return TvFocusable(
+      onTap: onTap,
+      scale: 1.15,
+      borderRadius: const BorderRadius.all(Radius.circular(20)),
+      child: GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
@@ -1113,6 +1193,7 @@ class _Swatch extends StatelessWidget {
             ? const Icon(Icons.check, size: 18, color: Colors.white)
             : null,
       ),
+      ),
     );
   }
 }
@@ -1124,23 +1205,28 @@ class _CustomSwatch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return TvFocusable(
       onTap: onTap,
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: SweepGradient(colors: [
-            Color(0xFFFF5252),
-            Color(0xFFFFD600),
-            Color(0xFF00C853),
-            Color(0xFF00B0FF),
-            Color(0xFF7C4DFF),
-            Color(0xFFFF5252),
-          ]),
+      scale: 1.15,
+      borderRadius: const BorderRadius.all(Radius.circular(20)),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: SweepGradient(colors: [
+              Color(0xFFFF5252),
+              Color(0xFFFFD600),
+              Color(0xFF00C853),
+              Color(0xFF00B0FF),
+              Color(0xFF7C4DFF),
+              Color(0xFFFF5252),
+            ]),
+          ),
+          child: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
         ),
-        child: const Icon(Icons.add_rounded, size: 18, color: Colors.white),
       ),
     );
   }

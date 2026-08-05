@@ -19,6 +19,7 @@ import '../state/admin_providers.dart';
 import '../models/media_segment.dart';
 import '../models/session.dart';
 import '../services/diagnostics.dart';
+import '../services/tv_mode.dart';
 import '../widgets/cast_button.dart';
 import '../widgets/cast_remote.dart';
 import '../state/audio_player.dart';
@@ -174,6 +175,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String? _livePlaySessionId;
   List<MediaSegment> _segments = const [];
   MediaSegment? _activeSkip;
+  // TV: the Skip Intro/Credits button lives outside the control scope, so a
+  // remote can't reach it. When a segment appears we move focus to it (so OK
+  // skips), remembering the previously focused control to restore afterward.
+  final FocusNode _skipFocus = FocusNode(debugLabel: 'skipSegment');
+  FocusNode? _preSkipFocus;
   final Set<int> _autoSkipped = {};
 
   // Sibling episodes, for the Previous/Next episode buttons (TV episodes only).
@@ -452,6 +458,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ), _sessionToken);
   }
 
+  /// TV only: a small "Up Next" panel (next episode) shown lower-left with the
+  /// controls. Null for movies, the last episode, or off TV.
+  Widget? _tvInfoPanel() {
+    if (!isTvDevice) return null;
+    if (_epIndex < 0 || _epIndex + 1 >= _episodes.length) return null;
+    final next = _episodes[_epIndex + 1];
+    final l = AppLocalizations.of(context);
+    final sub = _sessionSubtitle(next);
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 360),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.skip_next_rounded, color: Colors.white70, size: 20),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l.playerUpNext.toUpperCase(),
+                    style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        letterSpacing: 0.8,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                if (next.name.isNotEmpty)
+                  Text(next.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600)),
+                if (sub != null)
+                  Text(sub,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 12.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// "Series · S1:E2" for episodes; null for movies.
   String? _sessionSubtitle(BaseItemDto item) {
     if (!widget.item.isEpisode) return null;
@@ -578,6 +638,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           (startPrefs != null && !startPrefs.hardwareDecoding)) {
         try {
           await (_player.platform as dynamic).setProperty('hwdec', 'no');
+        } catch (_) {}
+      } else if (_isMobile) {
+        // Android: libmpv defaults to hwdec=no, so without this every frame is
+        // decoded on the CPU — fine on a phone SoC but it drops frames on a
+        // low-power TV stick (Chromecast/Google TV). Select the MediaCodec
+        // decoder in copy-back mode: the hardware VPU does the decode and frames
+        // are copied into media_kit's GL texture (bare `mediacodec` renders to a
+        // Surface media_kit doesn't use, so it would play black).
+        try {
+          await (_player.platform as dynamic)
+              .setProperty('hwdec', 'mediacodec-copy');
         } catch (_) {}
       }
       // Give mpv a generous network cache and read-ahead. media_kit leaves these
@@ -944,7 +1015,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     }
     if (active?.startTicks != _activeSkip?.startTicks && mounted) {
+      final wasNull = _activeSkip == null;
       setState(() => _activeSkip = active);
+      if (isTvDevice) {
+        if (active != null && wasNull) {
+          // Remember where the remote was, then land it on the Skip button.
+          _preSkipFocus = FocusManager.instance.primaryFocus;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _activeSkip != null) _skipFocus.requestFocus();
+          });
+        } else if (active == null && !wasNull) {
+          _preSkipFocus?.requestFocus();
+        }
+      }
     }
   }
 
@@ -1212,6 +1295,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // (which replaces this screen) doesn't clear the incoming screen's session.
     _mediaSession?.end(_sessionToken);
     _statsOpen.dispose();
+    _skipFocus.dispose();
     // The verbose logger belongs to this screen; drop it on either exit path
     // (a handed-off dock player keeps playing but stops feeding diagnostics).
     _logSub?.cancel();
@@ -1458,10 +1542,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           headers: ref.read(imageHeadersProvider),
                           showThumbnailPreview:
                               prefs?.previewThumbnailsWhileSeeking ?? true,
-                          infoPanel: null,
+                          infoPanel: _tvInfoPanel(),
                           liveBottomInfo: liveBottomInfo,
                           overlayBadge: liveRecBadge,
-                          onMinimize: _minimize,
+                          // No picture-in-picture on TV: the mini-player is a
+                          // phone/desktop paradigm and isn't reachable on a TV, so
+                          // the button is dropped there (kept elsewhere).
+                          onMinimize: isTvDevice ? null : _minimize,
                           onPrevious: _epIndex > 0
                               ? () => _playEpisodeAt(_epIndex - 1)
                               : null,
@@ -1499,6 +1586,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 key: ValueKey(_activeSkip!.isCredits
                                     ? 'credits'
                                     : 'intro'),
+                                focusNode: _skipFocus,
                                 onPressed: () {
                                   final s = _activeSkip!;
                                   // Mark it skipped so an in-flight position
@@ -1508,6 +1596,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   _suppressGroup();
                                   _player.seek(s.end);
                                   setState(() => _activeSkip = null);
+                                  // Hand the remote back to the controls.
+                                  if (isTvDevice) _preSkipFocus?.requestFocus();
                                 },
                                 icon: const Icon(Icons.skip_next_rounded),
                                 label: Text(_activeSkip!.isCredits
@@ -1602,8 +1692,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       a('playPause'): _player.playOrPause,
       // Match the on-screen skip buttons (10 back / 30 forward), so the same
       // action isn't 10s by key and 30s by click.
-      a('seekBackward'): () => _seekBy(-_kSeekBack),
-      a('seekForward'): () => _seekBy(_kSeekForward),
+      // On TV the D-pad IS the arrow keys, and the player-controls key handler
+      // owns them (LEFT/RIGHT scrub on the seek bar, step between buttons
+      // elsewhere). Binding them here too would fire whenever focus sits on a
+      // bar button, scrubbing instead of moving to the next control, so skip
+      // the arrow-seek shortcuts on TV and let the handler drive.
+      if (!isTvDevice) a('seekBackward'): () => _seekBy(-_kSeekBack),
+      if (!isTvDevice) a('seekForward'): () => _seekBy(_kSeekForward),
       a('volumeUp'): () => _bumpVolume(5),
       a('volumeDown'): () => _bumpVolume(-5),
       a('mute'): _toggleMute,
@@ -1673,6 +1768,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     for (final o in _qualityOptions)
                       ListTile(
                         dense: true,
+                        autofocus: isTvDevice && o.$1 == _qualityBitrate,
                         // Trailing checkmark, matching the subtitle/audio/speed
                         // sheets, instead of leading radio buttons.
                         title: Text(o.$2 == 'Auto' ? l.playerAuto : o.$2,
@@ -1737,6 +1833,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _showChapters() async {
     if (!mounted) return;
     final l = AppLocalizations.of(context);
+    // TV: pre-focus the chapter the playhead is currently in.
+    final pos = _player.state.position;
+    var currentChapter = 0;
+    for (var j = 0; j < widget.item.chapters.length; j++) {
+      if (widget.item.chapters[j].start <= pos) {
+        currentChapter = j;
+      } else {
+        break;
+      }
+    }
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -1759,6 +1865,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 children: [
                   for (var i = 0; i < widget.item.chapters.length; i++)
                     ListTile(
+                      autofocus: isTvDevice && i == currentChapter,
                       title: Text(
                           widget.item.chapters[i].name?.isNotEmpty == true
                               ? widget.item.chapters[i].name!
@@ -1815,6 +1922,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 children: [
                   for (final o in options)
                     ListTile(
+                      // TV: land the remote on the current selection so the first
+                      // press moves or confirms rather than just taking focus.
+                      autofocus: isTvDevice && isSelected(o),
                       title: Text(label(o)),
                       trailing:
                           isSelected(o) ? const Icon(Icons.check_rounded) : null,

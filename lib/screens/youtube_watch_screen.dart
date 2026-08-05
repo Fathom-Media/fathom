@@ -10,10 +10,13 @@ import 'package:go_router/go_router.dart';
 import '../models/youtube_channel.dart';
 import '../models/youtube_comment.dart';
 import '../models/youtube_watch.dart';
+import '../services/tv_mode.dart';
 import '../state/preferences.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/error_view.dart';
 import '../widgets/subscribe_button.dart';
+import '../widgets/tv_focus.dart';
+import '../widgets/youtube_exo_player.dart';
 import '../widgets/youtube_cards.dart';
 import '../models/youtube_video.dart';
 import '../widgets/add_to_youtube_playlist.dart';
@@ -53,6 +56,11 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
   late final YoutubeHistory _history =
       ref.read(youtubeHistoryProvider.notifier);
   YoutubeWatchDetails? _lastDetails;
+
+  /// The player's latest reported position (sub-second, in-memory), so the
+  /// "Listen" hand-off to background audio resumes exactly where the video is —
+  /// fresher than watch history, which is whole-second and persisted async.
+  Duration _livePos = Duration.zero;
 
   /// Lets description timestamps seek the player.
   final _playerHandle = YoutubePlayerHandle();
@@ -152,18 +160,26 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
       title: details.asData?.value.title ?? _title,
       channel: details.asData?.value.channelName,
       artUrl: 'https://i.ytimg.com/vi/$_videoId/hqdefault.jpg',
-      embedded: true,
+      // On a TV the video is fullscreen and immersive (like the Jellyfin
+      // player), so it runs NON-embedded: it owns the top bar/back button and
+      // grabs focus for the D-pad. On desktop/mobile it stays embedded in the
+      // watch page.
+      embedded: !isTvDevice,
       chapters: details.asData?.value.chapters ?? const [],
       handle: _playerHandle,
       seekBackSeconds: prefs?.youtubeSeekBackSeconds ?? 10,
       seekForwardSeconds: prefs?.youtubeSeekForwardSeconds ?? 30,
       resumeAt: _resumeAt,
-      onToggleTheater: () => setState(() => _theater = !_theater),
+      // Theater mode is a windowed-desktop concept; on a TV the video is
+      // already fullscreen.
+      onToggleTheater:
+          isTvDevice ? null : () => setState(() => _theater = !_theater),
       theaterActive: _theater,
       // No ref in here: this fires from a timer and from the player's
       // dispose(), and touching ref once the widget is gone throws, which
       // aborts teardown and leaves the player running.
       onProgress: (position, duration) {
+        _livePos = position;
         final d = _lastDetails;
         _history.record(
             videoId: _videoId,
@@ -188,6 +204,55 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
             }
           : null,
     );
+
+    // On a TV, play through the native ExoPlayer backend: YouTube's >720p adaptive
+    // streams (video-only + audio-only, merged natively) render smoothly on the
+    // SurfaceView, where media_kit's texture/copy-back path jitters. Fullscreen,
+    // no page app bar. Desktop/mobile keep the embedded media_kit `player` below.
+    if (isTvDevice) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: SizedBox.expand(
+          child: YoutubeExoPlayer(
+            key: ValueKey('exo-$_videoId'),
+            url: _url,
+            title: details.asData?.value.title ?? _title ?? '',
+            chapters: details.asData?.value.chapters ?? const [],
+            queue: queue,
+            related: details.asData?.value.related ?? const [],
+            onPlayVideo: (v) => _open(v.id, v.title),
+            seekBackSeconds: prefs?.youtubeSeekBackSeconds ?? 10,
+            seekForwardSeconds: prefs?.youtubeSeekForwardSeconds ?? 30,
+            resumeAt: _resumeAt,
+            onBack: () => Navigator.of(context).maybePop(),
+            onProgress: (position, duration) {
+              final d = _lastDetails;
+              _history.record(
+                videoId: _videoId,
+                title: d?.title ?? _title ?? '',
+                author: d?.channelName ?? '',
+                channelId: d?.channelId,
+                position: position,
+                duration: duration,
+                now: DateTime.now(),
+              );
+            },
+            onEnded: () {
+              if (!mounted) return;
+              final d = _lastDetails;
+              if (d != null) _playNext(d);
+            },
+            onNext: hasNext
+                ? () {
+                    if (!mounted) return;
+                    final d = _lastDetails;
+                    if (d != null) _playNext(d);
+                  }
+                : null,
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       // No title here: it sits under the player, so repeating it just wastes
@@ -220,6 +285,7 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
           onToggleDesc: () => setState(() => _descExpanded = !_descExpanded),
           onOpen: _open,
           onSeek: _playerHandle.seek,
+          currentPosition: () => _livePos,
           queue: queue,
           onPlayQueueItem: _playQueueItem,
           showComments: prefs?.youtubeShowComments ?? true,
@@ -247,6 +313,9 @@ class _Body extends StatelessWidget {
   final void Function(String videoId, String? title) onOpen;
   final void Function(Duration)? onSeek;
 
+  /// The player's current position, for the "Listen" background hand-off.
+  final Duration Function()? currentPosition;
+
   /// The current play queue (a playlist you started). When non-empty it drives
   /// the Up Next rail instead of related videos, and [onPlayQueueItem] jumps to
   /// one of them.
@@ -266,6 +335,7 @@ class _Body extends StatelessWidget {
     required this.onToggleDesc,
     required this.onOpen,
     this.onSeek,
+    this.currentPosition,
     this.queue = const [],
     this.onPlayQueueItem,
     this.showComments = true,
@@ -341,6 +411,7 @@ class _Body extends StatelessWidget {
                   LayoutBuilder(builder: (context, c) {
                     final actions = YoutubeVideoActionBar(
                       video: _asVideo(d),
+                      currentPosition: currentPosition,
                       leading: AddToPlaylistButton(video: _asVideo(d)),
                       onShowQueue: () => showModalBottomSheet<void>(
                         context: context,
@@ -602,49 +673,64 @@ class _ChannelRow extends StatelessWidget {
         details.channelName.isNotEmpty ? details.channelName : l.ytChannelFallback;
     final avatar = details.channelAvatarUrl;
 
+    final openChannel = channelId == null
+        ? null
+        : () => context.push('/youtube/channel',
+            extra: (channelId: channelId, title: name));
+
+    Widget tappable = GestureDetector(
+      onTap: openChannel,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: scheme.surfaceContainerHigh,
+            foregroundImage:
+                (avatar == null) ? null : cachedImageProvider(avatar),
+            child: const Icon(Icons.person_rounded, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+                if (details.subscribersLabel.isNotEmpty)
+                  Text(details.subscribersLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    // On TV a bare GestureDetector isn't a D-pad stop; make it focusable and
+    // ringed so the remote can open the channel. Only when there's a channel to
+    // open (otherwise the row has no tap).
+    if (isTvDevice && openChannel != null) {
+      tappable = TvFocusable(
+        onTap: openChannel,
+        borderRadius: BorderRadius.circular(12),
+        scale: 1.03,
+        child: tappable,
+      );
+    }
+
     // A long channel name ellipsizes rather than pushing Subscribe off the edge.
     final channel = Flexible(
       child: MouseRegion(
         cursor:
             channelId == null ? MouseCursor.defer : SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: channelId == null
-              ? null
-              : () => context.push('/youtube/channel',
-                  extra: (channelId: channelId, title: name)),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: scheme.surfaceContainerHigh,
-                foregroundImage:
-                    (avatar == null) ? null : cachedImageProvider(avatar),
-                child: const Icon(Icons.person_rounded, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    if (details.subscribersLabel.isNotEmpty)
-                      Text(details.subscribersLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: scheme.onSurfaceVariant)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        child: tappable,
       ),
     );
 
@@ -969,28 +1055,31 @@ class _CommentRowState extends ConsumerState<_CommentRow> {
                     if (!isReply && c.replyCount > 0) ...[
                       if (c.likeLabel.isNotEmpty) const SizedBox(width: 8),
                       if (canExpand)
-                        InkWell(
-                          onTap: () => setState(() => _expanded = !_expanded),
+                        TvFocusRing(
                           borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 3),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                    _expanded
-                                        ? Icons.keyboard_arrow_up_rounded
-                                        : Icons.keyboard_arrow_down_rounded,
-                                    size: 18,
-                                    color: scheme.primary),
-                                const SizedBox(width: 2),
-                                Text(
-                                    l.ytReplies(c.replyCount),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                        color: scheme.primary,
-                                        fontWeight: FontWeight.w600)),
-                              ],
+                          child: InkWell(
+                            onTap: () =>
+                                setState(() => _expanded = !_expanded),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 3),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                      _expanded
+                                          ? Icons.keyboard_arrow_up_rounded
+                                          : Icons.keyboard_arrow_down_rounded,
+                                      size: 18,
+                                      color: scheme.primary),
+                                  const SizedBox(width: 2),
+                                  Text(l.ytReplies(c.replyCount),
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                          color: scheme.primary,
+                                          fontWeight: FontWeight.w600)),
+                                ],
+                              ),
                             ),
                           ),
                         )

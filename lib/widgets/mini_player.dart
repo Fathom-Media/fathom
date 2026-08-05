@@ -6,6 +6,7 @@ import 'package:media_kit/media_kit.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/radio_station.dart';
+import '../services/tv_mode.dart';
 import '../state/audio_player.dart';
 import 'control_button.dart';
 import 'glass.dart';
@@ -18,6 +19,11 @@ class MiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // On TV the docked bar sits outside the D-pad content scope, so it can never
+    // take focus — a dead strip. The reachable path back to playback is the
+    // "Now Playing" rail entry (see NavSidebar), so hide the bar here.
+    if (isTvDevice) return const SizedBox.shrink();
+
     final audio = ref.watch(audioControllerProvider);
     final controller = ref.read(audioControllerProvider.notifier);
     final player = ref.watch(audioPlayerProvider);
@@ -34,8 +40,24 @@ class MiniPlayer extends ConsumerWidget {
           controller: controller);
     }
 
+    // Background YouTube audio reuses the music bar (seekable, skippable) with
+    // the video's title/channel/thumbnail instead of a library track.
+    final yt = audio.isYoutubeAudio ? audio.ytCurrent : null;
     final track = audio.current;
-    if (track == null) return const SizedBox.shrink();
+    if (yt == null && track == null) return const SizedBox.shrink();
+
+    final title = yt?.title ?? track!.name;
+    final String? subtitle = yt?.author ?? track?.artistLine;
+    final Widget art = yt != null
+        ? Image.network(
+            yt.thumbnailUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => ColoredBox(
+              color: scheme.surfaceContainerHighest,
+              child: Icon(Icons.headset_rounded, color: scheme.onSurfaceVariant),
+            ),
+          )
+        : MediaImage(item: track!, placeholderIcon: Icons.music_note_rounded);
 
     return GlassSurface(
       blur: 26,
@@ -69,9 +91,7 @@ class MiniPlayer extends ConsumerWidget {
                           child: SizedBox(
                             width: 48,
                             height: 48,
-                            child: MediaImage(
-                                item: track,
-                                placeholderIcon: Icons.music_note_rounded),
+                            child: art,
                           ),
                         ),
                       ),
@@ -81,13 +101,13 @@ class MiniPlayer extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(track.name,
+                            Text(title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w600)),
-                            if (track.artistLine != null)
-                              Text(track.artistLine!,
+                            if (subtitle != null)
+                              Text(subtitle,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context)
@@ -101,7 +121,7 @@ class MiniPlayer extends ConsumerWidget {
                   ),
                 ),
               ),
-              InlineVolume(player: player, expandLeft: true),
+              if (!isTvDevice) InlineVolume(player: player, expandLeft: true),
               IconButton(
                 icon: const Icon(Icons.skip_previous_rounded),
                 onPressed: controller.previous,
@@ -222,7 +242,7 @@ class _RadioMiniBar extends StatelessWidget {
                     ),
                   ),
                 ),
-                InlineVolume(player: player, expandLeft: true),
+                if (!isTvDevice) InlineVolume(player: player, expandLeft: true),
                 StreamBuilder<bool>(
                   stream: player.stream.playing,
                   initialData: player.state.playing,

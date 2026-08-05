@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:screen_brightness/screen_brightness.dart';
@@ -8,118 +9,11 @@ import 'package:screen_brightness/screen_brightness.dart';
 import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
+import 'animated_control.dart';
 import 'glass.dart';
 import 'playback_stats.dart';
-
-class _TrickplayThumb extends StatelessWidget {
-  final JellyfinClient client;
-  final String baseUrl;
-  final String itemId;
-  final TrickplayInfo info;
-  final int resolutionWidth;
-  final Map<String, String> headers;
-  final int positionMs;
-  final double thumbWidth;
-  final double thumbHeight;
-  final String label;
-
-  const _TrickplayThumb({
-    required this.client,
-    required this.baseUrl,
-    required this.itemId,
-    required this.info,
-    required this.resolutionWidth,
-    required this.headers,
-    required this.positionMs,
-    required this.thumbWidth,
-    required this.thumbHeight,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final maxN = info.thumbnailCount > 0 ? info.thumbnailCount - 1 : 0;
-    final n = (positionMs ~/ (info.interval > 0 ? info.interval : 10000))
-        .clamp(0, maxN);
-    final perTile = info.perTile > 0 ? info.perTile : 1;
-    final tileIndex = n ~/ perTile;
-    final within = n % perTile;
-    final row = within ~/ info.tileWidth;
-    final col = within % info.tileWidth;
-
-    final dispH = thumbHeight;
-    final dispW = thumbWidth;
-    final url = client.trickplayTileUrl(
-      baseUrl: baseUrl,
-      itemId: itemId,
-      width: resolutionWidth,
-      tileIndex: tileIndex,
-    );
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: const [
-              BoxShadow(color: Colors.black54, blurRadius: 10, offset: Offset(0, 4)),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: SizedBox(
-            width: dispW,
-            height: dispH,
-            child: OverflowBox(
-              alignment: Alignment.topLeft,
-              minWidth: 0,
-              maxWidth: double.infinity,
-              minHeight: 0,
-              maxHeight: double.infinity,
-              child: Transform.translate(
-                offset: Offset(-col * dispW, -row * dispH),
-                child: Image.network(
-                  url,
-                  width: dispW * info.tileWidth,
-                  height: dispH * info.tileHeight,
-                  fit: BoxFit.fill,
-                  headers: headers,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, _, _) =>
-                      const SizedBox.shrink(),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: Colors.black87,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(label,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600)),
-        ),
-      ],
-    );
-  }
-}
-
-String _fmtTime(Duration d) {
-  final neg = d.isNegative;
-  d = d.abs();
-  final h = d.inHours;
-  final mm = (d.inMinutes % 60).toString().padLeft(2, '0');
-  final ss = (d.inSeconds % 60).toString().padLeft(2, '0');
-  final s = h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
-  return neg ? '-$s' : s;
-}
+import 'trickplay_thumb.dart';
 
 /// Fathom's own auto-hiding player chrome: a cinematic top bar, a centered
 /// transport with 10s-back / 30s-forward skips, and a bottom bar with a custom
@@ -316,6 +210,28 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
   StreamSubscription<bool>? _playSub;
   StreamSubscription<double>? _volSub;
 
+  // The seek bar's D-pad focus (TV only). The remote lands here on wake; LEFT/
+  // RIGHT scrub while it holds focus, and UP/DOWN move focus off it to the
+  // button row (Flutter's directional traversal), so every bar control is
+  // reachable — the same idea as the Jellyfin/Exo TV player.
+  final FocusNode _seekFocus = FocusNode(debugLabel: 'tvSeekBar');
+
+  // The play/pause button's focus, the anchor for the seek-bar <-> button-row
+  // jump: geometric UP/DOWN traversal across the full-width seek bar is
+  // unreliable (Flutter mis-scores it), so those jumps are done deterministically
+  // by focusing this node / the seek node. LEFT/RIGHT between buttons still use
+  // Flutter's (reliable) horizontal traversal within the button row.
+  final FocusNode _playFocus = FocusNode(debugLabel: 'tvPlayBtn');
+
+  // The root D-pad key handler's focus (TV only). The chrome's focusable buttons
+  // are only in the tree while it's visible, so when it auto-hides the focused
+  // seek/play node is removed and focus escapes to the route root — after which
+  // no D-pad press reaches _onTvKey and the chrome can never be summoned back.
+  // Giving the handler its own node lets us reclaim focus the moment the chrome
+  // hides, so the very next remote press always wakes it (matters most for live
+  // TV, which has nothing else on screen to hold focus).
+  final FocusNode _tvRootFocus = FocusNode(debugLabel: 'tvPlayerRoot');
+
   // A translucent play/pause silhouette flashed in the centre when the picture
   // is clicked to toggle playback (the only feedback the video itself needs).
   late final AnimationController _flashCtrl = AnimationController(
@@ -380,6 +296,9 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
     _flashCtrl.dispose();
     _playSub?.cancel();
     _volSub?.cancel();
+    _seekFocus.dispose();
+    _playFocus.dispose();
+    _tvRootFocus.dispose();
     // Hand brightness back to the system so a manual level doesn't stick after
     // leaving the player.
     if (_brightnessChanged) {
@@ -455,8 +374,19 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
     if (!widget.autoHide) return;
     // Only while playing: a paused video keeps its controls up, because
     // "paused" is exactly when you want the transport in reach.
-    _hideTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && _playing) setState(() => _visible = false);
+    //
+    // TV gets a longer window: a remote is deliberate and slow, and a viewer
+    // often pauses to read a control before pressing again. At 3s the chrome
+    // hid mid-navigation and the next press only re-summoned it (landing back on
+    // the seek bar), which read as "I can't move across to the other buttons".
+    final hideAfter = Duration(seconds: isTvDevice ? 6 : 3);
+    _hideTimer = Timer(hideAfter, () {
+      if (mounted && _playing) {
+        setState(() => _visible = false);
+        // The focused bar button is about to leave the tree; pull focus back to
+        // the root key handler so the next remote press still wakes the chrome.
+        if (isTvDevice) _tvRootFocus.requestFocus();
+      }
     });
   }
 
@@ -474,10 +404,125 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
     _show();
   }
 
+  /// D-pad control on a TV remote. The remote has no mouse to reveal the chrome
+  /// and no way to press the on-screen buttons directly, so handle the transport
+  /// here: any key reveals the controls; SELECT plays/pauses; LEFT/RIGHT seek;
+  /// UP/DOWN change volume; BACK hides the controls (and only exits once they're
+  /// already hidden). Menu buttons (subtitles/audio/quality) remain reachable by
+  /// focus traversal when the chrome is up.
+  // Whether the D-pad is currently on the seek bar (vs. a bar button). Used to
+  // decide if LEFT/RIGHT scrub or step buttons, and if SELECT plays/pauses or
+  // activates the focused control.
+  bool get _seekHasFocus => _seekFocus.hasFocus;
+
+  // Bounds D-pad LEFT/RIGHT (next/previousFocus) to the button row on TV so it
+  // can't wander up to the full-width seek bar. Pass-through off TV.
+  Widget _tvButtonGroup(Widget child) =>
+      isTvDevice ? FocusTraversalGroup(child: child) : child;
+
+  KeyEventResult _onTvKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final k = event.logicalKey;
+    // BACK / Escape: first press hides the chrome; only exit when already hidden.
+    if (k == LogicalKeyboardKey.goBack || k == LogicalKeyboardKey.escape) {
+      if (_visible) {
+        setState(() => _visible = false);
+        _hideTimer?.cancel();
+        // Keep the key handler focused so BACK-to-hide doesn't strand the remote.
+        _tvRootFocus.requestFocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored; // let the route pop / exit
+    }
+    // Media play/pause always toggles, wherever focus is.
+    if (k == LogicalKeyboardKey.mediaPlayPause) {
+      _show();
+      _toggle();
+      return KeyEventResult.handled;
+    }
+    final wasHidden = !_visible;
+    _show();
+    // A press that only wakes the chrome shouldn't also act; land the remote on
+    // the seek bar so it has an obvious spot.
+    if (wasHidden) {
+      _seekFocus.requestFocus();
+      return KeyEventResult.handled;
+    }
+    final onSeek = _seekHasFocus;
+    // SELECT: on the seek bar it plays/pauses; on a focused button it activates
+    // that button; on nothing it plays/pauses.
+    if (k == LogicalKeyboardKey.select ||
+        k == LogicalKeyboardKey.enter ||
+        k == LogicalKeyboardKey.gameButtonA) {
+      final pf = FocusManager.instance.primaryFocus;
+      if (!onSeek && pf != null && pf != node && pf.context != null) {
+        Actions.maybeInvoke(pf.context!, const ActivateIntent());
+      } else {
+        _toggle();
+      }
+      return KeyEventResult.handled;
+    }
+    final pf = FocusManager.instance.primaryFocus;
+    final onButton = !onSeek && pf != null && pf != node;
+    // UP/DOWN jump between the seek bar and the button row DETERMINISTICALLY:
+    // geometric traversal across the full-width seek bar is unreliable, so anchor
+    // the jump on the play button / the seek node instead.
+    if (k == LogicalKeyboardKey.arrowUp) {
+      if (onButton) _seekFocus.requestFocus();
+      return KeyEventResult.handled; // on the seek bar there's nothing above
+    }
+    if (k == LogicalKeyboardKey.arrowDown) {
+      if (onSeek || pf == node) _playFocus.requestFocus();
+      return KeyEventResult.handled; // on a button there's nothing below
+    }
+    // LEFT/RIGHT: scrub on the seek bar; otherwise step between the bar buttons.
+    if (onSeek) {
+      if (k == LogicalKeyboardKey.arrowLeft) {
+        _seekZone(-widget.seekBackSeconds);
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.arrowRight) {
+        _seekZone(widget.seekForwardSeconds);
+        return KeyEventResult.handled;
+      }
+    }
+    // Focus still on the bare container: seed the play button so a step lands
+    // somewhere visible.
+    if (pf == node &&
+        (k == LogicalKeyboardKey.arrowLeft ||
+            k == LogicalKeyboardKey.arrowRight)) {
+      _playFocus.requestFocus();
+      return KeyEventResult.handled;
+    }
+    // On a bar button: step to the neighbouring control ourselves and CONSUME
+    // the key. The player screen binds LEFT/RIGHT to seek as a global shortcut;
+    // if we returned `ignored` here that shortcut would fire and scrub instead
+    // of moving to the next button, which is exactly why the remote could only
+    // ever seek and never reach CC / audio / settings.
+    //
+    // The button row is its own FocusTraversalGroup (see _chrome), so order-based
+    // next/previousFocus walks it left-to-right and, crucially, stays WITHIN the
+    // buttons — it won't wander up to the full-width seek bar. Geometric traversal
+    // can't be used here: the live-TV bar has a wide Spacer between Play and CC,
+    // and the directional beam either can't bridge the gap or grabs the seek bar
+    // (which sits above and spans the whole width) instead of the next button.
+    if (onButton && k == LogicalKeyboardKey.arrowLeft) {
+      pf.previousFocus();
+      return KeyEventResult.handled;
+    }
+    if (onButton && k == LogicalKeyboardKey.arrowRight) {
+      pf.nextFocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    return MouseRegion(
+    final Widget content = MouseRegion(
       // Only blank the pointer once the chrome has actually hidden itself.
       cursor: (_visible || !widget.autoHide)
           ? MouseCursor.defer
@@ -610,6 +655,18 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
         ],
       ),
     );
+    if (!isTvDevice) return content;
+    // On a TV the remote drives everything through this key handler; autofocus so
+    // the first press is caught even before any button takes focus. The traversal
+    // group lets the arrow keys walk the (already focusable) bar buttons.
+    return FocusTraversalGroup(
+      child: Focus(
+        focusNode: _tvRootFocus,
+        autofocus: true,
+        onKeyEvent: _onTvKey,
+        child: content,
+      ),
+    );
   }
 
   Widget _chrome(BuildContext context) {
@@ -629,7 +686,9 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
           Positioned(
               top: 14, right: 16, child: IgnorePointer(child: widget.overlayBadge!)),
         // Top scrim + title bar.
-        if (widget.showTopBar)
+        // No top bar on TV: the Jellyfin/Exo TV player has none (title moves into
+        // the bottom chrome, back is the remote's BACK key). Desktop/mobile keep it.
+        if (widget.showTopBar && !isTvDevice)
         Positioned(
           top: 0,
           left: 0,
@@ -649,7 +708,7 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                 padding: const EdgeInsets.fromLTRB(6, 6, 12, 0),
                 child: Row(
                   children: [
-                    _AnimatedIconButton(
+                    AnimatedIconButton(
                       icon: Icons.arrow_back_rounded,
                       tooltip: l.commonBack,
                       onTap: widget.onBack,
@@ -729,6 +788,9 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
           bottom: 0,
           child: _BottomChrome(
             isLive: widget.isLive,
+            // TV uses the app's frosted-glass bar (same as everywhere else), not a
+            // scrim — the media_kit video is a Flutter texture, so the blur is a
+            // real frost of the picture.
             style: widget.barStyle,
             child: SafeArea(
               top: false,
@@ -736,6 +798,21 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // On TV the title lives in the bottom chrome above the seek bar
+                  // (matching the Exo player), since there's no top bar. Live TV
+                  // already shows its own info block below, so skip it there.
+                  if (isTvDevice && widget.liveBottomInfo == null) ...[
+                    Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   // Live TV: the program info block (title, air window,
                   // description) sits above the transport in the frosted bar.
                   if (widget.liveBottomInfo != null) ...[
@@ -749,21 +826,25 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                       _PositionText(player: _p, remaining: false),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _FathomSeekBar(
-                          player: _p,
+                        child: _TvSeekFocus(
+                          node: _seekFocus,
                           accent: accent,
-                          onInteract: _show,
-                          trickplay: widget.isLive ? null : widget.trickplay,
-                          trickplayWidth:
-                              widget.isLive ? null : widget.trickplayWidth,
-                          markers: widget.isLive ? const [] : widget.markers,
-                          baseUrl: widget.baseUrl,
-                          itemId: widget.trickItemId ?? '',
-                          client: widget.client,
-                          headers: widget.headers,
-                          showThumbnailPreview: widget.isLive
-                              ? false
-                              : widget.showThumbnailPreview,
+                          child: _FathomSeekBar(
+                            player: _p,
+                            accent: accent,
+                            onInteract: _show,
+                            trickplay: widget.isLive ? null : widget.trickplay,
+                            trickplayWidth:
+                                widget.isLive ? null : widget.trickplayWidth,
+                            markers: widget.isLive ? const [] : widget.markers,
+                            baseUrl: widget.baseUrl,
+                            itemId: widget.trickItemId ?? '',
+                            client: widget.client,
+                            headers: widget.headers,
+                            showThumbnailPreview: widget.isLive
+                                ? false
+                                : widget.showThumbnailPreview,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -784,7 +865,12 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                   // narrow window the Row overflowed and painted the striped
                   // overflow warning. Shed the slider first, then fold the
                   // optional controls into a menu, so it fits at any width.
-                  LayoutBuilder(builder: (context, c) {
+                  //
+                  // On TV the button row is its own traversal group so the D-pad
+                  // LEFT/RIGHT (next/previousFocus) steps through the buttons and
+                  // stops at the ends instead of jumping up to the full-width seek
+                  // bar. A no-op wrapper off TV.
+                  _tvButtonGroup(LayoutBuilder(builder: (context, c) {
                     final w = c.maxWidth;
                     final compactVolume = w < 560;
                     final folded = w < 460;
@@ -853,13 +939,14 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                                 _p.playOrPause();
                                 _show();
                               }),
-                          _VolumeControl(
-                            player: _p,
-                            accent: accent,
-                            onToggleMute: widget.onToggleMute,
-                            onInteract: _show,
-                            compact: true,
-                          ),
+                          if (!isTvDevice)
+                            _VolumeControl(
+                              player: _p,
+                              accent: accent,
+                              onToggleMute: widget.onToggleMute,
+                              onInteract: _show,
+                              compact: true,
+                            ),
                           const Spacer(),
                           if (widget.onPrevious != null)
                             _BarButton(
@@ -915,7 +1002,7 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                             _MinimizeButton(
                                 onMinimize: widget.onMinimize!,
                                 onInteract: _show),
-                          if (widget.showFullscreen)
+                          if (widget.showFullscreen && !isTvDevice)
                             _FullscreenButton(onInteract: _show),
                         ],
                       );
@@ -928,6 +1015,7 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                         ?widget.recordButton,
                         _BarPlayPause(
                             player: _p,
+                            focusNode: isTvDevice ? _playFocus : null,
                             onTap: () {
                               _p.playOrPause();
                               _show();
@@ -952,13 +1040,17 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                             },
                           ),
                         ],
-                        _VolumeControl(
-                          player: _p,
-                          accent: accent,
-                          onToggleMute: widget.onToggleMute,
-                          onInteract: _show,
-                          compact: compactVolume,
-                        ),
+                        // No volume on TV: the remote owns volume, matching the
+                        // Jellyfin/Exo player. (UP/DOWN on the seek bar no longer
+                        // touch volume either.)
+                        if (!isTvDevice)
+                          _VolumeControl(
+                            player: _p,
+                            accent: accent,
+                            onToggleMute: widget.onToggleMute,
+                            onInteract: _show,
+                            compact: compactVolume,
+                          ),
                         const Spacer(),
                         // Right cluster: Previous/Next lead it, then the
                         // track/nav pickers and view controls.
@@ -1016,11 +1108,11 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                           _MinimizeButton(
                               onMinimize: widget.onMinimize!,
                               onInteract: _show),
-                        if (widget.showFullscreen)
+                        if (widget.showFullscreen && !isTvDevice)
                           _FullscreenButton(onInteract: _show),
                       ],
                     );
-                  }),
+                  })),
                 ],
               ),
             ),
@@ -1052,7 +1144,10 @@ class _BottomChrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final padded = Padding(
-      padding: EdgeInsets.fromLTRB(18, style == 'none' ? 30 : 14, 18, 8),
+      // TV matches the Exo player's roomier bar insets; desktop/mobile unchanged.
+      padding: isTvDevice
+          ? const EdgeInsets.fromLTRB(28, 40, 28, 20)
+          : EdgeInsets.fromLTRB(18, style == 'none' ? 30 : 14, 18, 8),
       child: child,
     );
 
@@ -1234,7 +1329,7 @@ class _CircleTransportState extends State<_CircleTransport>
   Widget build(BuildContext context) {
     final turns = Tween<double>(begin: 0, end: widget.spinForward ? 1 : -1)
         .animate(CurvedAnimation(parent: _spin, curve: Curves.easeOutCubic));
-    return _AnimatedControl(
+    return AnimatedControl(
       onTap: () {
         _spin.forward(from: 0);
         widget.onTap();
@@ -1243,7 +1338,7 @@ class _CircleTransportState extends State<_CircleTransport>
       // a hover halo appears, like them).
       child: RotationTransition(
         turns: turns,
-        // Inherits the hover accent tint from _AnimatedControl.
+        // Inherits the hover accent tint from AnimatedControl.
         child: Icon(widget.icon, size: widget.size),
       ),
     );
@@ -1265,7 +1360,7 @@ class _PositionText extends StatelessWidget {
         final dur = player.state.duration;
         final value = remaining ? pos - dur : pos;
         return Text(
-          dur <= Duration.zero && remaining ? '--:--' : _fmtTime(value),
+          dur <= Duration.zero && remaining ? '--:--' : fmtTime(value),
           style: const TextStyle(
               color: Colors.white,
               fontSize: 13,
@@ -1280,115 +1375,21 @@ class _PositionText extends StatelessWidget {
 /// The shared player-control button: grows on hover (no circular highlight or
 /// halo), and springs inward on press. Every transport and bar control uses it
 /// so hover and click feel alive rather than static.
-class _AnimatedControl extends StatefulWidget {
-  final Widget child;
-  final String? tooltip;
-  final VoidCallback onTap;
-  const _AnimatedControl({
-    required this.child,
-    required this.onTap,
-    this.tooltip,
-  });
-
-  @override
-  State<_AnimatedControl> createState() => _AnimatedControlState();
-}
-
-class _AnimatedControlState extends State<_AnimatedControl> {
-  bool _hover = false;
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    // Press wins over hover, so a click reads as a deliberate inward press even
-    // while the pointer is over the button.
-    final scale = _pressed ? 0.88 : (_hover ? 1.16 : 1.0);
-
-    Widget child = AnimatedScale(
-      scale: scale,
-      // easeOutBack overshoots slightly, so the button springs rather than
-      // glides; a shorter press duration makes the click feel snappy.
-      duration: Duration(milliseconds: _pressed ? 90 : 240),
-      curve: _pressed ? Curves.easeOut : Curves.easeOutBack,
-      // Padding keeps the tap target comfortably larger than the glyph.
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        // Icons that don't set their own colour inherit this, so a plain white
-        // control warms to the accent on hover; genuine state colours (theater
-        // active, live) set an explicit colour and are left untouched.
-        child: TweenAnimationBuilder<Color?>(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          tween: ColorTween(
-              begin: Colors.white, end: _hover ? accent : Colors.white),
-          builder: (context, color, ch) => IconTheme.merge(
-            data: IconThemeData(color: color),
-            child: ch!,
-          ),
-          child: widget.child,
-        ),
-      ),
-    );
-
-    child = MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() {
-        _hover = false;
-        _pressed = false;
-      }),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onTap,
-        child: child,
-      ),
-    );
-
-    final tip = widget.tooltip;
-    return tip == null ? child : Tooltip(message: tip, child: child);
-  }
-}
-
-/// A plain 22px-icon bar control: [_AnimatedControl] with an [Icon] child. The
-/// hero buttons (play/pause morph, spinning skips) pass their own animated child
-/// to [_AnimatedControl] directly.
-class _AnimatedIconButton extends StatelessWidget {
-  final IconData icon;
-  final String? tooltip;
-  final VoidCallback onTap;
-
-  const _AnimatedIconButton({
-    required this.icon,
-    required this.onTap,
-    this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _AnimatedControl(
-      onTap: onTap,
-      tooltip: tooltip,
-      // No explicit colour: inherits _AnimatedControl's IconTheme (white, or
-      // accent on hover).
-      child: Icon(icon, size: 22),
-    );
-  }
-}
-
 class _BarButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final FocusNode? focusNode;
   const _BarButton(
-      {required this.icon, required this.tooltip, required this.onTap});
+      {required this.icon,
+      required this.tooltip,
+      required this.onTap,
+      this.focusNode});
 
   @override
   Widget build(BuildContext context) {
-    return _AnimatedIconButton(icon: icon, tooltip: tooltip, onTap: onTap);
+    return AnimatedIconButton(
+        icon: icon, tooltip: tooltip, onTap: onTap, focusNode: focusNode);
   }
 }
 
@@ -1397,7 +1398,9 @@ class _BarButton extends StatelessWidget {
 class _BarPlayPause extends StatefulWidget {
   final Player player;
   final VoidCallback onTap;
-  const _BarPlayPause({required this.player, required this.onTap});
+  final FocusNode? focusNode;
+  const _BarPlayPause(
+      {required this.player, required this.onTap, this.focusNode});
 
   @override
   State<_BarPlayPause> createState() => _BarPlayPauseState();
@@ -1428,6 +1431,7 @@ class _BarPlayPauseState extends State<_BarPlayPause> {
       icon: _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
       tooltip: _playing ? l.commonPause : l.commonPlay,
       onTap: widget.onTap,
+      focusNode: widget.focusNode,
     );
   }
 }
@@ -1463,7 +1467,7 @@ class _VolumeControl extends StatelessWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _AnimatedIconButton(
+            AnimatedIconButton(
               tooltip: l.playerMute,
               icon: icon,
               onTap: () {
@@ -1541,7 +1545,7 @@ class _MinimizeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _AnimatedIconButton(
+    return AnimatedIconButton(
       tooltip: AppLocalizations.of(context).playerMiniplayer,
       icon: Icons.picture_in_picture_alt_rounded,
       onTap: () {
@@ -1568,7 +1572,7 @@ class _TheaterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final accent = Theme.of(context).colorScheme.primary;
-    return _AnimatedControl(
+    return AnimatedControl(
       tooltip: active ? l.playerDefaultView : l.playerTheaterMode,
       onTap: () {
         onTap();
@@ -1576,7 +1580,7 @@ class _TheaterButton extends StatelessWidget {
       },
       // A wide screen glyph to go theater, a narrower one to come back, like
       // YouTube's two-state button; accent while active, otherwise inherits the
-      // hover tint from _AnimatedControl (null = white at rest, accent on hover).
+      // hover tint from AnimatedControl (null = white at rest, accent on hover).
       child: Icon(
           active ? Icons.crop_7_5_rounded : Icons.crop_landscape_rounded,
           size: 22,
@@ -1593,13 +1597,70 @@ class _FullscreenButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final full = isFullscreen(context);
-    return _AnimatedIconButton(
+    return AnimatedIconButton(
       tooltip: full ? l.playerExitFullscreen : l.playerFullscreen,
       icon: full ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
       onTap: () {
         toggleFullscreen(context);
         onInteract();
       },
+    );
+  }
+}
+
+/// Makes the seek bar a D-pad focus stop on TV and rings it when focused, so the
+/// remote can sit on it (LEFT/RIGHT scrub, handled by the parent) or move off it
+/// (UP/DOWN → directional traversal to the buttons). A no-op off TV, and the
+/// padding is constant (only the border colour changes) so nothing reflows.
+class _TvSeekFocus extends StatefulWidget {
+  final FocusNode node;
+  final Color accent;
+  final Widget child;
+  const _TvSeekFocus(
+      {required this.node, required this.accent, required this.child});
+
+  @override
+  State<_TvSeekFocus> createState() => _TvSeekFocusState();
+}
+
+class _TvSeekFocusState extends State<_TvSeekFocus> {
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.node.addListener(_onFocus);
+  }
+
+  void _onFocus() {
+    if (mounted && widget.node.hasFocus != _focused) {
+      setState(() => _focused = widget.node.hasFocus);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.node.removeListener(_onFocus);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isTvDevice) return widget.child;
+    return Focus(
+      focusNode: widget.node,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _focused ? widget.accent : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: widget.child,
+      ),
     );
   }
 }
@@ -1811,7 +1872,7 @@ class _FathomSeekBarState extends State<_FathomSeekBar> {
                           bottom: 26,
                           left: (_hoverX! - thumbW / 2)
                               .clamp(-8.0, (w - thumbW + 8.0).clamp(-8.0, w)),
-                          child: _TrickplayThumb(
+                          child: TrickplayThumb(
                             client: widget.client!,
                             baseUrl: base,
                             itemId: widget.itemId,
@@ -1821,7 +1882,7 @@ class _FathomSeekBarState extends State<_FathomSeekBar> {
                             positionMs: (dur * _hoverFrac!).inMilliseconds,
                             thumbWidth: thumbW,
                             thumbHeight: thumbH,
-                            label: _fmtTime(dur * _hoverFrac!),
+                            label: fmtTime(dur * _hoverFrac!),
                           ),
                         ),
                     ],

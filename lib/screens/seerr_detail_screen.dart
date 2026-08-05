@@ -13,8 +13,10 @@ import '../state/preferences.dart';
 import '../state/providers.dart';
 import '../state/seerr_providers.dart';
 import '../state/session_controller.dart';
+import '../services/tv_mode.dart';
 import '../widgets/app_snack.dart';
 import '../widgets/hover_pill_button.dart';
+import '../widgets/tv_focus.dart';
 import '../widgets/media_section.dart';
 import '../widgets/cached_image.dart';
 import '../widgets/detail_header.dart';
@@ -26,6 +28,11 @@ import '../widgets/seerr_request_dialog.dart';
 
 /// Rich Seerr detail page: backdrop, overview, cast, and requesting
 /// (movie whole, or per-season for TV).
+/// Wraps a horizontal content strip as a TV focus row (LEFT escapes to the rail,
+/// the focused card scrolls into view), matching the media rows. Pass-through
+/// off TV.
+Widget _tvRow(Widget child) => isTvDevice ? TvFocusRow(child: child) : child;
+
 class SeerrDetailScreen extends ConsumerWidget {
   final SeerrResult result;
   const SeerrDetailScreen({super.key, required this.result});
@@ -299,7 +306,7 @@ class _DetailBody extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
+                  _tvRow(SizedBox(
                     height: 168,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
@@ -308,7 +315,7 @@ class _DetailBody extends ConsumerWidget {
                       separatorBuilder: (_, _) => const SizedBox(width: 12),
                       itemBuilder: (context, i) => _CastCard(cast: d.cast[i]),
                     ),
-                  ),
+                  )),
                 ],
                 if (d.mediaType == 'tv' && d.seasons.isNotEmpty) ...[
                   const SizedBox(height: 24),
@@ -521,6 +528,12 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
 
   void _toggle() {
     if (_busy) return;
+    // On TV the hover/overlay menu rows aren't D-pad reachable, so open a
+    // focusable sheet with the same actions instead.
+    if (isTvDevice) {
+      _showTvActions();
+      return;
+    }
     if (_open) {
       _close();
       return;
@@ -532,6 +545,50 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
     _portal.show();
     setState(() => _open = true);
     _menu.forward(from: 0);
+  }
+
+  Future<void> _showTvActions() async {
+    final l = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final isTv = widget.detail.mediaType == 'tv';
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: scheme.surfaceContainerHigh,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              autofocus: true,
+              leading: const Icon(Icons.check_circle_rounded,
+                  color: Color(0xFF22C55E)),
+              title: Text(l.detailApprove),
+              onTap: () => Navigator.of(ctx).pop('approve'),
+            ),
+            ListTile(
+              leading: Icon(Icons.cancel_rounded, color: scheme.error),
+              title: Text(l.detailDecline),
+              onTap: () => Navigator.of(ctx).pop('decline'),
+            ),
+            if (isTv)
+              ListTile(
+                leading: Icon(Icons.add_rounded, color: scheme.primary),
+                title: Text(l.detailRequestMore),
+                onTap: () => Navigator.of(ctx).pop('more'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case 'approve':
+        await _act(true);
+      case 'decline':
+        await _act(false);
+      case 'more':
+        await _requestMore();
+    }
   }
 
   void _close() {
@@ -879,7 +936,7 @@ class _CastCardState extends State<_CastCard> {
     final cast = widget.cast;
     // Same lift-and-ring on hover as the Jellyfin cast cards, so people feel
     // interactive everywhere in the app.
-    return MouseRegion(
+    final card = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
@@ -933,6 +990,12 @@ class _CastCardState extends State<_CastCard> {
           ),
         ),
       ),
+    );
+    // TV: make the whole card a D-pad target (no-op off TV).
+    return TvFocusable(
+      onTap: () => context.push('/seerr-person', extra: cast.id),
+      borderRadius: BorderRadius.circular(10),
+      child: card,
     );
   }
 }

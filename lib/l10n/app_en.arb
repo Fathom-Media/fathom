@@ -206,17 +206,17 @@
   },
   "updateChannelLabel": "Update Channel",
   "@updateChannelLabel": {
-    "description": "Label above the stable/beta update channel selector."
+    "description": "Label above the stable/dev update channel selector."
   },
   "updateChannelStable": "Stable",
   "@updateChannelStable": {
     "description": "Update channel option: stable releases only."
   },
-  "updateChannelBeta": "Beta",
+  "updateChannelBeta": "Dev",
   "@updateChannelBeta": {
-    "description": "Update channel option: include pre-release/beta builds."
+    "description": "Update channel option: include the latest pre-release dev builds."
   },
-  "updateChannelHelp": "Beta includes pre-release test builds.",
+  "updateChannelHelp": "Dev includes the latest pre-release test builds.",
   "@updateChannelHelp": {
     "description": "Helper text under the update channel selector."
   },
@@ -853,6 +853,14 @@
   "prefsAmoledBlackSub": "Pure-black backgrounds in dark mode",
   "@prefsAmoledBlackSub": {
     "description": "AMOLED-black toggle subtitle."
+  },
+  "prefsForceTvMode": "Force TV Mode",
+  "@prefsForceTvMode": {
+    "description": "Toggle title: force the 10-foot D-pad interface."
+  },
+  "prefsForceTvModeSub": "Use the 10-foot remote interface even if this device isn't a television. Applies after restarting the app.",
+  "@prefsForceTvModeSub": {
+    "description": "Force TV mode toggle subtitle."
   },
   "prefsRatingOnCards": "Rating on Cards",
   "@prefsRatingOnCards": {
@@ -3214,6 +3222,26 @@
   "@ytSubscriptions": {
     "description": "YouTube section tab label: the channels you follow."
   },
+  "ytListen": "Listen",
+  "@ytListen": {
+    "description": "Button on the YouTube watch page: drop the video and keep the audio playing in the background."
+  },
+  "ytPlayAudio": "Play audio",
+  "@ytPlayAudio": {
+    "description": "Video row menu action: play just this video's audio in the background."
+  },
+  "ytWatchVideo": "Watch video",
+  "@ytWatchVideo": {
+    "description": "Button on the background-audio Now Playing: switch back to watching the video at the current position."
+  },
+  "ytListenAll": "Listen to all",
+  "@ytListenAll": {
+    "description": "Playlist action: play the whole playlist as background audio."
+  },
+  "ytQueueEmpty": "Nothing up next. A related track plays automatically when this one ends.",
+  "@ytQueueEmpty": {
+    "description": "Shown in the background-audio queue sheet when the up-next queue is empty."
+  },
   "ytWhatsNew": "What's New",
   "@ytWhatsNew": {
     "description": "YouTube section tab label: newest uploads from subscribed channels."
@@ -3923,6 +3951,42 @@
   "appConnect": "Connect",
   "@appConnect": {
     "description": "Server connect screen: button that validates and connects to the entered server."
+  },
+  "searchPlayerBackend": "Video Player Engine",
+  "@searchPlayerBackend": {
+    "description": "Settings search: label for the Android video engine (ExoPlayer/media_kit) setting."
+  },
+  "prefsPlayerBackend": "Video Player (Android)",
+  "@prefsPlayerBackend": {
+    "description": "Preferences: title for the Android video engine selector."
+  },
+  "prefsPlayerBackendSub": "ExoPlayer plays 4K/HDR smoothly on TV; media_kit is the classic engine.",
+  "@prefsPlayerBackendSub": {
+    "description": "Preferences: subtitle for the Android video engine selector."
+  },
+  "prefsPlayerBackendAuto": "Automatic (ExoPlayer on TV)",
+  "@prefsPlayerBackendAuto": {
+    "description": "Preferences: automatic video backend option."
+  },
+  "prefsPlayerBackendExo": "ExoPlayer (native, 4K/HDR)",
+  "@prefsPlayerBackendExo": {
+    "description": "Preferences: native ExoPlayer video backend option."
+  },
+  "prefsPlayerBackendMediaKit": "media_kit (libmpv)",
+  "@prefsPlayerBackendMediaKit": {
+    "description": "Preferences: media_kit video backend option."
+  },
+  "appFindServers": "Find Servers on My Network",
+  "@appFindServers": {
+    "description": "Server connect screen: button that scans the local network for Jellyfin servers."
+  },
+  "appScanningServers": "Searching your network…",
+  "@appScanningServers": {
+    "description": "Server connect screen: label shown while scanning the local network for servers."
+  },
+  "appNoServersFound": "No servers found. Enter the address above instead.",
+  "@appNoServersFound": {
+    "description": "Server connect screen: shown when a network scan finds no Jellyfin servers."
   },
   "appTagline": "Dive into your media",
   "@appTagline": {
@@ -6451,5 +6515,7 @@
   "backupGroupRadio": "Internet radio",
   "@backupGroupRadio": { "description": "Backup group: saved radio stations, groups, favorites." },
   "backupGroupServers": "Servers",
-  "@backupGroupServers": { "description": "Backup group: server addresses and username." }
+  "@backupGroupServers": { "description": "Backup group: server addresses and username." },
+  "tvVoiceUnavailable": "Voice input isn't available on this device",
+  "@tvVoiceUnavailable": { "description": "Snackbar shown when the TV has no speech recognizer for the on-screen keyboard's mic button." }
 }

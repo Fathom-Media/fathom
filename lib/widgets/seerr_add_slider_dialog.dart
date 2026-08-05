@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/seerr_custom_slider.dart';
 import '../state/seerr_providers.dart';
+import 'tv_keyboard.dart';
 
 /// Create a custom Discover slider (movie/TV genre, or a keyword search).
 Future<SeerrCustomSlider?> showSeerrAddSliderDialog(
@@ -27,7 +28,20 @@ class _AddSliderDialogState extends ConsumerState<_AddSliderDialog> {
   int? _genreId;
 
   @override
+  void initState() {
+    super.initState();
+    // The TV keyboard edits the controller directly (no per-keystroke onChanged),
+    // so listen to keep the Add button's enabled state in sync as text changes.
+    _keywordController.addListener(_onKeyword);
+  }
+
+  void _onKeyword() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
+    _keywordController.removeListener(_onKeyword);
     _titleController.dispose();
     _keywordController.dispose();
     super.dispose();
@@ -82,13 +96,10 @@ class _AddSliderDialogState extends ConsumerState<_AddSliderDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
+            TvTextField(
               controller: _titleController,
-              decoration: InputDecoration(
-                labelText: l.detailTitle,
-                hintText: l.detailSliderTitleHint,
-                border: const OutlineInputBorder(),
-              ),
+              label: l.detailTitle,
+              hint: l.detailSliderTitleHint,
             ),
             const SizedBox(height: 16),
             Text(l.detailType, style: theme.textTheme.labelLarge),
@@ -128,14 +139,10 @@ class _AddSliderDialogState extends ConsumerState<_AddSliderDialog> {
                 ),
               )
             else
-              TextField(
+              TvTextField(
                 controller: _keywordController,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: l.detailKeyword,
-                  hintText: l.detailKeywordHint,
-                  border: const OutlineInputBorder(),
-                ),
+                label: l.detailKeyword,
+                hint: l.detailKeywordHint,
               ),
           ],
         ),

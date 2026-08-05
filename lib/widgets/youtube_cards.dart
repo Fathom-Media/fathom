@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/youtube_video.dart';
 import '../services/youtube_thumbnails.dart';
+import '../services/tv_mode.dart';
 import '../state/preferences.dart';
+import 'tv_focus.dart';
 import 'youtube_actions.dart';
 
 /// The channel name as its own tap target, opening that channel's page.
@@ -154,7 +156,16 @@ class _YoutubeVideoRowState extends ConsumerState<YoutubeVideoRow> {
       v.uploadedText(l, DateTime.now()),
     ].where((s) => s.isNotEmpty).join('  ·  ');
 
-    return MouseRegion(
+    void effectiveTap() {
+      final t = widget.onTap;
+      if (t != null) {
+        t();
+      } else {
+        context.push('/youtube/watch', extra: (videoId: v.id, title: v.title));
+      }
+    }
+
+    final row = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
@@ -163,9 +174,7 @@ class _YoutubeVideoRowState extends ConsumerState<YoutubeVideoRow> {
         // dead. Clicking a row "somewhere near the middle" then does nothing,
         // which reads as the feature being broken.
         behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap ??
-            () => context.push('/youtube/watch',
-                extra: (videoId: v.id, title: v.title)),
+        onTap: effectiveTap,
         // NewPipe's long-press-to-enqueue, in the shape desktop expects.
         // Same menu as the overflow button, so the two can't diverge.
         onSecondaryTapUp: (d) => _showContextMenu(d.globalPosition),
@@ -293,7 +302,11 @@ class _YoutubeVideoRowState extends ConsumerState<YoutubeVideoRow> {
                             : null),
                   ),
                 ),
-              if (widget.showMenu || widget.extraMenuItems.isNotEmpty)
+              // The inline 3-dot is unreachable on TV (the whole card is one
+              // D-pad target), so hide it there; its actions live in the sheet
+              // that selecting the card opens instead.
+              if ((widget.showMenu || widget.extraMenuItems.isNotEmpty) &&
+                  !isTvDevice)
                 PopupMenuButton<VoidCallback>(
                   tooltip: l.extraMore,
                   icon: Icon(Icons.more_vert_rounded,
@@ -311,6 +324,23 @@ class _YoutubeVideoRowState extends ConsumerState<YoutubeVideoRow> {
           ),
         ),
       ),
+    );
+    // On TV a remote needs a visible focus target; the hover-only highlight is
+    // invisible to a D-pad. Wrap the row so Select opens it and it rings on focus.
+    if (!isTvDevice) return row;
+    // On TV, selecting the card opens an action sheet (Play first, then the
+    // same actions the 3-dot held) since a remote can't reach the inline menu.
+    return TvFocusable(
+      onTap: () => YoutubeActions.showTvActionSheet(
+        context,
+        ref,
+        v,
+        includePlaylist: widget.showMenu,
+        onPlay: effectiveTap,
+      ),
+      borderRadius: BorderRadius.circular(12),
+      scale: 1.02,
+      child: row,
     );
   }
 }

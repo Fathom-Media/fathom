@@ -20,6 +20,7 @@ import '../state/volume_sync.dart';
 import '../widgets/player_controls.dart';
 import '../services/live_players.dart';
 import '../services/sponsorblock.dart';
+import '../services/tv_mode.dart';
 import '../models/youtube_caption.dart';
 import '../models/youtube_chapter.dart';
 
@@ -1000,11 +1001,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     // the YouTube player had none at all, so space, K, arrows, F and M did
     // nothing on a desktop app. Not focusable when embedded: the page around it
     // owns the keyboard, and stealing focus would break scrolling and search.
-    return CallbackShortcuts(
-      bindings: _shortcuts(context),
-      child: Focus(
-        autofocus: !widget.embedded,
-        child: Video(
+    final video = Video(
       controller: _controller,
       controls: (state) => FathomPlayerControls(
         player: _player,
@@ -1044,7 +1041,16 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
             (position: s.start, label: l.playerSkipSegment(s.category.label)),
         ],
       ),
-        ),
+    );
+    // On TV, FathomPlayerControls owns the D-pad (arrows walk the control bar).
+    // The desktop keyboard shortcuts + autofocus wrapper would intercept the
+    // arrows for volume/seek and defeat that, so skip them on TV.
+    if (isTvDevice) return video;
+    return CallbackShortcuts(
+      bindings: _shortcuts(context),
+      child: Focus(
+        autofocus: !widget.embedded,
+        child: video,
       ),
     );
   }

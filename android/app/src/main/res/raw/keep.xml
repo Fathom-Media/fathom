@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The media notification's status-bar icon is set at runtime from Dart
+  (audio_service `androidNotificationIcon: 'drawable/ic_stat_fathom'`). The R8
+  resource shrinker only sees DEX/Java references, not Dart strings, so it would
+  otherwise strip ic_stat_fathom as "unused" and the ongoing playback
+  notification would crash with "Invalid notification (no valid small icon)".
+  Keeping it here makes the release build retain the drawable.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_fathom" />

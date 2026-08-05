@@ -20,8 +20,12 @@ import '../api/jellyfin_client.dart';
 import '../models/base_item.dart';
 import '../models/radio_station.dart';
 import '../models/session.dart';
+import '../models/youtube_audio_item.dart';
+import '../models/youtube_video.dart';
 import '../services/live_players.dart';
+import '../services/youtube_streams.dart';
 import 'providers.dart';
+import 'youtube_providers.dart';
 import 'session_controller.dart';
 import 'volume_sync.dart';
 import 'preferences.dart';
@@ -83,6 +87,12 @@ class AudioState {
   final Duration radioBehindLive;
   final Duration radioWindow;
 
+  // Background YouTube audio: when [ytCurrent] is set the player is on an
+  // audio-only YouTube track (not the music queue or radio). There's no separate
+  // audio queue — the up-next comes from the ONE shared youtubeQueueProvider,
+  // same as the video player; audio is just a playback mode over that queue.
+  final YoutubeAudioItem? ytCurrent;
+
   const AudioState({
     this.queue = const [],
     this.current,
@@ -94,10 +104,12 @@ class AudioState {
     this.radioSeekable = false,
     this.radioBehindLive = Duration.zero,
     this.radioWindow = Duration.zero,
+    this.ytCurrent,
   });
 
-  bool get hasTrack => current != null;
+  bool get hasTrack => current != null || ytCurrent != null;
   bool get isRadio => radioStation != null;
+  bool get isYoutubeAudio => ytCurrent != null;
   // "At live" once we're within a couple of seconds of the edge.
   bool get radioAtLive => radioBehindLive.inMilliseconds < 2500;
 
@@ -112,6 +124,7 @@ class AudioState {
     bool? radioSeekable,
     Duration? radioBehindLive,
     Duration? radioWindow,
+    Object? ytCurrent = _unset,
   }) =>
       AudioState(
         queue: queue ?? this.queue,
@@ -129,6 +142,9 @@ class AudioState {
         radioSeekable: radioSeekable ?? this.radioSeekable,
         radioBehindLive: radioBehindLive ?? this.radioBehindLive,
         radioWindow: radioWindow ?? this.radioWindow,
+        ytCurrent: ytCurrent == _unset
+            ? this.ytCurrent
+            : ytCurrent as YoutubeAudioItem?,
       );
 }
 
@@ -151,6 +167,18 @@ class AudioController extends Notifier<AudioState> {
   int _emptyIcyCount = 0; // consecutive empty ICY reads (debounces ad/gap clears)
   String? _reportedId;
   int _lastPositionTicks = 0;
+  // Background YouTube audio: whether to auto-append a related track at the end,
+  // and a guard so overlapping completion/next events don't double-advance while
+  // the next track's stream URL is still resolving.
+  bool _ytAutoplay = true;
+  bool _ytAdvancing = false;
+  // Resolved audio-URL cache (YouTube URLs last ~6h; cache under that) so a
+  // pre-resolved next track opens instantly instead of gapping while it fetches.
+  final Map<String, ({String url, DateTime at})> _ytUrlCache = {};
+  static const _ytUrlTtl = Duration(hours: 5);
+  // Videos played this background session, so continuation never loops back onto
+  // one you just heard.
+  final Set<String> _ytPlayed = {};
   final Map<String, BaseItemDto> _byId = {};
   final _random = Random();
   // The OS media session (mobile only); null on desktop or if init failed.
@@ -214,16 +242,29 @@ class AudioController extends Notifier<AudioState> {
     if (h != null) {
       h.onPlay = _player.play;
       h.onPause = _player.pause;
-      h.onNext = _player.next;
-      h.onPrevious = _player.previous;
+      // Skip routes by mode: the YouTube queue advances itself (one track at a
+      // time), the music queue uses the player's own playlist.
+      h.onNext = () => state.isYoutubeAudio ? _ytNext() : _player.next();
+      h.onPrevious =
+          () => state.isYoutubeAudio ? _ytPrevious() : _player.previous();
       h.onSeek = _player.seek;
-      // Stop from the notification: on radio, leave radio mode entirely (cancels
-      // ICY polling and the live ticker); otherwise just stop the queue.
-      h.onStop = () async => state.isRadio ? await stopRadio() : _player.stop();
+      // Stop from the notification: leave radio / YouTube-audio mode entirely,
+      // else just stop the music queue.
+      h.onStop = () async => state.isRadio
+          ? await stopRadio()
+          : state.isYoutubeAudio
+              ? await stopYoutubeAudio()
+              : _player.stop();
       // Pause on Bluetooth/headphone disconnect (audio "becoming noisy"), like
       // every media app: blasting out of the phone speaker after you unplug is
       // jarring. Mobile-only (h != null). No-op while casting (local is paused).
-      AudioSession.instance.then((session) {
+      AudioSession.instance.then((session) async {
+        // Configure the session FIRST: without this the platform never registers
+        // the audio-becoming-noisy receiver, so a Bluetooth/headset disconnect
+        // wouldn't pause and radio would blast out of the phone speaker. Video
+        // playback configures its own session, but radio/audio needs this here
+        // (there's no video screen to do it).
+        await session.configure(const AudioSessionConfiguration.music());
         _noisySub = session.becomingNoisyEventStream.listen((_) {
           if (_player.state.playing) _player.pause();
         });
@@ -255,6 +296,12 @@ class AudioController extends Notifier<AudioState> {
     final subPosition = _player.stream.position.listen((p) {
       _lastPositionTicks = p.inMicroseconds * 10;
     });
+    // The music queue auto-advances via the player's playlist; a YouTube-audio
+    // track is a single Media, so advance the YouTube queue ourselves when it
+    // finishes.
+    final subCompleted = _player.stream.completed.listen((done) {
+      if (done && state.isYoutubeAudio) _ytNext();
+    });
     // Mirror transport state to the media session. Position is extrapolated by
     // the OS between updates, so pushing on play/pause/buffer/duration changes
     // (plus the 10s progress tick) keeps the notification honest.
@@ -273,6 +320,7 @@ class AudioController extends Notifier<AudioState> {
     ref.onDispose(() {
       subPlaylist.cancel();
       subPosition.cancel();
+      subCompleted.cancel();
       subPlaying?.cancel();
       subBuffering?.cancel();
       subDuration?.cancel();
@@ -287,6 +335,12 @@ class AudioController extends Notifier<AudioState> {
 
   /// Publish the current track's metadata to the OS media session.
   void _pushNowPlaying() {
+    // YouTube audio publishes its own MediaItem (title/channel/thumbnail); a
+    // duration event should refresh THAT, not push a stale music track over it.
+    if (state.isYoutubeAudio) {
+      _pushYtNowPlaying(state.ytCurrent);
+      return;
+    }
     // Radio publishes its own MediaItem via _pushRadioNowPlaying; don't let a
     // stream duration/playlist event push a stale music track over it.
     if (state.isRadio) return;
@@ -442,6 +496,157 @@ class AudioController extends Notifier<AudioState> {
       radioBehindLive: Duration.zero,
       radioWindow: Duration.zero,
     );
+  }
+
+  // ---- Background YouTube audio (a mode over the shared YouTube queue) -----
+
+  YoutubeAudioItem _toAudioItem(YoutubeVideo v) => YoutubeAudioItem(
+        videoId: v.id,
+        title: v.title,
+        author: v.author,
+        thumbnailUrl: v.thumbnailUrl,
+        duration: v.duration,
+      );
+
+  /// Play a YouTube video's audio in the background. Reuses the whole audio stack
+  /// (foreground service, OS media controls, mini-player) and — crucially — the
+  /// ONE shared `youtubeQueueProvider` for up-next, so enqueuing behaves the same
+  /// in audio and video mode. [startAt] resumes at the position handed off from
+  /// the video player; [autoplay] plays a related track when the queue runs dry.
+  Future<void> playYoutubeAudio(
+    YoutubeAudioItem item, {
+    Duration startAt = Duration.zero,
+    bool autoplay = true,
+  }) async {
+    _radioIcyTimer?.cancel();
+    _radioTick?.cancel();
+    _reportStopped(); // no Jellyfin scrobble for YouTube
+    _reportedId = null;
+    _ytAutoplay = autoplay;
+    _ytPlayed.clear(); // a fresh Listen session may revisit videos
+    state = state.copyWith(
+      ytCurrent: item,
+      radioStation: null,
+      radioTitle: null,
+      radioArtwork: null,
+      radioSeekable: false,
+      radioBehindLive: Duration.zero,
+      radioWindow: Duration.zero,
+    );
+    await _playYtItem(item, startAt: startAt);
+  }
+
+  /// Resolve an item's audio stream (cached / fresh, so an expired URL is never
+  /// reused) and open it. Pushes now-playing and pre-resolves the next queued
+  /// item so the hand-over when this one ends is near-seamless.
+  Future<void> _playYtItem(YoutubeAudioItem item,
+      {Duration startAt = Duration.zero}) async {
+    final url = await _resolveYtUrl(item.videoId);
+    if (url == null) {
+      await _ytNext(); // couldn't resolve this one; move on rather than dead-end
+      return;
+    }
+    if (!state.isYoutubeAudio) return; // left YouTube mode while resolving
+    _ytPlayed.add(item.videoId);
+    state = state.copyWith(ytCurrent: item);
+    await _player.open(Media(url));
+    if (startAt > Duration.zero) unawaited(_seekWhenReady(startAt));
+    _pushYtNowPlaying(item);
+    _pushPlaybackState();
+    final up = ref.read(youtubeQueueProvider);
+    if (up.isNotEmpty) unawaited(_resolveYtUrl(up.first.id));
+  }
+
+  /// Resolve an item's audio URL, reusing a recently-resolved one from the cache
+  /// so a pre-resolved next track opens instantly.
+  Future<String?> _resolveYtUrl(String videoId) async {
+    final cached = _ytUrlCache[videoId];
+    if (cached != null && DateTime.now().difference(cached.at) < _ytUrlTtl) {
+      return cached.url;
+    }
+    final url = await resolveYoutubeAudioUrl(videoId);
+    if (url != null) _ytUrlCache[videoId] = (url: url, at: DateTime.now());
+    return url;
+  }
+
+  /// Seek once the media has a real duration (a fresh open reports zero briefly).
+  Future<void> _seekWhenReady(Duration target) async {
+    try {
+      if (_player.state.duration <= target) {
+        await _player.stream.duration
+            .firstWhere((d) => d > target)
+            .timeout(const Duration(seconds: 12));
+      }
+      await _player.seek(target);
+    } catch (_) {}
+  }
+
+  /// Advance: the shared queue wins (an explicit instruction), then autoplay a
+  /// related track once the queue is empty. Same precedence as the video player.
+  Future<void> _ytNext() async {
+    if (!state.isYoutubeAudio || _ytAdvancing) return;
+    _ytAdvancing = true;
+    try {
+      final next = ref.read(youtubeQueueProvider.notifier).takeNext();
+      if (next != null) {
+        await _playYtItem(_toAudioItem(next));
+      } else if (_ytAutoplay) {
+        final rel = await _resolveRelated(state.ytCurrent?.videoId);
+        if (rel != null) await _playYtItem(rel);
+      }
+    } finally {
+      _ytAdvancing = false;
+    }
+  }
+
+  /// The shared queue is forward-only (like the video player's up-next), so
+  /// "previous" restarts the current track rather than keeping a back-history.
+  Future<void> _ytPrevious() async {
+    if (!state.isYoutubeAudio) return;
+    await _player.seek(Duration.zero);
+  }
+
+  /// One related track to continue with, deduped against what's queued, played
+  /// this session, or already watched to the end — so it moves you forward.
+  Future<YoutubeAudioItem?> _resolveRelated(String? videoId) async {
+    if (videoId == null) return null;
+    try {
+      final details = await ref.read(youtubeWatchProvider(videoId).future);
+      final queued = ref.read(youtubeQueueProvider).map((v) => v.id).toSet();
+      final history = ref.read(youtubeHistoryProvider.notifier);
+      for (final r in details.related) {
+        if (r.isShort ||
+            r.id == videoId ||
+            _ytPlayed.contains(r.id) ||
+            queued.contains(r.id) ||
+            (history.entryFor(r.id)?.finished ?? false)) {
+          continue;
+        }
+        return _toAudioItem(r);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  void _pushYtNowPlaying(YoutubeAudioItem? item) {
+    final h = _handler;
+    if (h == null || item == null) return;
+    final dur = item.duration ??
+        (_player.state.duration > Duration.zero ? _player.state.duration : null);
+    h.setNowPlaying(MediaItem(
+      id: item.videoId,
+      title: item.title,
+      artist: item.author,
+      duration: dur,
+      artUri: Uri.tryParse(item.thumbnailUrl),
+    ));
+  }
+
+  /// Stop background YouTube audio and leave the mode. Leaves the shared queue
+  /// intact (you might switch back to watching it).
+  Future<void> stopYoutubeAudio() async {
+    await _player.stop();
+    state = state.copyWith(ytCurrent: null);
   }
 
   /// Jump back to the live edge. When the stream is seekable (the bar is showing)
@@ -951,6 +1156,7 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       return ref.read(castControllerProvider.notifier).queueNext();
     }
+    if (state.isYoutubeAudio) return _ytNext();
     return _player.next();
   }
 
@@ -959,6 +1165,7 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       return ref.read(castControllerProvider.notifier).queuePrev();
     }
+    if (state.isYoutubeAudio) return _ytPrevious();
     return _player.previous();
   }
 

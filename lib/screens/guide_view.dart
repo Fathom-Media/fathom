@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -313,7 +314,7 @@ class _TimeRuler extends StatelessWidget {
   }
 }
 
-class _ProgramRow extends ConsumerWidget {
+class _ProgramRow extends StatefulWidget {
   final BaseItemDto channel;
   final List<BaseItemDto> programs;
   final DateTime windowStart;
@@ -331,47 +332,148 @@ class _ProgramRow extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final totalMinutes = windowEnd.difference(windowStart).inMinutes;
+  State<_ProgramRow> createState() => _ProgramRowState();
+}
+
+class _ProgramRowState extends State<_ProgramRow> {
+  // One node per rendered program block, so LEFT/RIGHT can step between them.
+  final List<FocusNode> _nodes = [];
+
+  FocusNode _nodeAt(int i) {
+    while (_nodes.length <= i) {
+      _nodes.add(FocusNode(debugLabel: 'guideProgram'));
+    }
+    return _nodes[i];
+  }
+
+  @override
+  void dispose() {
+    for (final n in _nodes) {
+      n.dispose();
+    }
+    super.dispose();
+  }
+
+  void _ensureVisible(int i) {
+    final ctx = _nodeAt(i).context;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx,
+          alignment: 0.15,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut);
+    }
+  }
+
+  // LEFT walks back through this row's programs (scrolling the earlier one into
+  // view) and only escapes to the channel column at the FIRST program; RIGHT
+  // walks forward. Everything else falls through so the framework still handles
+  // UP/DOWN between channels and SELECT to open a program.
+  KeyEventResult _onKey(int i, int count, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final k = e.logicalKey;
+    if (k == LogicalKeyboardKey.arrowLeft) {
+      if (i > 0) {
+        _nodeAt(i - 1).requestFocus();
+        _ensureVisible(i - 1);
+        return KeyEventResult.handled;
+      }
+      // First program: hand LEFT to the focused node's traversal group (the
+      // content policy), which escapes to the channel column (same row, left).
+      FocusManager.instance.primaryFocus
+          ?.focusInDirection(TraversalDirection.left);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.arrowRight) {
+      if (i < count - 1) {
+        _nodeAt(i + 1).requestFocus();
+        _ensureVisible(i + 1);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalMinutes =
+        widget.windowEnd.difference(widget.windowStart).inMinutes;
     final now = DateTime.now();
-    final blocks = <Widget>[];
-    for (final p in programs) {
+    // Lay the renderable programs out first so the LEFT/RIGHT handler knows the
+    // block count and each block's focus-node index.
+    final laid = <({
+      BaseItemDto p,
+      double left,
+      double w,
+      bool isNow,
+      double? progress
+    })>[];
+    for (final p in widget.programs) {
       final start = p.startDate, end = p.endDate;
       if (start == null || end == null) continue;
-      final startMin =
-          start.difference(windowStart).inMinutes.clamp(0, totalMinutes);
+      final startMin = start
+          .difference(widget.windowStart)
+          .inMinutes
+          .clamp(0, totalMinutes);
       final endMin =
-          end.difference(windowStart).inMinutes.clamp(0, totalMinutes);
-      final w = (endMin - startMin) * pxPerMin;
+          end.difference(widget.windowStart).inMinutes.clamp(0, totalMinutes);
+      final w = (endMin - startMin) * widget.pxPerMin;
       if (w <= 0) continue;
       final isNow = now.isAfter(start) && now.isBefore(end);
       final progress = isNow
-          ? (now.difference(start).inSeconds /
-                  end.difference(start).inSeconds)
+          ? (now.difference(start).inSeconds / end.difference(start).inSeconds)
               .clamp(0.0, 1.0)
           : null;
-      blocks.add(Positioned(
-        left: startMin * pxPerMin,
-        width: w,
-        top: 3,
-        bottom: 3,
-        child: _ProgramBlock(
-          program: p,
-          isNow: isNow,
-          progress: progress,
-          onTap: () => context.push('/program',
-              extra: (channel: channel, program: p, isNow: isNow)),
-        ),
+      laid.add((
+        p: p,
+        left: startMin * widget.pxPerMin,
+        w: w,
+        isNow: isNow,
+        progress: progress
       ));
     }
+    final count = laid.length;
+    final blocks = <Widget>[
+      for (var i = 0; i < count; i++)
+        Positioned(
+          left: laid[i].left,
+          width: laid[i].w,
+          top: 3,
+          bottom: 3,
+          // A non-focusable Focus that still sees the block's key events; it
+          // intercepts LEFT/RIGHT before the framework's geometric traversal
+          // would jump straight to the channel column.
+          child: Focus(
+            canRequestFocus: false,
+            skipTraversal: true,
+            onKeyEvent: (node, e) => _onKey(i, count, e),
+            child: _ProgramBlock(
+              program: laid[i].p,
+              isNow: laid[i].isNow,
+              progress: laid[i].progress,
+              focusNode: _nodeAt(i),
+              onTap: () => context.push('/program',
+                  extra: (
+                    channel: widget.channel,
+                    program: laid[i].p,
+                    isNow: laid[i].isNow
+                  )),
+            ),
+          ),
+        ),
+    ];
     return Container(
-      width: width,
+      width: widget.width,
       height: _rowHeight,
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color:
-                Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.12),
+            color: Theme.of(context)
+                .colorScheme
+                .outlineVariant
+                .withValues(alpha: 0.12),
           ),
         ),
       ),
@@ -385,11 +487,13 @@ class _ProgramBlock extends StatelessWidget {
   final bool isNow;
   final double? progress;
   final VoidCallback onTap;
+  final FocusNode? focusNode;
 
   const _ProgramBlock(
       {required this.program,
       required this.isNow,
       required this.onTap,
+      this.focusNode,
       this.progress});
 
   @override
@@ -409,6 +513,7 @@ class _ProgramBlock extends StatelessWidget {
           ),
         ),
         child: InkWell(
+          focusNode: focusNode,
           onTap: onTap,
           child: Stack(
             children: [

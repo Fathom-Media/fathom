@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
 import '../state/providers.dart';
 import '../state/preferences.dart';
 import '../state/session_controller.dart';
@@ -14,6 +15,7 @@ import '../widgets/media_cards.dart';
 import '../widgets/media_image.dart';
 import '../widgets/motion.dart';
 import '../widgets/shimmer.dart';
+import '../widgets/tv_focus.dart';
 
 /// Full contents of one library, as a paged poster grid with infinite scroll.
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -396,6 +398,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           onceKey: _items[i].id,
           child: _LibraryListRow(
             item: _items[i],
+            autofocus: isTvDevice && i == 0,
             onTap: () => context.push('/item', extra: _items[i]),
           ),
         ),
@@ -416,6 +419,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         onceKey: _items[i].id,
         child: PosterTile(
           item: _items[i],
+          // On TV the first tile grabs focus so the remote lands on content, not
+          // the app bar back button.
+          autofocus: isTvDevice && i == 0,
           onTap: () => context.push('/item', extra: _items[i]),
         ),
       ),
@@ -428,7 +434,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 class _LibraryListRow extends StatelessWidget {
   final BaseItemDto item;
   final VoidCallback onTap;
-  const _LibraryListRow({required this.item, required this.onTap});
+  final bool autofocus;
+  const _LibraryListRow(
+      {required this.item, required this.onTap, this.autofocus = false});
 
   @override
   Widget build(BuildContext context) {
@@ -438,8 +446,11 @@ class _LibraryListRow extends StatelessWidget {
       if (item.officialRating != null) item.officialRating!,
     ].join('  ·  ');
     final watched = item.userData.played;
-    return HoverHighlight(
+    return TvFocusRing(
+      borderRadius: BorderRadius.circular(10),
+      child: HoverHighlight(
       child: ListTile(
+        autofocus: autofocus,
         // HoverHighlight provides the hover tint; suppress ListTile's own so
         // they don't stack.
         hoverColor: Colors.transparent,
@@ -464,6 +475,7 @@ class _LibraryListRow extends StatelessWidget {
             : null,
         onTap: onTap,
       ),
+    ),
     );
   }
 }

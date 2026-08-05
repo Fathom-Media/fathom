@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'motion.dart';
+import 'tv_focus.dart';
 
 /// A colourful gradient tile for browse clouds (Genres, Studios), so those
 /// pages have some visual life instead of a flat chip wall. The colour is
@@ -10,11 +11,16 @@ class GradientBrowseTile extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+
+  /// Grabs focus on mount (TV): set on the first tile so the remote lands on
+  /// content instead of the app bar.
+  final bool autofocus;
   const GradientBrowseTile({
     super.key,
     required this.label,
     required this.icon,
     required this.onTap,
+    this.autofocus = false,
   });
 
   Color _hue(int shift) {
@@ -25,7 +31,11 @@ class GradientBrowseTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return HoverLift(
-      child: GestureDetector(
+      child: TvFocusable(
+        onTap: onTap,
+        autofocus: autofocus,
+        borderRadius: BorderRadius.circular(14),
+        child: GestureDetector(
         onTap: onTap,
         child: DecoratedBox(
           decoration: BoxDecoration(
@@ -69,6 +79,7 @@ class GradientBrowseTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

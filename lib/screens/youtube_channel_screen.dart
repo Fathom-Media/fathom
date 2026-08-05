@@ -7,7 +7,9 @@ import '../models/youtube_channel.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/subscribe_button.dart';
+import '../widgets/tv_focus.dart';
 import '../widgets/youtube_video_collection.dart';
 import '../widgets/youtube_skeletons.dart';
 import '../models/youtube_playlist.dart';
@@ -57,6 +59,9 @@ class _YoutubeChannelScreenState extends ConsumerState<YoutubeChannelScreen> {
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
+        // Root route outside the shell, so dock the background-audio bar here
+        // too (collapses when idle, hidden on TV).
+        bottomNavigationBar: const MiniPlayer(),
         body: NestedScrollView(
           headerSliverBuilder: (context, _) => [
             SliverAppBar(
@@ -203,48 +208,51 @@ class _ChannelPlaylistRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return InkWell(
+    return TvFocusRing(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => context.push('/youtube/playlist',
-          extra: (playlistId: playlist.id, title: playlist.title)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: 140,
-                height: 79,
-                child: playlist.thumbnailUrl.isEmpty
-                    ? Container(color: scheme.surfaceContainerHigh)
-                    : CachedImage(
-                        url: playlist.thumbnailUrl,
-                        errorBuilder: (_) =>
-                            Container(color: scheme.surfaceContainerHigh)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/youtube/playlist',
+            extra: (playlistId: playlist.id, title: playlist.title)),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 140,
+                  height: 79,
+                  child: playlist.thumbnailUrl.isEmpty
+                      ? Container(color: scheme.surfaceContainerHigh)
+                      : CachedImage(
+                          url: playlist.thumbnailUrl,
+                          errorBuilder: (_) =>
+                              Container(color: scheme.surfaceContainerHigh)),
+                ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(playlist.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  if (playlist.videoCountLabel.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(playlist.videoCountLabel,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(playlist.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    if (playlist.videoCountLabel.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(playlist.videoCountLabel,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant)),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

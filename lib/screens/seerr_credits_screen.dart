@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/seerr_detail.dart';
+import '../widgets/tv_focus.dart';
 
 /// Full cast and crew for a title, as Jellyseerr's "View Full Cast" page.
 class SeerrCreditsScreen extends StatelessWidget {
@@ -107,14 +108,14 @@ class _PersonRowState extends State<_PersonRow> {
     final theme = Theme.of(context);
     final p = widget.person;
     final clickable = p.id != 0;
-    return MouseRegion(
+    final onTap =
+        clickable ? () => context.push('/seerr-person', extra: p.id) : null;
+    final card = MouseRegion(
       cursor: clickable ? SystemMouseCursors.click : MouseCursor.defer,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
-        onTap: clickable
-            ? () => context.push('/seerr-person', extra: p.id)
-            : null,
+        onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
@@ -159,5 +160,7 @@ class _PersonRowState extends State<_PersonRow> {
         ),
       ),
     );
+    if (onTap == null) return card;
+    return TvFocusable(onTap: onTap, child: card);
   }
 }

@@ -15,6 +15,7 @@ import 'l10n/l10n.dart';
 import 'routing/app_router.dart';
 import 'services/diagnostics.dart';
 import 'services/live_players.dart';
+import 'services/tv_mode.dart';
 import 'services/live_streams.dart';
 import 'services/notifications.dart';
 import 'state/syncplay_session.dart';
@@ -241,7 +242,31 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
         // Record the resolved locale so no-context code (the notification layer)
         // can translate via `tr`. Safe here: the builder runs under Localizations.
         activeLocale = Localizations.localeOf(context);
-        return Consumer(
+        // Android TV: switch the routed content to Flutter's directional
+        // navigation mode so a D-pad can reach and traverse every focusable
+        // control systematically (not just the ones we hand-wrapped). Gated to
+        // TV — desktop/mobile keep traditional pointer/tab focus behavior.
+        if (isTvDevice) {
+          child = MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(navigationMode: NavigationMode.directional),
+            child: child ?? const SizedBox(),
+          );
+        }
+        // Android TV / gamepad: the D-pad arrows already move focus (framework
+        // default), but the center button ("Select") and gamepad A aren't mapped
+        // to activation by default, so focused buttons couldn't be pressed with a
+        // remote. Map them to ActivateIntent app-wide (harmless elsewhere — these
+        // keys don't exist on a phone/desktop). This composes with the built-in
+        // shortcuts rather than replacing them.
+        final tvActivation = <ShortcutActivator, Intent>{
+          const SingleActivator(LogicalKeyboardKey.select): const ActivateIntent(),
+          const SingleActivator(LogicalKeyboardKey.gameButtonA):
+              const ActivateIntent(),
+        };
+        return Shortcuts(
+        shortcuts: tvActivation,
+        child: Consumer(
         builder: (context, ref, _) {
           final poppedOut = ref.watch(popoutProvider);
           return Stack(
@@ -271,6 +296,7 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
             ],
           );
         },
+        ),
         );
       },
     );

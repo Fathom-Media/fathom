@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/youtube_video.dart';
 import '../services/youtube_thumbnails.dart';
+import '../services/tv_mode.dart';
 import '../state/preferences.dart';
+import 'tv_focus.dart';
 import 'youtube_actions.dart';
 import 'youtube_cards.dart';
 
@@ -136,16 +138,23 @@ class _YoutubeVideoCardState extends ConsumerState<YoutubeVideoCard> {
       v.uploadedText(l, DateTime.now()),
     ].where((s) => s.isNotEmpty).join('  ·  ');
 
-    return MouseRegion(
+    void effectiveTap() {
+      final t = widget.onTap;
+      if (t != null) {
+        t();
+      } else {
+        context.push('/youtube/watch', extra: (videoId: v.id, title: v.title));
+      }
+    }
+
+    final card = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         // Opaque so the whole card responds, not only the art and the title.
         behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap ??
-            () => context.push('/youtube/watch',
-                extra: (videoId: v.id, title: v.title)),
+        onTap: effectiveTap,
         onSecondaryTapUp: (d) => _showContextMenu(d.globalPosition),
         onLongPressStart: (d) => _showContextMenu(d.globalPosition),
         child: AnimatedScale(
@@ -216,6 +225,22 @@ class _YoutubeVideoCardState extends ConsumerState<YoutubeVideoCard> {
           ),
         ),
       ),
+    );
+    // On TV, wrap so a D-pad can focus (ring) and Select the card; the hover
+    // scale alone is invisible to a remote.
+    if (!isTvDevice) return card;
+    // On TV, selecting the card opens an action sheet (Play first, then the same
+    // actions), since a remote can't reach the mouse-only context menu.
+    return TvFocusable(
+      onTap: () => YoutubeActions.showTvActionSheet(
+        context,
+        ref,
+        v,
+        onPlay: effectiveTap,
+      ),
+      borderRadius: BorderRadius.circular(12),
+      scale: 1.03,
+      child: card,
     );
   }
 }
