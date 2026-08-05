@@ -429,16 +429,54 @@ final youtubeChannelProvider = FutureProvider.autoDispose
   );
 });
 
+/// Hydrated video metadata, kept by id so the What's New feed doesn't refetch a
+/// video it has already filled in. Module-level on purpose: the feed provider is
+/// autoDispose and is thrown away every time you leave the tab, so an instance
+/// cache would buy nothing. A video's title/duration/views/date barely move, so
+/// entries stay usable for [_feedVideoTtl]; the uploads list is still fetched
+/// fresh every build, so new uploads always appear and a refresh still refreshes.
+final Map<String, ({YoutubeVideo video, DateTime at})> _feedVideoCache = {};
+const Duration _feedVideoTtl = Duration(hours: 6);
+
 /// Channel upload listings come back with valid video ids but no metadata
-/// (no title, duration, views or date), so each one is fetched in parallel to
-/// fill it in. Failures are dropped rather than sinking the whole list.
+/// (no title, duration, views or date), so each missing one is fetched in
+/// parallel to fill it in. Anything already hydrated within the TTL is served
+/// from [_feedVideoCache], which is what makes reopening the tab fast while
+/// keeping the full detail. Failures are dropped rather than sinking the list.
 Future<List<YoutubeVideo>> _hydrate(
     YoutubeExplode yt, Iterable<String> ids) async {
-  final full = await Future.wait([
-    for (final id in ids)
-      yt.videos.get(VideoId(id)).then<yte.Video?>((v) => v).catchError((_) => null),
-  ]);
-  return [for (final v in full.whereType<yte.Video>()) _toVideo(v)];
+  final now = DateTime.now();
+  final have = <String, YoutubeVideo>{};
+  final missing = <String>[];
+  for (final id in ids) {
+    final cached = _feedVideoCache[id];
+    if (cached != null && now.difference(cached.at) < _feedVideoTtl) {
+      have[id] = cached.video;
+    } else {
+      missing.add(id);
+    }
+  }
+  if (missing.isNotEmpty) {
+    // Drop stale entries before growing, so a long session can't leak memory.
+    if (_feedVideoCache.length > 1000) {
+      _feedVideoCache
+          .removeWhere((_, e) => now.difference(e.at) >= _feedVideoTtl);
+    }
+    final fetched = await Future.wait([
+      for (final id in missing)
+        yt.videos
+            .get(VideoId(id))
+            .then<yte.Video?>((v) => v)
+            .catchError((_) => null),
+    ]);
+    for (final v in fetched.whereType<yte.Video>()) {
+      final yv = _toVideo(v);
+      _feedVideoCache[yv.id] = (video: yv, at: now);
+      have[yv.id] = yv;
+    }
+  }
+  // Preserve the caller's id order; drop ids whose fetch failed.
+  return [for (final id in ids) if (have[id] != null) have[id]!];
 }
 
 /// A paged list of videos (channel uploads), with more available on demand.
