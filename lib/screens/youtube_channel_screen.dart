@@ -39,11 +39,12 @@ class _YoutubeChannelScreenState extends ConsumerState<YoutubeChannelScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final channel = ref.watch(youtubeChannelProvider(widget.channelId));
-    // The Videos tab doubles as the probe for which tabs exist: every browse
-    // response lists them, so this costs nothing extra.
+    // The Videos tab doubles as the probe for which tabs exist AND carries the
+    // channel header (name/avatar/banner/subs). That replaces a separate
+    // multi-megabyte channel-page scrape that used to stall this screen.
     final probe = ref.watch(youtubeChannelTabProvider(
         (channelId: widget.channelId, kind: YtChannelTabKind.videos)));
+    final channel = probe.asData?.value.channel;
     final available = probe.asData?.value.availableTabs ?? const <String>{};
 
     final tabs = <YtChannelTabKind>[
@@ -66,10 +67,10 @@ class _YoutubeChannelScreenState extends ConsumerState<YoutubeChannelScreen> {
           headerSliverBuilder: (context, _) => [
             SliverAppBar(
               pinned: true,
-              title: Text(channel.asData?.value.title ?? widget.title ?? l.ytChannelFallback),
+              title: Text(channel?.title ?? widget.title ?? l.ytChannelFallback),
             ),
             SliverToBoxAdapter(
-              child: channel.when(
+              child: probe.when(
                 loading: () => const SizedBox(
                   height: 140,
                   child: Center(child: CircularProgressIndicator()),
@@ -78,11 +79,20 @@ class _YoutubeChannelScreenState extends ConsumerState<YoutubeChannelScreen> {
                   padding: const EdgeInsets.all(16),
                   child: ErrorView(
                     message: '$e',
-                    onRetry: () =>
-                        ref.invalidate(youtubeChannelProvider(widget.channelId)),
+                    onRetry: () => ref.invalidate(youtubeChannelTabProvider(
+                        (channelId: widget.channelId,
+                        kind: YtChannelTabKind.videos))),
                   ),
                 ),
-                data: (c) => _Header(channel: c, fallbackName: widget.title),
+                data: (tab) => _Header(
+                  channel: tab.channel ??
+                      YoutubeChannel(
+                        id: widget.channelId,
+                        title: widget.title ?? '',
+                        logoUrl: '',
+                      ),
+                  fallbackName: widget.title,
+                ),
               ),
             ),
             if (tabs.length > 1)

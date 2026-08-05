@@ -415,19 +415,6 @@ class YoutubeQuery extends Notifier<String> {
 final youtubeQueryProvider =
     NotifierProvider<YoutubeQuery, String>(YoutubeQuery.new);
 
-/// Channel details (title, logo, banner, subscriber count).
-final youtubeChannelProvider = FutureProvider.autoDispose
-    .family<YoutubeChannel, String>((ref, channelId) async {
-  final yt = ref.watch(youtubeClientProvider);
-  final c = await yt.channels.get(ChannelId(channelId));
-  return YoutubeChannel(
-    id: c.id.value,
-    title: c.title,
-    logoUrl: c.logoUrl,
-    bannerUrl: c.bannerUrl.isEmpty ? null : c.bannerUrl,
-    subscribersCount: c.subscribersCount,
-  );
-});
 
 /// Hydrated video metadata, kept by id so the What's New feed doesn't refetch a
 /// video it has already filled in. Module-level on purpose: the feed provider is

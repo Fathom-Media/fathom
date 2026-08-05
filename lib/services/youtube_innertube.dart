@@ -345,7 +345,57 @@ class YoutubeInnerTube {
       playlists: playlists,
       availableTabs: available,
       isRequestedTab: matched,
+      channel: _channelHeader(data, channelId),
       continuation: matched ? _continuationToken(data) : null,
+    );
+  }
+
+  /// Pulls the channel's name, avatar, banner and subscriber line out of a
+  /// browse response. This is why the channel screen no longer scrapes the
+  /// (multi-megabyte) channel HTML page just to draw its header.
+  YoutubeChannel? _channelHeader(Map<String, dynamic> data, String channelId) {
+    final meta = _path(data, ['metadata', 'channelMetadataRenderer']);
+    final title = meta is Map ? '${meta['title'] ?? ''}' : '';
+    var logo = '';
+    final avatars = _path(meta, ['avatar', 'thumbnails']);
+    if (avatars is List && avatars.isNotEmpty && avatars.last is Map) {
+      logo = '${(avatars.last as Map)['url'] ?? ''}';
+    }
+
+    final vm = _path(
+        data, ['header', 'pageHeaderRenderer', 'content', 'pageHeaderViewModel']);
+    String? banner;
+    final sources = _path(vm, ['banner', 'imageBannerViewModel', 'image', 'sources']);
+    if (sources is List && sources.isNotEmpty && sources.last is Map) {
+      final url = '${(sources.last as Map)['url'] ?? ''}';
+      if (url.isNotEmpty) banner = url;
+    }
+    String? subscribers;
+    String? handle;
+    final rows = _path(vm, ['metadata', 'contentMetadataViewModel', 'metadataRows']);
+    if (rows is List) {
+      for (final row in rows) {
+        final parts = _path(row, ['metadataParts']);
+        if (parts is! List) continue;
+        for (final part in parts) {
+          final text = '${_path(part, ['text', 'content']) ?? ''}';
+          if (text.contains('subscriber')) {
+            subscribers = text;
+          } else if (text.startsWith('@')) {
+            handle = text;
+          }
+        }
+      }
+    }
+
+    if (title.isEmpty && logo.isEmpty) return null;
+    return YoutubeChannel(
+      id: channelId,
+      title: title,
+      logoUrl: logo,
+      bannerUrl: banner,
+      subscribersText: subscribers,
+      handle: handle,
     );
   }
 
@@ -1113,6 +1163,11 @@ class YtChannelTab {
   /// False when YouTube fell back to Home because the tab doesn't exist.
   final bool isRequestedTab;
 
+  /// The channel's own header (name, avatar, banner, subscribers), parsed from
+  /// this same browse response so the screen doesn't need a second, much heavier
+  /// request to render it. Null if the response carried no channel metadata.
+  final YoutubeChannel? channel;
+
   /// Token for the next page of this tab, or null at the end.
   final String? continuation;
 
@@ -1121,6 +1176,7 @@ class YtChannelTab {
     this.playlists = const [],
     this.availableTabs = const {},
     this.isRequestedTab = false,
+    this.channel,
     this.continuation,
   });
 
