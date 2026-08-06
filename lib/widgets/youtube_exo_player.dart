@@ -475,6 +475,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
 
   Future<void> _showSettings() async {
     final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: scheme.surfaceContainerHigh,
@@ -488,7 +489,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
             ListTile(
               autofocus: true,
               leading: const Icon(Icons.high_quality_rounded),
-              title: const Text('Quality'),
+              title: Text(l.playerQuality),
               trailing: Text(_qualityLabel,
                   style: TextStyle(color: scheme.onSurfaceVariant)),
               onTap: () => Navigator.of(ctx).pop('quality'),
@@ -496,7 +497,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
             if (widget.chapters.isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.list_rounded),
-                title: const Text('Chapters'),
+                title: Text(l.playerChapters),
                 trailing: Text(_currentChapter?.title ?? '',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -505,7 +506,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
               ),
             ListTile(
               leading: const Icon(Icons.speed_rounded),
-              title: const Text('Playback Speed'),
+              title: Text(l.playerPlaybackSpeed),
               trailing: Text(_speed == 1.0 ? 'Normal' : '${_speed}x',
                   style: TextStyle(color: scheme.onSurfaceVariant)),
               onTap: () => Navigator.of(ctx).pop('speed'),
@@ -538,6 +539,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
 
   Future<void> _pickCaption() async {
     final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     // Off, then each track. Selecting reloads the current quality with (or
     // without) the sideloaded subtitle — ExoPlayer bakes it in at load time.
     final options = <YoutubeCaption?>[null, ..._captions];
@@ -550,7 +552,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Text('Subtitles',
+              child: Text(l.playerSubtitles,
                   style: Theme.of(ctx)
                       .textTheme
                       .titleMedium
@@ -559,7 +561,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
             for (final c in options)
               ListTile(
                 autofocus: c?.code == _caption?.code,
-                title: Text(c?.displayLabel ?? 'Off'),
+                title: Text(c?.displayLabel ?? l.commonOff),
                 trailing: c?.code == _caption?.code
                     ? Icon(Icons.check_rounded, color: scheme.primary)
                     : null,
@@ -582,6 +584,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
 
   Future<void> _pickChapter() async {
     final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     final current = _currentChapter;
     await showModalBottomSheet<void>(
       context: context,
@@ -592,7 +595,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Text('Chapters',
+              child: Text(l.playerChapters,
                   style: Theme.of(ctx)
                       .textTheme
                       .titleMedium
@@ -672,6 +675,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
   Future<void> _pickQuality() async {
     final s = _streams;
     final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     if (s == null || s.qualities.isEmpty) {
       _show();
       _restoreMenuFocus();
@@ -686,7 +690,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Text('Quality',
+              child: Text(l.playerQuality,
                   style: Theme.of(ctx)
                       .textTheme
                       .titleMedium
@@ -714,6 +718,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
 
   Future<void> _pickSpeed() async {
     final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
     await showModalBottomSheet<void>(
       context: context,
@@ -724,7 +729,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Text('Playback Speed',
+              child: Text(l.playerPlaybackSpeed,
                   style: Theme.of(ctx)
                       .textTheme
                       .titleMedium
@@ -910,8 +915,8 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Up Next',
-              style: TextStyle(
+          Text(l.ytUpNext,
+              style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.w700)),
@@ -1003,6 +1008,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
   Widget _controls(ExoState s) {
     final dur = s.duration;
     final remaining = dur > s.position ? dur - s.position : Duration.zero;
+    final l = AppLocalizations.of(context);
     final bar = Padding(
       padding: const EdgeInsets.fromLTRB(28, 40, 28, 20),
       child: Column(
@@ -1045,19 +1051,19 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
                 focusNode: _fPlay,
                 icon:
                     s.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                tooltip: 'Play / Pause',
+                tooltip: l.playerPlayPause,
                 onTap: _togglePlay,
               ),
               _ctlButton(
                 focusNode: _fBack,
                 icon: Icons.replay_10_rounded,
-                tooltip: 'Back ${widget.seekBackSeconds}s',
+                tooltip: l.playerSeekBack(widget.seekBackSeconds),
                 onTap: () => _seekBy(-widget.seekBackSeconds),
               ),
               _ctlButton(
                 focusNode: _fFwd,
                 icon: Icons.forward_30_rounded,
-                tooltip: 'Forward ${widget.seekForwardSeconds}s',
+                tooltip: l.playerSeekForward(widget.seekForwardSeconds),
                 onTap: () => _seekBy(widget.seekForwardSeconds),
               ),
               const Spacer(),
@@ -1065,7 +1071,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
                 _ctlButton(
                   focusNode: _fNext,
                   icon: Icons.skip_next_rounded,
-                  tooltip: 'Next',
+                  tooltip: l.commonNext,
                   onTap: () => widget.onNext!(),
                 ),
               // Dedicated Subtitles (CC) button, matching the Jellyfin player's
@@ -1074,7 +1080,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
                 _ctlButton(
                   focusNode: _fCaption,
                   icon: Icons.closed_caption_rounded,
-                  tooltip: 'Subtitles',
+                  tooltip: l.playerSubtitles,
                   onTap: () {
                     _menuReturn = _fCaption;
                     _pickCaption();
@@ -1083,7 +1089,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
               _ctlButton(
                 focusNode: _fSettings,
                 icon: Icons.settings_rounded,
-                tooltip: 'Settings',
+                tooltip: l.playerSettings,
                 onTap: () {
                   _menuReturn = _fSettings;
                   _showSettings();

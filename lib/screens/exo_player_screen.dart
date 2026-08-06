@@ -507,7 +507,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Text('Settings',
+              child: Text(l.playerSettings,
                   style: Theme.of(ctx)
                       .textTheme
                       .titleMedium
@@ -517,7 +517,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
               ListTile(
                 autofocus: true,
                 leading: const Icon(Icons.high_quality_rounded),
-                title: const Text('Quality'),
+                title: Text(l.playerQuality),
                 subtitle: Text(_qualityOptions
                     .firstWhere((o) => o.$1 == _bitrate,
                         orElse: () => _qualityOptions.first)
@@ -527,13 +527,13 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
             if (hasChapters)
               ListTile(
                 leading: const Icon(Icons.bookmarks_rounded),
-                title: const Text('Chapters'),
+                title: Text(l.playerChapters),
                 onTap: () => Navigator.of(ctx).pop('chapters'),
               ),
             if (!_isLive)
               ListTile(
                 leading: const Icon(Icons.tune_rounded),
-                title: const Text('Playback Speed'),
+                title: Text(l.playerPlaybackSpeed),
                 subtitle: Text(_speed == 1.0 ? 'Normal' : '${_speed}x'),
                 onTap: () => Navigator.of(ctx).pop('speed'),
               ),
@@ -583,6 +583,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
 
   Future<void> _pickQuality() async {
     final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: scheme.surfaceContainerHigh,
@@ -592,7 +593,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Text('Quality',
+              child: Text(l.playerQuality,
                   style: Theme.of(ctx)
                       .textTheme
                       .titleMedium
@@ -620,6 +621,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
 
   Future<void> _pickChapter() async {
     final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     final chapters = widget.item.chapters;
     await showModalBottomSheet<void>(
       context: context,
@@ -630,7 +632,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Text('Chapters',
+              child: Text(l.playerChapters,
                   style: Theme.of(ctx)
                       .textTheme
                       .titleMedium
@@ -1057,6 +1059,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     final tracks =
         subtitle ? _controller.textTracks.value : _controller.audioTracks.value;
     final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: scheme.surfaceContainerHigh,
@@ -1066,7 +1069,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Text(subtitle ? 'Subtitles' : 'Audio',
+              child: Text(subtitle ? l.playerSubtitles : l.playerAudio,
                   style: Theme.of(ctx)
                       .textTheme
                       .titleMedium
@@ -1075,7 +1078,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
             if (subtitle)
               ListTile(
                 autofocus: tracks.every((t) => !t.selected),
-                title: const Text('Off'),
+                title: Text(l.commonOff),
                 trailing: tracks.every((t) => !t.selected)
                     ? Icon(Icons.check_rounded, color: scheme.primary)
                     : null,
@@ -1412,6 +1415,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
       );
 
   Widget _controls() {
+    final l = AppLocalizations.of(context);
     final hasSubs = _controller.textTracks.value.isNotEmpty;
     final hasAudio = _controller.audioTracks.value.isNotEmpty;
     final bar = Padding(
@@ -1488,12 +1492,12 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.fiber_manual_record_rounded,
+                      children: [
+                        const Icon(Icons.fiber_manual_record_rounded,
                             size: 10, color: Colors.white),
-                        SizedBox(width: 5),
-                        Text('LIVE',
-                            style: TextStyle(
+                        const SizedBox(width: 5),
+                        Text(l.playerBadgeLive,
+                            style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
@@ -1531,7 +1535,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
                 // press/scale animation isn't reset) while only the icon swaps.
                 AnimatedControl(
                   focusNode: _fPlay,
-                  tooltip: 'Play / Pause',
+                  tooltip: l.playerPlayPause,
                   onTap: _togglePlay,
                   child: ValueListenableBuilder<ExoState>(
                     valueListenable: _controller.state,
@@ -1547,14 +1551,14 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
                   _ctlButton(
                     focusNode: _fBack,
                     icon: Icons.replay_10_rounded,
-                    tooltip: 'Back 10s',
+                    tooltip: l.playerSeekBack(10),
                     onTap: () => _seekBy(-10),
                   ),
                 if (!_isLive)
                   _ctlButton(
                     focusNode: _fFwd,
                     icon: Icons.forward_30_rounded,
-                    tooltip: 'Forward 30s',
+                    tooltip: l.playerSeekForward(30),
                     onTap: () => _seekBy(30),
                   ),
                 const Spacer(),
@@ -1562,21 +1566,21 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
                   _ctlButton(
                     focusNode: _fPrev,
                     icon: Icons.skip_previous_rounded,
-                    tooltip: 'Previous episode',
+                    tooltip: l.commonPrevious,
                     onTap: () => _goEpisode(_epIndex - 1),
                   ),
                 if (!_isLive && _epIndex >= 0 && _epIndex < _episodes.length - 1)
                   _ctlButton(
                     focusNode: _fNext,
                     icon: Icons.skip_next_rounded,
-                    tooltip: 'Next episode',
+                    tooltip: l.commonNext,
                     onTap: () => _goEpisode(_epIndex + 1),
                   ),
                 if (hasSubs)
                   _ctlButton(
                     focusNode: _fSubs,
                     icon: Icons.closed_caption_rounded,
-                    tooltip: 'Subtitles',
+                    tooltip: l.playerSubtitles,
                     onTap: () {
                       _menuReturn = _fSubs;
                       _pickTrack(true);
@@ -1586,7 +1590,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
                   _ctlButton(
                     focusNode: _fAudio,
                     icon: Icons.multitrack_audio_rounded,
-                    tooltip: 'Audio',
+                    tooltip: l.playerAudio,
                     onTap: () {
                       _menuReturn = _fAudio;
                       _pickTrack(false);
@@ -1595,7 +1599,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
                 _ctlButton(
                   focusNode: _fSettings,
                   icon: Icons.settings_rounded,
-                  tooltip: 'Settings',
+                  tooltip: l.playerSettings,
                   onTap: () {
                     _menuReturn = _fSettings;
                     _showSettings();
@@ -1663,6 +1667,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
 
   Future<void> _pickSpeed() async {
     final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
     await showModalBottomSheet<void>(
       context: context,
@@ -1673,7 +1678,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-              child: Text('Playback Speed',
+              child: Text(l.playerPlaybackSpeed,
                   style: Theme.of(ctx)
                       .textTheme
                       .titleMedium

@@ -1271,6 +1271,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerPlaybackInfo => 'Playback Info';
 
   @override
+  String get playerPlayPause => 'Play / Pause';
+
+  @override
+  String playerSeekBack(int seconds) {
+    return 'Back ${seconds}s';
+  }
+
+  @override
+  String playerSeekForward(int seconds) {
+    return 'Forward ${seconds}s';
+  }
+
+  @override
   String get playerStatPlayMethod => 'Play Method';
 
   @override

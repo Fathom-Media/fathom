@@ -1518,6 +1518,28 @@
   "@playerPlaybackInfo": {
     "description": "Menu item / title for the playback details (stats) overlay."
   },
+  "playerPlayPause": "Play / Pause",
+  "@playerPlayPause": {
+    "description": "Player control tooltip: toggle play/pause."
+  },
+  "playerSeekBack": "Back {seconds}s",
+  "@playerSeekBack": {
+    "description": "Player control tooltip: seek backward by N seconds.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerSeekForward": "Forward {seconds}s",
+  "@playerSeekForward": {
+    "description": "Player control tooltip: seek forward by N seconds.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "playerStatPlayMethod": "Play Method",
   "@playerStatPlayMethod": {
     "description": "Playback stats label: how the server delivers the stream (direct play vs transcode)."

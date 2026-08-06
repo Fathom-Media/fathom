@@ -2422,6 +2422,24 @@ abstract class AppLocalizations {
   /// **'Playback Info'**
   String get playerPlaybackInfo;
 
+  /// Player control tooltip: toggle play/pause.
+  ///
+  /// In en, this message translates to:
+  /// **'Play / Pause'**
+  String get playerPlayPause;
+
+  /// Player control tooltip: seek backward by N seconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Back {seconds}s'**
+  String playerSeekBack(int seconds);
+
+  /// Player control tooltip: seek forward by N seconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward {seconds}s'**
+  String playerSeekForward(int seconds);
+
   /// Playback stats label: how the server delivers the stream (direct play vs transcode).
   ///
   /// In en, this message translates to:
