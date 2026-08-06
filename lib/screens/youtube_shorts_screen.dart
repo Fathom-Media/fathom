@@ -443,16 +443,15 @@ class _Overlay extends ConsumerWidget {
                     },
                   ),
                 if (!isTvDevice) const SizedBox(height: 18),
+                // Everything else (Play Next, Add to Queue, Download, Copy Link,
+                // Open in Browser) via the same action sheet the rest of the app
+                // uses, so the rail matches the watch page.
                 _RailButton(
-                  icon: Icons.link_rounded,
-                  label: l.ytCopyLink,
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(
-                        text: 'https://www.youtube.com/watch?v=${short.id}'));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(l.ytLinkCopied)),
-                    );
-                  },
+                  icon: Icons.more_horiz_rounded,
+                  label: l.playerMore,
+                  onTap: () => YoutubeActions.showTvActionSheet(
+                      context, ref, short,
+                      includePlaylist: false),
                 ),
               ],
             ),
