@@ -5140,6 +5140,12 @@ abstract class AppLocalizations {
   /// **'Comments are unavailable.'**
   String get ytCommentsUnavailable;
 
+  /// Shown over a Short in the vertical viewer when its video stream could not be resolved.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load this Short.'**
+  String get ytShortUnavailable;
+
   /// Comments heading with a preformatted count string.
   ///
   /// In en, this message translates to:

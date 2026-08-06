@@ -3674,6 +3674,10 @@
   "@ytCommentsUnavailable": {
     "description": "Shown in the Shorts comments sheet when a video has comments turned off or none could be loaded."
   },
+  "ytShortUnavailable": "Couldn't load this Short.",
+  "@ytShortUnavailable": {
+    "description": "Shown over a Short in the vertical viewer when its video stream could not be resolved."
+  },
   "ytCommentsCount": "Comments  ·  {count}",
   "@ytCommentsCount": {
     "description": "Comments heading with a preformatted count string.",

@@ -60,6 +60,9 @@ class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen> {
   // Resolved muxed URL per video id (null = resolve failed), so re-entering a
   // page never re-hits the network.
   final Map<String, String?> _urlCache = {};
+  // Video ids whose stream couldn't be resolved — shown as a fallback rather
+  // than an endless spinner.
+  final Set<String> _failed = {};
 
   bool get _mobile =>
       defaultTargetPlatform == TargetPlatform.android ||
@@ -138,10 +141,16 @@ class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen> {
       await player.setPlaylistMode(PlaylistMode.single); // loop the Short
       final url = await _resolveUrl(_shorts[index].id);
       // Bail if this player was recycled out of the window while resolving.
-      if (url == null || !_players.containsValue(player)) return;
+      if (!_players.containsValue(player)) return;
+      if (url == null) {
+        if (mounted) setState(() => _failed.add(_shorts[index].id));
+        return;
+      }
       await player.open(Media(url), play: index == _index);
       await player.setVolume(_muted ? 0 : 100);
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _failed.add(_shorts[index].id));
+    }
   }
 
   Future<String?> _resolveUrl(String videoId) async {
@@ -216,6 +225,7 @@ class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen> {
               player: i == _index ? _players[i] : null,
               controller: _controllers[i],
               muted: _muted,
+              failed: _failed.contains(_shorts[i].id),
             ),
           ),
           // Top overlay: back + mute, clear of the status bar.
@@ -256,12 +266,14 @@ class _ShortPage extends ConsumerStatefulWidget {
   final Player? player;
   final VideoController? controller;
   final bool muted;
+  final bool failed;
 
   const _ShortPage({
     required this.short,
     required this.player,
     required this.controller,
     required this.muted,
+    required this.failed,
   });
 
   @override
@@ -283,6 +295,7 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final short = widget.short;
     final controller = widget.controller;
     return GestureDetector(
@@ -290,8 +303,30 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // A Short that wouldn't resolve: its thumbnail, dimmed, with a note —
+          // rather than an endless spinner.
+          if (widget.failed) ...[
+            Image.network(
+              short.thumbnailUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black),
+            ),
+            const ColoredBox(color: Colors.black54),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline_rounded,
+                      color: Colors.white70, size: 40),
+                  const SizedBox(height: 8),
+                  Text(l.ytShortUnavailable,
+                      style: const TextStyle(color: Colors.white)),
+                ],
+              ),
+            ),
+          ]
           // Video, or the thumbnail while it's off-window / still opening.
-          if (controller != null)
+          else if (controller != null)
             Video(
               controller: controller,
               controls: NoVideoControls,
@@ -307,7 +342,7 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
 
           // Spinner while the current Short buffers to its first frame, so a
           // slow resolve reads as loading rather than frozen.
-          if (widget.player != null)
+          if (widget.player != null && !widget.failed)
             StreamBuilder<bool>(
               stream: widget.player!.stream.buffering,
               initialData: true,
@@ -336,13 +371,18 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
           // Bottom + right controls.
           _Overlay(short: short),
 
-          // Slim progress bar pinned to the very bottom.
-          if (widget.player != null)
+          // Scrubber, lifted clear of the bottom gesture area so it's easy to
+          // grab (with a tall transparent hit strip above the thin bar).
+          if (widget.player != null && !widget.failed)
             Positioned(
-              left: 0,
-              right: 0,
+              left: 8,
+              right: 8,
               bottom: 0,
-              child: _Progress(player: widget.player!),
+              child: SafeArea(
+                top: false,
+                minimum: const EdgeInsets.only(bottom: 18),
+                child: _Progress(player: widget.player!),
+              ),
             ),
         ],
       ),
@@ -392,9 +432,15 @@ class _Overlay extends ConsumerWidget {
                   _RailButton(
                     icon: Icons.headset_rounded,
                     label: l.ytListen,
-                    onTap: () => ref
-                        .read(audioControllerProvider.notifier)
-                        .playYoutubeAudio(youtubeAudioItemOf(short)),
+                    // Leave the viewer first (disposing the players stops the
+                    // video's audio), then hand off to background audio — the
+                    // same round-trip the watch page does, so audio isn't doubled.
+                    onTap: () {
+                      Navigator.of(context).maybePop();
+                      ref
+                          .read(audioControllerProvider.notifier)
+                          .playYoutubeAudio(youtubeAudioItemOf(short));
+                    },
                   ),
                 if (!isTvDevice) const SizedBox(height: 18),
                 _RailButton(
@@ -419,7 +465,7 @@ class _Overlay extends ConsumerWidget {
           right: 72,
           bottom: 0,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 40, 16, 18),
+            padding: const EdgeInsets.fromLTRB(16, 40, 16, 52),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -538,7 +584,7 @@ class _ProgressState extends State<_Progress> {
           setState(() => _drag = null);
         },
         child: SizedBox(
-          height: 22,
+          height: 30,
           child: Align(
             alignment: Alignment.bottomCenter,
             child: StreamBuilder<Duration>(
