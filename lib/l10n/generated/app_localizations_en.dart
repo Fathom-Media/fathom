@@ -883,6 +883,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Turn off if some videos glitch or fail';
 
   @override
+  String get prefsAudioPassthrough => 'Audio Passthrough';
+
+  @override
+  String get prefsAudioPassthroughSub =>
+      'Send Dolby Atmos / DTS to a connected receiver untouched. Only for an AV receiver or soundbar; leave off for regular speakers.';
+
+  @override
   String get prefsDisplaySync => 'Smooth Motion (Display Sync)';
 
   @override

@@ -1022,6 +1022,14 @@
   "@prefsHardwareDecodingSub": {
     "description": "Hardware-decoding toggle subtitle."
   },
+  "prefsAudioPassthrough": "Audio Passthrough",
+  "@prefsAudioPassthrough": {
+    "description": "Advanced playback toggle title: bitstream surround audio to a receiver."
+  },
+  "prefsAudioPassthroughSub": "Send Dolby Atmos / DTS to a connected receiver untouched. Only for an AV receiver or soundbar; leave off for regular speakers.",
+  "@prefsAudioPassthroughSub": {
+    "description": "Audio-passthrough toggle subtitle."
+  },
   "prefsDisplaySync": "Smooth Motion (Display Sync)",
   "@prefsDisplaySync": {
     "description": "Player toggle title: pace video to the display refresh."

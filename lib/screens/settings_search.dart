@@ -101,6 +101,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   SettingResult(title: l.searchAutoSkipIntros, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['skip', 'intro', 'opening', 'media segments']),
   SettingResult(title: l.searchAutoSkipCredits, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['skip', 'credits', 'outro', 'ending', 'media segments']),
   SettingResult(title: l.searchHardwareDecoding, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['hardware', 'hwdec', 'gpu', 'decode', 'acceleration', 'glitch']),
+  SettingResult(title: l.prefsAudioPassthrough, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['audio', 'passthrough', 'atmos', 'dolby', 'dts', 'surround', 'receiver', 'bitstream', 'spdif', 'hdmi', 'ac3', 'eac3', 'truehd', 'avr']),
   SettingResult(title: l.searchPlayerBackend, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['exoplayer', 'exo', 'media_kit', 'mediakit', 'libmpv', 'backend', 'engine', 'hdr', '4k', 'tunneling', 'android tv']),
   SettingResult(title: l.prefsDisplaySync, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['smooth', 'motion', 'display sync', 'vsync', 'judder', 'stutter', 'tearing', 'refresh', 'frame pacing', 'interpolation']),
 

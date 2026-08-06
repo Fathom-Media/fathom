@@ -905,6 +905,13 @@ class PreferencesScreen extends ConsumerWidget {
         value: p.hardwareDecoding,
         onChanged: (v) => c.edit((x) => x.copyWith(hardwareDecoding: v)),
       ),
+      SwitchListTile(
+        secondary: const Icon(Icons.surround_sound_rounded),
+        title: Text(l.prefsAudioPassthrough),
+        subtitle: Text(l.prefsAudioPassthroughSub),
+        value: p.audioPassthrough,
+        onChanged: (v) => c.edit((x) => x.copyWith(audioPassthrough: v)),
+      ),
       // Android video engine. ExoPlayer (native Media3) tunnels 4K/HDR straight
       // to the display, smooth on low-power TV sticks; media_kit (libmpv) is the
       // long-standing engine.

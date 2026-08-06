@@ -86,6 +86,10 @@ class Prefs {
   final bool desktopNotifications; // downloads / requests
   final bool autoSkipIntro;
   final bool autoSkipCredits;
+  // Bitstream compressed surround (AC3/E-AC3/DTS/TrueHD, incl. Dolby Atmos)
+  // straight to an AV receiver instead of decoding to PCM — the desktop mpv
+  // path. Off by default: on plain stereo speakers, passthrough is silence.
+  final bool audioPassthrough;
   // Force the TV / 10-foot D-pad interface even when the device doesn't report
   // itself as a television (HTPC, desktop-on-a-TV). Applied at next launch.
   final bool forceTvMode;
@@ -288,6 +292,7 @@ class Prefs {
     this.desktopNotifications = true,
     this.autoSkipIntro = false,
     this.autoSkipCredits = false,
+    this.audioPassthrough = false,
     this.forceTvMode = false,
     this.startupScreen = 'home',
     this.homeBanner = 'carousel',
@@ -405,6 +410,7 @@ class Prefs {
     bool? desktopNotifications,
     bool? autoSkipIntro,
     bool? autoSkipCredits,
+    bool? audioPassthrough,
     bool? forceTvMode,
     String? startupScreen,
     String? homeBanner,
@@ -517,6 +523,7 @@ class Prefs {
         desktopNotifications: desktopNotifications ?? this.desktopNotifications,
         autoSkipIntro: autoSkipIntro ?? this.autoSkipIntro,
         autoSkipCredits: autoSkipCredits ?? this.autoSkipCredits,
+        audioPassthrough: audioPassthrough ?? this.audioPassthrough,
         forceTvMode: forceTvMode ?? this.forceTvMode,
         startupScreen: startupScreen ?? this.startupScreen,
         homeBanner: homeBanner ?? this.homeBanner,
@@ -640,6 +647,7 @@ class Prefs {
         'desktopNotifications': desktopNotifications,
         'autoSkipIntro': autoSkipIntro,
         'autoSkipCredits': autoSkipCredits,
+        'audioPassthrough': audioPassthrough,
         'forceTvMode': forceTvMode,
         'startupScreen': startupScreen,
         'homeBanner': homeBanner,
@@ -755,6 +763,7 @@ class Prefs {
         desktopNotifications: j['desktopNotifications'] as bool? ?? true,
         autoSkipIntro: j['autoSkipIntro'] as bool? ?? false,
         autoSkipCredits: j['autoSkipCredits'] as bool? ?? false,
+        audioPassthrough: j['audioPassthrough'] as bool? ?? false,
         forceTvMode: j['forceTvMode'] as bool? ?? false,
         startupScreen: j['startupScreen'] as String? ?? 'home',
         homeBanner: j['homeBanner'] as String? ?? 'carousel',

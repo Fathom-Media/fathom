@@ -678,6 +678,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           await mpv.setProperty('tscale', 'oversample');
         } catch (_) {}
       }
+      // Bitstream compressed surround straight to an AV receiver — Dolby Atmos
+      // (over Dolby Digital Plus / TrueHD) and DTS pass through untouched instead
+      // of being decoded to PCM. Opt-in: on plain stereo speakers this is
+      // silence, so it's only right for an HDMI/optical link to a capable
+      // receiver. (Android uses ExoPlayer, which passes through automatically.)
+      if (startPrefs?.audioPassthrough ?? false) {
+        try {
+          await (_player.platform as dynamic)
+              .setProperty('audio-spdif', 'ac3,eac3,dts,dts-hd,truehd');
+        } catch (_) {}
+      }
       // In a SyncPlay group (VOD): a FOLLOWER (we opened this because the group
       // switched to it) opens PAUSED and waits for the server's synchronized
       // Unpause. An INITIATOR (user picked this) plays immediately so it doesn't

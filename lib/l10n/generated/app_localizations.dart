@@ -1738,6 +1738,18 @@ abstract class AppLocalizations {
   /// **'Turn off if some videos glitch or fail'**
   String get prefsHardwareDecodingSub;
 
+  /// Advanced playback toggle title: bitstream surround audio to a receiver.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio Passthrough'**
+  String get prefsAudioPassthrough;
+
+  /// Audio-passthrough toggle subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Dolby Atmos / DTS to a connected receiver untouched. Only for an AV receiver or soundbar; leave off for regular speakers.'**
+  String get prefsAudioPassthroughSub;
+
   /// Player toggle title: pace video to the display refresh.
   ///
   /// In en, this message translates to:
