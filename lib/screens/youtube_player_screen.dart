@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
@@ -1041,6 +1042,49 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
             (position: s.start, label: l.playerSkipSegment(s.category.label)),
         ],
       ),
+      // Fullscreen orientation follows the video: a 9:16 Short goes immersive
+      // portrait instead of being rotated into a landscape letterbox. Normal
+      // (wider-than-tall) videos and Android TV keep landscape; desktop uses
+      // native window fullscreen.
+      onEnterFullscreen: () async {
+        final w = _player.state.width ?? 0;
+        final h = _player.state.height ?? 0;
+        final platform = defaultTargetPlatform;
+        final androidOrIos =
+            platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+        try {
+          if (androidOrIos) {
+            final vertical = !isTvDevice && w > 0 && h > w;
+            await SystemChrome.setEnabledSystemUIMode(
+                SystemUiMode.immersiveSticky,
+                overlays: const []);
+            await SystemChrome.setPreferredOrientations(vertical
+                ? const [DeviceOrientation.portraitUp]
+                : const [
+                    DeviceOrientation.landscapeLeft,
+                    DeviceOrientation.landscapeRight,
+                  ]);
+          } else {
+            await const MethodChannel('com.alexmercerind/media_kit_video')
+                .invokeMethod('Utils.EnterNativeFullscreen');
+          }
+        } catch (_) {}
+      },
+      onExitFullscreen: () async {
+        final platform = defaultTargetPlatform;
+        final androidOrIos =
+            platform == TargetPlatform.android || platform == TargetPlatform.iOS;
+        try {
+          if (androidOrIos) {
+            await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+                overlays: SystemUiOverlay.values);
+            await SystemChrome.setPreferredOrientations(const []);
+          } else {
+            await const MethodChannel('com.alexmercerind/media_kit_video')
+                .invokeMethod('Utils.ExitNativeFullscreen');
+          }
+        } catch (_) {}
+      },
     );
     // On TV, FathomPlayerControls owns the D-pad (arrows walk the control bar).
     // The desktop keyboard shortcuts + autofocus wrapper would intercept the
