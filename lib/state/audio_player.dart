@@ -435,6 +435,7 @@ class AudioController extends Notifier<AudioState> {
         radioBehindLive: Duration.zero,
         radioWindow: Duration.zero);
     await _player.open(Playlist(medias, index: index));
+    _applyVolume();
     await _player.setShuffle(shuffle);
     _lastPositionTicks = 0;
     _reportStart(tracks[index].id);
@@ -465,6 +466,7 @@ class AudioController extends Notifier<AudioState> {
     await _ensureRadioArt(); // ready before the first now-playing push
     await _configureRadioBuffer();
     await _player.open(Media(s.url));
+    _applyVolume();
     _pushRadioNowPlaying(s, null);
     _pushPlaybackState();
     _startIcyPolling();
@@ -550,11 +552,23 @@ class AudioController extends Notifier<AudioState> {
     _ytPlayed.add(item.videoId);
     state = state.copyWith(ytCurrent: item);
     await _player.open(Media(url));
+    _applyVolume();
     if (startAt > Duration.zero) unawaited(_seekWhenReady(startAt));
     _pushYtNowPlaying(item);
     _pushPlaybackState();
     final up = ref.read(youtubeQueueProvider);
     if (up.isNotEmpty) unawaited(_resolveYtUrl(up.first.id));
+  }
+
+  /// Re-apply the remembered volume to the audio player. media_kit keeps this
+  /// player's last volume across `open()`, so a fresh source (e.g. handing off
+  /// from a video playing at 50%) would otherwise start at this player's stale
+  /// level until the slider is nudged. Called after every open.
+  void _applyVolume() {
+    final v = (ref.read(preferencesProvider).asData?.value.volume ?? 100)
+        .toDouble()
+        .clamp(0.0, 100.0);
+    unawaited(_player.setVolume(v));
   }
 
   /// Resolve an item's audio URL, reusing a recently-resolved one from the cache
@@ -666,6 +680,7 @@ class AudioController extends Notifier<AudioState> {
     _radioTickWall = null;
     state = state.copyWith(radioBehindLive: Duration.zero);
     await _player.open(Media(s.url));
+    _applyVolume();
   }
 
   /// Rewind/skip within the buffered window (seekable streams only). Negative to

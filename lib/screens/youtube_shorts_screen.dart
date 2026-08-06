@@ -20,7 +20,6 @@ import '../state/audio_player.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/add_to_youtube_playlist.dart';
 import '../widgets/animated_control.dart';
-import '../widgets/volume_control.dart';
 import '../widgets/youtube_actions.dart';
 
 /// A vertical, swipeable Shorts viewer — one Short per full-screen page, swipe
@@ -280,17 +279,15 @@ class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen>
                     onTap: () => Navigator.of(context).maybePop(),
                   ),
                   const Spacer(),
-                  // Desktop gets the app's real volume control (no hardware
-                  // keys, mouse expected); phones keep a mute toggle.
-                  if (!_mobile && _players[_index] != null)
-                    InlineVolume(player: _players[_index]!, expandLeft: true)
-                  else
-                    AnimatedIconButton(
-                      icon: _muted
-                          ? Icons.volume_off_rounded
-                          : Icons.volume_up_rounded,
-                      onTap: _toggleMute,
-                    ),
+                  // A clean mute toggle on every platform. A floating volume
+                  // slider over the video read as out of place, and desktop has
+                  // OS volume anyway.
+                  AnimatedIconButton(
+                    icon: _muted
+                        ? Icons.volume_off_rounded
+                        : Icons.volume_up_rounded,
+                    onTap: _toggleMute,
+                  ),
                 ],
               ),
             ),
