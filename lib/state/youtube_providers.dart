@@ -449,17 +449,25 @@ Future<List<YoutubeVideo>> _hydrate(
       _feedVideoCache
           .removeWhere((_, e) => now.difference(e.at) >= _feedVideoTtl);
     }
-    final fetched = await Future.wait([
-      for (final id in missing)
-        yt.videos
-            .get(VideoId(id))
-            .then<yte.Video?>((v) => v)
-            .catchError((_) => null),
-    ]);
-    for (final v in fetched.whereType<yte.Video>()) {
-      final yv = _toVideo(v);
-      _feedVideoCache[yv.id] = (video: yv, at: now);
-      have[yv.id] = yv;
+    // Fetch in bounded batches. Firing every request at once trips YouTube's
+    // rate limiter, which leaves the calls stuck with no reply — that's what
+    // pinned the feed on skeletons. A per-request deadline means one stuck fetch
+    // is dropped instead of stalling the whole feed.
+    const batchSize = 10;
+    for (var i = 0; i < missing.length; i += batchSize) {
+      final fetched = await Future.wait([
+        for (final id in missing.skip(i).take(batchSize))
+          yt.videos
+              .get(VideoId(id))
+              .then<yte.Video?>((v) => v)
+              .timeout(const Duration(seconds: 10), onTimeout: () => null)
+              .catchError((_) => null),
+      ]);
+      for (final v in fetched.whereType<yte.Video>()) {
+        final yv = _toVideo(v);
+        _feedVideoCache[yv.id] = (video: yv, at: now);
+        have[yv.id] = yv;
+      }
     }
   }
   // Preserve the caller's id order; drop ids whose fetch failed.
@@ -510,8 +518,26 @@ class YoutubeChannelUploads extends AsyncNotifier<YoutubeUploads> {
   Future<YoutubeUploads> build() async {
     final yt = ref.watch(youtubeInnerTubeProvider);
     final tab = await yt.channelTab(channelId, YtChannelTabKind.videos);
-    _continuation = tab.continuation;
-    return YoutubeUploads(videos: tab.videos, hasMore: tab.continuation != null);
+    var videos = tab.videos;
+    var token = tab.continuation;
+    // Some channels (mostly-Shorts or made-for-kids ones) hand back a tiny first
+    // page plus a continuation that then returns nothing. Pull a few more pages
+    // up front so the tab doesn't strand a couple of videos under an endless
+    // "loading more" spinner — the short list can never scroll to trigger the
+    // page that would resolve it.
+    var guard = 0;
+    while (videos.length < 10 && token != null && guard < 3) {
+      guard++;
+      final more = await yt.channelTabMore(token);
+      if (more.videos.isEmpty) {
+        token = null;
+        break;
+      }
+      videos = [...videos, ...more.videos];
+      token = more.continuation;
+    }
+    _continuation = token;
+    return YoutubeUploads(videos: videos, hasMore: token != null);
   }
 
   Future<void> loadMore() async {
@@ -757,9 +783,9 @@ class YoutubeFeedState {
 class YoutubeFeed extends AsyncNotifier<YoutubeFeedState> {
   static const _perChannel = 8;
 
-  /// Where each channel's paging got to. A channel drops out of the map once
-  /// it runs out, so later pages only ask the channels that still have more.
-  final Map<String, ChannelUploadsList> _pages = {};
+  /// Each channel's continuation token for the next page. A channel drops out of
+  /// the map once it runs out, so later pages only ask the channels with more.
+  final Map<String, String> _pages = {};
 
   @override
   Future<YoutubeFeedState> build() async {
@@ -782,21 +808,28 @@ class YoutubeFeed extends AsyncNotifier<YoutubeFeedState> {
     _pages.clear();
     if (subs.isEmpty) return const YoutubeFeedState();
     final yt = ref.watch(youtubeClientProvider);
+    final inner = ref.watch(youtubeInnerTubeProvider);
 
-    // In parallel; one failing channel shouldn't empty the whole feed.
+    // Each channel's recent uploads via one small InnerTube browse request (the
+    // same fast path the channel screen uses), instead of youtube_explode's
+    // getUploadsFromPage, which scraped the whole multi-megabyte channel page
+    // once per subscription. One failing channel shouldn't empty the feed.
     final results = await Future.wait([
       for (final c in subs)
-        yt.channels
-            .getUploadsFromPage(ChannelId(c.id))
-            .then<(String, ChannelUploadsList?)>((p) => (c.id, p))
+        inner
+            .channelTab(c.id, YtChannelTabKind.videos)
+            .then<(String, YtChannelTab?)>((t) => (c.id, t))
             .catchError((_) => (c.id, null)),
     ]);
     final ids = <String>[];
-    for (final (channelId, page) in results) {
-      if (page == null) continue;
-      _pages[channelId] = page;
-      ids.addAll(page.take(_perChannel).map((v) => v.id.value));
+    for (final (channelId, tab) in results) {
+      if (tab == null) continue;
+      final token = tab.continuation;
+      if (token != null) _pages[channelId] = token;
+      ids.addAll(tab.videos.take(_perChannel).map((v) => v.id));
     }
+    // Hydrate for exact upload dates (cached) so the merged order stays precise:
+    // the InnerTube list carries only relative "2 days ago" labels.
     return YoutubeFeedState(
       videos: _sorted(await _hydrate(yt, ids)),
       hasMore: _pages.isNotEmpty,
@@ -822,25 +855,31 @@ class YoutubeFeed extends AsyncNotifier<YoutubeFeedState> {
     if (current == null || current.loadingMore || !current.hasMore) return;
     state = AsyncData(current.copyWith(loadingMore: true));
     final yt = ref.read(youtubeClientProvider);
+    final inner = ref.read(youtubeInnerTubeProvider);
     try {
-      // Advance every channel that still has pages left. Uploads come back
+      // Advance every channel that still has a continuation. Uploads come back
       // newest-first per channel, so taking the next page from each and
       // re-sorting keeps the merged order right.
       final next = await Future.wait([
         for (final entry in _pages.entries)
-          entry.value
-              .nextPage()
-              .then<(String, ChannelUploadsList?)>((p) => (entry.key, p))
+          inner
+              .channelTabMore(entry.value)
+              .then<(String, YtChannelTab?)>((t) => (entry.key, t))
               .catchError((_) => (entry.key, null)),
       ]);
       final ids = <String>[];
-      for (final (channelId, page) in next) {
-        if (page == null || page.isEmpty) {
+      for (final (channelId, tab) in next) {
+        if (tab == null || tab.videos.isEmpty) {
           _pages.remove(channelId);
           continue;
         }
-        _pages[channelId] = page;
-        ids.addAll(page.take(_perChannel).map((v) => v.id.value));
+        final token = tab.continuation;
+        if (token != null) {
+          _pages[channelId] = token;
+        } else {
+          _pages.remove(channelId);
+        }
+        ids.addAll(tab.videos.take(_perChannel).map((v) => v.id));
       }
       final more = await _hydrate(yt, ids);
       // Guard against a channel handing back a page it already gave us.
