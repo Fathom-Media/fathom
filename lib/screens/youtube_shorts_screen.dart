@@ -17,6 +17,8 @@ import '../services/youtube_streams.dart';
 import '../state/audio_player.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/add_to_youtube_playlist.dart';
+import '../widgets/animated_control.dart';
+import '../widgets/volume_control.dart';
 import '../widgets/youtube_actions.dart';
 
 /// A vertical, swipeable Shorts viewer — one Short per full-screen page, swipe
@@ -228,26 +230,28 @@ class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen> {
               failed: _failed.contains(_shorts[i].id),
             ),
           ),
-          // Top overlay: back + mute, clear of the status bar.
+          // Top overlay: back + volume, clear of the status bar.
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded,
-                        color: Colors.white),
-                    onPressed: () => Navigator.of(context).maybePop(),
+                  AnimatedIconButton(
+                    icon: Icons.arrow_back_rounded,
+                    onTap: () => Navigator.of(context).maybePop(),
                   ),
                   const Spacer(),
-                  IconButton(
-                    icon: Icon(
-                        _muted
-                            ? Icons.volume_off_rounded
-                            : Icons.volume_up_rounded,
-                        color: Colors.white),
-                    onPressed: _toggleMute,
-                  ),
+                  // Desktop gets the app's real volume control (no hardware
+                  // keys, mouse expected); phones keep a mute toggle.
+                  if (!_mobile && _players[_index] != null)
+                    InlineVolume(player: _players[_index]!, expandLeft: true)
+                  else
+                    AnimatedIconButton(
+                      icon: _muted
+                          ? Icons.volume_off_rounded
+                          : Icons.volume_up_rounded,
+                      onTap: _toggleMute,
+                    ),
                 ],
               ),
             ),
@@ -363,7 +367,8 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
                       ? Icons.pause_rounded
                       : Icons.play_arrow_rounded,
                   size: 76,
-                  color: Colors.white.withValues(alpha: 0.85),
+                  color: Colors.white.withValues(alpha: 0.9),
+                  shadows: const [Shadow(blurRadius: 16, color: Colors.black54)],
                 ),
               ),
             ),
@@ -400,6 +405,8 @@ class _Overlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    const shadow = [Shadow(blurRadius: 5, color: Colors.black87)];
     return Stack(
       children: [
         // Right rail.
@@ -490,9 +497,10 @@ class _Overlay extends ConsumerWidget {
                         short.author,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: theme.textTheme.titleSmall?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
+                          shadows: shadow,
                         ),
                       ),
                     ),
@@ -501,7 +509,8 @@ class _Overlay extends ConsumerWidget {
                     short.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white),
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: Colors.white, shadows: shadow),
                   ),
                 ],
               ),
@@ -513,6 +522,8 @@ class _Overlay extends ConsumerWidget {
   }
 }
 
+/// A rail action: a plain white glyph over the video that springs and warms to
+/// the accent on press/hover — the app's shared control animation, no backing.
 class _RailButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -522,18 +533,25 @@ class _RailButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkResponse(
+    return AnimatedControl(
       onTap: onTap,
-      radius: 30,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white, size: 30),
+          // No colour set -> inherits AnimatedControl's white -> accent tween.
+          Icon(icon, size: 28),
           const SizedBox(height: 4),
-          Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontSize: 11)),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              shadows: [Shadow(blurRadius: 4, color: Colors.black54)],
+            ),
+          ),
         ],
       ),
     );
@@ -590,14 +608,16 @@ class _ProgressState extends State<_Progress> {
               stream: widget.player.stream.position,
               initialData: widget.player.state.position,
               builder: (context, snap) {
+                final accent = Theme.of(context).colorScheme.primary;
                 final dur = widget.player.state.duration.inMilliseconds;
                 final pos = (snap.data ?? Duration.zero).inMilliseconds;
                 final live = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
                 return LinearProgressIndicator(
                   value: _drag ?? live,
-                  minHeight: _drag != null ? 5 : 2.5,
+                  minHeight: _drag != null ? 5 : 3,
                   backgroundColor: Colors.white24,
-                  valueColor: const AlwaysStoppedAnimation(Colors.white),
+                  valueColor: AlwaysStoppedAnimation(accent),
+                  borderRadius: BorderRadius.circular(3),
                 );
               },
             ),
