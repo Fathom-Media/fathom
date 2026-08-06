@@ -5410,6 +5410,12 @@ abstract class AppLocalizations {
   /// **'Subscribe'**
   String get ytSubscribe;
 
+  /// Action-sheet row: open the video's channel page.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Channel'**
+  String get ytGoToChannel;
+
   /// Title of the add-to-playlist bottom sheet.
   ///
   /// In en, this message translates to:

@@ -249,6 +249,10 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
                     if (d != null) _playNext(d);
                   }
                 : null,
+            onShowActions: details.asData?.value == null
+                ? null
+                : () =>
+                    showYoutubeTvActions(context, ref, details.asData!.value),
           ),
         ),
       );
@@ -295,6 +299,93 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
       ),
     );
   }
+}
+
+/// A lean-back actions sheet for the TV watch screen: Subscribe, Add to
+/// playlist, and Go to channel — the couch-worthy actions (comments and
+/// download are deliberately left to phone/desktop). D-pad friendly (ListTiles).
+Future<void> showYoutubeTvActions(
+    BuildContext context, WidgetRef ref, YoutubeWatchDetails d) {
+  final l = AppLocalizations.of(context);
+  final scheme = Theme.of(context).colorScheme;
+  final channelId = d.channelId;
+  final channel = channelId == null
+      ? null
+      : YoutubeChannel(
+          id: channelId,
+          title: d.channelName,
+          logoUrl: d.channelAvatarUrl ?? '',
+          subscribersText: d.subscribersLabel,
+        );
+  final video = YoutubeVideo(
+    id: d.id,
+    title: d.title,
+    author: d.channelName,
+    channelId: channelId,
+    url: 'https://www.youtube.com/watch?v=${d.id}',
+    thumbnailUrl: 'https://i.ytimg.com/vi/${d.id}/mqdefault.jpg',
+  );
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: scheme.surfaceContainerHigh,
+    builder: (ctx) => SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+            child: Text(d.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(ctx)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700)),
+          ),
+          if (channel != null)
+            Consumer(builder: (context, ref, _) {
+              final subs =
+                  ref.watch(youtubeSubscriptionsProvider).asData?.value ??
+                      const <YoutubeChannel>[];
+              final subscribed = subs.any((c) => c.id == channel.id);
+              return ListTile(
+                autofocus: true,
+                leading: Icon(
+                    subscribed ? Icons.check_rounded : Icons.add_rounded,
+                    color: subscribed ? scheme.primary : null),
+                title: Text(subscribed ? l.ytSubscribed : l.ytSubscribe,
+                    style:
+                        subscribed ? TextStyle(color: scheme.primary) : null),
+                onTap: () {
+                  ref
+                      .read(youtubeSubscriptionsProvider.notifier)
+                      .toggle(channel);
+                  Navigator.of(ctx).pop();
+                },
+              );
+            }),
+          ListTile(
+            leading: const Icon(Icons.playlist_add_rounded),
+            title: Text(l.ytAddToPlaylist),
+            onTap: () {
+              Navigator.of(ctx).pop();
+              showAddToYoutubePlaylist(context, video);
+            },
+          ),
+          if (channelId != null)
+            ListTile(
+              leading: const Icon(Icons.person_rounded),
+              title: Text(l.ytGoToChannel),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                context.push('/youtube/channel',
+                    extra: (channelId: channelId, title: d.channelName));
+              },
+            ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Width of the Up Next rail on wide windows. A touch wider than a bare minimum

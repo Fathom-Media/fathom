@@ -1487,16 +1487,35 @@ class _YoutubeNowPlaying extends ConsumerWidget {
           // the art beside the controls when it's wider than it is tall, and
           // keep the vertical stack in portrait.
           final landscape = c.maxWidth > c.maxHeight;
-          final art = ClipRRect(
+          final accent = Theme.of(context).colorScheme.primary;
+          final artImage = ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: Image.network(
-              item.thumbnailUrl,
+              // A crisp thumbnail for the big now-playing art. maxres 404s on
+              // some videos, so fall back to the item's own (medium) thumbnail,
+              // then to an icon.
+              'https://i.ytimg.com/vi/${item.videoId}/maxresdefault.jpg',
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => ColoredBox(
-                color: scheme.surfaceContainerHighest,
-                child: Icon(Icons.headset_rounded,
-                    size: 64, color: scheme.onSurfaceVariant),
+              errorBuilder: (_, _, _) => Image.network(
+                item.thumbnailUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => ColoredBox(
+                  color: scheme.surfaceContainerHighest,
+                  child: Icon(Icons.headset_rounded,
+                      size: 64, color: scheme.onSurfaceVariant),
+                ),
               ),
+            ),
+          );
+          // The same soft accent glow radio uses, pulsing while it plays.
+          final art = StreamBuilder<bool>(
+            stream: player.stream.playing,
+            initialData: player.state.playing,
+            builder: (context, snap) => _AuraGlow(
+              playing: snap.data ?? false,
+              borderRadius: 16,
+              color: accent,
+              child: artImage,
             ),
           );
           final info = Column(

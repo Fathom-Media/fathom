@@ -47,6 +47,7 @@ class YoutubeExoPlayer extends ConsumerStatefulWidget {
     this.onProgress,
     this.onEnded,
     this.onNext,
+    this.onShowActions,
   });
 
   /// A YouTube watch URL (streams are resolved here).
@@ -73,6 +74,10 @@ class YoutubeExoPlayer extends ConsumerStatefulWidget {
   final void Function(Duration position, Duration duration)? onProgress;
   final VoidCallback? onEnded;
   final VoidCallback? onNext;
+
+  /// Opens the lean-back actions sheet (Subscribe / Add to playlist / Channel).
+  /// Null hides the Actions button.
+  final VoidCallback? onShowActions;
 
   @override
   ConsumerState<YoutubeExoPlayer> createState() => _YoutubeExoPlayerState();
@@ -119,6 +124,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
   final _fFwd = FocusNode(debugLabel: 'ytFwd');
   final _fNext = FocusNode(debugLabel: 'ytNext');
   final _fCaption = FocusNode(debugLabel: 'ytCaption');
+  final _fActions = FocusNode(debugLabel: 'ytActions');
   final _fSettings = FocusNode(debugLabel: 'ytSettings');
 
   /// Queue/playlist first (what plays next), then the video's related list; the
@@ -144,6 +150,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
         // Subtitles (CC) is a dedicated bar button like the Jellyfin player, so
         // the two players read the same; the gear keeps Quality/Speed/Chapters.
         if (_captions.isNotEmpty) _fCaption,
+        if (widget.onShowActions != null) _fActions,
         _fSettings,
       ];
 
@@ -770,6 +777,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
       _fFwd,
       _fNext,
       _fCaption,
+      _fActions,
       _fSettings
     ]) {
       f.dispose();
@@ -1084,6 +1092,16 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
                   onTap: () {
                     _menuReturn = _fCaption;
                     _pickCaption();
+                  },
+                ),
+              if (widget.onShowActions != null)
+                _ctlButton(
+                  focusNode: _fActions,
+                  icon: Icons.more_vert_rounded,
+                  tooltip: l.playerMore,
+                  onTap: () {
+                    _menuReturn = _fActions;
+                    widget.onShowActions!();
                   },
                 ),
               _ctlButton(

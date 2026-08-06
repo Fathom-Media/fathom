@@ -3900,6 +3900,10 @@
   "@ytSubscribe": {
     "description": "Subscribe button label when not subscribed."
   },
+  "ytGoToChannel": "Go to Channel",
+  "@ytGoToChannel": {
+    "description": "Action-sheet row: open the video's channel page."
+  },
   "ytSaveToPlaylist": "Save to Playlist",
   "@ytSaveToPlaylist": {
     "description": "Title of the add-to-playlist bottom sheet."

@@ -3008,6 +3008,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytSubscribe => 'Subscribe';
 
   @override
+  String get ytGoToChannel => 'Go to Channel';
+
+  @override
   String get ytSaveToPlaylist => 'Save to Playlist';
 
   @override
