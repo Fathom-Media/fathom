@@ -172,6 +172,9 @@ class AudioController extends Notifier<AudioState> {
   // the next track's stream URL is still resolving.
   bool _ytAutoplay = true;
   bool _ytAdvancing = false;
+  // Bumped on every YouTube-audio open, so a load-watchdog from a track we've
+  // already moved past can't skip the current one.
+  int _ytLoadToken = 0;
   // Resolved audio-URL cache (YouTube URLs last ~6h; cache under that) so a
   // pre-resolved next track opens instantly instead of gapping while it fetches.
   final Map<String, ({String url, DateTime at})> _ytUrlCache = {};
@@ -271,6 +274,14 @@ class AudioController extends Notifier<AudioState> {
       }).catchError((_) {});
     }
 
+    // Prefetch the next playlist entry so music transitions are near-gapless
+    // (mpv doesn't do this by default). YouTube audio is single Medias, so it
+    // pre-resolves the next URL separately. An mpv option; harmless elsewhere.
+    try {
+      unawaited(
+          (_player.platform as dynamic).setProperty('prefetch-playlist', 'yes'));
+    } catch (_) {}
+
     final subPlaylist = _player.stream.playlist.listen((pl) {
       // Keep the visible queue in the player's real order (matters once shuffle
       // or a reorder has rearranged things), and follow the current track.
@@ -300,7 +311,13 @@ class AudioController extends Notifier<AudioState> {
     // track is a single Media, so advance the YouTube queue ourselves when it
     // finishes.
     final subCompleted = _player.stream.completed.listen((done) {
-      if (done && state.isYoutubeAudio) _ytNext();
+      if (!done || !state.isYoutubeAudio) return;
+      // media_kit also fires `completed` when a media fails to open (its
+      // duration stays zero). Only a real end-of-track — a non-zero duration
+      // that actually played out — should advance, otherwise a bad/expired URL
+      // cascades "completed -> next -> completed" through the whole queue.
+      if (_player.state.duration <= Duration.zero) return;
+      _ytNext();
     });
     // Mirror transport state to the media session. Position is extrapolated by
     // the OS between updates, so pushing on play/pause/buffer/duration changes
@@ -542,7 +559,7 @@ class AudioController extends Notifier<AudioState> {
   /// reused) and open it. Pushes now-playing and pre-resolves the next queued
   /// item so the hand-over when this one ends is near-seamless.
   Future<void> _playYtItem(YoutubeAudioItem item,
-      {Duration startAt = Duration.zero}) async {
+      {Duration startAt = Duration.zero, bool retried = false}) async {
     final url = await _resolveYtUrl(item.videoId);
     if (url == null) {
       await _ytNext(); // couldn't resolve this one; move on rather than dead-end
@@ -551,6 +568,7 @@ class AudioController extends Notifier<AudioState> {
     if (!state.isYoutubeAudio) return; // left YouTube mode while resolving
     _ytPlayed.add(item.videoId);
     state = state.copyWith(ytCurrent: item);
+    final token = ++_ytLoadToken;
     await _player.open(Media(url));
     _applyVolume();
     if (startAt > Duration.zero) unawaited(_seekWhenReady(startAt));
@@ -558,6 +576,34 @@ class AudioController extends Notifier<AudioState> {
     _pushPlaybackState();
     final up = ref.read(youtubeQueueProvider);
     if (up.isNotEmpty) unawaited(_resolveYtUrl(up.first.id));
+    unawaited(_watchLoad(item, token, retried));
+  }
+
+  /// Guard against a track that never actually loads — an expired or blocked URL
+  /// that media_kit neither plays nor reports a duration for. If no real
+  /// duration arrives, re-resolve a fresh URL once (a stale cached URL is the
+  /// usual culprit), then skip forward — rather than hang on "loading" forever.
+  Future<void> _watchLoad(YoutubeAudioItem item, int token, bool retried) async {
+    if (_player.state.duration > Duration.zero) return;
+    try {
+      await _player.stream.duration
+          .firstWhere((d) => d > Duration.zero)
+          .timeout(const Duration(seconds: 12));
+      return; // loaded fine
+    } catch (_) {
+      // Timed out with no duration. Ignore if we've since moved to another track.
+      if (token != _ytLoadToken ||
+          !state.isYoutubeAudio ||
+          state.ytCurrent?.videoId != item.videoId) {
+        return;
+      }
+      if (!retried) {
+        _ytUrlCache.remove(item.videoId); // drop the (likely stale) URL
+        await _playYtItem(item, retried: true);
+      } else {
+        await _ytNext();
+      }
+    }
   }
 
   /// Re-apply the remembered volume to the audio player. media_kit keeps this
