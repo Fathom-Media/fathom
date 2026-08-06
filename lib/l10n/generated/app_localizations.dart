@@ -4558,6 +4558,12 @@ abstract class AppLocalizations {
   /// **'Listen to all'**
   String get ytListenAll;
 
+  /// Quiet note on a playlist when fewer videos load than the count advertised, because YouTube won't return age-restricted or private videos to an anonymous client.
+  ///
+  /// In en, this message translates to:
+  /// **'Some videos are unavailable (age-restricted or private).'**
+  String get ytSomeUnavailable;
+
   /// Shown in the background-audio queue sheet when the up-next queue is empty.
   ///
   /// In en, this message translates to:

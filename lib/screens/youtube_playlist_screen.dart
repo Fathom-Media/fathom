@@ -19,10 +19,16 @@ class YoutubePlaylistScreen extends ConsumerWidget {
   final String playlistId;
   final String? title; // shown while the playlist loads
 
+  /// The video count the playlist card advertised. Used only to note, quietly,
+  /// when fewer load than that — YouTube counts age-restricted/private videos it
+  /// then won't hand an anonymous client, so the two numbers legitimately differ.
+  final int? expectedCount;
+
   const YoutubePlaylistScreen({
     super.key,
     required this.playlistId,
     this.title,
+    this.expectedCount,
   });
 
   /// Saving keeps a reference, not the contents: the playlist belongs to
@@ -95,7 +101,9 @@ class YoutubePlaylistScreen extends ConsumerWidget {
               title: l.ytNothingInPlaylist,
             );
           }
-          return ListView.separated(
+          final expected = expectedCount;
+          final incomplete = expected != null && list.length < expected;
+          final listView = ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             itemCount: list.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
@@ -111,6 +119,33 @@ class YoutubePlaylistScreen extends ConsumerWidget {
                     extra: (videoId: list[i].id, title: list[i].title));
               },
             ),
+          );
+          if (!incomplete) return listView;
+          final scheme = Theme.of(context).colorScheme;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded,
+                        size: 15, color: scheme.onSurfaceVariant),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        l.ytSomeUnavailable,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(child: listView),
+            ],
           );
         },
       ),

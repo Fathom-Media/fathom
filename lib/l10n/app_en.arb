@@ -3238,6 +3238,10 @@
   "@ytListenAll": {
     "description": "Playlist action: play the whole playlist as background audio."
   },
+  "ytSomeUnavailable": "Some videos are unavailable (age-restricted or private).",
+  "@ytSomeUnavailable": {
+    "description": "Quiet note on a playlist when fewer videos load than the count advertised, because YouTube won't return age-restricted or private videos to an anonymous client."
+  },
   "ytQueueEmpty": "Nothing up next. A related track plays automatically when this one ends.",
   "@ytQueueEmpty": {
     "description": "Shown in the background-audio queue sheet when the up-next queue is empty."

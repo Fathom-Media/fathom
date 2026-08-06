@@ -2508,6 +2508,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytListenAll => 'Listen to all';
 
   @override
+  String get ytSomeUnavailable =>
+      'Some videos are unavailable (age-restricted or private).';
+
+  @override
   String get ytQueueEmpty =>
       'Nothing up next. A related track plays automatically when this one ends.';
 

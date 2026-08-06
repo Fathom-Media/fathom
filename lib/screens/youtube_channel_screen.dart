@@ -223,7 +223,11 @@ class _ChannelPlaylistRow extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () => context.push('/youtube/playlist',
-            extra: (playlistId: playlist.id, title: playlist.title)),
+            extra: (
+              playlistId: playlist.id,
+              title: playlist.title,
+              count: playlist.videoCount
+            )),
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Row(

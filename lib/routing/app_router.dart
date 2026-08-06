@@ -244,9 +244,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/youtube/playlist',
         pageBuilder: (context, state) {
-          final r = state.extra as ({String playlistId, String? title});
-          return _fadePage(
-              YoutubePlaylistScreen(playlistId: r.playlistId, title: r.title));
+          final r =
+              state.extra as ({String playlistId, String? title, int? count});
+          return _fadePage(YoutubePlaylistScreen(
+              playlistId: r.playlistId,
+              title: r.title,
+              expectedCount: r.count));
         },
       ),
       // Your own playlists, as opposed to /youtube/playlist which shows
