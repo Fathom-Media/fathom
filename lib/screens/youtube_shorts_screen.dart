@@ -10,6 +10,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../models/youtube_comment.dart';
 import '../models/youtube_video.dart';
 import '../services/tv_mode.dart';
 import '../services/youtube_streams.dart';
@@ -304,6 +305,18 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
               errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black),
             ),
 
+          // Spinner while the current Short buffers to its first frame, so a
+          // slow resolve reads as loading rather than frozen.
+          if (widget.player != null)
+            StreamBuilder<bool>(
+              stream: widget.player!.stream.buffering,
+              initialData: true,
+              builder: (context, snap) => (snap.data ?? false)
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Colors.white))
+                  : const SizedBox.shrink(),
+            ),
+
           // Center play/pause flash on tap.
           if (_flashPlay && widget.player != null)
             Center(
@@ -357,6 +370,18 @@ class _Overlay extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                _RailButton(
+                  icon: Icons.mode_comment_outlined,
+                  label: l.ytComments,
+                  onTap: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    showDragHandle: true,
+                    backgroundColor: Theme.of(context).colorScheme.surface,
+                    builder: (_) => _ShortsCommentsSheet(videoId: short.id),
+                  ),
+                ),
+                const SizedBox(height: 18),
                 _RailButton(
                   icon: Icons.playlist_add_rounded,
                   label: l.ytAddToPlaylist,
@@ -470,26 +495,211 @@ class _RailButton extends StatelessWidget {
   }
 }
 
-class _Progress extends StatelessWidget {
+/// Slim progress bar that doubles as a scrubber: tap or drag horizontally to
+/// seek. A taller transparent hit area makes it easy to grab; the bar itself
+/// stays pinned thin at the very bottom so it never covers the video.
+class _Progress extends StatefulWidget {
   final Player player;
   const _Progress({required this.player});
 
   @override
+  State<_Progress> createState() => _ProgressState();
+}
+
+class _ProgressState extends State<_Progress> {
+  double? _drag; // 0..1 while scrubbing, else null
+
+  void _seek(double fraction) {
+    final dur = widget.player.state.duration;
+    if (dur > Duration.zero) {
+      widget.player.seek(dur * fraction.clamp(0.0, 1.0));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Duration>(
-      stream: player.stream.position,
-      initialData: player.state.position,
-      builder: (context, snap) {
-        final dur = player.state.duration.inMilliseconds;
-        final pos = (snap.data ?? Duration.zero).inMilliseconds;
-        final value = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
-        return LinearProgressIndicator(
-          value: value,
-          minHeight: 2.5,
-          backgroundColor: Colors.white24,
-          valueColor: const AlwaysStoppedAnimation(Colors.white),
+    return LayoutBuilder(builder: (context, box) {
+      final width = box.maxWidth;
+      double frac(double dx) => width <= 0 ? 0 : (dx / width).clamp(0.0, 1.0);
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (d) {
+          final f = frac(d.localPosition.dx);
+          _seek(f);
+          setState(() => _drag = f);
+        },
+        onTapUp: (_) => setState(() => _drag = null),
+        onHorizontalDragStart: (d) =>
+            setState(() => _drag = frac(d.localPosition.dx)),
+        onHorizontalDragUpdate: (d) =>
+            setState(() => _drag = frac(d.localPosition.dx)),
+        onHorizontalDragEnd: (_) {
+          if (_drag != null) _seek(_drag!);
+          setState(() => _drag = null);
+        },
+        child: SizedBox(
+          height: 22,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: StreamBuilder<Duration>(
+              stream: widget.player.stream.position,
+              initialData: widget.player.state.position,
+              builder: (context, snap) {
+                final dur = widget.player.state.duration.inMilliseconds;
+                final pos = (snap.data ?? Duration.zero).inMilliseconds;
+                final live = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
+                return LinearProgressIndicator(
+                  value: _drag ?? live,
+                  minHeight: _drag != null ? 5 : 2.5,
+                  backgroundColor: Colors.white24,
+                  valueColor: const AlwaysStoppedAnimation(Colors.white),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+/// Comments for a Short, in a bottom sheet. Fetches the video's comments token
+/// (via the watch provider) and reuses the shared comments provider.
+class _ShortsCommentsSheet extends ConsumerWidget {
+  final String videoId;
+  const _ShortsCommentsSheet({required this.videoId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    Widget unavailable() => Center(
+          child: Text(l.ytCommentsUnavailable,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
         );
-      },
+    return SizedBox(
+      height: MediaQuery.sizeOf(context).height * 0.78,
+      child: ref.watch(youtubeWatchProvider(videoId)).when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => unavailable(),
+            data: (d) {
+              final token = d.commentsToken;
+              if (token == null) return unavailable();
+              return ref.watch(youtubeCommentsProvider(token)).when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (_, _) => unavailable(),
+                    data: (page) {
+                      if (page.comments.isEmpty) return unavailable();
+                      return ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                        children: [
+                          Text(
+                            page.countLabel.isEmpty
+                                ? l.ytComments
+                                : l.ytCommentsCount(page.countLabel),
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 12),
+                          for (final c in page.comments)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: _ShortsCommentRow(comment: c),
+                            ),
+                          if (page.hasMore)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: page.loadingMore
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(8),
+                                      child: SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2)),
+                                    )
+                                  : TextButton.icon(
+                                      onPressed: () => ref
+                                          .read(youtubeCommentsProvider(token)
+                                              .notifier)
+                                          .loadMore(),
+                                      icon:
+                                          const Icon(Icons.expand_more_rounded),
+                                      label: Text(l.ytShowMoreComments),
+                                    ),
+                            ),
+                        ],
+                      );
+                    },
+                  );
+            },
+          ),
+    );
+  }
+}
+
+class _ShortsCommentRow extends StatelessWidget {
+  final YoutubeComment comment;
+  const _ShortsCommentRow({required this.comment});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final c = comment;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: scheme.surfaceContainerHigh,
+          foregroundImage:
+              c.avatarUrl.isEmpty ? null : NetworkImage(c.avatarUrl),
+          child: const Icon(Icons.person_rounded, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(c.author,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                  ),
+                  if (c.publishedLabel.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Text(c.publishedLabel,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant, fontSize: 11)),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(c.text, style: theme.textTheme.bodyMedium),
+              if (c.likeLabel.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.thumb_up_outlined,
+                        size: 13, color: scheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(c.likeLabel,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant)),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -2844,6 +2844,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytComments => 'Comments';
 
   @override
+  String get ytCommentsUnavailable => 'Comments are unavailable.';
+
+  @override
   String ytCommentsCount(String count) {
     return 'Comments  ·  $count';
   }

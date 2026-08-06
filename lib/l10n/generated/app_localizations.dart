@@ -5134,6 +5134,12 @@ abstract class AppLocalizations {
   /// **'Comments'**
   String get ytComments;
 
+  /// Shown in the Shorts comments sheet when a video has comments turned off or none could be loaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments are unavailable.'**
+  String get ytCommentsUnavailable;
+
   /// Comments heading with a preformatted count string.
   ///
   /// In en, this message translates to:

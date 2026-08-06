@@ -3670,6 +3670,10 @@
   "@ytComments": {
     "description": "Heading over the comments section on the watch page."
   },
+  "ytCommentsUnavailable": "Comments are unavailable.",
+  "@ytCommentsUnavailable": {
+    "description": "Shown in the Shorts comments sheet when a video has comments turned off or none could be loaded."
+  },
   "ytCommentsCount": "Comments  ·  {count}",
   "@ytCommentsCount": {
     "description": "Comments heading with a preformatted count string.",
