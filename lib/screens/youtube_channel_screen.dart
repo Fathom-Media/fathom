@@ -14,6 +14,7 @@ import '../widgets/youtube_video_collection.dart';
 import '../widgets/youtube_skeletons.dart';
 import '../models/youtube_playlist.dart';
 import '../services/youtube_innertube.dart';
+import '../services/tv_mode.dart';
 import '../l10n/generated/app_localizations.dart';
 
 /// A YouTube channel page: banner + avatar header, a subscribe toggle, and the
@@ -197,7 +198,22 @@ class _BrowseTab extends ConsumerWidget {
           );
         }
         if (t.playlists.isEmpty) {
-          return YoutubeVideoCollection(videos: t.videos, showAuthor: false);
+          return YoutubeVideoCollection(
+            videos: t.videos,
+            showAuthor: false,
+            // Tapping a Short opens the vertical swipe viewer over this list
+            // (paging in more of the channel's Shorts on demand) instead of the
+            // regular watch page. Other tabs keep the default watch navigation.
+            onTap: kind == YtChannelTabKind.shorts && !isTvDevice
+                ? (v) => context.push('/youtube/shorts', extra: (
+                      shorts: t.videos,
+                      startIndex: t.videos
+                          .indexWhere((x) => x.id == v.id)
+                          .clamp(0, t.videos.length - 1),
+                      continuation: t.continuation,
+                    ))
+                : null,
+          );
         }
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),

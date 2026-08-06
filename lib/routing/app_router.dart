@@ -36,6 +36,8 @@ import '../screens/youtube_player_screen.dart';
 import '../screens/radio_screen.dart';
 import '../screens/youtube_screen.dart';
 import '../screens/youtube_watch_screen.dart';
+import '../screens/youtube_shorts_screen.dart';
+import '../models/youtube_video.dart';
 import '../screens/playlist_detail_screen.dart';
 import '../screens/playlists_screen.dart';
 import '../screens/preferences_screen.dart';
@@ -222,6 +224,21 @@ final routerProvider = Provider<GoRouter>((ref) {
           final r = state.extra as ({String videoId, String? title});
           return _fadePage(
               YoutubeWatchScreen(videoId: r.videoId, title: r.title));
+        },
+      ),
+      GoRoute(
+        path: '/youtube/shorts',
+        pageBuilder: (context, state) {
+          final r = state.extra as ({
+            List<YoutubeVideo> shorts,
+            int startIndex,
+            String? continuation,
+          });
+          return _fadePage(YoutubeShortsScreen(
+            shorts: r.shorts,
+            startIndex: r.startIndex,
+            continuation: r.continuation,
+          ));
         },
       ),
       // On the root navigator, not in the shell, and deliberately so. The
