@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
@@ -12,6 +13,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/youtube_comment.dart';
 import '../models/youtube_video.dart';
+import '../routing/route_observer.dart';
 import '../services/tv_mode.dart';
 import '../services/youtube_streams.dart';
 import '../state/audio_player.dart';
@@ -48,7 +50,8 @@ class YoutubeShortsScreen extends ConsumerStatefulWidget {
       _YoutubeShortsScreenState();
 }
 
-class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen> {
+class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen>
+    with RouteAware {
   late final PageController _pageController;
   late List<YoutubeVideo> _shorts;
   late int _index;
@@ -65,6 +68,9 @@ class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen> {
   // Video ids whose stream couldn't be resolved — shown as a fallback rather
   // than an endless spinner.
   final Set<String> _failed = {};
+  // Video ids already logged to watch history this session, so a swipe records
+  // a view once rather than on every rebuild.
+  final Set<String> _recorded = {};
 
   bool get _mobile =>
       defaultTargetPlatform == TargetPlatform.android ||
@@ -89,7 +95,23 @@ class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is ModalRoute<void>) routeObserver.subscribe(this, route);
+  }
+
+  // Covered by a full route (e.g. tapping the channel) — pause so the Short's
+  // audio doesn't keep playing out of sight; resume when it's revealed again.
+  @override
+  void didPushNext() => _players[_index]?.pause();
+
+  @override
+  void didPopNext() => _players[_index]?.play();
+
+  @override
   void dispose() {
+    routeObserver.unsubscribe(this);
     for (final p in _players.values) {
       p.dispose();
     }
@@ -135,7 +157,24 @@ class _YoutubeShortsScreenState extends ConsumerState<YoutubeShortsScreen> {
       }
     }
     if (mounted) setState(() {});
+    _recordHistory();
     unawaited(_maybeLoadMore());
+  }
+
+  /// Log the current Short as watched (once per session), so it shows in History
+  /// and the feed's watched/dedup logic stays consistent with the watch page.
+  void _recordHistory() {
+    final v = _shorts[_index];
+    if (!_recorded.add(v.id)) return;
+    final dur = v.duration ?? Duration.zero;
+    ref.read(youtubeHistoryProvider.notifier).record(
+          videoId: v.id,
+          title: v.title,
+          author: v.author,
+          position: dur,
+          duration: dur,
+          now: DateTime.now(),
+        );
   }
 
   Future<void> _open(Player player, int index) async {
@@ -285,17 +324,7 @@ class _ShortPage extends ConsumerStatefulWidget {
 }
 
 class _ShortPageState extends ConsumerState<_ShortPage> {
-  bool _flashPlay = false;
-
-  void _tap() {
-    final p = widget.player;
-    if (p == null) return;
-    p.playOrPause();
-    setState(() => _flashPlay = true);
-    Future.delayed(const Duration(milliseconds: 450), () {
-      if (mounted) setState(() => _flashPlay = false);
-    });
-  }
+  void _tap() => widget.player?.playOrPause();
 
   @override
   Widget build(BuildContext context) {
@@ -329,14 +358,25 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
               ),
             ),
           ]
-          // Video, or the thumbnail while it's off-window / still opening.
-          else if (controller != null)
+          // Video with a blurred fill behind it, so a Short that isn't a clean
+          // 9:16 sits on a soft backdrop rather than dead black bars.
+          else if (controller != null) ...[
+            ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              child: Image.network(
+                short.thumbnailUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const ColoredBox(color: Colors.black),
+              ),
+            ),
+            const ColoredBox(color: Colors.black26),
             Video(
               controller: controller,
               controls: NoVideoControls,
               fit: BoxFit.contain,
-              fill: Colors.black,
-            )
+              fill: Colors.transparent,
+            ),
+          ]
           else
             Image.network(
               short.thumbnailUrl,
@@ -356,21 +396,28 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
                   : const SizedBox.shrink(),
             ),
 
-          // Center play/pause flash on tap.
-          if (_flashPlay && widget.player != null)
-            Center(
-              child: StreamBuilder<bool>(
-                stream: widget.player!.stream.playing,
-                initialData: widget.player!.state.playing,
-                builder: (context, snap) => Icon(
-                  (snap.data ?? true)
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  size: 76,
-                  color: Colors.white.withValues(alpha: 0.9),
-                  shadows: const [Shadow(blurRadius: 16, color: Colors.black54)],
-                ),
-              ),
+          // Persistent play glyph while paused (not just a flash), so a
+          // tapped-pause reads clearly. Hidden while buffering.
+          if (widget.player != null && !widget.failed)
+            StreamBuilder<bool>(
+              stream: widget.player!.stream.playing,
+              initialData: widget.player!.state.playing,
+              builder: (context, snap) {
+                final playing = snap.data ?? true;
+                if (playing || widget.player!.state.buffering) {
+                  return const SizedBox.shrink();
+                }
+                return Center(
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    size: 76,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    shadows: const [
+                      Shadow(blurRadius: 16, color: Colors.black54)
+                    ],
+                  ),
+                );
+              },
             ),
 
           // Bottom + right controls.
