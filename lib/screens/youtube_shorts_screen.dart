@@ -328,11 +328,9 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
     final l = AppLocalizations.of(context);
     final short = widget.short;
     final controller = widget.controller;
-    return GestureDetector(
-      onTap: _tap,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
+    final stack = Stack(
+      fit: StackFit.expand,
+      children: [
           // A Short that wouldn't resolve: its thumbnail, dimmed, with a note —
           // rather than an endless spinner.
           if (widget.failed) ...[
@@ -433,8 +431,35 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
                 child: _Progress(player: widget.player!),
               ),
             ),
-        ],
-      ),
+      ],
+    );
+    return GestureDetector(
+      onTap: _tap,
+      // Android TV stretches the portrait Short across the widescreen panel;
+      // constrain it to a centered 9:16 column with black sides. isTvDevice-gated
+      // so desktop/phone/tablet (which render correctly) stay untouched.
+      child: isTvDevice
+          ? Stack(
+              fit: StackFit.expand,
+              children: [
+                // Full-screen blurred ambiance behind the portrait column — the
+                // same soft-backdrop look the app uses elsewhere, not black bars.
+                ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+                  child: Image.network(
+                    short.thumbnailUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        const ColoredBox(color: Colors.black),
+                  ),
+                ),
+                const ColoredBox(color: Colors.black38),
+                Center(
+                  child: AspectRatio(aspectRatio: 9 / 16, child: stack),
+                ),
+              ],
+            )
+          : stack,
     );
   }
 }
