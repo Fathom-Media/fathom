@@ -163,6 +163,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // (Android). The on-screen controls hide themselves so the PiP window shows
   // just the video.
   bool _inPip = false;
+  bool _chromeVisible = true; // mirrors FathomPlayerControls' auto-hide
   bool _triedTranscode = false;
   bool _appliedTracks = false;
   String? _error;
@@ -195,6 +196,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _upNextVN = ValueNotifier(null);
   bool _upNextHidden = false; // user pressed Hide for this episode
   bool _advancingNext = false; // guards the auto-advance from double-firing
+  int? _upNextSegTicks; // the credits segment currently driving Up Next
+  bool _upNextCounted = false; // the countdown ran down via playback (not a seek)
   // TV: the Skip Intro/Credits button lives outside the control scope, so a
   // remote can't reach it. When a segment appears we move focus to it (so OK
   // skips), remembering the previously focused control to restore afterward.
@@ -1615,6 +1618,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           // phone/desktop paradigm and isn't reachable on a TV, so
                           // the button is dropped there (kept elsewhere).
                           onMinimize: isTvDevice ? null : _minimize,
+                          onVisibilityChanged: (v) {
+                            if (mounted) setState(() => _chromeVisible = v);
+                          },
                           onPrevious: _epIndex > 0
                               ? () => _playEpisodeAt(_epIndex - 1)
                               : null,
@@ -1635,11 +1641,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       Positioned(
                         top: MediaQuery.of(context).padding.top + 4,
                         right: 8,
-                        child: CastButton(
-                          resolve: _castMedia,
-                          title: _title,
-                          position: () => _player.state.position.inMilliseconds,
-                          color: Colors.white,
+                        // Fade with the chrome so it doesn't float over the
+                        // video after the controls auto-hide.
+                        child: AnimatedOpacity(
+                          opacity: _chromeVisible ? 1 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: IgnorePointer(
+                            ignoring: !_chromeVisible,
+                            child: CastButton(
+                              resolve: _castMedia,
+                              title: _title,
+                              position: () =>
+                                  _player.state.position.inMilliseconds,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     // While a cast session is live (or connecting), local
@@ -1685,6 +1701,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     // Countdown length measured from the START of the credits. Full (lead<=0)
     // runs the whole credits; otherwise it is exactly `lead` seconds.
+    final segId = seg.startTicks;
+    if (_upNextSegTicks != segId) {
+      _upNextSegTicks = segId;
+      _upNextCounted = false;
+    }
     final creditsLen = (seg.end - seg.start).inSeconds;
     var total = lead <= 0 ? creditsLen : lead;
     if (total < 1) total = 1;
@@ -1694,9 +1715,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     // Autoplay off → static prompt (no countdown); on → live remaining.
     final int? remaining = autoplayOn ? remainingSecs : null;
+    // Mark that the countdown has actually been running (remaining > 0 seen via
+    // playback), so we only auto-advance on a genuine run-down.
+    if (autoplayOn && remainingSecs > 0) _upNextCounted = true;
 
-    // Countdown elapsed → advance to the next episode (once).
-    if (autoplayOn && remainingSecs <= 0 && !_advancingNext) {
+    // Countdown elapsed → advance to the next episode (once). Requires the
+    // countdown to have run down through playback, not a manual seek straight to
+    // the end (which would otherwise jump to the next episode).
+    if (autoplayOn &&
+        remainingSecs <= 0 &&
+        _upNextCounted &&
+        !_advancingNext) {
       _advancingNext = true;
       _playEpisodeAt(_epIndex + 1);
       return true;

@@ -93,6 +93,8 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
   ({BaseItemDto item, int? remaining, int total})? _upNext;
   bool _upNextHidden = false; // user pressed Hide for this episode
   bool _advancingNext = false; // guards the auto-advance from double-firing
+  int? _upNextSegTicks; // the credits segment currently driving Up Next
+  bool _upNextCounted = false; // the countdown ran down via playback (not a seek)
   final _fUpNextPlay = FocusNode(debugLabel: 'exoUpNextPlay');
   final _fUpNextHide = FocusNode(debugLabel: 'exoUpNextHide');
   // Trickplay scrub-preview geometry (VOD only). Null until loaded / if absent.
@@ -877,6 +879,8 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
   // button. Auto-skips when the per-category preference is on. Mirrors the
   // media_kit player's logic; setState is handled by the caller (_onState).
   void _checkSegments(Duration pos) {
+    // A late state event during teardown must not read providers after unmount.
+    if (_disposed || _deactivated || !mounted) return;
     MediaSegment? active;
     for (final seg in _segments) {
       if (seg.isSkippable && seg.contains(pos)) {
@@ -961,6 +965,11 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     final prefs = ref.read(preferencesProvider).asData?.value;
     final autoplayOn = prefs?.autoplayNext ?? true;
     final lead = prefs?.upNextLeadSeconds ?? 20;
+    final segId = seg.startTicks;
+    if (_upNextSegTicks != segId) {
+      _upNextSegTicks = segId;
+      _upNextCounted = false;
+    }
     final creditsLen = (seg.end - seg.start).inSeconds;
     var total = lead <= 0 ? creditsLen : lead;
     if (total < 1) total = 1;
@@ -968,8 +977,11 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     var remainingSecs = total - elapsed;
     if (remainingSecs < 0) remainingSecs = 0;
     final int? remaining = autoplayOn ? remainingSecs : null;
+    if (autoplayOn && remainingSecs > 0) _upNextCounted = true;
 
-    if (autoplayOn && remainingSecs <= 0 && !_advancingNext) {
+    // Only auto-advance on a genuine run-down, not a manual seek straight to the
+    // end (which would otherwise jump to the next episode).
+    if (autoplayOn && remainingSecs <= 0 && _upNextCounted && !_advancingNext) {
       _advancingNext = true;
       _goEpisode(_epIndex + 1);
       return;
@@ -1427,49 +1439,8 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
             // SyncPlay status: a pulsing "syncing" glyph or a brief skip-to-sync
             // flash, centered. Hidden in a PiP window.
             if (!_inPip) Positioned.fill(child: _SyncCueOverlay(cue: _syncCue)),
-            // Up Next prompt (credits of an episode with a next one) takes
-            // priority; otherwise the Skip Intro/Recap/Credits pill. Shared
-            // widgets with the media_kit player; TV gets D-pad focus + scaling.
-            if (!_inPip && _upNext != null)
-              Positioned(
-                right: 28,
-                bottom: (ref.watch(preferencesProvider).asData?.value.upNextStyle ??
-                            'card') ==
-                        'card'
-                    ? 96
-                    : 116,
-                child: UpNextPrompt(
-                  style: ref
-                          .watch(preferencesProvider)
-                          .asData
-                          ?.value
-                          .upNextStyle ??
-                      'card',
-                  title: _upNext!.item.name,
-                  subtitle: _upNextSubtitle(_upNext!.item),
-                  artUrl: _upNextArtUrl(_upNext!.item),
-                  imageHeaders: ref.read(imageHeadersProvider),
-                  remaining: _upNext!.remaining,
-                  total: _upNext!.total,
-                  onPlayNow: _upNextPlayNow,
-                  onHide: _upNextHide,
-                  playFocus: _fUpNextPlay,
-                  hideFocus: _fUpNextHide,
-                  tv: isTvDevice,
-                )
-              )
-            else if (!_inPip && _activeSkip != null)
-              Positioned(
-                right: 28,
-                bottom: 116,
-                child: SkipPill(
-                  key: ValueKey(_activeSkip!.type),
-                  label: _exoSkipLabel(_activeSkip!),
-                  onTap: _doSkip,
-                  focusNode: _fSkip,
-                  tv: isTvDevice,
-                ),
-              ),
+            // (Up Next / Skip prompt is rendered LAST — above the chrome — so
+            // its Play Now / Hide / Skip buttons actually receive taps.)
             // Chromecast entry point (phone/tablet; the button hides itself where
             // Cast is unavailable). Off on TV, which is a cast target not a
             // source. Adapts the stream to the chosen receiver.
@@ -1477,11 +1448,21 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
               Positioned(
                 top: MediaQuery.of(context).padding.top + 4,
                 right: 8,
-                child: CastButton(
-                  resolve: _castMedia,
-                  title: widget.item.name,
-                  position: () => _controller.state.value.position.inMilliseconds,
-                  color: Colors.white,
+                // Fade with the rest of the chrome so it doesn't stay floating
+                // over the video after the controls hide.
+                child: AnimatedOpacity(
+                  opacity: _controlsVisible ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: IgnorePointer(
+                    ignoring: !_controlsVisible,
+                    child: CastButton(
+                      resolve: _castMedia,
+                      title: widget.item.name,
+                      position: () =>
+                          _controller.state.value.position.inMilliseconds,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ),
             // While casting, local playback is paused and this covers the video
@@ -1511,6 +1492,49 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
                 ),
               ),
             ),
+            // Up Next / Skip prompt ABOVE the chrome so its buttons receive
+            // taps (the visible controls would otherwise intercept them).
+            if (!_inPip && _upNext != null)
+              Positioned(
+                right: 28,
+                bottom: (ref.watch(preferencesProvider).asData?.value
+                                .upNextStyle ??
+                            'card') ==
+                        'card'
+                    ? 96
+                    : 116,
+                child: UpNextPrompt(
+                  style: ref
+                          .watch(preferencesProvider)
+                          .asData
+                          ?.value
+                          .upNextStyle ??
+                      'card',
+                  title: _upNext!.item.name,
+                  subtitle: _upNextSubtitle(_upNext!.item),
+                  artUrl: _upNextArtUrl(_upNext!.item),
+                  imageHeaders: ref.read(imageHeadersProvider),
+                  remaining: _upNext!.remaining,
+                  total: _upNext!.total,
+                  onPlayNow: _upNextPlayNow,
+                  onHide: _upNextHide,
+                  playFocus: _fUpNextPlay,
+                  hideFocus: _fUpNextHide,
+                  tv: isTvDevice,
+                ),
+              )
+            else if (!_inPip && _activeSkip != null)
+              Positioned(
+                right: 28,
+                bottom: 116,
+                child: SkipPill(
+                  key: ValueKey(_activeSkip!.type),
+                  label: _exoSkipLabel(_activeSkip!),
+                  onTap: _doSkip,
+                  focusNode: _fSkip,
+                  tv: isTvDevice,
+                ),
+              ),
           ],
         ),
       ),

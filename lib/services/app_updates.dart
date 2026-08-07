@@ -78,9 +78,26 @@ class GithubRelease {
       return pick((n) => n.endsWith('.zip') && n.contains('windows'));
     }
     if (Platform.isAndroid) {
-      // Prefer an arm64 build if the release ships split APKs, else the
-      // universal one. (Requires an .apk to actually be attached to releases.)
-      return pick((n) => n.endsWith('.apk') && n.contains('arm64')) ??
+      // Match this device's ABI when a release ships split APKs (so an
+      // armeabi-v7a TV box doesn't grab the arm64 phone build), then a
+      // universal APK, then any .apk. (Requires an .apk on the release.)
+      final abi = Abi.current();
+      final tags = abi == Abi.androidArm64
+          ? const ['arm64', 'aarch64']
+          : abi == Abi.androidArm
+              ? const ['armeabi', 'armv7', 'arm-v7', 'arm32']
+              : abi == Abi.androidX64
+                  ? const ['x86_64', 'x64']
+                  : const <String>[];
+      for (final t in tags) {
+        final m = pick((n) => n.endsWith('.apk') && n.contains(t));
+        if (m != null) return m;
+      }
+      return pick((n) =>
+              n.endsWith('.apk') &&
+              !n.contains('arm') &&
+              !n.contains('aarch64') &&
+              !n.contains('x86')) ??
           pick((n) => n.endsWith('.apk'));
     }
     return null;

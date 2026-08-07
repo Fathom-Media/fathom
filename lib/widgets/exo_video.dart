@@ -224,7 +224,7 @@ class ExoVideo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PlatformViewLink(
+    final view = PlatformViewLink(
       viewType: _viewType,
       surfaceFactory: (context, controller) => AndroidViewSurface(
         controller: controller as AndroidViewController,
@@ -245,6 +245,22 @@ class ExoVideo extends StatelessWidget {
         avc.create();
         return avc;
       },
+    );
+    // The bare native TextureView stretches the frame to its bounds, so a 4:3
+    // video would fill a 16:9 area. Constrain it to the video's own aspect ratio
+    // (pillar/letterboxed on the black Scaffold), matching the media_kit player.
+    // The wrapper structure is CONSTANT (only the ratio value changes) — moving
+    // the platform view between different parents re-creates the native surface
+    // and breaks playback, so we never change the tree shape, just the ratio
+    // (defaulting to 16:9 until the real size is known).
+    return ValueListenableBuilder<ExoState>(
+      valueListenable: controller.state,
+      builder: (context, s, child) {
+        final ratio =
+            (s.width > 0 && s.height > 0) ? s.width / s.height : 16 / 9;
+        return Center(child: AspectRatio(aspectRatio: ratio, child: child));
+      },
+      child: view,
     );
   }
 }

@@ -3,20 +3,35 @@ import 'package:flutter/material.dart';
 import '../l10n/generated/app_localizations.dart';
 import 'tv_focus.dart';
 
-/// Fades its child in on first build. Because it keeps its element across
-/// rebuilds (same position/type), it only animates when a fresh subtree is
-/// created — i.e. when the prompt first appears, not on every countdown tick.
-class _FadeIn extends StatelessWidget {
+/// Fades its child in once on mount via an explicit controller — robust to
+/// parent rebuilds (the exo screen rebuilds every position tick, which reset an
+/// implicit TweenAnimationBuilder). Plays once when the element mounts; keeps
+/// the element across countdown ticks, so it doesn't re-fade every second.
+class _FadeIn extends StatefulWidget {
   final Widget child;
   const _FadeIn({required this.child});
 
   @override
-  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOut,
-        tween: Tween<double>(begin: 0, end: 1),
-        builder: (_, v, c) => Opacity(opacity: v, child: c),
-        child: child,
+  State<_FadeIn> createState() => _FadeInState();
+}
+
+class _FadeInState extends State<_FadeIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  )..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+        opacity: CurvedAnimation(parent: _c, curve: Curves.easeOut),
+        child: widget.child,
       );
 }
 

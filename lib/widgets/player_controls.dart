@@ -120,6 +120,11 @@ class FathomPlayerControls extends StatefulWidget {
   /// Minimizes the video into the floating mini player. Null hides the button.
   final VoidCallback? onMinimize;
 
+  /// Fired when the control chrome shows (true) or auto-hides (false), so the
+  /// host screen can fade its own sibling overlays (e.g. the cast button) in
+  /// step with the controls.
+  final ValueChanged<bool>? onVisibilityChanged;
+
   /// Toggles theater mode (a wider in-page player with the side rail hidden).
   /// Null hides the button; shown only outside fullscreen, like YouTube.
   final VoidCallback? onToggleTheater;
@@ -171,6 +176,7 @@ class FathomPlayerControls extends StatefulWidget {
     this.showFullscreen = true,
     this.touchGestures = false,
     this.onMinimize,
+    this.onVisibilityChanged,
     this.onToggleTheater,
     this.theaterActive = false,
     this.onNext,
@@ -205,6 +211,7 @@ class FathomPlayerControls extends StatefulWidget {
 class _FathomPlayerControlsState extends State<FathomPlayerControls>
     with SingleTickerProviderStateMixin {
   bool _visible = true;
+  bool? _lastEmittedVisible; // so onVisibilityChanged fires only on real changes
   bool _playing = true;
   Timer? _hideTimer;
   StreamSubscription<bool>? _playSub;
@@ -522,6 +529,14 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    // Tell the host when the chrome shows/hides so it can fade its own sibling
+    // overlays (cast button) in step. Deferred a frame — no setState in build.
+    if (_lastEmittedVisible != _visible) {
+      _lastEmittedVisible = _visible;
+      final visible = _visible;
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => widget.onVisibilityChanged?.call(visible));
+    }
     final Widget content = MouseRegion(
       // Only blank the pointer once the chrome has actually hidden itself.
       cursor: (_visible || !widget.autoHide)
