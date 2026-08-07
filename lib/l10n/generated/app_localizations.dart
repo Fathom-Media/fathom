@@ -3802,6 +3802,114 @@ abstract class AppLocalizations {
   /// **'Continue Watching'**
   String get browseContinueWatching;
 
+  /// Android Auto top-level tab: a quick-start mix of shortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get autoHome;
+
+  /// Android Auto top-level tab: the full Jellyfin music library.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get autoLibrary;
+
+  /// Android Auto Home action: play a random shuffle of the whole music library.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle All'**
+  String get autoShuffleAll;
+
+  /// Android Auto Home action: shuffle-play favorite songs.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites Mix'**
+  String get autoFavoritesMix;
+
+  /// Android Auto browse shortcut: songs played recently.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently Played'**
+  String get autoRecentlyPlayed;
+
+  /// Android Auto browse shortcut: newest albums.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently Added'**
+  String get autoRecentlyAdded;
+
+  /// Android Auto browse category: music genres.
+  ///
+  /// In en, this message translates to:
+  /// **'Genres'**
+  String get autoGenres;
+
+  /// Android Auto browse category: internet-radio favorite stations.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get autoRadio;
+
+  /// Android Auto radio sub-folder: favorite stations.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get autoRadioFavorites;
+
+  /// Android Auto radio sub-folder: stations not in any group.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get autoRadioOther;
+
+  /// Android Auto browse category: the user's music playlists.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlists'**
+  String get autoPlaylists;
+
+  /// Android Auto browse category: recently added music albums.
+  ///
+  /// In en, this message translates to:
+  /// **'Albums'**
+  String get autoAlbums;
+
+  /// Android Auto browse category: music artists.
+  ///
+  /// In en, this message translates to:
+  /// **'Artists'**
+  String get autoArtists;
+
+  /// Android Auto browse category: songs the user has favorited.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorite Songs'**
+  String get autoFavoriteSongs;
+
+  /// Android Auto browse category: YouTube audio.
+  ///
+  /// In en, this message translates to:
+  /// **'YouTube'**
+  String get autoYoutube;
+
+  /// Android Auto browse subcategory: newest uploads from followed YouTube channels.
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s New'**
+  String get autoYoutubeWhatsNew;
+
+  /// Android Auto browse subcategory: the user's saved YouTube playlists.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Playlists'**
+  String get autoYoutubePlaylists;
+
+  /// Android Auto browse subcategory: channels the user follows on YouTube.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscriptions'**
+  String get autoYoutubeSubscriptions;
+
   /// Home row title: the next episode to watch.
   ///
   /// In en, this message translates to:

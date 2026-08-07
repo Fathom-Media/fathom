@@ -121,6 +121,20 @@ Future<void> main() async {
           // a white silhouette (res/drawable-*/ic_stat_fathom.png). Without this
           // it falls back to a blank launcher-derived square.
           androidNotificationIcon: 'drawable/ic_stat_fathom',
+          // Android Auto: opt into content styling so browse folders/items can
+          // ask to render as lists or grids (see AudioController's browse tree),
+          // and declare search support on the browsable root — THIS is what makes
+          // the car draw the search button. ACTION_PLAY_FROM_SEARCH alone only
+          // enables voice; the browser-root SEARCH_SUPPORTED extra renders the UI.
+          androidBrowsableRootExtras: {
+            AndroidContentStyle.supportedKey: true,
+            // Category style so the top-level tabs render with their icons.
+            AndroidContentStyle.browsableHintKey:
+                AndroidContentStyle.categoryListItemHintValue,
+            AndroidContentStyle.playableHintKey:
+                AndroidContentStyle.listItemHintValue,
+            'android.media.browse.SEARCH_SUPPORTED': true,
+          },
         ),
       );
     } catch (_) {

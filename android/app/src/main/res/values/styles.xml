@@ -15,4 +15,13 @@
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+    <!-- Best-effort brand tint for the car media UI. Older Android Auto and
+         Android Automotive honor these; modern Auto (Coolwalk) mostly derives
+         colors from artwork instead, so this is additive and ignored where
+         unsupported. Fathom's soft-indigo accent (#6C8CFF). -->
+    <style name="CarTheme" parent="@android:style/Theme.Material">
+        <item name="android:colorPrimary">#6C8CFF</item>
+        <item name="android:colorPrimaryDark">#4E6AD6</item>
+        <item name="android:colorAccent">#6C8CFF</item>
+    </style>
 </resources>

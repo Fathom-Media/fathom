@@ -2636,6 +2636,78 @@
   "@browseContinueWatching": {
     "description": "Home row title: items in progress."
   },
+  "autoHome": "Home",
+  "@autoHome": {
+    "description": "Android Auto top-level tab: a quick-start mix of shortcuts."
+  },
+  "autoLibrary": "Library",
+  "@autoLibrary": {
+    "description": "Android Auto top-level tab: the full Jellyfin music library."
+  },
+  "autoShuffleAll": "Shuffle All",
+  "@autoShuffleAll": {
+    "description": "Android Auto Home action: play a random shuffle of the whole music library."
+  },
+  "autoFavoritesMix": "Favorites Mix",
+  "@autoFavoritesMix": {
+    "description": "Android Auto Home action: shuffle-play favorite songs."
+  },
+  "autoRecentlyPlayed": "Recently Played",
+  "@autoRecentlyPlayed": {
+    "description": "Android Auto browse shortcut: songs played recently."
+  },
+  "autoRecentlyAdded": "Recently Added",
+  "@autoRecentlyAdded": {
+    "description": "Android Auto browse shortcut: newest albums."
+  },
+  "autoGenres": "Genres",
+  "@autoGenres": {
+    "description": "Android Auto browse category: music genres."
+  },
+  "autoRadio": "Radio",
+  "@autoRadio": {
+    "description": "Android Auto browse category: internet-radio favorite stations."
+  },
+  "autoRadioFavorites": "Favorites",
+  "@autoRadioFavorites": {
+    "description": "Android Auto radio sub-folder: favorite stations."
+  },
+  "autoRadioOther": "Other",
+  "@autoRadioOther": {
+    "description": "Android Auto radio sub-folder: stations not in any group."
+  },
+  "autoPlaylists": "Playlists",
+  "@autoPlaylists": {
+    "description": "Android Auto browse category: the user's music playlists."
+  },
+  "autoAlbums": "Albums",
+  "@autoAlbums": {
+    "description": "Android Auto browse category: recently added music albums."
+  },
+  "autoArtists": "Artists",
+  "@autoArtists": {
+    "description": "Android Auto browse category: music artists."
+  },
+  "autoFavoriteSongs": "Favorite Songs",
+  "@autoFavoriteSongs": {
+    "description": "Android Auto browse category: songs the user has favorited."
+  },
+  "autoYoutube": "YouTube",
+  "@autoYoutube": {
+    "description": "Android Auto browse category: YouTube audio."
+  },
+  "autoYoutubeWhatsNew": "What's New",
+  "@autoYoutubeWhatsNew": {
+    "description": "Android Auto browse subcategory: newest uploads from followed YouTube channels."
+  },
+  "autoYoutubePlaylists": "Your Playlists",
+  "@autoYoutubePlaylists": {
+    "description": "Android Auto browse subcategory: the user's saved YouTube playlists."
+  },
+  "autoYoutubeSubscriptions": "Subscriptions",
+  "@autoYoutubeSubscriptions": {
+    "description": "Android Auto browse subcategory: channels the user follows on YouTube."
+  },
   "browseNextUp": "Next Up",
   "@browseNextUp": {
     "description": "Home row title: the next episode to watch."

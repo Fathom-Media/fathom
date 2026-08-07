@@ -18,6 +18,8 @@ import 'services/live_players.dart';
 import 'services/tv_mode.dart';
 import 'services/live_streams.dart';
 import 'services/notifications.dart';
+import 'state/audio_handler.dart';
+import 'state/audio_player.dart';
 import 'state/syncplay_session.dart';
 import 'state/mpris_integration.dart';
 import 'state/smtc_integration.dart';
@@ -173,6 +175,12 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         AppNotifications.requestPermission();
       });
+      // Bring the audio controller up now (when the OS media session exists), so
+      // its Android Auto browse callbacks are wired even if the car starts us
+      // headless and browses before any screen has mounted.
+      if (ref.read(audioHandlerProvider) != null) {
+        ref.read(audioControllerProvider.notifier);
+      }
       // Draw edge-to-edge with transparent system bars (required behaviour on
       // Android 15+, and a cleaner look elsewhere): the app paints behind the
       // status and gesture-nav bars, and SafeArea insets the content. No forced

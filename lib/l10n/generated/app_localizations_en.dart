@@ -2052,6 +2052,60 @@ class AppLocalizationsEn extends AppLocalizations {
   String get browseContinueWatching => 'Continue Watching';
 
   @override
+  String get autoHome => 'Home';
+
+  @override
+  String get autoLibrary => 'Library';
+
+  @override
+  String get autoShuffleAll => 'Shuffle All';
+
+  @override
+  String get autoFavoritesMix => 'Favorites Mix';
+
+  @override
+  String get autoRecentlyPlayed => 'Recently Played';
+
+  @override
+  String get autoRecentlyAdded => 'Recently Added';
+
+  @override
+  String get autoGenres => 'Genres';
+
+  @override
+  String get autoRadio => 'Radio';
+
+  @override
+  String get autoRadioFavorites => 'Favorites';
+
+  @override
+  String get autoRadioOther => 'Other';
+
+  @override
+  String get autoPlaylists => 'Playlists';
+
+  @override
+  String get autoAlbums => 'Albums';
+
+  @override
+  String get autoArtists => 'Artists';
+
+  @override
+  String get autoFavoriteSongs => 'Favorite Songs';
+
+  @override
+  String get autoYoutube => 'YouTube';
+
+  @override
+  String get autoYoutubeWhatsNew => 'What\'s New';
+
+  @override
+  String get autoYoutubePlaylists => 'Your Playlists';
+
+  @override
+  String get autoYoutubeSubscriptions => 'Subscriptions';
+
+  @override
   String get browseNextUp => 'Next Up';
 
   @override

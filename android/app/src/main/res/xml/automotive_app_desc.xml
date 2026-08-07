@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Declares Fathom as an Android Auto (and Automotive OS) media app: audio
+     browsing + playback only, no custom UI in the car (Auto renders its own
+     driver-safe interface over our MediaBrowserService + MediaSession, both of
+     which audio_service already provides). -->
+<automotiveApp>
+    <uses name="media" />
+</automotiveApp>

@@ -71,6 +71,19 @@
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
             android:value="app.fathom.fathom.CastOptionsProvider" />
+        <!-- Android Auto: marks Fathom as a media app so it appears in the car's
+             media picker. Playback + the browse tree run over the audio_service
+             MediaBrowserService/MediaSession declared above; the car draws its
+             own UI. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <!-- Best-effort brand tint (Fathom indigo) for the car media UI. Older
+             Auto / Automotive OS honor it; modern Auto derives color from
+             artwork and ignores it harmlessly. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application.theme"
+            android:resource="@style/CarTheme" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
