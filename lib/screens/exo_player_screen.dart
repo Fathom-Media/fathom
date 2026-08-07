@@ -64,6 +64,9 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
   static const _pipChannel = MethodChannel('app.fathom.player/pip');
   final _controller = ExoVideoController();
   Session? _session;
+  // Cached so dispose() can report stopped / close the live stream without
+  // ref.read (using ref during dispose throws "used after unmount").
+  JellyfinClient? _client;
   // Start hidden: opening the player should show just the video, not the control
   // chrome over the still-transitioning home/hero. Any D-pad key reveals it.
   bool _controlsVisible = false;
@@ -272,6 +275,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     if (session == null) return;
     _session = session;
     final client = ref.read(jellyfinClientProvider);
+    _client = client; // for dispose()
     try {
       // Live TV opens a tuner (which must be handed back on exit) and never
       // resumes or reports progress; VOD opens a normal stream and does both.
@@ -1117,13 +1121,42 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
         _doSkip();
         return KeyEventResult.handled;
       }
+      if (k == LogicalKeyboardKey.arrowDown) {
+        _show();
+        _fSeek.requestFocus(); // step down into the transport
+        return KeyEventResult.handled;
+      }
+      // Up / Left / Right keep focus on the Skip pill (a single stop).
       if (k == LogicalKeyboardKey.arrowUp ||
-          k == LogicalKeyboardKey.arrowDown ||
           k == LogicalKeyboardKey.arrowLeft ||
           k == LogicalKeyboardKey.arrowRight) {
-        _show();
-        _focusPlay();
         return KeyEventResult.handled;
+      }
+    }
+    // The Up Next prompt also lives outside the chrome: Select fires the focused
+    // button, Left/Right toggle between Play Now and Hide, Up/Down step into the
+    // transport (waking the chrome).
+    final upPf = FocusManager.instance.primaryFocus;
+    if (_upNext != null && (upPf == _fUpNextPlay || upPf == _fUpNextHide)) {
+      final onPlay = upPf == _fUpNextPlay;
+      if (k == LogicalKeyboardKey.select ||
+          k == LogicalKeyboardKey.enter ||
+          k == LogicalKeyboardKey.gameButtonA) {
+        onPlay ? _upNextPlayNow() : _upNextHide();
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.arrowLeft ||
+          k == LogicalKeyboardKey.arrowRight) {
+        (onPlay ? _fUpNextHide : _fUpNextPlay).requestFocus();
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.arrowDown) {
+        _show();
+        _fSeek.requestFocus(); // step down into the transport
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.arrowUp) {
+        return KeyEventResult.handled; // nothing above the prompt
       }
     }
     if (!_controlsVisible) {
@@ -1136,7 +1169,16 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     final pf = FocusManager.instance.primaryFocus;
     // ▲/▼ move between the seek bar and the button row.
     if (k == LogicalKeyboardKey.arrowUp) {
-      if (pf != _fSeek) _fSeek.requestFocus();
+      if (pf == _fSeek) {
+        // Above the seek bar sits the Skip / Up Next prompt when it's showing.
+        if (_upNext != null) {
+          _fUpNextPlay.requestFocus();
+        } else if (_activeSkip != null) {
+          _fSkip.requestFocus();
+        }
+      } else {
+        _fSeek.requestFocus();
+      }
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.arrowDown) {
@@ -1279,8 +1321,8 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     _controller.textTracks.removeListener(_onTracks);
     _controller.audioTracks.removeListener(_onTracks);
     final s = _session;
-    if (s != null) {
-      final client = ref.read(jellyfinClientProvider);
+    final client = _client;
+    if (s != null && client != null) {
       // Live: report stopped WITH the live ids and close the stream so Jellyfin
       // frees the tuner (miss this and the next tune-in 500s). VOD: report the
       // resume position so "continue watching" is accurate.

@@ -136,6 +136,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
       '/player',
       extra: resume ? playItem : (item: playItem, resume: false),
     );
+    if (!context.mounted) return; // torn down while the player was open
     // Back from the player: refresh resume position + Home rows.
     ref.invalidate(itemDetailProvider(item.id));
     ref.invalidate(resumeItemsProvider);
@@ -509,6 +510,7 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
                 episode: ep,
                 onTap: () async {
                   await context.push('/player', extra: ep);
+                  if (!mounted) return; // torn down while the player was open
                   ref.invalidate(episodesProvider(widget.seriesId));
                   ref.invalidate(resumeItemsProvider);
                   ref.invalidate(nextUpProvider(widget.seriesId));
@@ -1225,6 +1227,7 @@ class _NextUpSection extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(12),
                     onTap: () async {
                       await context.push('/player', extra: ep);
+                      if (!context.mounted) return;
                       ref.invalidate(nextUpProvider(seriesId));
                       ref.invalidate(episodesProvider(seriesId));
                       ref.invalidate(resumeItemsProvider);

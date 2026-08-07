@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/tv_mode.dart';
 
@@ -424,6 +425,25 @@ class TvFocusable extends StatefulWidget {
 class _TvFocusableState extends State<TvFocusable> {
   bool _focused = false;
 
+  // Handle the remote's OK/Select (and Enter/Space/gameButtonA) DIRECTLY on the
+  // focused node. Going through ActivateIntent/Shortcuts proved unreliable here
+  // (the intent didn't reach the tile's action from a lazy sliver list), but a
+  // plain onKeyEvent on the focused node always fires — this is the definitive
+  // activation path for D-pad Select.
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent) return KeyEventResult.ignored;
+    final k = e.logicalKey;
+    if (k == LogicalKeyboardKey.select ||
+        k == LogicalKeyboardKey.enter ||
+        k == LogicalKeyboardKey.numpadEnter ||
+        k == LogicalKeyboardKey.space ||
+        k == LogicalKeyboardKey.gameButtonA) {
+      widget.onTap?.call();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     // TV only: off TV this is a pass-through, so desktop/mobile keep the child's
@@ -434,19 +454,11 @@ class _TvFocusableState extends State<TvFocusable> {
       scale: _focused ? widget.scale : 1.0,
       duration: const Duration(milliseconds: 130),
       curve: Curves.easeOut,
-      child: FocusableActionDetector(
+      child: Focus(
         focusNode: widget.focusNode,
         autofocus: widget.autofocus,
-        mouseCursor: SystemMouseCursors.click,
+        onKeyEvent: _onKey,
         onFocusChange: (v) => setState(() => _focused = v),
-        actions: {
-          ActivateIntent: CallbackAction<ActivateIntent>(
-            onInvoke: (_) {
-              widget.onTap?.call();
-              return null;
-            },
-          ),
-        },
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: widget.borderRadius,

@@ -56,7 +56,9 @@ class SkipPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final s = tv ? 1.4 : 1.0;
+    // Skip pills stay at 1x even on TV (the Up Next card scales, the pills read
+    // fine at base size); tv still gets the focus ring below.
+    const s = 1.0;
     Widget pill = Material(
       color: cs.primary,
       shape: const StadiumBorder(),
@@ -65,7 +67,6 @@ class SkipPill extends StatelessWidget {
       child: InkWell(
         customBorder: const StadiumBorder(),
         focusNode: focusNode,
-        autofocus: tv,
         onTap: onTap,
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 22 * s, vertical: 13 * s),
@@ -127,7 +128,7 @@ class UpNextPrompt extends StatelessWidget {
     this.tv = false,
   });
 
-  double get _s => tv ? 1.4 : 1.0;
+  double get _s => tv ? 1.15 : 1.0;
 
   @override
   Widget build(BuildContext context) {
@@ -249,7 +250,6 @@ class UpNextPrompt extends StatelessWidget {
                         label: l.playerUpNextPlayNow,
                         onTap: onPlayNow,
                         focusNode: playFocus,
-                        autofocus: tv,
                       ),
                       SizedBox(width: 8 * s),
                       _button(
@@ -317,7 +317,6 @@ class UpNextPrompt extends StatelessWidget {
       child: InkWell(
         customBorder: const StadiumBorder(),
         focusNode: playFocus,
-        autofocus: tv,
         onTap: onPlayNow,
         child: Stack(
           children: [
