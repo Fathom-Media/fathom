@@ -1,6 +1,6 @@
 # Updates and channels
 
-Fathom updates itself. On Linux it swaps the AppImage in place and relaunches; on Windows it replaces the portable build and relaunches. You can also just download a newer build from [Releases](https://github.com/Fathom-Media/fathom/releases) at any time.
+Fathom updates itself. On Linux it swaps the AppImage in place and relaunches; on Windows it replaces the portable build and relaunches; on Android it downloads the APK and hands it to the system installer (you confirm the prompt, granting "install unknown apps" the first time). You can also just download a newer build from [Releases](https://github.com/Fathom-Media/fathom/releases) at any time.
 
 Open **Settings → Updates** to check manually, choose a channel, and toggle checking on startup.
 
@@ -9,14 +9,14 @@ Open **Settings → Updates** to check manually, choose a channel, and toggle ch
 | Channel | What you get |
 | --- | --- |
 | **Stable** | Only full releases (for example `0.10.0`). The default. |
-| **Beta** | Full releases plus pre-release test builds, so you get new features and fixes early. |
+| **Dev** | Full releases plus pre-release test builds, so you get new features and fixes early. |
 
-The updater always offers the newest version for your channel and downloads the build that matches your platform and CPU architecture automatically (x86_64 vs aarch64 on Linux).
+The updater always offers the newest version for your channel and downloads the build that matches your platform and CPU architecture automatically (x86_64 vs aarch64 on Linux; a universal APK on Android).
 
 ## How versions work
 
 - **Stable releases** are plain versions like `0.10.0`.
-- **Dev / Beta builds** are pre-releases named `0.10.1-dev.1`, `0.10.1-dev.2`, and so on. The Beta channel tracks these in order and rolls you onto the next stable release when it lands.
+- **Dev builds** are pre-releases named `0.11.0-dev01`, `0.11.0-dev02`, and so on. The Dev channel tracks these in order and rolls you onto the next stable release when it lands.
 - A floating **`dev-latest`** pre-release always points at the newest dev build, as a stable download link. The in-app updater tracks the numbered builds, not this alias.
 
 !!! note "Safe by design"

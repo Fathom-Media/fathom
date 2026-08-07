@@ -39,7 +39,9 @@ Download **`Fathom-windows-x64.zip`**, extract it, and run `fathom.exe`. It is s
 
 ## Android
 
-Planned. Fathom is built with Flutter, so an Android build is on the roadmap.
+Download the APK from [Releases](https://github.com/Fathom-Media/fathom/releases) (named like `Fathom-0.11.0.apk`) and open it. Android asks you to allow installing unknown apps the first time; grant it and confirm. Fathom runs on phones, tablets, and Android TV, where the whole interface is D-pad friendly.
+
+After that, Fathom keeps itself up to date from **Settings → Updates**: it downloads the new APK and hands it to the system installer for you to confirm. Pick the **Dev** channel there if you want the pre-release test builds.
 
 ## macOS and iOS
 
