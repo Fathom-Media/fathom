@@ -876,6 +876,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsAutoSkipCredits => 'Auto-Skip Credits';
 
   @override
+  String get prefsUpNextTiming => 'Up Next Timing';
+
+  @override
+  String get prefsUpNextTimingSub =>
+      'How long the Up Next prompt shows before auto-playing the next episode';
+
+  @override
+  String get prefsUpNextFullCredits => 'Full credits';
+
+  @override
+  String prefsUpNextSecondsBefore(int count) {
+    return 'After ${count}s';
+  }
+
+  @override
+  String get prefsUpNextStyle => 'Up Next Style';
+
+  @override
+  String get prefsUpNextStyleSub =>
+      'How the next-episode prompt looks during credits';
+
+  @override
+  String get prefsUpNextStyleCard => 'Card';
+
+  @override
+  String get prefsUpNextStylePill => 'Pill';
+
+  @override
+  String get playerUpNextPlayNow => 'Play Now';
+
+  @override
+  String get playerUpNextHide => 'Hide';
+
+  @override
+  String playerUpNextIn(int seconds) {
+    return 'Playing in ${seconds}s';
+  }
+
+  @override
   String get prefsHardwareDecoding => 'Hardware Decoding';
 
   @override
@@ -1440,6 +1479,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playerSkipIntro => 'Skip Intro';
+
+  @override
+  String get playerSkipRecap => 'Skip Recap';
 
   @override
   String get playerSkipCredits => 'Skip Credits';
@@ -4110,6 +4152,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Advanced: edit this plugin’s raw configuration.';
 
   @override
+  String get adminPluginSettings => 'Settings';
+
+  @override
+  String get adminPluginSettingsHint => 'Edit this plugin’s configuration.';
+
+  @override
+  String get adminEditAsJson => 'Edit as JSON';
+
+  @override
+  String get adminNoEntries => 'No entries';
+
+  @override
+  String get adminAdvancedJson => 'Advanced (JSON)';
+
+  @override
   String get adminSaveConfiguration => 'Save Configuration';
 
   @override
@@ -4717,6 +4774,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchAutoSkipCredits => 'Auto-Skip Credits';
+
+  @override
+  String get searchUpNextTiming => 'Up Next Timing';
+
+  @override
+  String get searchUpNextStyle => 'Up Next Style';
 
   @override
   String get searchHardwareDecoding => 'Hardware Decoding';

@@ -897,6 +897,37 @@ class PreferencesScreen extends ConsumerWidget {
         value: p.autoSkipCredits,
         onChanged: (v) => c.edit((x) => x.copyWith(autoSkipCredits: v)),
       ),
+      ListTile(
+        leading: const Icon(Icons.playlist_play_rounded),
+        title: Text(l.prefsUpNextTiming),
+        subtitle: Text(l.prefsUpNextTimingSub),
+        trailing: _Dropdown(
+          value: p.upNextLeadSeconds.toString(),
+          options: {
+            '0': l.prefsUpNextFullCredits,
+            '30': l.prefsUpNextSecondsBefore(30),
+            '20': l.prefsUpNextSecondsBefore(20),
+            '15': l.prefsUpNextSecondsBefore(15),
+            '10': l.prefsUpNextSecondsBefore(10),
+            '5': l.prefsUpNextSecondsBefore(5),
+          },
+          onChanged: (v) => c.edit(
+              (x) => x.copyWith(upNextLeadSeconds: int.tryParse(v) ?? 20)),
+        ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.view_agenda_outlined),
+        title: Text(l.prefsUpNextStyle),
+        subtitle: Text(l.prefsUpNextStyleSub),
+        trailing: _Dropdown(
+          value: p.upNextStyle,
+          options: {
+            'card': l.prefsUpNextStyleCard,
+            'pill': l.prefsUpNextStylePill,
+          },
+          onChanged: (v) => c.edit((x) => x.copyWith(upNextStyle: v)),
+        ),
+      ),
       SettingsSectionHeader(l.prefsHeaderAdvanced),
       SwitchListTile(
         secondary: const Icon(Icons.developer_board_rounded),

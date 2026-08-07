@@ -1726,6 +1726,72 @@ abstract class AppLocalizations {
   /// **'Auto-Skip Credits'**
   String get prefsAutoSkipCredits;
 
+  /// Player setting title: when the Up Next card appears during credits.
+  ///
+  /// In en, this message translates to:
+  /// **'Up Next Timing'**
+  String get prefsUpNextTiming;
+
+  /// Player setting subtitle for Up Next timing.
+  ///
+  /// In en, this message translates to:
+  /// **'How long the Up Next prompt shows before auto-playing the next episode'**
+  String get prefsUpNextTimingSub;
+
+  /// Up Next timing option: stay for the whole credits, auto-play at the end (Jellyfin-style).
+  ///
+  /// In en, this message translates to:
+  /// **'Full credits'**
+  String get prefsUpNextFullCredits;
+
+  /// Up Next timing option: auto-play the next episode this many seconds after the credits start.
+  ///
+  /// In en, this message translates to:
+  /// **'After {count}s'**
+  String prefsUpNextSecondsBefore(int count);
+
+  /// Player setting title: how the Up Next prompt is presented.
+  ///
+  /// In en, this message translates to:
+  /// **'Up Next Style'**
+  String get prefsUpNextStyle;
+
+  /// Player setting subtitle for Up Next style.
+  ///
+  /// In en, this message translates to:
+  /// **'How the next-episode prompt looks during credits'**
+  String get prefsUpNextStyleSub;
+
+  /// Up Next style option: a card with poster, title and countdown ring.
+  ///
+  /// In en, this message translates to:
+  /// **'Card'**
+  String get prefsUpNextStyleCard;
+
+  /// Up Next style option: a compact pill with the countdown as a progress fill (Netflix-style).
+  ///
+  /// In en, this message translates to:
+  /// **'Pill'**
+  String get prefsUpNextStylePill;
+
+  /// Up Next card button: start the next episode immediately.
+  ///
+  /// In en, this message translates to:
+  /// **'Play Now'**
+  String get playerUpNextPlayNow;
+
+  /// Up Next card button: dismiss the card.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide'**
+  String get playerUpNextHide;
+
+  /// Up Next card countdown text; seconds until the next episode auto-plays.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing in {seconds}s'**
+  String playerUpNextIn(int seconds);
+
   /// Player toggle title: hardware video decoding.
   ///
   /// In en, this message translates to:
@@ -2727,6 +2793,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Skip Intro'**
   String get playerSkipIntro;
+
+  /// Button label to skip a 'Previously on...' recap segment.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Recap'**
+  String get playerSkipRecap;
 
   /// Button label to skip the closing credits segment.
   ///
@@ -7426,6 +7498,36 @@ abstract class AppLocalizations {
   /// **'Advanced: edit this plugin’s raw configuration.'**
   String get adminConfigJsonHint;
 
+  /// Heading above the generated plugin settings form.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get adminPluginSettings;
+
+  /// Subtitle under the plugin settings heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit this plugin’s configuration.'**
+  String get adminPluginSettingsHint;
+
+  /// Toggle: switch the plugin config editor to raw JSON.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit as JSON'**
+  String get adminEditAsJson;
+
+  /// Shown for an empty list field in the plugin settings form.
+  ///
+  /// In en, this message translates to:
+  /// **'No entries'**
+  String get adminNoEntries;
+
+  /// Label for a complex plugin setting edited as raw JSON.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced (JSON)'**
+  String get adminAdvancedJson;
+
   /// Button label: save the plugin configuration.
   ///
   /// In en, this message translates to:
@@ -8529,6 +8631,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Auto-Skip Credits'**
   String get searchAutoSkipCredits;
+
+  /// Settings search result title: when the Up Next card appears during credits.
+  ///
+  /// In en, this message translates to:
+  /// **'Up Next Timing'**
+  String get searchUpNextTiming;
+
+  /// Settings search result title: how the Up Next prompt is presented (card or pill).
+  ///
+  /// In en, this message translates to:
+  /// **'Up Next Style'**
+  String get searchUpNextStyle;
 
   /// Settings search result title: GPU hardware video decoding toggle.
   ///

@@ -22,6 +22,7 @@ import '../state/syncplay_session.dart';
 import '../widgets/animated_control.dart';
 import '../widgets/cast_button.dart';
 import '../widgets/cast_remote.dart';
+import '../widgets/player_prompts.dart';
 import '../widgets/exo_stats_panel.dart';
 import '../widgets/glass.dart';
 import '../widgets/exo_video.dart';
@@ -86,6 +87,14 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
   // and whatever had focus before so we can hand it back when the button clears.
   final _fSkip = FocusNode(debugLabel: 'exoSkip');
   FocusNode? _preSkipFocus;
+  // Up Next prompt (credits of an episode that has a next one). Mirrors the
+  // media_kit player: replaces the Skip Credits pill and advances to the next
+  // episode. Null when not shown.
+  ({BaseItemDto item, int? remaining, int total})? _upNext;
+  bool _upNextHidden = false; // user pressed Hide for this episode
+  bool _advancingNext = false; // guards the auto-advance from double-firing
+  final _fUpNextPlay = FocusNode(debugLabel: 'exoUpNextPlay');
+  final _fUpNextHide = FocusNode(debugLabel: 'exoUpNextHide');
   // Trickplay scrub-preview geometry (VOD only). Null until loaded / if absent.
   TrickplayInfo? _trickplay;
   int? _trickWidth;
@@ -886,6 +895,22 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
         active = null;
       }
     }
+    // Credits of an episode with a next episode → the Up Next prompt takes over
+    // (its action goes to the NEXT episode); the Skip Credits pill is suppressed.
+    final hasNext = widget.item.isEpisode &&
+        _epIndex >= 0 &&
+        _epIndex + 1 < _episodes.length;
+    if (active != null && active.isCredits && hasNext) {
+      final seg = active;
+      active = null;
+      if (!_upNextHidden) {
+        _handleUpNext(seg, pos);
+      } else if (_upNext != null && mounted) {
+        setState(() => _upNext = null);
+      }
+    } else if (_upNext != null && mounted) {
+      setState(() => _upNext = null);
+    }
     if (active?.startTicks != _activeSkip?.startTicks) {
       final wasNull = _activeSkip == null;
       if (mounted) setState(() => _activeSkip = active);
@@ -912,6 +937,90 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     _controller.seekTo(seg.end);
     setState(() => _activeSkip = null);
     if (isTvDevice) _preSkipFocus?.requestFocus();
+  }
+
+  /// Type-aware skip label (Recap vs Intro vs Credits).
+  String _exoSkipLabel(MediaSegment seg) {
+    final l = AppLocalizations.of(context);
+    switch (seg.type) {
+      case 'Recap':
+        return l.playerSkipRecap;
+      case 'Outro':
+        return l.playerSkipCredits;
+      case 'Intro':
+        return l.playerSkipIntro;
+      default:
+        return l.playerSkipSegment(seg.categoryLabel(l));
+    }
+  }
+
+  /// Drives the Up Next prompt during credits. Timing = how long it stays
+  /// before auto-skipping (from the credits' start; 0 = whole credits); Autoplay
+  /// next = whether it counts down / auto-advances. Mirrors the media_kit path.
+  void _handleUpNext(MediaSegment seg, Duration pos) {
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    final autoplayOn = prefs?.autoplayNext ?? true;
+    final lead = prefs?.upNextLeadSeconds ?? 20;
+    final creditsLen = (seg.end - seg.start).inSeconds;
+    var total = lead <= 0 ? creditsLen : lead;
+    if (total < 1) total = 1;
+    final elapsed = (pos - seg.start).inSeconds;
+    var remainingSecs = total - elapsed;
+    if (remainingSecs < 0) remainingSecs = 0;
+    final int? remaining = autoplayOn ? remainingSecs : null;
+
+    if (autoplayOn && remainingSecs <= 0 && !_advancingNext) {
+      _advancingNext = true;
+      _goEpisode(_epIndex + 1);
+      return;
+    }
+
+    final next = _episodes[_epIndex + 1];
+    final value = (item: next, remaining: remaining, total: total);
+    if (_upNext != value && mounted) {
+      final wasNull = _upNext == null;
+      setState(() => _upNext = value);
+      if (isTvDevice && wasNull) {
+        _preSkipFocus = FocusManager.instance.primaryFocus;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _upNext != null) _fUpNextPlay.requestFocus();
+        });
+      }
+    }
+  }
+
+  void _upNextPlayNow() {
+    if (_advancingNext) return;
+    _advancingNext = true;
+    setState(() => _upNext = null);
+    _goEpisode(_epIndex + 1);
+  }
+
+  void _upNextHide() {
+    setState(() {
+      _upNextHidden = true;
+      _upNext = null;
+    });
+    if (isTvDevice) _preSkipFocus?.requestFocus();
+  }
+
+  String? _upNextSubtitle(BaseItemDto item) {
+    if (!widget.item.isEpisode) return null;
+    final show = widget.item.seriesName;
+    final s = item.parentIndexNumber, e = item.indexNumber;
+    final code = (s != null && e != null) ? 'S$s:E$e' : null;
+    final parts = [if (show != null && show.isNotEmpty) show, ?code];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  String? _upNextArtUrl(BaseItemDto item) {
+    final session = _session;
+    if (session == null) return null;
+    final tag = item.primaryImageTag ?? widget.item.primaryImageTag;
+    if (tag == null) return null;
+    final id = item.primaryImageTag != null ? item.id : widget.item.id;
+    return '${session.baseUrl}/Items/$id/Images/Primary'
+        '?api_key=${session.accessToken}&maxHeight=300&tag=$tag';
   }
 
   void _reportProgress() {
@@ -1149,6 +1258,8 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
       _fRecord,
       _fSettings,
       _fSkip,
+      _fUpNextPlay,
+      _fUpNextHide,
     ]) {
       f.dispose();
     }
@@ -1316,38 +1427,47 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
             // SyncPlay status: a pulsing "syncing" glyph or a brief skip-to-sync
             // flash, centered. Hidden in a PiP window.
             if (!_inPip) Positioned.fill(child: _SyncCueOverlay(cue: _syncCue)),
-            // Skip Intro / Skip Credits. Its own overlay (not part of the
-            // auto-hiding bar) so it's reachable the moment a segment starts,
-            // even with the chrome hidden. Suppressed in a PiP window.
-            if (!_inPip)
+            // Up Next prompt (credits of an episode with a next one) takes
+            // priority; otherwise the Skip Intro/Recap/Credits pill. Shared
+            // widgets with the media_kit player; TV gets D-pad focus + scaling.
+            if (!_inPip && _upNext != null)
+              Positioned(
+                right: 28,
+                bottom: (ref.watch(preferencesProvider).asData?.value.upNextStyle ??
+                            'card') ==
+                        'card'
+                    ? 96
+                    : 116,
+                child: UpNextPrompt(
+                  style: ref
+                          .watch(preferencesProvider)
+                          .asData
+                          ?.value
+                          .upNextStyle ??
+                      'card',
+                  title: _upNext!.item.name,
+                  subtitle: _upNextSubtitle(_upNext!.item),
+                  artUrl: _upNextArtUrl(_upNext!.item),
+                  imageHeaders: ref.read(imageHeadersProvider),
+                  remaining: _upNext!.remaining,
+                  total: _upNext!.total,
+                  onPlayNow: _upNextPlayNow,
+                  onHide: _upNextHide,
+                  playFocus: _fUpNextPlay,
+                  hideFocus: _fUpNextHide,
+                  tv: isTvDevice,
+                )
+              )
+            else if (!_inPip && _activeSkip != null)
               Positioned(
                 right: 28,
                 bottom: 116,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 260),
-                  switchInCurve: Curves.easeOutBack,
-                  switchOutCurve: Curves.easeIn,
-                  transitionBuilder: (child, anim) => FadeTransition(
-                    opacity: anim,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                              begin: const Offset(0, 0.4), end: Offset.zero)
-                          .animate(anim),
-                      child: child,
-                    ),
-                  ),
-                  child: _activeSkip == null
-                      ? const SizedBox.shrink(key: ValueKey('no-skip'))
-                      : FilledButton.icon(
-                          key: ValueKey(
-                              _activeSkip!.isCredits ? 'credits' : 'intro'),
-                          focusNode: _fSkip,
-                          onPressed: _doSkip,
-                          icon: const Icon(Icons.skip_next_rounded),
-                          label: Text(_activeSkip!.isCredits
-                              ? AppLocalizations.of(context).playerSkipCredits
-                              : AppLocalizations.of(context).playerSkipIntro),
-                        ),
+                child: SkipPill(
+                  key: ValueKey(_activeSkip!.type),
+                  label: _exoSkipLabel(_activeSkip!),
+                  onTap: _doSkip,
+                  focusNode: _fSkip,
+                  tv: isTvDevice,
                 ),
               ),
             // Chromecast entry point (phone/tablet; the button hides itself where

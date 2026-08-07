@@ -86,6 +86,13 @@ class Prefs {
   final bool desktopNotifications; // downloads / requests
   final bool autoSkipIntro;
   final bool autoSkipCredits;
+  // Up Next card timing during the credits segment. 0 = whole credits length
+  // (Jellyfin-style: card shows when credits start). >0 = a short countdown
+  // that many seconds before the end (Netflix-style progress ring).
+  final int upNextLeadSeconds;
+  // Up Next presentation: 'card' = poster + title + countdown ring + buttons;
+  // 'pill' = compact Netflix-style pill with the countdown as a progress fill.
+  final String upNextStyle;
   // Bitstream compressed surround (AC3/E-AC3/DTS/TrueHD, incl. Dolby Atmos)
   // straight to an AV receiver instead of decoding to PCM — the desktop mpv
   // path. Off by default: on plain stereo speakers, passthrough is silence.
@@ -292,6 +299,8 @@ class Prefs {
     this.desktopNotifications = true,
     this.autoSkipIntro = false,
     this.autoSkipCredits = false,
+    this.upNextLeadSeconds = 20,
+    this.upNextStyle = 'card',
     this.audioPassthrough = false,
     this.forceTvMode = false,
     this.startupScreen = 'home',
@@ -410,6 +419,8 @@ class Prefs {
     bool? desktopNotifications,
     bool? autoSkipIntro,
     bool? autoSkipCredits,
+    int? upNextLeadSeconds,
+    String? upNextStyle,
     bool? audioPassthrough,
     bool? forceTvMode,
     String? startupScreen,
@@ -523,6 +534,8 @@ class Prefs {
         desktopNotifications: desktopNotifications ?? this.desktopNotifications,
         autoSkipIntro: autoSkipIntro ?? this.autoSkipIntro,
         autoSkipCredits: autoSkipCredits ?? this.autoSkipCredits,
+        upNextLeadSeconds: upNextLeadSeconds ?? this.upNextLeadSeconds,
+        upNextStyle: upNextStyle ?? this.upNextStyle,
         audioPassthrough: audioPassthrough ?? this.audioPassthrough,
         forceTvMode: forceTvMode ?? this.forceTvMode,
         startupScreen: startupScreen ?? this.startupScreen,
@@ -647,6 +660,8 @@ class Prefs {
         'desktopNotifications': desktopNotifications,
         'autoSkipIntro': autoSkipIntro,
         'autoSkipCredits': autoSkipCredits,
+        'upNextLeadSeconds': upNextLeadSeconds,
+        'upNextStyle': upNextStyle,
         'audioPassthrough': audioPassthrough,
         'forceTvMode': forceTvMode,
         'startupScreen': startupScreen,
@@ -763,6 +778,8 @@ class Prefs {
         desktopNotifications: j['desktopNotifications'] as bool? ?? true,
         autoSkipIntro: j['autoSkipIntro'] as bool? ?? false,
         autoSkipCredits: j['autoSkipCredits'] as bool? ?? false,
+        upNextLeadSeconds: (j['upNextLeadSeconds'] as num?)?.toInt() ?? 20,
+        upNextStyle: j['upNextStyle'] as String? ?? 'card',
         audioPassthrough: j['audioPassthrough'] as bool? ?? false,
         forceTvMode: j['forceTvMode'] as bool? ?? false,
         startupScreen: j['startupScreen'] as String? ?? 'home',

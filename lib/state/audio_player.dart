@@ -626,6 +626,9 @@ class AudioController extends Notifier<AudioState> {
         queue: tracks,
         current: tracks[index],
         shuffle: shuffle,
+        // Leaving a YouTube item set keeps isYoutubeAudio true, so the OS media
+        // session would keep showing the YouTube title/art over this track.
+        ytCurrent: null,
         radioStation: null,
         radioTitle: null,
         radioSeekable: false,
@@ -653,6 +656,9 @@ class AudioController extends Notifier<AudioState> {
     _reportedId = null;
     state = state.copyWith(
       radioStation: s,
+      // Clear any YouTube item — otherwise isYoutubeAudio stays true and the
+      // media session keeps showing the YouTube title/art/time over the radio.
+      ytCurrent: null,
       radioTitle: null,
       radioArtwork: null,
       radioSeekable: false,

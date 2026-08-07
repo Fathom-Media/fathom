@@ -22,6 +22,7 @@ import '../services/diagnostics.dart';
 import '../services/tv_mode.dart';
 import '../widgets/cast_button.dart';
 import '../widgets/cast_remote.dart';
+import '../widgets/player_prompts.dart';
 import '../state/audio_player.dart';
 import '../state/media_session.dart';
 import '../state/cast.dart';
@@ -175,6 +176,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String? _livePlaySessionId;
   List<MediaSegment> _segments = const [];
   MediaSegment? _activeSkip;
+  // Drives the Skip pill directly. media_kit's Video does not re-run its
+  // `controls:` builder on our setState, so a plain rebuild never reaches the
+  // button; a ValueListenableBuilder inside the controls layer rebuilds itself
+  // when this changes, independent of the closure's lifecycle.
+  final ValueNotifier<MediaSegment?> _activeSkipVN =
+      ValueNotifier<MediaSegment?>(null);
+  // The Skip pill is drawn through the root Overlay, not inside the video
+  // Stack: nothing placed in the outer Stack or media_kit's `controls:` builder
+  // paints over the video on this GL setup, but the Overlay (the layer dialogs
+  // and tooltips use) does. It rebuilds itself off [_activeSkipVN].
+  OverlayEntry? _skipOverlay;
+  // Up Next card (drawn in the same Overlay as the Skip pill). During the
+  // credits segment, when a next episode exists, this takes over from the Skip
+  // Credits pill: poster + title, and — when Autoplay next is on — a countdown
+  // ring that auto-advances. Null = card not shown.
+  final ValueNotifier<({BaseItemDto item, int? remaining, int total})?>
+      _upNextVN = ValueNotifier(null);
+  bool _upNextHidden = false; // user pressed Hide for this episode
+  bool _advancingNext = false; // guards the auto-advance from double-firing
   // TV: the Skip Intro/Credits button lives outside the control scope, so a
   // remote can't reach it. When a segment appears we move focus to it (so OK
   // skips), remembering the previously focused control to restore afterward.
@@ -722,6 +742,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               .setProperty('sub-pos', prefs.subtitlePosition.toString());
         } catch (_) {}
       }
+      // Captions off by default. mpv would otherwise auto-enable a default or
+      // forced subtitle track; keep them off unless the user set a preferred
+      // subtitle language (they can still turn a track on from the player).
+      if ((prefs?.subtitleLanguage ?? '').isEmpty) {
+        try {
+          await _player.setSubtitleTrack(SubtitleTrack.no());
+        } catch (_) {}
+      }
       // Apply the default playback speed (Live TV always plays at 1x).
       if (prefs != null &&
           prefs.playbackSpeed != 1.0 &&
@@ -1025,9 +1053,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         active = null;
       }
     }
+    // Credits of an episode that has a next episode: the action is "Next
+    // episode", surfaced via the Up Next card/pill — NEVER the plain Skip
+    // Credits pill, which only seeks to the end of the file and would strand
+    // you at black instead of advancing. The Up Next prompt is the sole credits
+    // affordance here (the Skip Credits pill is kept only for movies and the
+    // last episode, where seek-to-end is the right behaviour).
+    final hasNext = widget.item.isEpisode &&
+        _epIndex >= 0 &&
+        _epIndex + 1 < _episodes.length;
+    var upNextHandled = false;
+    if (active != null && active.isCredits && hasNext) {
+      final seg = active;
+      active = null; // suppress the seek-to-end Skip Credits pill for episodes
+      if (!_upNextHidden) upNextHandled = _handleUpNext(seg, pos);
+    }
+    if (!upNextHandled && _upNextVN.value != null) _upNextVN.value = null;
     if (active?.startTicks != _activeSkip?.startTicks && mounted) {
       final wasNull = _activeSkip == null;
       setState(() => _activeSkip = active);
+      _activeSkipVN.value = active;
+      if (active != null) _ensureSkipOverlay();
+      Diagnostics.instance.add(
+          'segments',
+          active == null
+              ? 'skip button hidden'
+              : 'skip button shown (${active.isIntro ? "intro" : active.isCredits ? "credits" : "segment"})');
       if (isTvDevice) {
         if (active != null && wasNull) {
           // Remember where the remote was, then land it on the Skip button.
@@ -1307,6 +1358,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _mediaSession?.end(_sessionToken);
     _statsOpen.dispose();
     _skipFocus.dispose();
+    _skipOverlay?.remove();
+    _skipOverlay = null;
+    _activeSkipVN.dispose();
+    _upNextVN.dispose();
     // The verbose logger belongs to this screen; drop it on either exit path
     // (a handed-off dock player keeps playing but stops feeding diagnostics).
     _logSub?.cancel();
@@ -1570,53 +1625,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         ),
                       ),
                     ),
-                    // Slides + fades in with a slight pop instead of appearing
-                    // abruptly, matching the animated chrome around it. Hidden
-                    // in a PiP window (just the bare video floats there).
-                    if (!_inPip)
-                    Positioned(
-                      right: 28,
-                      bottom: 116,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 260),
-                        switchInCurve: Curves.easeOutBack,
-                        switchOutCurve: Curves.easeIn,
-                        transitionBuilder: (child, anim) => FadeTransition(
-                          opacity: anim,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                                    begin: const Offset(0, 0.4),
-                                    end: Offset.zero)
-                                .animate(anim),
-                            child: child,
-                          ),
-                        ),
-                        child: _activeSkip == null
-                            ? const SizedBox.shrink(key: ValueKey('no-skip'))
-                            : FilledButton.icon(
-                                key: ValueKey(_activeSkip!.isCredits
-                                    ? 'credits'
-                                    : 'intro'),
-                                focusNode: _skipFocus,
-                                onPressed: () {
-                                  final s = _activeSkip!;
-                                  // Mark it skipped so an in-flight position
-                                  // event can't flash the button back before
-                                  // the seek lands; suppress the group echo.
-                                  _autoSkipped.add(s.startTicks);
-                                  _suppressGroup();
-                                  _player.seek(s.end);
-                                  setState(() => _activeSkip = null);
-                                  // Hand the remote back to the controls.
-                                  if (isTvDevice) _preSkipFocus?.requestFocus();
-                                },
-                                icon: const Icon(Icons.skip_next_rounded),
-                                label: Text(_activeSkip!.isCredits
-                                    ? l.playerSkipCredits
-                                    : l.playerSkipIntro),
-                              ),
-                      ),
-                    ),
                     // SyncPlay status cue (waiting/aligning, or SkipToSync).
                     if (!_inPip)
                       Positioned.fill(child: _SyncCueOverlay(cue: _syncCue)),
@@ -1656,6 +1664,140 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
     );
+  }
+
+  /// Drives the Up Next prompt during the credits of an episode that has a next
+  /// episode. The prompt ALWAYS appears from the start of the credits. Two
+  /// independent prefs:
+  ///   • Timing (upNextLeadSeconds) = how long it stays before auto-skipping,
+  ///     measured from the start of the credits — 0 = Full credits (auto-skip
+  ///     at the end); N = auto-skip N seconds in.
+  ///   • Autoplay next = whether it counts down / auto-advances at all — on =
+  ///     ring/fill runs and it plays the next episode when the countdown ends;
+  ///     off = a static prompt whose Play Now waits until clicked.
+  /// Returns true whenever the prompt is on screen (so the caller keeps the
+  /// Skip Credits pill suppressed).
+  bool _handleUpNext(MediaSegment seg, Duration pos) {
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    final autoplayOn = prefs?.autoplayNext ?? true;
+    final lead = prefs?.upNextLeadSeconds ?? 20;
+    final next = _episodes[_epIndex + 1];
+
+    // Countdown length measured from the START of the credits. Full (lead<=0)
+    // runs the whole credits; otherwise it is exactly `lead` seconds.
+    final creditsLen = (seg.end - seg.start).inSeconds;
+    var total = lead <= 0 ? creditsLen : lead;
+    if (total < 1) total = 1;
+    final elapsed = (pos - seg.start).inSeconds;
+    var remainingSecs = total - elapsed;
+    if (remainingSecs < 0) remainingSecs = 0;
+
+    // Autoplay off → static prompt (no countdown); on → live remaining.
+    final int? remaining = autoplayOn ? remainingSecs : null;
+
+    // Countdown elapsed → advance to the next episode (once).
+    if (autoplayOn && remainingSecs <= 0 && !_advancingNext) {
+      _advancingNext = true;
+      _playEpisodeAt(_epIndex + 1);
+      return true;
+    }
+
+    _ensureSkipOverlay();
+    _upNextVN.value = (item: next, remaining: remaining, total: total);
+    return true;
+  }
+
+  /// Inserts the Skip Intro / Skip Credits pill and Up Next card into the root
+  /// Overlay once (on the first segment). The entry stays for the life of the
+  /// screen and shows the card, the pill, or nothing off [_upNextVN] /
+  /// [_activeSkipVN] — so it never depends on the video Stack's compositing,
+  /// which on this GL setup refuses to draw any overlay placed as a sibling or
+  /// in media_kit's `controls:` over the frame.
+  void _ensureSkipOverlay() {
+    if (_skipOverlay != null || !mounted) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+    _skipOverlay = OverlayEntry(builder: (context) {
+      return AnimatedBuilder(
+        animation: Listenable.merge([_upNextVN, _activeSkipVN]),
+        builder: (context, _) {
+          if (_inPip) return const SizedBox.shrink();
+          final upNext = _upNextVN.value;
+          final seg = _activeSkipVN.value;
+          Widget? content;
+          var bottom = 116.0;
+          if (upNext != null) {
+            final style =
+                ref.read(preferencesProvider).asData?.value.upNextStyle ??
+                    'card';
+            content = UpNextPrompt(
+              style: style,
+              title: upNext.item.name,
+              subtitle: _sessionSubtitle(upNext.item),
+              artUrl: _sessionArtUrl(upNext.item),
+              imageHeaders: ref.read(imageHeadersProvider),
+              remaining: upNext.remaining,
+              total: upNext.total,
+              onPlayNow: _upNextPlayNow,
+              onHide: _upNextHide,
+              playFocus: _skipFocus,
+            );
+            bottom = style == 'card' ? 96.0 : 116.0;
+          } else if (seg != null) {
+            content = SkipPill(
+              label: _skipLabel(seg, AppLocalizations.of(context)),
+              onTap: () => _doSkipSegment(seg),
+              focusNode: _skipFocus,
+            );
+          }
+          if (content == null) return const SizedBox.shrink();
+          return Positioned(right: 28, bottom: bottom, child: content);
+        },
+      );
+    });
+    overlay.insert(_skipOverlay!);
+  }
+
+  /// Skips the active segment (Skip pill tap): jump past it, clear the pill,
+  /// and on TV restore focus to where the remote was.
+  void _doSkipSegment(MediaSegment seg) {
+    // Mark it skipped so an in-flight position event can't flash it back before
+    // the seek lands; suppress the group echo.
+    _autoSkipped.add(seg.startTicks);
+    _suppressGroup();
+    _player.seek(seg.end);
+    _activeSkipVN.value = null;
+    if (mounted) setState(() => _activeSkip = null);
+    if (isTvDevice) _preSkipFocus?.requestFocus();
+  }
+
+  /// Type-aware skip label so a "Previously on…" recap reads "Skip Recap",
+  /// distinct from the actual "Skip Intro" (both are separate server segments).
+  String _skipLabel(MediaSegment seg, AppLocalizations l) {
+    switch (seg.type) {
+      case 'Recap':
+        return l.playerSkipRecap;
+      case 'Outro':
+        return l.playerSkipCredits;
+      case 'Intro':
+        return l.playerSkipIntro;
+      default:
+        return l.playerSkipSegment(seg.categoryLabel(l));
+    }
+  }
+
+  /// Advance to the next episode now (Play Now / pill tap). Guarded so it can't
+  /// double-fire with the countdown's own auto-advance.
+  void _upNextPlayNow() {
+    if (_advancingNext) return;
+    _advancingNext = true;
+    _upNextVN.value = null;
+    _playEpisodeAt(_epIndex + 1);
+  }
+
+  void _upNextHide() {
+    _upNextHidden = true;
+    _upNextVN.value = null;
   }
 
   void _seekBy(int seconds) {

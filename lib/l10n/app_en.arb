@@ -1014,6 +1014,60 @@
   "@prefsAutoSkipCredits": {
     "description": "Player toggle title: automatically skip credits."
   },
+  "prefsUpNextTiming": "Up Next Timing",
+  "@prefsUpNextTiming": {
+    "description": "Player setting title: when the Up Next card appears during credits."
+  },
+  "prefsUpNextTimingSub": "How long the Up Next prompt shows before auto-playing the next episode",
+  "@prefsUpNextTimingSub": {
+    "description": "Player setting subtitle for Up Next timing."
+  },
+  "prefsUpNextFullCredits": "Full credits",
+  "@prefsUpNextFullCredits": {
+    "description": "Up Next timing option: stay for the whole credits, auto-play at the end (Jellyfin-style)."
+  },
+  "prefsUpNextSecondsBefore": "After {count}s",
+  "@prefsUpNextSecondsBefore": {
+    "description": "Up Next timing option: auto-play the next episode this many seconds after the credits start.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "prefsUpNextStyle": "Up Next Style",
+  "@prefsUpNextStyle": {
+    "description": "Player setting title: how the Up Next prompt is presented."
+  },
+  "prefsUpNextStyleSub": "How the next-episode prompt looks during credits",
+  "@prefsUpNextStyleSub": {
+    "description": "Player setting subtitle for Up Next style."
+  },
+  "prefsUpNextStyleCard": "Card",
+  "@prefsUpNextStyleCard": {
+    "description": "Up Next style option: a card with poster, title and countdown ring."
+  },
+  "prefsUpNextStylePill": "Pill",
+  "@prefsUpNextStylePill": {
+    "description": "Up Next style option: a compact pill with the countdown as a progress fill (Netflix-style)."
+  },
+  "playerUpNextPlayNow": "Play Now",
+  "@playerUpNextPlayNow": {
+    "description": "Up Next card button: start the next episode immediately."
+  },
+  "playerUpNextHide": "Hide",
+  "@playerUpNextHide": {
+    "description": "Up Next card button: dismiss the card."
+  },
+  "playerUpNextIn": "Playing in {seconds}s",
+  "@playerUpNextIn": {
+    "description": "Up Next card countdown text; seconds until the next episode auto-plays.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "prefsHardwareDecoding": "Hardware Decoding",
   "@prefsHardwareDecoding": {
     "description": "Player toggle title: hardware video decoding."
@@ -1761,6 +1815,10 @@
   "playerSkipIntro": "Skip Intro",
   "@playerSkipIntro": {
     "description": "Button label to skip the intro segment of an episode."
+  },
+  "playerSkipRecap": "Skip Recap",
+  "@playerSkipRecap": {
+    "description": "Button label to skip a 'Previously on...' recap segment."
   },
   "playerSkipCredits": "Skip Credits",
   "@playerSkipCredits": {
@@ -5306,6 +5364,26 @@
   "@adminConfigJsonHint": {
     "description": "Hint under the raw plugin configuration editor."
   },
+  "adminPluginSettings": "Settings",
+  "@adminPluginSettings": {
+    "description": "Heading above the generated plugin settings form."
+  },
+  "adminPluginSettingsHint": "Edit this plugin’s configuration.",
+  "@adminPluginSettingsHint": {
+    "description": "Subtitle under the plugin settings heading."
+  },
+  "adminEditAsJson": "Edit as JSON",
+  "@adminEditAsJson": {
+    "description": "Toggle: switch the plugin config editor to raw JSON."
+  },
+  "adminNoEntries": "No entries",
+  "@adminNoEntries": {
+    "description": "Shown for an empty list field in the plugin settings form."
+  },
+  "adminAdvancedJson": "Advanced (JSON)",
+  "@adminAdvancedJson": {
+    "description": "Label for a complex plugin setting edited as raw JSON."
+  },
   "adminSaveConfiguration": "Save Configuration",
   "@adminSaveConfiguration": {
     "description": "Button label: save the plugin configuration."
@@ -6099,6 +6177,14 @@
   "searchAutoSkipCredits": "Auto-Skip Credits",
   "@searchAutoSkipCredits": {
     "description": "Settings search result title: automatically skip credits/outro segments."
+  },
+  "searchUpNextTiming": "Up Next Timing",
+  "@searchUpNextTiming": {
+    "description": "Settings search result title: when the Up Next card appears during credits."
+  },
+  "searchUpNextStyle": "Up Next Style",
+  "@searchUpNextStyle": {
+    "description": "Settings search result title: how the Up Next prompt is presented (card or pill)."
   },
   "searchHardwareDecoding": "Hardware Decoding",
   "@searchHardwareDecoding": {
