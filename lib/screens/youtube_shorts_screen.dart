@@ -509,13 +509,15 @@ class _Overlay extends ConsumerWidget {
           ),
         ),
 
-        // Bottom-left metadata over a scrim.
+        // Bottom-left metadata over a scrim. The scrim spans the FULL width so
+        // there's no lighter right-hand seam; the text is padded clear of the
+        // action rail on the right instead.
         Positioned(
           left: 0,
-          right: 72,
+          right: 0,
           bottom: 0,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 40, 16, 52),
+            padding: const EdgeInsets.fromLTRB(16, 40, 88, 52),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
