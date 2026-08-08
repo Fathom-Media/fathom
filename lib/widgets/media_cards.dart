@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/base_item.dart';
 import '../services/tv_mode.dart';
 import '../state/preferences.dart';
+import 'item_actions.dart';
 import 'media_image.dart';
 import 'motion.dart';
 import 'tv_focus.dart';
@@ -28,6 +29,11 @@ class HoverPosterArt extends ConsumerStatefulWidget {
   /// card as soon as it appears (Flutter's autofocus only fires when nothing
   /// else in the scope holds focus, so it never steals focus later).
   final bool autofocus;
+
+  /// Whether the poster exposes the shared item context menu (long-press /
+  /// right-click / hover hamburger). Off for non-item art and library-view
+  /// cards, which aren't playable/deletable.
+  final bool contextActions;
   const HoverPosterArt(
       {super.key,
       this.item,
@@ -37,7 +43,8 @@ class HoverPosterArt extends ConsumerStatefulWidget {
       this.onTap,
       this.borderRadius = 12,
       this.heroTag,
-      this.autofocus = false})
+      this.autofocus = false,
+      this.contextActions = true})
       : assert(item != null || art != null);
 
   @override
@@ -53,6 +60,24 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
   // The focus ring/scale is a TV (D-pad) affordance; off TV only hover drives
   // it, so desktop/mobile are unchanged.
   bool get _active => _hover || (_focused && isTvDevice);
+
+  // Context menu is an off-TV affordance (long-press / right-click / hover
+  // hamburger); on TV a card opens detail and the menu lives on the detail
+  // overflow, so the card's D-pad path is left untouched. Only real media items
+  // get it, not library-view tiles or bare artwork.
+  bool get _canMenu =>
+      widget.contextActions &&
+      !isTvDevice &&
+      widget.item != null &&
+      widget.item!.collectionType == null;
+
+  void _openMenu() => showItemActionsMenu(
+        context,
+        ref,
+        widget.item!,
+        fromGrid: true,
+        onOpenDetails: widget.onTap,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +115,8 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
           },
           child: GestureDetector(
           onTap: widget.onTap,
+          onLongPress: _canMenu ? _openMenu : null,
+          onSecondaryTapDown: _canMenu ? (_) => _openMenu() : null,
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -179,6 +206,22 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
                         child: IgnorePointer(
                           ignoring: !_active,
                           child: widget.hoverOverlay!,
+                        ),
+                      ),
+                    ),
+                  // Hover hamburger (desktop), bottom-right of the poster. On
+                  // touch the same menu is a long-press; on TV it lives on the
+                  // detail overflow.
+                  if (_canMenu)
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: AnimatedOpacity(
+                        opacity: _hover ? 1 : 0,
+                        duration: const Duration(milliseconds: 150),
+                        child: IgnorePointer(
+                          ignoring: !_hover,
+                          child: _CardMenuButton(onTap: _openMenu),
                         ),
                       ),
                     ),
@@ -317,6 +360,29 @@ class _WatchedBadge extends StatelessWidget {
 }
 
 /// Portrait poster card (Recently Added, library grids).
+/// Small circular hamburger drawn on a poster on hover (desktop). Opens the
+/// shared item context menu.
+class _CardMenuButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _CardMenuButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.55),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.all(4),
+          child: Icon(Icons.more_vert_rounded, size: 20, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
 class PosterCard extends StatelessWidget {
   final BaseItemDto item;
   final VoidCallback? onTap;

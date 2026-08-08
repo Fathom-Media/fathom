@@ -3010,6 +3010,36 @@ abstract class AppLocalizations {
   /// **'Back to App'**
   String get playerBackToApp;
 
+  /// Context-menu row: open the item's detail page.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Details'**
+  String get actionShowDetails;
+
+  /// Context-menu row: delete a whole series (all episodes).
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Series'**
+  String get actionDeleteSeries;
+
+  /// Context-menu row: delete a whole season.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Season'**
+  String get actionDeleteSeason;
+
+  /// Context-menu row: delete a single episode.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Episode'**
+  String get actionDeleteEpisode;
+
+  /// Context-menu row: delete a movie.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Movie'**
+  String get actionDeleteMovie;
+
   /// Play button label/tooltip when a title can resume from a saved position.
   ///
   /// In en, this message translates to:

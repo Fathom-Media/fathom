@@ -1597,6 +1597,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerBackToApp => 'Back to App';
 
   @override
+  String get actionShowDetails => 'Show Details';
+
+  @override
+  String get actionDeleteSeries => 'Delete Series';
+
+  @override
+  String get actionDeleteSeason => 'Delete Season';
+
+  @override
+  String get actionDeleteEpisode => 'Delete Episode';
+
+  @override
+  String get actionDeleteMovie => 'Delete Movie';
+
+  @override
   String get detailResume => 'Resume';
 
   @override

@@ -14,6 +14,7 @@ import '../state/providers.dart';
 import '../state/seerr_providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/add_to_playlist.dart';
+import '../widgets/item_actions.dart';
 import '../widgets/score_pills.dart';
 import '../widgets/glass.dart';
 import '../widgets/cast_button.dart';
@@ -505,7 +506,7 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
               );
             }
             final ep = shown[i - 1];
-            return HoverHighlight(
+            final tile = HoverHighlight(
               child: _EpisodeTile(
                 episode: ep,
                 onTap: () async {
@@ -517,9 +518,55 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
                 },
               ),
             );
+            // Per-episode context menu: a visible three-dot (a D-pad stop on TV,
+            // a tap target on touch/desktop) plus long-press off TV.
+            return Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.deferToChild,
+                    onLongPress: isTvDevice ? null : () => _openEpisodeMenu(ep),
+                    child: tile,
+                  ),
+                ),
+                _EpisodeMenuButton(onTap: () => _openEpisodeMenu(ep)),
+              ],
+            );
           },
         );
       },
+    );
+  }
+
+  void _openEpisodeMenu(BaseItemDto ep) {
+    // The deleted/played/favorite refresh rides on provider invalidation inside
+    // the shared menu (episodesProvider + nextUp keyed off ep.seriesId).
+    showItemActionsMenu(context, ref, ep);
+  }
+}
+
+/// Per-episode three-dot: a D-pad focus stop on TV, an icon button off it.
+class _EpisodeMenuButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _EpisodeMenuButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    if (isTvDevice) {
+      return TvFocusable(
+        onTap: onTap,
+        scale: 1.1,
+        borderRadius: const BorderRadius.all(Radius.circular(24)),
+        child: const Padding(
+          padding: EdgeInsets.all(10),
+          child: Icon(Icons.more_vert_rounded),
+        ),
+      );
+    }
+    return IconButton(
+      icon: const Icon(Icons.more_vert_rounded),
+      tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
+      onPressed: onTap,
     );
   }
 }

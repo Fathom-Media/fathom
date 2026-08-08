@@ -1978,6 +1978,26 @@
   "@playerBackToApp": {
     "description": "Tooltip for the button that returns the popped-out desktop video back into the app window."
   },
+  "actionShowDetails": "Show Details",
+  "@actionShowDetails": {
+    "description": "Context-menu row: open the item's detail page."
+  },
+  "actionDeleteSeries": "Delete Series",
+  "@actionDeleteSeries": {
+    "description": "Context-menu row: delete a whole series (all episodes)."
+  },
+  "actionDeleteSeason": "Delete Season",
+  "@actionDeleteSeason": {
+    "description": "Context-menu row: delete a whole season."
+  },
+  "actionDeleteEpisode": "Delete Episode",
+  "@actionDeleteEpisode": {
+    "description": "Context-menu row: delete a single episode."
+  },
+  "actionDeleteMovie": "Delete Movie",
+  "@actionDeleteMovie": {
+    "description": "Context-menu row: delete a movie."
+  },
   "detailResume": "Resume",
   "@detailResume": {
     "description": "Play button label/tooltip when a title can resume from a saved position."
