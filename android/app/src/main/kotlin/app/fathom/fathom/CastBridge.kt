@@ -103,6 +103,12 @@ class CastBridge(context: Context, messenger: BinaryMessenger) {
                     castContext?.sessionManager?.addSessionManagerListener(
                         sessionListener, CastSession::class.java
                     )
+                    if (castContext != null) {
+                        // Passive (flag 0): track route availability for the
+                        // button's show/hide without an active scan.
+                        mediaRouter.addCallback(selector, availabilityCallback, 0)
+                    }
+                    emitAvailability()
                     emitSession()
                 }
 
@@ -111,6 +117,7 @@ class CastBridge(context: Context, messenger: BinaryMessenger) {
                     castContext?.sessionManager?.removeSessionManagerListener(
                         sessionListener, CastSession::class.java
                     )
+                    mediaRouter.removeCallback(availabilityCallback)
                 }
             }
         )
@@ -174,6 +181,28 @@ class CastBridge(context: Context, messenger: BinaryMessenger) {
         override fun onRouteAdded(r: MediaRouter, route: MediaRouter.RouteInfo) = emitDevices()
         override fun onRouteRemoved(r: MediaRouter, route: MediaRouter.RouteInfo) = emitDevices()
         override fun onRouteChanged(r: MediaRouter, route: MediaRouter.RouteInfo) = emitDevices()
+    }
+
+    // Persistent PASSIVE callback used only to know whether any Cast device is
+    // reachable, so the cast button can hide when there's none (off Wi-Fi, no
+    // Chromecast on the LAN) — exactly how the Cast SDK's own MediaRouteButton
+    // decides its visibility. Passive discovery is low-power; the high-power
+    // active scan still runs only while the picker is open (startDiscovery).
+    private val availabilityCallback = object : MediaRouter.Callback() {
+        override fun onRouteAdded(r: MediaRouter, route: MediaRouter.RouteInfo) = emitAvailability()
+        override fun onRouteRemoved(r: MediaRouter, route: MediaRouter.RouteInfo) = emitAvailability()
+        override fun onRouteChanged(r: MediaRouter, route: MediaRouter.RouteInfo) = emitAvailability()
+    }
+
+    private fun emitAvailability() {
+        val available = try {
+            mediaRouter.isRouteAvailable(
+                selector, MediaRouter.AVAILABILITY_FLAG_IGNORE_DEFAULT_ROUTE
+            )
+        } catch (_: Throwable) {
+            false
+        }
+        events?.success(mapOf("type" to "availability", "available" to available))
     }
 
     private fun startDiscovery() {

@@ -15,6 +15,7 @@ class CastDevice {
 
 class CastState {
   final bool available; // Cast SDK / Play Services present
+  final bool routeAvailable; // a Cast device is reachable right now (on the LAN)
   final List<CastDevice> devices;
   final bool connected;
   final bool connecting; // a session is starting (tapped, not yet connected)
@@ -27,6 +28,7 @@ class CastState {
   final double volume; // the cast device's volume, 0-100 (mirrors the receiver)
   const CastState({
     this.available = false,
+    this.routeAvailable = false,
     this.devices = const [],
     this.connected = false,
     this.connecting = false,
@@ -43,6 +45,7 @@ class CastState {
 
   CastState copyWith({
     bool? available,
+    bool? routeAvailable,
     List<CastDevice>? devices,
     bool? connected,
     bool? connecting,
@@ -55,6 +58,7 @@ class CastState {
   }) =>
       CastState(
         available: available ?? this.available,
+        routeAvailable: routeAvailable ?? this.routeAvailable,
         devices: devices ?? this.devices,
         connected: connected ?? this.connected,
         connecting: connecting ?? this.connecting,
@@ -104,6 +108,10 @@ class CastController extends Notifier<CastState> {
               .toList();
           debugPrint('[cast] devices=${list.map((d) => d.name).toList()}');
           state = state.copyWith(devices: list);
+        case 'availability':
+          final avail = m['available'] == true;
+          debugPrint('[cast] routeAvailable=$avail');
+          state = state.copyWith(routeAvailable: avail);
         case 'session':
           debugPrint(
               '[cast] session connected=${m['connected']} device=${m['device']}');
