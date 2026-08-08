@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # 0.9.x = beta run toward the first stable release; 1.0.0 is reserved for GA,
 # after which versioning follows the TraceApps strict-semver conventions.
-version: 0.11.0-dev03+5
+version: 0.11.0-dev04+6
 
 environment:
   sdk: ^3.12.2
