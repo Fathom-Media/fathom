@@ -13,8 +13,10 @@ import '../state/preferences.dart';
 import '../state/providers.dart';
 import '../state/seerr_providers.dart';
 import '../state/session_controller.dart';
+import '../services/tv_mode.dart';
 import '../widgets/app_snack.dart';
 import '../widgets/hover_pill_button.dart';
+import '../widgets/tv_focus.dart';
 import '../widgets/media_section.dart';
 import '../widgets/cached_image.dart';
 import '../widgets/detail_header.dart';
@@ -26,6 +28,11 @@ import '../widgets/seerr_request_dialog.dart';
 
 /// Rich Seerr detail page: backdrop, overview, cast, and requesting
 /// (movie whole, or per-season for TV).
+/// Wraps a horizontal content strip as a TV focus row (LEFT escapes to the rail,
+/// the focused card scrolls into view), matching the media rows. Pass-through
+/// off TV.
+Widget _tvRow(Widget child) => isTvDevice ? TvFocusRow(child: child) : child;
+
 class SeerrDetailScreen extends ConsumerWidget {
   final SeerrResult result;
   const SeerrDetailScreen({super.key, required this.result});
@@ -45,23 +52,26 @@ class SeerrDetailScreen extends ConsumerWidget {
   }
 
   Widget _loadingHeader(BuildContext context) => Stack(
-        children: [
-          if (result.posterUrl != null)
-            Positioned.fill(
-              child: ColorFiltered(
-                colorFilter:
-                    const ColorFilter.mode(Colors.black54, BlendMode.darken),
-                child: CachedImage(
-                    url: result.posterUrl!,
-                    errorBuilder: (_) => const SizedBox()),
-              ),
+    children: [
+      if (result.posterUrl != null)
+        Positioned.fill(
+          child: ColorFiltered(
+            colorFilter: const ColorFilter.mode(
+              Colors.black54,
+              BlendMode.darken,
             ),
-          const Center(child: CircularProgressIndicator()),
-          SafeArea(
-            child: BackButton(color: Theme.of(context).colorScheme.onSurface),
+            child: CachedImage(
+              url: result.posterUrl!,
+              errorBuilder: (_) => const SizedBox(),
+            ),
           ),
-        ],
-      );
+        ),
+      const Center(child: CircularProgressIndicator()),
+      SafeArea(
+        child: BackButton(color: Theme.of(context).colorScheme.onSurface),
+      ),
+    ],
+  );
 }
 
 class _DetailBody extends ConsumerWidget {
@@ -76,8 +86,10 @@ class _DetailBody extends ConsumerWidget {
     final d = detail;
     // Scale the backdrop band with width (taller = closer to the art's 16:9
     // shape) so it isn't cropped into a thin sliver on wide windows.
-    final headerHeight =
-        (MediaQuery.sizeOf(context).width / 2.35).clamp(320.0, 680.0);
+    final headerHeight = (MediaQuery.sizeOf(context).width / 2.35).clamp(
+      320.0,
+      680.0,
+    );
 
     final metaLine = [
       d.mediaType == 'tv' ? l.detailSeries : l.detailMovie,
@@ -90,8 +102,9 @@ class _DetailBody extends ConsumerWidget {
         d.statusLabel(l)!,
     ].join('  ·  ');
     final mdb = ref
-        .watch(mdbListRatingsProvider(
-            (mediaType: d.mediaType, tmdbId: d.tmdbId)))
+        .watch(
+          mdbListRatingsProvider((mediaType: d.mediaType, tmdbId: d.tmdbId)),
+        )
         .asData
         ?.value;
     final ratingPills = scorePills(
@@ -127,8 +140,10 @@ class _DetailBody extends ConsumerWidget {
           icon: Icons.play_arrow_rounded,
           tooltip: l.detailWatch,
           primary: true,
-          onTap: () => context.push('/item',
-              extra: BaseItemDto(id: d.jellyfinMediaId!, name: d.title)),
+          onTap: () => context.push(
+            '/item',
+            extra: BaseItemDto(id: d.jellyfinMediaId!, name: d.title),
+          ),
         ),
       if (!d.isAvailable)
         if (showViewRequest)
@@ -139,8 +154,10 @@ class _DetailBody extends ConsumerWidget {
         HeaderActionButton(
           icon: Icons.movie_outlined,
           tooltip: l.detailTrailer,
-          onTap: () => context.push('/trailer',
-              extra: (url: d.trailerUrl!, title: d.title)),
+          onTap: () => context.push(
+            '/trailer',
+            extra: (url: d.trailerUrl!, title: d.title),
+          ),
         ),
       if (showManage)
         HeaderActionButton(
@@ -170,10 +187,12 @@ class _DetailBody extends ConsumerWidget {
               children: [
                 if (d.backdropUrl != null)
                   CachedImage(
-                      url: d.backdropUrl!,
-                      alignment: const Alignment(0, -0.35),
-                      errorBuilder: (_) =>
-                          Container(color: theme.colorScheme.surfaceContainerHigh))
+                    url: d.backdropUrl!,
+                    alignment: const Alignment(0, -0.35),
+                    errorBuilder: (_) => Container(
+                      color: theme.colorScheme.surfaceContainerHigh,
+                    ),
+                  )
                 else
                   Container(color: theme.colorScheme.surfaceContainerHigh),
                 const DecoratedBox(
@@ -190,7 +209,8 @@ class _DetailBody extends ConsumerWidget {
                   poster: d.posterUrl != null
                       ? CachedImage(
                           url: d.posterUrl!,
-                          errorBuilder: (_) => const SizedBox())
+                          errorBuilder: (_) => const SizedBox(),
+                        )
                       : null,
                   status: (d.status != null && d.status! >= 2)
                       ? _StatusChip(status: d.status)
@@ -234,9 +254,13 @@ class _DetailBody extends ConsumerWidget {
                           primary: true,
                           icon: Icons.play_arrow_rounded,
                           label: l.detailWatch,
-                          onTap: () => context.push('/item',
-                              extra: BaseItemDto(
-                                  id: d.jellyfinMediaId!, name: d.title)),
+                          onTap: () => context.push(
+                            '/item',
+                            extra: BaseItemDto(
+                              id: d.jellyfinMediaId!,
+                              name: d.title,
+                            ),
+                          ),
                         ),
                       if (showViewRequest)
                         _ViewRequestButton(detail: d)
@@ -246,8 +270,10 @@ class _DetailBody extends ConsumerWidget {
                         HoverPillButton(
                           icon: Icons.movie_outlined,
                           label: l.detailTrailer,
-                          onTap: () => context.push('/trailer',
-                              extra: (url: d.trailerUrl!, title: d.title)),
+                          onTap: () => context.push(
+                            '/trailer',
+                            extra: (url: d.trailerUrl!, title: d.title),
+                          ),
                         ),
                       if (showManage)
                         HoverPillButton(
@@ -261,8 +287,10 @@ class _DetailBody extends ConsumerWidget {
                 ],
                 if (d.overview != null && d.overview!.isNotEmpty) ...[
                   const SizedBox(height: 20),
-                  Text(d.overview!,
-                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.5)),
+                  Text(
+                    d.overview!,
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                  ),
                 ],
                 if (d.genres.isNotEmpty) ...[
                   const SizedBox(height: 16),
@@ -287,26 +315,33 @@ class _DetailBody extends ConsumerWidget {
                       Text(l.detailCastCrew, style: _sectionStyle(theme)),
                       const Spacer(),
                       if (d.cast.length > 8 || d.crew.isNotEmpty)
-                        TextButton(
-                          onPressed: () => context.push('/seerr-credits',
+                        TvFocusRing(
+                          borderRadius: BorderRadius.circular(8),
+                          child: TextButton(
+                            onPressed: () => context.push(
+                              '/seerr-credits',
                               extra: (
                                 title: d.title,
                                 cast: d.cast,
                                 crew: d.crew,
-                              )),
-                          child: Text(l.detailViewAll),
+                              ),
+                            ),
+                            child: Text(l.detailViewAll),
+                          ),
                         ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    height: 168,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      clipBehavior: Clip.none,
-                      itemCount: d.cast.length.clamp(0, 20),
-                      separatorBuilder: (_, _) => const SizedBox(width: 12),
-                      itemBuilder: (context, i) => _CastCard(cast: d.cast[i]),
+                  _tvRow(
+                    SizedBox(
+                      height: 168,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        clipBehavior: Clip.none,
+                        itemCount: d.cast.length.clamp(0, 20),
+                        separatorBuilder: (_, _) => const SizedBox(width: 12),
+                        itemBuilder: (context, i) => _CastCard(cast: d.cast[i]),
+                      ),
                     ),
                   ),
                 ],
@@ -319,19 +354,22 @@ class _DetailBody extends ConsumerWidget {
                 if (d.collectionId != null) ...[
                   const SizedBox(height: 16),
                   _CollectionCard(
-                      id: d.collectionId!,
-                      name: d.collectionName ?? l.detailCollection),
+                    id: d.collectionId!,
+                    name: d.collectionName ?? l.detailCollection,
+                  ),
                 ],
                 _TitlesRow(
-                    title: l.detailRecommendations,
-                    mediaType: d.mediaType,
-                    tmdbId: d.tmdbId,
-                    similar: false),
+                  title: l.detailRecommendations,
+                  mediaType: d.mediaType,
+                  tmdbId: d.tmdbId,
+                  similar: false,
+                ),
                 _TitlesRow(
-                    title: l.detailSimilar,
-                    mediaType: d.mediaType,
-                    tmdbId: d.tmdbId,
-                    similar: true),
+                  title: l.detailSimilar,
+                  mediaType: d.mediaType,
+                  tmdbId: d.tmdbId,
+                  similar: true,
+                ),
               ],
             ),
           ),
@@ -353,15 +391,20 @@ class _SeerrTitle extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final text = Text(detail.title,
-        style: theme.textTheme.headlineSmall?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            shadows: const [Shadow(blurRadius: 8, color: Colors.black)]));
+    final text = Text(
+      detail.title,
+      style: theme.textTheme.headlineSmall?.copyWith(
+        color: Colors.white,
+        fontWeight: FontWeight.w800,
+        shadows: const [Shadow(blurRadius: 8, color: Colors.black)],
+      ),
+    );
     final jfId = detail.jellyfinMediaId;
     final session = ref.watch(sessionControllerProvider).asData?.value;
     if (jfId == null || session == null) return text;
-    final url = ref.watch(jellyfinClientProvider).imageUrl(
+    final url = ref
+        .watch(jellyfinClientProvider)
+        .imageUrl(
           baseUrl: session.baseUrl,
           itemId: jfId,
           type: 'Logo',
@@ -404,11 +447,14 @@ class _StatusChip extends StatelessWidget {
         color: color,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(label,
-          style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700)),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }
@@ -419,8 +465,11 @@ class _RequestButton extends ConsumerStatefulWidget {
   /// Renders as a circular header action instead of a labelled button.
   final bool iconOnly;
   final bool primary;
-  const _RequestButton(
-      {required this.detail, this.iconOnly = false, this.primary = false});
+  const _RequestButton({
+    required this.detail,
+    this.iconOnly = false,
+    this.primary = false,
+  });
   @override
   ConsumerState<_RequestButton> createState() => _RequestButtonState();
 }
@@ -451,8 +500,9 @@ class _RequestButtonState extends ConsumerState<_RequestButton> {
       ),
     );
     if (ok) {
-      ref.invalidate(seerrDetailProvider(
-          (mediaType: d.mediaType, tmdbId: d.tmdbId)));
+      ref.invalidate(
+        seerrDetailProvider((mediaType: d.mediaType, tmdbId: d.tmdbId)),
+      );
       _invalidateLists();
     }
   }
@@ -468,9 +518,7 @@ class _RequestButtonState extends ConsumerState<_RequestButton> {
     final movieRequested = d.mediaType == 'movie' && d.isRequested;
     if (widget.iconOnly) {
       return HeaderActionButton(
-        icon: movieRequested
-            ? Icons.hourglass_top_rounded
-            : Icons.add_rounded,
+        icon: movieRequested ? Icons.hourglass_top_rounded : Icons.add_rounded,
         tooltip: movieRequested ? l.detailRequested : l.detailRequest,
         primary: widget.primary,
         onTap: movieRequested ? null : _openRequest,
@@ -478,9 +526,7 @@ class _RequestButtonState extends ConsumerState<_RequestButton> {
     }
     return HoverPillButton(
       primary: true,
-      icon: movieRequested
-          ? Icons.hourglass_top_rounded
-          : Icons.add_rounded,
+      icon: movieRequested ? Icons.hourglass_top_rounded : Icons.add_rounded,
       label: movieRequested ? l.detailRequested : l.detailRequest,
       onTap: movieRequested ? null : _openRequest,
     );
@@ -511,7 +557,9 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
   double _pillWidth = 178;
 
   late final AnimationController _menu = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 190));
+    vsync: this,
+    duration: const Duration(milliseconds: 190),
+  );
 
   @override
   void dispose() {
@@ -521,6 +569,12 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
 
   void _toggle() {
     if (_busy) return;
+    // On TV the hover/overlay menu rows aren't D-pad reachable, so open a
+    // focusable sheet with the same actions instead.
+    if (isTvDevice) {
+      _showTvActions();
+      return;
+    }
     if (_open) {
       _close();
       return;
@@ -532,6 +586,52 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
     _portal.show();
     setState(() => _open = true);
     _menu.forward(from: 0);
+  }
+
+  Future<void> _showTvActions() async {
+    final l = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final isTv = widget.detail.mediaType == 'tv';
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: scheme.surfaceContainerHigh,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              autofocus: true,
+              leading: const Icon(
+                Icons.check_circle_rounded,
+                color: Color(0xFF22C55E),
+              ),
+              title: Text(l.detailApprove),
+              onTap: () => Navigator.of(ctx).pop('approve'),
+            ),
+            ListTile(
+              leading: Icon(Icons.cancel_rounded, color: scheme.error),
+              title: Text(l.detailDecline),
+              onTap: () => Navigator.of(ctx).pop('decline'),
+            ),
+            if (isTv)
+              ListTile(
+                leading: Icon(Icons.add_rounded, color: scheme.primary),
+                title: Text(l.detailRequestMore),
+                onTap: () => Navigator.of(ctx).pop('more'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case 'approve':
+        await _act(true);
+      case 'decline':
+        await _act(false);
+      case 'more':
+        await _requestMore();
+    }
   }
 
   void _close() {
@@ -560,7 +660,8 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
     );
     if (ok && mounted) {
       ref.invalidate(
-          seerrDetailProvider((mediaType: d.mediaType, tmdbId: d.tmdbId)));
+        seerrDetailProvider((mediaType: d.mediaType, tmdbId: d.tmdbId)),
+      );
       ref.invalidate(seerrRequestsProvider);
       ref.invalidate(seerrRecentRequestsProvider);
     }
@@ -580,17 +681,19 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
         await client.declineRequest(req.id);
       }
       ref.invalidate(
-          seerrDetailProvider((mediaType: d.mediaType, tmdbId: d.tmdbId)));
+        seerrDetailProvider((mediaType: d.mediaType, tmdbId: d.tmdbId)),
+      );
       ref.invalidate(seerrRequestsProvider);
       ref.invalidate(seerrRecentRequestsProvider);
       if (mounted) {
         final l = AppLocalizations.of(context);
         showSnack(
-            context,
-            approve
-                ? l.detailApprovedTitle(d.title)
-                : l.detailDeclinedTitle(d.title),
-            kind: SnackKind.success);
+          context,
+          approve
+              ? l.detailApprovedTitle(d.title)
+              : l.detailDeclinedTitle(d.title),
+          kind: SnackKind.success,
+        );
       }
     } catch (e) {
       if (mounted) showSnack(context, '$e', kind: SnackKind.error);
@@ -605,15 +708,17 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
     final expanded = _hover || _open;
     final h = widget.primary ? 54.0 : 46.0;
     final fg = widget.primary ? scheme.onPrimary : Colors.white;
-    final bg =
-        widget.primary ? scheme.primary : Colors.black.withValues(alpha: 0.5);
+    final bg = widget.primary
+        ? scheme.primary
+        : Colors.black.withValues(alpha: 0.5);
     final iconSize = widget.primary ? 26.0 : 22.0;
 
     Widget restIcon() => _busy
         ? SizedBox(
             width: 20,
             height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: fg))
+            child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+          )
         : Icon(Icons.info_outline_rounded, size: iconSize, color: fg);
 
     return OverlayPortal(
@@ -644,29 +749,39 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
                   child: expanded
                       ? Padding(
                           padding: EdgeInsets.only(
-                              left: widget.primary ? 20 : 18,
-                              right: widget.primary ? 14 : 12),
+                            left: widget.primary ? 20 : 18,
+                            right: widget.primary ? 14 : 12,
+                          ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               restIcon(),
                               const SizedBox(width: 9),
-                              Text(AppLocalizations.of(context).detailViewRequest,
-                                  style: TextStyle(
-                                      color: fg,
-                                      fontSize: widget.primary ? 15 : 14,
-                                      fontWeight: FontWeight.w700)),
+                              Text(
+                                AppLocalizations.of(context).detailViewRequest,
+                                style: TextStyle(
+                                  color: fg,
+                                  fontSize: widget.primary ? 15 : 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                               const SizedBox(width: 3),
                               AnimatedRotation(
                                 turns: _open ? 0.5 : 0,
                                 duration: const Duration(milliseconds: 190),
-                                child: Icon(Icons.keyboard_arrow_down_rounded,
-                                    size: 20, color: fg),
+                                child: Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 20,
+                                  color: fg,
+                                ),
                               ),
                             ],
                           ),
                         )
-                      : SizedBox(width: h, child: Center(child: restIcon())),
+                      : SizedBox(
+                          width: h,
+                          child: Center(child: restIcon()),
+                        ),
                 ),
               ),
             ),
@@ -726,8 +841,9 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
                         onTap: () => _act(true),
                       ),
                       Divider(
-                          height: 1,
-                          color: scheme.outlineVariant.withValues(alpha: 0.4)),
+                        height: 1,
+                        color: scheme.outlineVariant.withValues(alpha: 0.4),
+                      ),
                       _MenuRow(
                         icon: Icons.cancel_rounded,
                         label: l.detailDecline,
@@ -738,9 +854,9 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
                       // Jellyseerr's "Request More".
                       if (widget.detail.mediaType == 'tv') ...[
                         Divider(
-                            height: 1,
-                            color:
-                                scheme.outlineVariant.withValues(alpha: 0.4)),
+                          height: 1,
+                          color: scheme.outlineVariant.withValues(alpha: 0.4),
+                        ),
                         _MenuRow(
                           icon: Icons.add_rounded,
                           label: l.detailRequestMore,
@@ -766,11 +882,12 @@ class _MenuRow extends StatefulWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  const _MenuRow(
-      {required this.icon,
-      required this.label,
-      required this.color,
-      required this.onTap});
+  const _MenuRow({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   State<_MenuRow> createState() => _MenuRowState();
@@ -799,10 +916,13 @@ class _MenuRowState extends State<_MenuRow> {
             children: [
               Icon(widget.icon, size: 19, color: widget.color),
               const SizedBox(width: 12),
-              Text(widget.label,
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: _hover ? widget.color : scheme.onSurface)),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: _hover ? widget.color : scheme.onSurface,
+                ),
+              ),
             ],
           ),
         ),
@@ -821,25 +941,31 @@ class _SeasonList extends StatelessWidget {
     return Column(
       children: [
         for (final s in detail.seasons)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(child: Text('${s.seasonNumber}')),
-            title: Text(s.name),
-            subtitle: Text(l.detailEpisodeCount(s.episodeCount)),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _SeasonStatus(status: s.status),
-                const SizedBox(width: 4),
-                const Icon(Icons.chevron_right_rounded),
-              ],
-            ),
-            // Open the episode list for the season.
-            onTap: () => context.push('/seerr-season', extra: (
+          TvFocusRing(
+            borderRadius: BorderRadius.circular(8),
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(child: Text('${s.seasonNumber}')),
+              title: Text(s.name),
+              subtitle: Text(l.detailEpisodeCount(s.episodeCount)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _SeasonStatus(status: s.status),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right_rounded),
+                ],
+              ),
+              // Open the episode list for the season.
+              onTap: () => context.push(
+                '/seerr-season',
+                extra: (
                   tvId: detail.tmdbId,
                   seasonNumber: s.seasonNumber,
                   seasonName: s.name,
-                )),
+                ),
+              ),
+            ),
           ),
       ],
     );
@@ -856,8 +982,10 @@ class _SeasonStatus extends StatelessWidget {
       4 => (Icons.incomplete_circle_rounded, Colors.teal),
       3 => (Icons.sync_rounded, Colors.blue),
       2 => (Icons.hourglass_top_rounded, Colors.orange),
-      _ => (Icons.remove_circle_outline_rounded,
-          Theme.of(context).colorScheme.outline),
+      _ => (
+        Icons.remove_circle_outline_rounded,
+        Theme.of(context).colorScheme.outline,
+      ),
     };
     return Icon(icon, color: color, size: 20);
   }
@@ -879,7 +1007,7 @@ class _CastCardState extends State<_CastCard> {
     final cast = widget.cast;
     // Same lift-and-ring on hover as the Jellyfin cast cards, so people feel
     // interactive everywhere in the app.
-    return MouseRegion(
+    final card = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
@@ -916,23 +1044,35 @@ class _CastCardState extends State<_CastCard> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text(cast.name,
-                  maxLines: 2,
+              Text(
+                cast.name,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (cast.character != null)
+                Text(
+                  cast.character!,
+                  maxLines: 1,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
-              if (cast.character != null)
-                Text(cast.character!,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
             ],
           ),
         ),
       ),
+    );
+    // TV: make the whole card a D-pad target (no-op off TV).
+    return TvFocusable(
+      onTap: () => context.push('/seerr-person', extra: cast.id),
+      borderRadius: BorderRadius.circular(10),
+      child: card,
     );
   }
 }
@@ -951,10 +1091,11 @@ class _ErrorView extends StatelessWidget {
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(message,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.error)),
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ),
             ),
           ),
@@ -971,16 +1112,18 @@ class _TitlesRow extends ConsumerWidget {
   final String mediaType;
   final int tmdbId;
   final bool similar;
-  const _TitlesRow(
-      {required this.title,
-      required this.mediaType,
-      required this.tmdbId,
-      required this.similar});
+  const _TitlesRow({
+    required this.title,
+    required this.mediaType,
+    required this.tmdbId,
+    required this.similar,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final key = (mediaType: mediaType, tmdbId: tmdbId);
-    final list = (similar
+    final list =
+        (similar
                 ? ref.watch(seerrSimilarProvider(key))
                 : ref.watch(seerrRecommendationsProvider(key)))
             .asData
@@ -1023,8 +1166,12 @@ class _DownloadProgressState extends ConsumerState<_DownloadProgress> {
     super.initState();
     _timer = Timer.periodic(const Duration(seconds: 7), (_) {
       if (mounted) {
-        ref.invalidate(seerrDetailProvider(
-            (mediaType: widget.mediaType, tmdbId: widget.tmdbId)));
+        ref.invalidate(
+          seerrDetailProvider((
+            mediaType: widget.mediaType,
+            tmdbId: widget.tmdbId,
+          )),
+        );
       }
     });
   }
@@ -1052,15 +1199,18 @@ class _DownloadProgressState extends ConsumerState<_DownloadProgress> {
                 color: scheme.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                    color: scheme.outlineVariant.withValues(alpha: 0.5)),
+                  color: scheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(d.title.isEmpty ? l.detailDownloading : d.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    d.title.isEmpty ? l.detailDownloading : d.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -1076,8 +1226,10 @@ class _DownloadProgressState extends ConsumerState<_DownloadProgress> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Text('${(d.progress * 100).round()}%',
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                        '${(d.progress * 100).round()}%',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -1086,9 +1238,12 @@ class _DownloadProgressState extends ConsumerState<_DownloadProgress> {
                       _pill(scheme, d.status),
                       const Spacer(),
                       if (_estimated(d.estimatedCompletionTime) case final est?)
-                        Text(est,
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                        Text(
+                          est,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
                     ],
                   ),
                 ],
@@ -1106,13 +1261,17 @@ class _DownloadProgressState extends ConsumerState<_DownloadProgress> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-          color: scheme.primary.withValues(alpha: 0.18),
-          borderRadius: BorderRadius.circular(20)),
-      child: Text(label,
-          style: TextStyle(
-              color: scheme.primary,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700)),
+        color: scheme.primary.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: scheme.primary,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 
@@ -1126,8 +1285,8 @@ class _DownloadProgressState extends ConsumerState<_DownloadProgress> {
     final label = secs < 60
         ? '${secs}s'
         : diff.inMinutes.abs() < 60
-            ? '${diff.inMinutes.abs()} min'
-            : '${diff.inHours.abs()}h';
+        ? '${diff.inMinutes.abs()} min'
+        : '${diff.inHours.abs()}h';
     return diff.isNegative
         ? l.detailEstimatedAgo(label)
         : l.detailEstimatedIn(label);
@@ -1144,24 +1303,29 @@ class _CollectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHigh,
+    return TvFocusRing(
       borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.push('/seerr-collection', extra: id),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              Icon(Icons.collections_bookmark_rounded, color: scheme.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(l.detailPartOfCollection(name),
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-              ),
-              const Icon(Icons.chevron_right_rounded),
-            ],
+      child: Material(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.push('/seerr-collection', extra: id),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              children: [
+                Icon(Icons.collections_bookmark_rounded, color: scheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    l.detailPartOfCollection(name),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
           ),
         ),
       ),

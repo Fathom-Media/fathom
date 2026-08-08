@@ -99,8 +99,12 @@ void main() {
     ));
     await tester.pump();
 
-    // The menu adds a playlist entry the bar shows as its leading widget.
-    final menu = menuLabels.where((l) => !l.contains('Playlist')).toSet();
+    // The menu adds two entries the bar surfaces separately (not via the shared
+    // actionsFor list): a playlist entry (the bar's leading widget) and
+    // "Play audio" (the bar's leading "Listen" pill).
+    final menu = menuLabels
+        .where((l) => !l.contains('Playlist') && l != 'Play audio')
+        .toSet();
     expect(menu, equals(barLabels.toSet()),
         reason: 'the bar and the menu must offer the same actions');
     expect(barLabels, contains('Download'));

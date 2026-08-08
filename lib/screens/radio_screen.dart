@@ -1,17 +1,21 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/radio_station.dart';
 import '../routing/app_shell.dart';
+import '../services/tv_mode.dart';
 import '../state/audio_player.dart';
 import '../state/radio.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/motion.dart';
 import '../widgets/reorder.dart';
 import '../widgets/search_field.dart';
+import '../widgets/tv_focus.dart';
+import '../widgets/tv_keyboard.dart';
 
 /// Internet radio: your saved stations (favorites first, then by group), a
 /// radio-browser.info directory search to discover and add stations, and
@@ -170,22 +174,26 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         return _StationTile(
           station: s,
           playing: false,
-          trailing: IconButton(
-            tooltip: l.radioAdd,
-            icon: const Icon(Icons.add_circle_outline_rounded),
-            onPressed: () async {
-              await ref.read(radioControllerProvider.notifier).add(s);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l.radioAdded(s.name))));
-              }
-            },
-          ),
-          onTap: () =>
-              // Tapping a browse result just previews it (plays now) without
-              // saving. Use the + button to add it to My Stations. The tab bar
-              // stays put, so switching back to My Stations is one tap.
-              ref.read(audioControllerProvider.notifier).playStation(s),
+          // On TV the trailing "+" is unreachable (the row is one focus target),
+          // so hide it there and surface Add in the select sheet instead.
+          trailing: isTvDevice
+              ? null
+              : IconButton(
+                  tooltip: l.radioAdd,
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  onPressed: () async {
+                    await ref.read(radioControllerProvider.notifier).add(s);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l.radioAdded(s.name))));
+                    }
+                  },
+                ),
+          // TV: selecting opens Play/Add sheet. Elsewhere, tapping a browse
+          // result previews it (plays now) without saving; use + to add it.
+          onTap: isTvDevice
+              ? () => _showStationSheet(s, saved: false)
+              : () => ref.read(audioControllerProvider.notifier).playStation(s),
         );
       },
     );
@@ -359,7 +367,9 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
       dragHandle: di == null
           ? null
           : Icon(Icons.drag_indicator, color: dragGripColor(context)),
-      trailing: PopupMenuButton<String>(
+      trailing: isTvDevice
+          ? null
+          : PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert_rounded),
         onSelected: (v) => _onAction(v, s),
         itemBuilder: (_) => [
@@ -405,8 +415,11 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
           ),
         ],
       ),
-      onTap: () =>
-          ref.read(audioControllerProvider.notifier).playStation(s),
+      // TV: selecting opens the Play/Favorite/Group/Edit/Remove sheet, since the
+      // row's ⋮ can't be reached with a remote.
+      onTap: isTvDevice
+          ? () => _showStationSheet(s, saved: true)
+          : () => ref.read(audioControllerProvider.notifier).playStation(s),
     );
     if (di == null) return KeyedSubtree(key: ValueKey(s.id), child: tile);
     // Drag from anywhere on the row (press-drag on desktop, long-press on touch).
@@ -424,6 +437,87 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
         await _edit(context, s);
       case 'remove':
         await ctrl.remove(s.id);
+    }
+  }
+
+  /// TV action sheet for a station. A remote can't reach the row's trailing "+"
+  /// or ⋮ (the whole row is one focus target), so selecting a station opens
+  /// this: Play first, then Add (browse results) or the manage actions (saved).
+  Future<void> _showStationSheet(RadioStation s, {required bool saved}) async {
+    final l = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: scheme.surfaceContainerHigh,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+              child: Text(s.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700)),
+            ),
+            ListTile(
+              autofocus: true,
+              leading: const Icon(Icons.play_arrow_rounded),
+              title: Text(l.commonPlay),
+              onTap: () => Navigator.of(ctx).pop('play'),
+            ),
+            if (!saved)
+              ListTile(
+                leading: const Icon(Icons.add_circle_outline_rounded),
+                title: Text(l.radioAdd),
+                onTap: () => Navigator.of(ctx).pop('add'),
+              ),
+            if (saved) ...[
+              ListTile(
+                leading: Icon(s.favorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded),
+                title:
+                    Text(s.favorite ? l.radioUnfavorite : l.radioFavorite),
+                onTap: () => Navigator.of(ctx).pop('favorite'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder_rounded),
+                title: Text(l.radioSetGroup),
+                onTap: () => Navigator.of(ctx).pop('group'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_rounded),
+                title: Text(l.commonEdit),
+                onTap: () => Navigator.of(ctx).pop('edit'),
+              ),
+              const Divider(),
+              ListTile(
+                leading:
+                    Icon(Icons.delete_outline_rounded, color: scheme.error),
+                title: Text(l.commonRemove,
+                    style: TextStyle(color: scheme.error)),
+                onTap: () => Navigator.of(ctx).pop('remove'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    if (chosen == 'play') {
+      ref.read(audioControllerProvider.notifier).playStation(s);
+    } else if (chosen == 'add') {
+      await ref.read(radioControllerProvider.notifier).add(s);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(l.radioAdded(s.name))));
+      }
+    } else {
+      await _onAction(chosen, s);
     }
   }
 
@@ -493,32 +587,39 @@ class _StationTile extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: station.favicon != null
-            ? Image.network(
-                station.favicon!,
+            ? CachedNetworkImage(
+                imageUrl: station.favicon!,
                 fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _fallback(scheme),
+                fadeInDuration: const Duration(milliseconds: 150),
+                // Disk-cached, so a station's logo loads instantly on the second
+                // visit to the radio screen instead of re-downloading every time.
+                placeholder: (_, _) => _fallback(scheme),
+                errorWidget: (_, _, _) => _fallback(scheme),
               )
             : _fallback(scheme),
       ),
     );
-    return ListTile(
-      // Drag grip (when reorderable) sits at the very left, before the logo,
-      // consistent with the Navigation screen.
-      leading: dragHandle == null
-          ? logo
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [dragHandle!, const SizedBox(width: 6), logo],
-            ),
-      title: Text(station.name,
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: sub.isEmpty
-          ? null
-          : Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: playing
-          ? Icon(Icons.graphic_eq_rounded, color: scheme.primary)
-          : trailing,
-      onTap: onTap,
+    return TvFocusRing(
+      borderRadius: BorderRadius.circular(12),
+      child: ListTile(
+        // Drag grip (when reorderable) sits at the very left, before the logo,
+        // consistent with the Navigation screen.
+        leading: dragHandle == null
+            ? logo
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [dragHandle!, const SizedBox(width: 6), logo],
+              ),
+        title: Text(station.name,
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: sub.isEmpty
+            ? null
+            : Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: playing
+            ? Icon(Icons.graphic_eq_rounded, color: scheme.primary)
+            : trailing,
+        onTap: onTap,
+      ),
     );
   }
 
@@ -600,8 +701,8 @@ class _SlidingTabs extends StatelessWidget {
   }
 
   Widget _seg(ColorScheme scheme, Duration dur, IconData icon, String label,
-          {required bool selected, required VoidCallback onTap}) =>
-      GestureDetector(
+      {required bool selected, required VoidCallback onTap}) {
+    final seg = GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: TweenAnimationBuilder<double>(
@@ -632,6 +733,14 @@ class _SlidingTabs extends StatelessWidget {
           },
         ),
       );
+    if (!isTvDevice) return seg;
+    return TvFocusable(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(19),
+      scale: 1.03,
+      child: seg,
+    );
+  }
 }
 
 /// Rename-group dialog. Owns its own controller so it's disposed when the dialog
@@ -675,17 +784,16 @@ class _AddByUrlDialogState extends State<_AddByUrlDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
+          TvTextField(
             controller: _name,
-            decoration: InputDecoration(labelText: l.radioStationName),
+            label: l.radioStationName,
           ),
           const SizedBox(height: 12),
-          TextField(
+          TvTextField(
             controller: _url,
+            label: l.radioStreamUrl,
             keyboardType: TextInputType.url,
-            autocorrect: false,
             onSubmitted: (_) => _add(),
-            decoration: InputDecoration(labelText: l.radioStreamUrl),
           ),
         ],
       ),
@@ -727,11 +835,11 @@ class _SetGroupDialogState extends State<_SetGroupDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
+          TvTextField(
             controller: _ctrl,
+            label: l.radioGroup,
             textCapitalization: TextCapitalization.words,
             onSubmitted: (_) => Navigator.pop(context, _ctrl.text.trim()),
-            decoration: InputDecoration(labelText: l.radioGroup),
           ),
           if (widget.existing.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -818,11 +926,10 @@ class _EditStationDialogState extends State<_EditStationDialog> {
     Widget field(TextEditingController c, String label, {bool url = false}) =>
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: TextField(
+          child: TvTextField(
             controller: c,
+            label: label,
             keyboardType: url ? TextInputType.url : null,
-            autocorrect: !url,
-            decoration: InputDecoration(labelText: label),
           ),
         );
     return AlertDialog(
@@ -871,11 +978,11 @@ class _RenameGroupDialogState extends State<_RenameGroupDialog> {
     final l = AppLocalizations.of(context);
     return AlertDialog(
       title: Text(l.radioRenameGroup),
-      content: TextField(
+      content: TvTextField(
         controller: _ctrl,
+        label: l.radioGroup,
         autofocus: true,
         textCapitalization: TextCapitalization.words,
-        decoration: InputDecoration(labelText: l.radioGroup),
         onSubmitted: (_) => Navigator.pop(context, _ctrl.text.trim()),
       ),
       actions: [

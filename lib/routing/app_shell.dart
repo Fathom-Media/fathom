@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
+import '../state/audio_player.dart';
 import '../state/library_providers.dart';
 import '../state/notifications_controller.dart';
 import '../state/preferences.dart';
@@ -18,6 +20,8 @@ import '../state/syncplay.dart';
 import '../state/ui_providers.dart';
 import '../state/updates.dart';
 import '../widgets/window_frame.dart';
+import '../widgets/tv_focus.dart';
+import '../widgets/tv_keyboard.dart';
 import 'nav_destinations.dart';
 import '../widgets/glass.dart';
 import '../widgets/app_logo.dart';
@@ -42,11 +46,26 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 /// [mobileDrawerLeading]) can open the slide-out navigation drawer from anywhere.
 final shellScaffoldKey = GlobalKey<ScaffoldState>();
 
+/// On TV, scroll a freshly-focused rail tile into view (centered). The rail's
+/// sticky-footer sliver doesn't reliably auto-scroll on upward focus moves, so
+/// do it explicitly. No-op off TV or when not inside a scrollable; clamps at the
+/// ends, so the first/last tile isn't pushed past the edge.
+void _tvEnsureVisible(BuildContext context) {
+  if (!isTvDevice || !context.mounted) return;
+  if (Scrollable.maybeOf(context) == null) return;
+  Scrollable.ensureVisible(context,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut);
+}
+
 /// A hamburger for a top-level screen's AppBar that opens the phone navigation
 /// drawer. Returns null on tablet/desktop, which use the persistent rail instead
 /// of a drawer, so those screens get no leading button. Screens use it as
 /// `AppBar(leading: mobileDrawerLeading(context), ...)`.
 Widget? mobileDrawerLeading(BuildContext context) {
+  // TV uses the persistent rail, so top-level screens get no leading button.
+  if (isTvDevice) return null;
   if (MediaQuery.of(context).size.shortestSide >= 600) return null;
   return const DrawerMenuButton();
 }
@@ -58,6 +77,11 @@ Widget? mobileDrawerLeading(BuildContext context) {
 /// Genres, Downloads), so those screens are never a dead end. Null on
 /// tablet/desktop, which navigate from the persistent rail.
 Widget? mobileLeading(BuildContext context) {
+  // TV: a secondary (pushed) screen shows a focusable Back button; a top-level
+  // screen relies on the persistent rail, so no hamburger.
+  if (isTvDevice) {
+    return Navigator.of(context).canPop() ? const BackButton() : null;
+  }
   if (MediaQuery.of(context).size.shortestSide >= 600) return null;
   if (Navigator.of(context).canPop()) return const BackButton();
   return const DrawerMenuButton();
@@ -72,7 +96,7 @@ class DrawerMenuButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (MediaQuery.of(context).size.shortestSide >= 600) {
+    if (isTvDevice || MediaQuery.of(context).size.shortestSide >= 600) {
       return const SizedBox.shrink();
     }
     final unread = ref.watch(unreadNotifCountProvider);
@@ -112,6 +136,22 @@ class AppShell extends ConsumerWidget {
     // Keep the Seerr request poller alive for the app's lifetime (no-op until
     // Seerr is configured), so request status changes fire notifications.
     ref.watch(seerrRequestWatcherProvider);
+    // On a TV the bottom mini-player is hard to drive with a remote, so when
+    // music actually starts (nothing → a track) open the full Now Playing
+    // screen, which is fully D-pad operable. Track-to-track changes don't
+    // re-trigger it, so browsing while music plays is undisturbed.
+    if (isTvDevice) {
+      ref.listen(audioControllerProvider.select((s) => s.current?.id),
+          (prev, next) {
+        if (prev == null && next != null) {
+          if (location != '/nowplaying' && location != '/player') {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) context.push('/nowplaying');
+            });
+          }
+        }
+      });
+    }
 
     // Destinations come from the shared registry, then get the user's saved
     // order + hidden set applied (Settings > Navigation).
@@ -121,19 +161,33 @@ class AppShell extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
 
     // Phones get a slide-out drawer shell; tablets and desktop keep the rail.
-    if (MediaQuery.of(context).size.shortestSide < 600) {
+    // A TV always keeps the rail (never the drawer) even though its logical
+    // shortestSide can read below 600: a persistent, always-on-screen rail is
+    // the reachable-by-D-pad navigation, where a hamburger drawer is not.
+    if (MediaQuery.of(context).size.shortestSide < 600 && !isTvDevice) {
       return _MobileShell(
           destinations: destinations, location: location, child: child);
     }
 
     const dur = Duration(milliseconds: 240);
     const curve = Curves.easeOutCubic;
-    final width = extended ? 228.0 : 76.0;
+    // The rail is persistent on TV but collapsible: it defaults to expanded
+    // there (see railExtendedProvider) and the menu button toggles it to a slim
+    // icon rail, so `extended` alone drives the width on every platform.
+    // A tighter expanded rail on TV (less oversized from the couch).
+    final width = extended ? (isTvDevice ? 200.0 : 228.0) : 76.0;
 
-    final sidebar = NavSidebar(
-      destinations: destinations,
-      extended: extended,
-      onToggle: () => ref.read(railExtendedProvider.notifier).toggle(),
+    // The rail is its own focus-traversal group so a D-pad's Up/Down cycles the
+    // nav destinations instead of escaping sideways into the content grid; the
+    // remote only crosses to content when there's nothing left in the pressed
+    // direction within the rail (and vice-versa for the content group below).
+    final sidebar = FocusTraversalGroup(
+      policy: isTvDevice ? TvRailPolicy() : null,
+      child: NavSidebar(
+        destinations: destinations,
+        extended: extended,
+        onToggle: () => ref.read(railExtendedProvider.notifier).toggle(),
+      ),
     );
 
     // A Material ancestor so all shell chrome (profile menu, tooltips, ink)
@@ -187,7 +241,27 @@ class AppShell extends ConsumerWidget {
                   top: 0,
                   right: 0,
                   bottom: 0,
-                  child: Material(color: Colors.transparent, child: child),
+                  child: isTvDevice
+                      ? FocusScope(
+                          node: tvContentScope,
+                          // On TV, LEFT with no same-row neighbour escapes to the
+                          // nav rail from ANY screen (grids, lists, detail pages),
+                          // so the rail is never a dead end. Home's rows opt out
+                          // via their own TvFocusRow groups. TvAutofocus (keyed by
+                          // route) gives each fresh screen a focused landing spot.
+                          child: FocusTraversalGroup(
+                            policy: TvContentTraversalPolicy(),
+                            child: TvAutofocus(
+                              key: ValueKey(location),
+                              child: Material(
+                                  color: Colors.transparent, child: child),
+                            ),
+                          ),
+                        )
+                      : FocusTraversalGroup(
+                          child: Material(
+                              color: Colors.transparent, child: child),
+                        ),
                 ),
                 // Frosted glass sidebar floating over the wash.
                 AnimatedPositioned(
@@ -254,6 +328,166 @@ class NavSidebar extends ConsumerWidget {
     final storedAdmin =
         ref.watch(sessionControllerProvider).asData?.value?.isAdmin ?? false;
     final isAdmin = liveAdmin ?? storedAdmin;
+    // The rail's D-pad landing tile (tvNavBarNode). Prefer the active
+    // destination, but a pushed route (e.g. /item detail) matches nothing, so
+    // fall back to the first plain tile — never the expandable Libraries group —
+    // so the node is ALWAYS attached and LEFT-from-content reliably reaches the
+    // rail on every screen.
+    final plain = destinations.where((d) => d.route != '/libraries');
+    final navAnchorRoute = plain
+        .firstWhere((d) => location.startsWith(d.route),
+            orElse: () => plain.isEmpty ? destinations.first : plain.first)
+        .route;
+    // The scrollable nav destinations (shared by both layouts).
+    final navTiles = <Widget>[
+      for (final d in destinations)
+        if (d.route == '/libraries') ...[
+          _LibrariesNav(extended: extended, location: location),
+          _BrowseNav(extended: extended, location: location),
+        ] else
+          _NavTile(
+            label: d.label,
+            extended: extended,
+            selected: location.startsWith(d.route),
+            // On TV the anchor tile owns the rail's landing node, so
+            // LEFT from content always reaches the rail (see navAnchorRoute).
+            focusNode: (isTvDevice && d.route == navAnchorRoute)
+                ? tvNavBarNode
+                : null,
+            icon: d.route == '/discover' ? null : d.icon,
+            iconBuilder: d.route == '/discover'
+                ? (color) => _SeerrIcon(color: color)
+                : null,
+            onTap: () => context.go(d.route),
+          ),
+    ];
+
+    // On TV the mini player sits outside the D-pad content scope, so it's
+    // unreachable by the remote. A Now Playing rail entry (only while audio is
+    // loaded, and not already on that screen) is the reachable way back to the
+    // full music/radio screen.
+    final nowPlayingEntry = Consumer(builder: (context, ref, _) {
+      final hasAudio = ref
+          .watch(audioControllerProvider.select((s) => s.current != null || s.isRadio));
+      if (!hasAudio || location == '/nowplaying') {
+        return const SizedBox.shrink();
+      }
+      return _NavTile(
+        label: AppLocalizations.of(context).playerNowPlaying,
+        extended: extended,
+        selected: false,
+        icon: Icons.music_note_rounded,
+        onTap: () => context.push('/nowplaying'),
+      );
+    });
+
+    // The foot controls: update indicator (only when an update is available),
+    // notifications, account/settings.
+    final footControls = <Widget>[
+      _UpdateRailButton(extended: extended),
+      _NotifBell(extended: extended),
+      const SizedBox(height: 2),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(10, 0, 10, 14),
+        child: _ProfileMenu(isAdmin: isAdmin, extended: extended),
+      ),
+    ];
+
+    // TV: everything lives in ONE scroll view so a D-pad can walk DOWN through
+    // every item (nav → Now Playing → notifications → account) — nothing is
+    // pinned outside the scrollable out of the remote's reach. A sticky footer
+    // (SliverFillRemaining + Spacer) keeps the account/notifications controls
+    // pinned to the BOTTOM when the nav fits, and lets the whole thing scroll
+    // when it doesn't. Desktop/phone keep the pinned-foot Column layout below.
+    if (isTvDevice) {
+      // On TV the foot controls are rendered as ordinary nav tiles: the desktop
+      // foot widgets (notifications bell, account popup) are bare GestureDetectors
+      // with no focus node, so a D-pad can't land on them AND they don't line up
+      // with the nav icons/labels. As tiles they're focusable, reachable by DOWN,
+      // and perfectly aligned with the rest of the rail.
+      final tvFoot = <Widget>[
+        Consumer(builder: (context, ref, _) {
+          final upd = ref.watch(updateControllerProvider).asData?.value;
+          if (upd == null || !upd.updateAvailable) {
+            return const SizedBox.shrink();
+          }
+          return _NavTile(
+            icon: Icons.system_update_alt_rounded,
+            label: AppLocalizations.of(context).updatesTitle,
+            selected: location.startsWith('/updates'),
+            extended: extended,
+            onTap: () => context.push('/updates'),
+          );
+        }),
+        Consumer(builder: (context, ref, _) {
+          final scheme = Theme.of(context).colorScheme;
+          final count = ref.watch(unreadNotifCountProvider);
+          return _NavTile(
+            icon: Icons.notifications_rounded,
+            label: AppLocalizations.of(context).miscNotifications,
+            selected: location.startsWith('/notifications'),
+            extended: extended,
+            trailing: count > 0
+                ? Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                        color: scheme.error,
+                        borderRadius: BorderRadius.circular(10)),
+                    child: Text(count > 99 ? '99+' : '$count',
+                        style: TextStyle(
+                            color: scheme.onError,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700)),
+                  )
+                : null,
+            onTap: () => context.push('/notifications'),
+          );
+        }),
+        // One account tile that opens the SAME menu as the desktop/mobile
+        // profile popup, in the same order (Profile, Watch Together, Quick
+        // Connect, Settings, Administration, Sign Out) — not split into separate
+        // rail buttons.
+        Consumer(builder: (context, ref, _) {
+          final name =
+              ref.watch(sessionControllerProvider).asData?.value?.userName;
+          return _NavTile(
+            iconBuilder: (_) => const UserAvatar(radius: 11),
+            label: name ?? AppLocalizations.of(context).miscAccount,
+            selected: false,
+            extended: extended,
+            onTap: () => _showTvAccountMenu(context, ref, isAdmin: isAdmin),
+          );
+        }),
+      ];
+      return Column(
+        children: [
+          _BrandHeader(extended: extended, onToggle: onToggle),
+          const SizedBox(height: 2),
+          Expanded(
+            child: CustomScrollView(
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Column(
+                      children: [
+                        ...navTiles,
+                        nowPlayingEntry,
+                        const Spacer(),
+                        ...tvFoot,
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       children: [
         _BrandHeader(extended: extended, onToggle: onToggle),
@@ -261,34 +495,10 @@ class NavSidebar extends ConsumerWidget {
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            children: [
-              for (final d in destinations)
-                if (d.route == '/libraries') ...[
-                  _LibrariesNav(extended: extended, location: location),
-                  _BrowseNav(extended: extended, location: location),
-                ] else
-                  _NavTile(
-                    label: d.label,
-                    extended: extended,
-                    selected: location.startsWith(d.route),
-                    icon: d.route == '/discover' ? null : d.icon,
-                    iconBuilder: d.route == '/discover'
-                        ? (color) => _SeerrIcon(color: color)
-                        : null,
-                    onTap: () => context.go(d.route),
-                  ),
-            ],
+            children: navTiles,
           ),
         ),
-        // An update indicator (only when a newer release is available) sits with
-        // the notifications and account controls at the foot.
-        _UpdateRailButton(extended: extended),
-        _NotifBell(extended: extended),
-        const SizedBox(height: 2),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(10, 0, 10, 14),
-          child: _ProfileMenu(isAdmin: isAdmin, extended: extended),
-        ),
+        ...footControls,
       ],
     );
   }
@@ -553,10 +763,11 @@ class _BrandHeader extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     // Themed mark (tinted to the accent) rather than the full colored tile, so
     // it sits with the flat sidebar chrome like the Seerr icon does.
-    final logo = FathomGlyph(size: 30, color: scheme.primary);
+    final tv = isTvDevice;
+    final logo = FathomGlyph(size: tv ? 26 : 30, color: scheme.primary);
     if (extended) {
       return SizedBox(
-        height: 60,
+        height: tv ? 50 : 60,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 0, 8, 0),
           child: Row(
@@ -584,7 +795,7 @@ class _BrandHeader extends StatelessWidget {
     }
     // Collapsed: just the expand toggle, centred.
     return SizedBox(
-      height: 60,
+      height: tv ? 50 : 60,
       child: Center(
         child: IconButton(
           tooltip: l.miscExpandSidebar,
@@ -740,6 +951,7 @@ class _NavTile extends StatefulWidget {
   final bool extended;
   final VoidCallback onTap;
   final Widget? trailing; // shown at the right edge when extended
+  final FocusNode? focusNode;
   const _NavTile({
     required this.label,
     required this.selected,
@@ -748,6 +960,7 @@ class _NavTile extends StatefulWidget {
     this.icon,
     this.iconBuilder,
     this.trailing,
+    this.focusNode,
   });
 
   @override
@@ -773,15 +986,29 @@ class _NavTileState extends State<_NavTile> {
             ? scheme.onSurface.withValues(alpha: 0.06)
             : Colors.transparent);
 
+    // On TV the rail is tighter (smaller rows, icons, text, gaps) so the whole
+    // set fits on-screen without feeling oversized from the couch.
+    final tv = isTvDevice;
+    final gap = tv ? 12.0 : 16.0;
     final iconWidget = widget.iconBuilder != null
         ? widget.iconBuilder!(fg)
-        : Icon(widget.icon, color: fg, size: 23);
+        : Icon(widget.icon, color: fg, size: tv ? 20 : 23);
 
     Widget tile = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: FocusableActionDetector(
-        onShowFocusHighlight: (v) => setState(() => _focused = v),
+        focusNode: widget.focusNode,
+        // TV needs real focus (D-pad) to light the tile; off TV keep the original
+        // keyboard-highlight-only behaviour so desktop is unchanged.
+        onFocusChange: isTvDevice
+            ? (v) {
+                setState(() => _focused = v);
+                if (v) _tvEnsureVisible(context);
+              }
+            : null,
+        onShowFocusHighlight:
+            isTvDevice ? null : (v) => setState(() => _focused = v),
         actions: {
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (_) {
@@ -796,18 +1023,23 @@ class _NavTileState extends State<_NavTile> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
-          height: 48,
+          height: tv ? 40 : 48,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(14),
+            // A bold accent ring when a D-pad remote lands on the tile, so the
+            // current nav target is unmistakable from the couch.
+            border: _focused
+                ? Border.all(color: scheme.primary, width: 2.5)
+                : null,
           ),
           child: widget.extended
               ? Row(
                   children: [
-                    const SizedBox(width: 16),
+                    SizedBox(width: gap),
                     iconWidget,
-                    const SizedBox(width: 16),
+                    SizedBox(width: gap),
                     Expanded(
                       child: Text(
                         widget.label,
@@ -816,6 +1048,7 @@ class _NavTileState extends State<_NavTile> {
                         softWrap: false,
                         style: TextStyle(
                           color: fg,
+                          fontSize: tv ? 13.5 : null,
                           fontWeight:
                               selected ? FontWeight.w700 : FontWeight.w500,
                         ),
@@ -835,7 +1068,7 @@ class _NavTileState extends State<_NavTile> {
       tile = Tooltip(message: widget.label, child: tile);
     }
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: tv ? 1.5 : 3),
       child: tile,
     );
   }
@@ -1025,45 +1258,151 @@ class _NavSubTile extends StatefulWidget {
 
 class _NavSubTileState extends State<_NavSubTile> {
   bool _hover = false;
+  // A D-pad remote must be able to land on library sub-entries (they were
+  // mouse-only before, so the remote skipped straight over them).
+  bool _focused = false;
+  bool get _active => _hover || _focused;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final fg = _hover ? scheme.onSurface : scheme.onSurfaceVariant;
+    final fg = _active ? scheme.onSurface : scheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 2, 10, 2),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          behavior: HitTestBehavior.opaque,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            height: 40,
-            decoration: BoxDecoration(
-              color: _hover
-                  ? scheme.onSurface.withValues(alpha: 0.06)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                const SizedBox(width: 12),
-                Icon(widget.icon, size: 19, color: fg),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(widget.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: fg, fontSize: 13.5)),
-                ),
-              ],
+      child: FocusableActionDetector(
+        // TV needs real focus (D-pad) to light the tile; off TV keep the original
+        // keyboard-highlight-only behaviour so desktop is unchanged.
+        onFocusChange: isTvDevice
+            ? (v) {
+                setState(() => _focused = v);
+                if (v) _tvEnsureVisible(context);
+              }
+            : null,
+        onShowFocusHighlight:
+            isTvDevice ? null : (v) => setState(() => _focused = v),
+        mouseCursor: SystemMouseCursors.click,
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              widget.onTap();
+              return null;
+            },
+          ),
+        },
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GestureDetector(
+            onTap: widget.onTap,
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              height: 40,
+              decoration: BoxDecoration(
+                color: _active
+                    ? scheme.onSurface.withValues(alpha: 0.06)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                border: _focused
+                    ? Border.all(color: scheme.primary, width: 2.5)
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 12),
+                  Icon(widget.icon, size: 19, color: fg),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: fg, fontSize: 13.5)),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// The TV account menu: the D-pad-friendly equivalent of the desktop/mobile
+/// profile popup ([_ProfileMenu]), with the SAME options in the SAME order.
+/// Rendered as a bottom sheet of focusable rows so a remote can reach each one.
+Future<void> _showTvAccountMenu(BuildContext context, WidgetRef ref,
+    {required bool isAdmin}) async {
+  final l = AppLocalizations.of(context);
+  final scheme = Theme.of(context).colorScheme;
+  final session = ref.read(sessionControllerProvider).asData?.value;
+  final syncPlayOn =
+      ref.read(preferencesProvider).asData?.value.syncPlayEnabled ?? true;
+  final choice = await showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: scheme.surfaceContainerHigh,
+    builder: (ctx) => SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          ListTile(
+            autofocus: true,
+            leading: const UserAvatar(radius: 18),
+            title: Text(session?.userName ?? l.miscAccount),
+            subtitle:
+                session?.serverName != null ? Text(session!.serverName!) : null,
+            onTap: () => Navigator.of(ctx).pop('profile'),
+          ),
+          const Divider(),
+          if (syncPlayOn)
+            ListTile(
+              leading: const Icon(Icons.groups_rounded),
+              title: Text(l.miscWatchTogether),
+              onTap: () => Navigator.of(ctx).pop('syncplay'),
+            ),
+          ListTile(
+            leading: const Icon(Icons.qr_code_scanner_rounded),
+            title: Text(l.miscQuickConnect),
+            onTap: () => Navigator.of(ctx).pop('quickconnect'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.settings_rounded),
+            title: Text(l.miscSettings),
+            onTap: () => Navigator.of(ctx).pop('settings'),
+          ),
+          if (isAdmin)
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings_rounded),
+              title: Text(l.miscAdministration),
+              onTap: () => Navigator.of(ctx).pop('admin'),
+            ),
+          const Divider(),
+          ListTile(
+            leading: Icon(Icons.logout_rounded, color: scheme.error),
+            title:
+                Text(l.commonSignOut, style: TextStyle(color: scheme.error)),
+            onTap: () => Navigator.of(ctx).pop('signout'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (choice == null || !context.mounted) return;
+  switch (choice) {
+    case 'profile':
+      context.push('/profile');
+    case 'syncplay':
+      context.push('/syncplay');
+    case 'settings':
+      context.push('/settings');
+    case 'quickconnect':
+      showDialog<void>(
+          context: context,
+          builder: (_) => const _QuickConnectAuthorizeDialog());
+    case 'admin':
+      context.push('/admin');
+    case 'signout':
+      ref.read(sessionControllerProvider.notifier).signOut();
   }
 }
 
@@ -1299,17 +1638,15 @@ class _QuickConnectAuthorizeDialogState
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
-          TextField(
+          TvTextField(
             controller: _ctrl,
             autofocus: true,
+            label: l.miscCode,
+            hint: l.miscCode,
             textCapitalization: TextCapitalization.characters,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 22, letterSpacing: 6),
             onSubmitted: (_) => _busy ? null : _authorize(),
-            decoration: InputDecoration(
-              hintText: l.miscCode,
-              border: const OutlineInputBorder(),
-            ),
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),

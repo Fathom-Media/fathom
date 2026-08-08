@@ -8,11 +8,14 @@ import 'package:audio_session/audio_session.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/widgets.dart' show WidgetsBinding, Locale;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../l10n/generated/app_localizations.dart';
 import '../services/secure_http.dart';
+import 'radio.dart';
 
 import 'audio_handler.dart';
 import 'cast.dart';
@@ -20,8 +23,13 @@ import '../api/jellyfin_client.dart';
 import '../models/base_item.dart';
 import '../models/radio_station.dart';
 import '../models/session.dart';
+import '../models/youtube_audio_item.dart';
+import '../models/youtube_video.dart';
 import '../services/live_players.dart';
+import '../services/youtube_innertube.dart' show YtChannelTabKind;
+import '../services/youtube_streams.dart';
 import 'providers.dart';
+import 'youtube_providers.dart';
 import 'session_controller.dart';
 import 'volume_sync.dart';
 import 'preferences.dart';
@@ -83,6 +91,12 @@ class AudioState {
   final Duration radioBehindLive;
   final Duration radioWindow;
 
+  // Background YouTube audio: when [ytCurrent] is set the player is on an
+  // audio-only YouTube track (not the music queue or radio). There's no separate
+  // audio queue — the up-next comes from the ONE shared youtubeQueueProvider,
+  // same as the video player; audio is just a playback mode over that queue.
+  final YoutubeAudioItem? ytCurrent;
+
   const AudioState({
     this.queue = const [],
     this.current,
@@ -94,10 +108,12 @@ class AudioState {
     this.radioSeekable = false,
     this.radioBehindLive = Duration.zero,
     this.radioWindow = Duration.zero,
+    this.ytCurrent,
   });
 
-  bool get hasTrack => current != null;
+  bool get hasTrack => current != null || ytCurrent != null;
   bool get isRadio => radioStation != null;
+  bool get isYoutubeAudio => ytCurrent != null;
   // "At live" once we're within a couple of seconds of the edge.
   bool get radioAtLive => radioBehindLive.inMilliseconds < 2500;
 
@@ -112,6 +128,7 @@ class AudioState {
     bool? radioSeekable,
     Duration? radioBehindLive,
     Duration? radioWindow,
+    Object? ytCurrent = _unset,
   }) =>
       AudioState(
         queue: queue ?? this.queue,
@@ -129,6 +146,9 @@ class AudioState {
         radioSeekable: radioSeekable ?? this.radioSeekable,
         radioBehindLive: radioBehindLive ?? this.radioBehindLive,
         radioWindow: radioWindow ?? this.radioWindow,
+        ytCurrent: ytCurrent == _unset
+            ? this.ytCurrent
+            : ytCurrent as YoutubeAudioItem?,
       );
 }
 
@@ -142,6 +162,7 @@ class AudioController extends Notifier<AudioState> {
   Timer? _radioIcyTimer; // polls the live ICY "now playing" while on radio
   Timer? _radioTick; // 1s ticker for live time-shift (behind-live / seekable)
   StreamSubscription<void>? _noisySub; // pause on BT/headphone disconnect (mobile)
+  StreamSubscription<AudioInterruptionEvent>? _interruptSub; // pause on focus loss / AA disconnect
   // Live edge in playback time: advances by wall-clock every tick, so pausing or
   // rewinding leaves playback behind it. Reset on tune / go-live.
   Duration _radioEdge = Duration.zero;
@@ -151,10 +172,30 @@ class AudioController extends Notifier<AudioState> {
   int _emptyIcyCount = 0; // consecutive empty ICY reads (debounces ad/gap clears)
   String? _reportedId;
   int _lastPositionTicks = 0;
+  // Background YouTube audio: whether to auto-append a related track at the end,
+  // and a guard so overlapping completion/next events don't double-advance while
+  // the next track's stream URL is still resolving.
+  bool _ytAutoplay = true;
+  bool _ytAdvancing = false;
+  // Bumped on every YouTube-audio open, so a load-watchdog from a track we've
+  // already moved past can't skip the current one.
+  int _ytLoadToken = 0;
+  // Resolved audio-URL cache (YouTube URLs last ~6h; cache under that) so a
+  // pre-resolved next track opens instantly instead of gapping while it fetches.
+  final Map<String, ({String url, DateTime at})> _ytUrlCache = {};
+  static const _ytUrlTtl = Duration(hours: 5);
+  // Videos played this background session, so continuation never loops back onto
+  // one you just heard.
+  final Set<String> _ytPlayed = {};
   final Map<String, BaseItemDto> _byId = {};
   final _random = Random();
   // The OS media session (mobile only); null on desktop or if init failed.
   FathomAudioHandler? _handler;
+
+  // The platform audio session. We hold media audio focus while playing so the
+  // system — and Android Auto / a projected head unit — routes our output;
+  // without focus the car stays silent even though playback is running.
+  AudioSession? _audioSession;
 
   // A bundled radio glyph, copied to a cache file so the media notification has
   // artwork to show for stations that carry no favicon (audio_service loads art
@@ -214,21 +255,88 @@ class AudioController extends Notifier<AudioState> {
     if (h != null) {
       h.onPlay = _player.play;
       h.onPause = _player.pause;
-      h.onNext = _player.next;
-      h.onPrevious = _player.previous;
+      // Skip routes by mode: the YouTube queue advances itself (one track at a
+      // time), the music queue uses the player's own playlist.
+      h.onNext = () => state.isYoutubeAudio ? _ytNext() : _player.next();
+      h.onPrevious =
+          () => state.isYoutubeAudio ? _ytPrevious() : _player.previous();
       h.onSeek = _player.seek;
-      // Stop from the notification: on radio, leave radio mode entirely (cancels
-      // ICY polling and the live ticker); otherwise just stop the queue.
-      h.onStop = () async => state.isRadio ? await stopRadio() : _player.stop();
+      // Stop from the notification: leave radio / YouTube-audio mode entirely,
+      // else just stop the music queue.
+      h.onStop = () async => state.isRadio
+          ? await stopRadio()
+          : state.isYoutubeAudio
+              ? await stopYoutubeAudio()
+              : _player.stop();
+      // Android Auto (and any MediaBrowser client): serve the browse tree and
+      // route tapped items / voice search into the same playback methods the
+      // in-app UI uses, so behaviour is identical in the car.
+      h.onGetChildren = _autoGetChildren;
+      h.onPlayFromMediaId = _autoPlayFromMediaId;
+      h.onSearch = _autoSearch;
+      h.onPlayFromSearch = _autoPlayFromSearch;
+      // Now-playing controls from the car / notification.
+      h.onSetShuffle = (enabled) async {
+        if (state.shuffle != enabled) await toggleShuffle();
+      };
+      h.onSetRepeat = (mode) async {
+        await _setRepeat(switch (mode) {
+          AudioServiceRepeatMode.one => PlaylistMode.single,
+          AudioServiceRepeatMode.all ||
+          AudioServiceRepeatMode.group =>
+            PlaylistMode.loop,
+          AudioServiceRepeatMode.none => PlaylistMode.none,
+        });
+      };
+      h.onSkipToQueueItem = (index) async {
+        if (state.isYoutubeAudio) {
+          await _ytJumpTo(index);
+        } else {
+          await jumpTo(index);
+        }
+      };
+      h.onToggleFavorite = _toggleCurrentFavorite;
+      h.onToggleShuffle = toggleShuffle;
+      h.onCycleRepeat = cycleRepeat;
+      // Keep the car's up-next in sync as the shared YouTube queue changes.
+      ref.listen(youtubeQueueProvider, (_, _) {
+        if (state.isYoutubeAudio) _pushQueue();
+      });
       // Pause on Bluetooth/headphone disconnect (audio "becoming noisy"), like
       // every media app: blasting out of the phone speaker after you unplug is
       // jarring. Mobile-only (h != null). No-op while casting (local is paused).
-      AudioSession.instance.then((session) {
+      AudioSession.instance.then((session) async {
+        _audioSession = session;
+        // Configure the session FIRST: without this the platform never registers
+        // the audio-becoming-noisy receiver, so a Bluetooth/headset disconnect
+        // wouldn't pause and radio would blast out of the phone speaker. Video
+        // playback configures its own session, but radio/audio needs this here
+        // (there's no video screen to do it).
+        await session.configure(const AudioSessionConfiguration.music());
         _noisySub = session.becomingNoisyEventStream.listen((_) {
           if (_player.state.playing) _player.pause();
         });
+        // Pause when we lose audio focus — this is what fires when Android Auto
+        // (or a Bluetooth car) disconnects and audio would otherwise fall back to
+        // the phone speaker. We don't auto-resume on the tail: a disconnect is
+        // deliberate, so playback stays paused until the user restarts it.
+        _interruptSub = session.interruptionEventStream.listen((event) {
+          if (event.begin && _player.state.playing) _player.pause();
+        });
       }).catchError((_) {});
     }
+
+    // Prefetch the next playlist entry so music transitions are near-gapless
+    // (mpv doesn't do this by default). YouTube audio is single Medias, so it
+    // pre-resolves the next URL separately. An mpv option; harmless elsewhere.
+    try {
+      final p = _player.platform as dynamic;
+      unawaited(p.setProperty('prefetch-playlist', 'yes'));
+      // On Android, output via AudioTrack (not OpenSL ES): AudioTrack carries the
+      // media audio attributes + focus that Android — and Android Auto — route
+      // by, so a projected head unit actually gets our sound.
+      if (Platform.isAndroid) unawaited(p.setProperty('ao', 'audiotrack'));
+    } catch (_) {}
 
     final subPlaylist = _player.stream.playlist.listen((pl) {
       // Keep the visible queue in the player's real order (matters once shuffle
@@ -248,12 +356,27 @@ class AudioController extends Notifier<AudioState> {
         state = state.copyWith(
             queue: ordered.isNotEmpty ? ordered : state.queue, current: track);
         _pushNowPlaying();
+        _pushPlaybackState(); // refresh the Favorite heart for the new track
+        _pushQueue();
       } else if (ordered.isNotEmpty) {
         state = state.copyWith(queue: ordered);
+        _pushQueue();
       }
     });
     final subPosition = _player.stream.position.listen((p) {
       _lastPositionTicks = p.inMicroseconds * 10;
+    });
+    // The music queue auto-advances via the player's playlist; a YouTube-audio
+    // track is a single Media, so advance the YouTube queue ourselves when it
+    // finishes.
+    final subCompleted = _player.stream.completed.listen((done) {
+      if (!done || !state.isYoutubeAudio) return;
+      // media_kit also fires `completed` when a media fails to open (its
+      // duration stays zero). Only a real end-of-track — a non-zero duration
+      // that actually played out — should advance, otherwise a bad/expired URL
+      // cascades "completed -> next -> completed" through the whole queue.
+      if (_player.state.duration <= Duration.zero) return;
+      _ytNext();
     });
     // Mirror transport state to the media session. Position is extrapolated by
     // the OS between updates, so pushing on play/pause/buffer/duration changes
@@ -273,6 +396,7 @@ class AudioController extends Notifier<AudioState> {
     ref.onDispose(() {
       subPlaylist.cancel();
       subPosition.cancel();
+      subCompleted.cancel();
       subPlaying?.cancel();
       subBuffering?.cancel();
       subDuration?.cancel();
@@ -280,6 +404,7 @@ class AudioController extends Notifier<AudioState> {
       _radioIcyTimer?.cancel();
       _radioTick?.cancel();
       _noisySub?.cancel();
+      _interruptSub?.cancel();
       _reportStopped();
     });
     return const AudioState();
@@ -287,6 +412,12 @@ class AudioController extends Notifier<AudioState> {
 
   /// Publish the current track's metadata to the OS media session.
   void _pushNowPlaying() {
+    // YouTube audio publishes its own MediaItem (title/channel/thumbnail); a
+    // duration event should refresh THAT, not push a stale music track over it.
+    if (state.isYoutubeAudio) {
+      _pushYtNowPlaying(state.ytCurrent);
+      return;
+    }
     // Radio publishes its own MediaItem via _pushRadioNowPlaying; don't let a
     // stream duration/playlist event push a stale music track over it.
     if (state.isRadio) return;
@@ -332,6 +463,22 @@ class AudioController extends Notifier<AudioState> {
     final h = _handler;
     if (h == null) return;
     final s = _player.state;
+    final t = state.current;
+    // Favorite heart + shuffle/repeat: only for a Jellyfin library track.
+    final musicQueue = !state.isRadio && !state.isYoutubeAudio && t != null;
+    bool? favorite;
+    if (musicQueue) {
+      favorite = _favOverride[t.id] ?? t.userData.isFavorite;
+    }
+    // Which queue row the car highlights: the current track's index for music,
+    // always the head (0) for YouTube (current + up-next), nothing for radio.
+    int? queueIndex;
+    if (state.isYoutubeAudio) {
+      queueIndex = 0;
+    } else if (!state.isRadio) {
+      final i = currentIndex;
+      if (i >= 0) queueIndex = i;
+    }
     h.setPlayback(
       playing: s.playing,
       buffering: s.buffering,
@@ -339,7 +486,111 @@ class AudioController extends Notifier<AudioState> {
       buffered: s.buffer,
       speed: s.rate,
       radio: state.isRadio,
+      shuffle: state.shuffle,
+      repeat: switch (state.repeat) {
+        PlaylistMode.single => AudioServiceRepeatMode.one,
+        PlaylistMode.loop => AudioServiceRepeatMode.all,
+        PlaylistMode.none => AudioServiceRepeatMode.none,
+      },
+      favorite: favorite,
+      queueIndex: queueIndex,
+      musicQueue: musicQueue,
     );
+  }
+
+  /// Jump to a row in the YouTube queue. Row 0 is the current track; the rest
+  /// index into the shared up-next, which we advance to that point.
+  Future<void> _ytJumpTo(int index) async {
+    if (!state.isYoutubeAudio) return;
+    if (index <= 0) {
+      await _player.seek(Duration.zero);
+      return;
+    }
+    final q = ref.read(youtubeQueueProvider);
+    final target = index - 1; // row 0 is the current track
+    if (target < 0 || target >= q.length) return;
+    ref.read(youtubeQueueProvider.notifier).playAll(q.sublist(target + 1));
+    await _playYtItem(_toAudioItem(q[target]));
+  }
+
+  // Local favorite overrides for the current session, so the heart flips
+  // instantly on toggle without re-fetching the item from the server.
+  final Map<String, bool> _favOverride = {};
+
+  Future<void> _setRepeat(PlaylistMode mode) async {
+    await _player.setPlaylistMode(mode);
+    state = state.copyWith(repeat: mode);
+    _pushPlaybackState();
+  }
+
+  /// Toggle the current track's Jellyfin favorite (the car's heart button).
+  Future<void> _toggleCurrentFavorite() async {
+    final t = state.current;
+    final c = _ctx();
+    if (t == null || c == null) return;
+    final current = _favOverride[t.id] ?? t.userData.isFavorite;
+    final next = !current;
+    _favOverride[t.id] = next;
+    _pushPlaybackState(); // reflect immediately
+    try {
+      await c.client.setFavorite(
+        baseUrl: c.session.baseUrl,
+        userId: c.session.userId,
+        token: c.session.accessToken,
+        itemId: t.id,
+        favorite: next,
+      );
+    } catch (_) {
+      _favOverride[t.id] = current; // revert on failure
+      _pushPlaybackState();
+    }
+  }
+
+  /// Publish the music queue as the media session's up-next list, so the car
+  /// shows the queue and can jump within it. Radio/YouTube carry no such queue.
+  void _pushQueue() {
+    final h = _handler;
+    if (h == null) return;
+    // Radio is a single live stream — no queue.
+    if (state.isRadio) {
+      if (h.queue.valueOrNull?.isNotEmpty ?? false) h.queue.add(const []);
+      return;
+    }
+    // YouTube audio: the current track followed by the shared up-next queue, so
+    // playing off a playlist shows the rest and you can jump within it.
+    if (state.isYoutubeAudio) {
+      final cur = state.ytCurrent;
+      final up = ref.read(youtubeQueueProvider);
+      h.queue.add([
+        if (cur != null)
+          MediaItem(
+            id: cur.videoId,
+            title: cur.title,
+            artist: cur.author,
+            artUri: Uri.tryParse(cur.thumbnailUrl),
+          ),
+        for (final v in up)
+          MediaItem(
+            id: v.id,
+            title: v.title,
+            artist: v.author,
+            artUri: Uri.tryParse(v.thumbnailUrl),
+          ),
+      ]);
+      return;
+    }
+    final c = _ctx();
+    h.queue.add([
+      for (final t in state.queue)
+        MediaItem(
+          id: t.id,
+          title: t.name,
+          artist: t.albumArtist ??
+              (t.artists.isNotEmpty ? t.artists.join(', ') : null),
+          album: t.album,
+          artUri: c == null ? null : _autoArt(t, c),
+        ),
+    ]);
   }
 
   ({Session session, JellyfinClient client})? _ctx() {
@@ -375,12 +626,17 @@ class AudioController extends Notifier<AudioState> {
         queue: tracks,
         current: tracks[index],
         shuffle: shuffle,
+        // Leaving a YouTube item set keeps isYoutubeAudio true, so the OS media
+        // session would keep showing the YouTube title/art over this track.
+        ytCurrent: null,
         radioStation: null,
         radioTitle: null,
         radioSeekable: false,
         radioBehindLive: Duration.zero,
         radioWindow: Duration.zero);
+    await _activateAudioSession();
     await _player.open(Playlist(medias, index: index));
+    _applyVolume();
     await _player.setShuffle(shuffle);
     _lastPositionTicks = 0;
     _reportStart(tracks[index].id);
@@ -388,6 +644,7 @@ class AudioController extends Notifier<AudioState> {
     // appears promptly (and Android sees startForeground before its deadline).
     _pushNowPlaying();
     _pushPlaybackState();
+    _pushQueue();
   }
 
   /// Play an internet-radio station: opens its live stream (replacing the music
@@ -399,6 +656,9 @@ class AudioController extends Notifier<AudioState> {
     _reportedId = null;
     state = state.copyWith(
       radioStation: s,
+      // Clear any YouTube item — otherwise isYoutubeAudio stays true and the
+      // media session keeps showing the YouTube title/art/time over the radio.
+      ytCurrent: null,
       radioTitle: null,
       radioArtwork: null,
       radioSeekable: false,
@@ -410,9 +670,12 @@ class AudioController extends Notifier<AudioState> {
     _radioTickWall = null;
     await _ensureRadioArt(); // ready before the first now-playing push
     await _configureRadioBuffer();
+    await _activateAudioSession();
     await _player.open(Media(s.url));
+    _applyVolume();
     _pushRadioNowPlaying(s, null);
     _pushPlaybackState();
+    _pushQueue(); // radio has no queue — clears any leftover music queue
     _startIcyPolling();
     _startRadioTick();
   }
@@ -444,6 +707,209 @@ class AudioController extends Notifier<AudioState> {
     );
   }
 
+  // ---- Background YouTube audio (a mode over the shared YouTube queue) -----
+
+  YoutubeAudioItem _toAudioItem(YoutubeVideo v) => YoutubeAudioItem(
+        videoId: v.id,
+        title: v.title,
+        author: v.author,
+        thumbnailUrl: v.thumbnailUrl,
+        duration: v.duration,
+      );
+
+  /// Play a YouTube video's audio in the background. Reuses the whole audio stack
+  /// (foreground service, OS media controls, mini-player) and — crucially — the
+  /// ONE shared `youtubeQueueProvider` for up-next, so enqueuing behaves the same
+  /// in audio and video mode. [startAt] resumes at the position handed off from
+  /// the video player; [autoplay] plays a related track when the queue runs dry.
+  Future<void> playYoutubeAudio(
+    YoutubeAudioItem item, {
+    Duration startAt = Duration.zero,
+    bool autoplay = true,
+  }) async {
+    _radioIcyTimer?.cancel();
+    _radioTick?.cancel();
+    _reportStopped(); // no Jellyfin scrobble for YouTube
+    _reportedId = null;
+    _ytAutoplay = autoplay;
+    _ytPlayed.clear(); // a fresh Listen session may revisit videos
+    state = state.copyWith(
+      ytCurrent: item,
+      radioStation: null,
+      radioTitle: null,
+      radioArtwork: null,
+      radioSeekable: false,
+      radioBehindLive: Duration.zero,
+      radioWindow: Duration.zero,
+    );
+    await _playYtItem(item, startAt: startAt);
+  }
+
+  /// Resolve an item's audio stream (cached / fresh, so an expired URL is never
+  /// reused) and open it. Pushes now-playing and pre-resolves the next queued
+  /// item so the hand-over when this one ends is near-seamless.
+  Future<void> _playYtItem(YoutubeAudioItem item,
+      {Duration startAt = Duration.zero, bool retried = false}) async {
+    final url = await _resolveYtUrl(item.videoId);
+    if (url == null) {
+      await _ytNext(); // couldn't resolve this one; move on rather than dead-end
+      return;
+    }
+    if (!state.isYoutubeAudio) return; // left YouTube mode while resolving
+    _ytPlayed.add(item.videoId);
+    state = state.copyWith(ytCurrent: item);
+    final token = ++_ytLoadToken;
+    await _activateAudioSession();
+    await _player.open(Media(url));
+    _applyVolume();
+    if (startAt > Duration.zero) unawaited(_seekWhenReady(startAt));
+    _pushYtNowPlaying(item);
+    _pushPlaybackState();
+    _pushQueue(); // current track advanced — refresh the car's up-next
+    final up = ref.read(youtubeQueueProvider);
+    if (up.isNotEmpty) unawaited(_resolveYtUrl(up.first.id));
+    unawaited(_watchLoad(item, token, retried));
+  }
+
+  /// Guard against a track that never actually loads — an expired or blocked URL
+  /// that media_kit neither plays nor reports a duration for. If no real
+  /// duration arrives, re-resolve a fresh URL once (a stale cached URL is the
+  /// usual culprit), then skip forward — rather than hang on "loading" forever.
+  Future<void> _watchLoad(YoutubeAudioItem item, int token, bool retried) async {
+    if (_player.state.duration > Duration.zero) return;
+    try {
+      await _player.stream.duration
+          .firstWhere((d) => d > Duration.zero)
+          .timeout(const Duration(seconds: 12));
+      return; // loaded fine
+    } catch (_) {
+      // Timed out with no duration. Ignore if we've since moved to another track.
+      if (token != _ytLoadToken ||
+          !state.isYoutubeAudio ||
+          state.ytCurrent?.videoId != item.videoId) {
+        return;
+      }
+      if (!retried) {
+        _ytUrlCache.remove(item.videoId); // drop the (likely stale) URL
+        await _playYtItem(item, retried: true);
+      } else {
+        await _ytNext();
+      }
+    }
+  }
+
+  /// Re-apply the remembered volume to the audio player. media_kit keeps this
+  /// player's last volume across `open()`, so a fresh source (e.g. handing off
+  /// from a video playing at 50%) would otherwise start at this player's stale
+  /// level until the slider is nudged. Called after every open.
+  void _applyVolume() {
+    final v = (ref.read(preferencesProvider).asData?.value.volume ?? 100)
+        .toDouble()
+        .clamp(0.0, 100.0);
+    unawaited(_player.setVolume(v));
+  }
+
+  /// Take media audio focus. Called at each playback start so the system — and
+  /// Android Auto — routes our audio; without it a projected head unit is silent.
+  Future<void> _activateAudioSession() async {
+    try {
+      final s = _audioSession ??= await AudioSession.instance;
+      await s.setActive(true);
+    } catch (_) {}
+  }
+
+  /// Resolve an item's audio URL, reusing a recently-resolved one from the cache
+  /// so a pre-resolved next track opens instantly.
+  Future<String?> _resolveYtUrl(String videoId) async {
+    final cached = _ytUrlCache[videoId];
+    if (cached != null && DateTime.now().difference(cached.at) < _ytUrlTtl) {
+      return cached.url;
+    }
+    final url = await resolveYoutubeAudioUrl(videoId);
+    if (url != null) _ytUrlCache[videoId] = (url: url, at: DateTime.now());
+    return url;
+  }
+
+  /// Seek once the media has a real duration (a fresh open reports zero briefly).
+  Future<void> _seekWhenReady(Duration target) async {
+    try {
+      if (_player.state.duration <= target) {
+        await _player.stream.duration
+            .firstWhere((d) => d > target)
+            .timeout(const Duration(seconds: 12));
+      }
+      await _player.seek(target);
+    } catch (_) {}
+  }
+
+  /// Advance: the shared queue wins (an explicit instruction), then autoplay a
+  /// related track once the queue is empty. Same precedence as the video player.
+  Future<void> _ytNext() async {
+    if (!state.isYoutubeAudio || _ytAdvancing) return;
+    _ytAdvancing = true;
+    try {
+      final next = ref.read(youtubeQueueProvider.notifier).takeNext();
+      if (next != null) {
+        await _playYtItem(_toAudioItem(next));
+      } else if (_ytAutoplay) {
+        final rel = await _resolveRelated(state.ytCurrent?.videoId);
+        if (rel != null) await _playYtItem(rel);
+      }
+    } finally {
+      _ytAdvancing = false;
+    }
+  }
+
+  /// The shared queue is forward-only (like the video player's up-next), so
+  /// "previous" restarts the current track rather than keeping a back-history.
+  Future<void> _ytPrevious() async {
+    if (!state.isYoutubeAudio) return;
+    await _player.seek(Duration.zero);
+  }
+
+  /// One related track to continue with, deduped against what's queued, played
+  /// this session, or already watched to the end — so it moves you forward.
+  Future<YoutubeAudioItem?> _resolveRelated(String? videoId) async {
+    if (videoId == null) return null;
+    try {
+      final details = await ref.read(youtubeWatchProvider(videoId).future);
+      final queued = ref.read(youtubeQueueProvider).map((v) => v.id).toSet();
+      final history = ref.read(youtubeHistoryProvider.notifier);
+      for (final r in details.related) {
+        if (r.isShort ||
+            r.id == videoId ||
+            _ytPlayed.contains(r.id) ||
+            queued.contains(r.id) ||
+            (history.entryFor(r.id)?.finished ?? false)) {
+          continue;
+        }
+        return _toAudioItem(r);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  void _pushYtNowPlaying(YoutubeAudioItem? item) {
+    final h = _handler;
+    if (h == null || item == null) return;
+    final dur = item.duration ??
+        (_player.state.duration > Duration.zero ? _player.state.duration : null);
+    h.setNowPlaying(MediaItem(
+      id: item.videoId,
+      title: item.title,
+      artist: item.author,
+      duration: dur,
+      artUri: Uri.tryParse(item.thumbnailUrl),
+    ));
+  }
+
+  /// Stop background YouTube audio and leave the mode. Leaves the shared queue
+  /// intact (you might switch back to watching it).
+  Future<void> stopYoutubeAudio() async {
+    await _player.stop();
+    state = state.copyWith(ytCurrent: null);
+  }
+
   /// Jump back to the live edge. When the stream is seekable (the bar is showing)
   /// we seek to the buffered edge — instant, keeps the rewind buffer, and avoids
   /// the reconnect flicker that briefly drops `seekable` and hides the bar. Only
@@ -461,6 +927,7 @@ class AudioController extends Notifier<AudioState> {
     _radioTickWall = null;
     state = state.copyWith(radioBehindLive: Duration.zero);
     await _player.open(Media(s.url));
+    _applyVolume();
   }
 
   /// Rewind/skip within the buffered window (seekable streams only). Negative to
@@ -951,6 +1418,7 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       return ref.read(castControllerProvider.notifier).queueNext();
     }
+    if (state.isYoutubeAudio) return _ytNext();
     return _player.next();
   }
 
@@ -959,6 +1427,7 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       return ref.read(castControllerProvider.notifier).queuePrev();
     }
+    if (state.isYoutubeAudio) return _ytPrevious();
     return _player.previous();
   }
 
@@ -1046,6 +1515,7 @@ class AudioController extends Notifier<AudioState> {
     final value = !state.shuffle;
     await _player.setShuffle(value);
     state = state.copyWith(shuffle: value);
+    _pushPlaybackState(); // refresh the car's Shuffle button state
   }
 
   Future<void> cycleRepeat() async {
@@ -1056,6 +1526,796 @@ class AudioController extends Notifier<AudioState> {
     };
     await _player.setPlaylistMode(next);
     state = state.copyWith(repeat: next);
+    _pushPlaybackState(); // refresh the car's Repeat button state
+  }
+
+  // ---- Android Auto browse tree --------------------------------------------
+  //
+  // The car renders its own driver-safe UI over the MediaBrowserService that
+  // audio_service exposes; we only supply the content tree and route taps back
+  // into the ordinary playback methods above, so playing from the car behaves
+  // exactly like playing in the app. Media IDs encode enough context to rebuild
+  // the queue on tap:
+  //   cat:<name>                      a top-level folder
+  //   playlist:<id> / album:<id>      a browsable Jellyfin container
+  //   station:<id>                    a playable radio favorite
+  //   song|<parent>|<parentId>|<id>   a playable track, played in its list's
+  //                                   order starting at itself
+  //                                   (<parent> = playlist | album | favorites)
+  //   single|<id>                     a lone playable track (search results)
+
+  AppLocalizations? _l10nCache;
+
+  /// Content-style hints for a browsable folder whose children are a list.
+  static const _listExtras = {
+    AndroidContentStyle.browsableHintKey:
+        AndroidContentStyle.listItemHintValue,
+    AndroidContentStyle.playableHintKey: AndroidContentStyle.listItemHintValue,
+  };
+
+  /// Videos surfaced in the car's YouTube browse/search, keyed by id, so a
+  /// tapped result can be played without re-fetching its metadata.
+  final Map<String, YoutubeVideo> _autoYtCache = {};
+
+  /// Load the app's strings for the device locale (falling back to English),
+  /// without a BuildContext — the browse tree can be built while the car has
+  /// started us headless, before any screen exists.
+  Future<AppLocalizations> _l10n() async {
+    final cached = _l10nCache;
+    if (cached != null) return cached;
+    final device = WidgetsBinding.instance.platformDispatcher.locale;
+    final locale = AppLocalizations.supportedLocales.firstWhere(
+      (l) => l.languageCode == device.languageCode,
+      orElse: () => const Locale('en'),
+    );
+    final l = await AppLocalizations.delegate.load(locale);
+    _l10nCache = l;
+    return l;
+  }
+
+  bool _isAudio(BaseItemDto t) => t.mediaType == 'Audio' || t.type == 'Audio';
+
+  Uri? _autoArt(BaseItemDto t, ({Session session, JellyfinClient client}) c) {
+    String? id, tag;
+    if (t.primaryImageTag != null) {
+      id = t.id;
+      tag = t.primaryImageTag;
+    } else if (t.albumPrimaryImageTag != null && t.albumId != null) {
+      id = t.albumId;
+      tag = t.albumPrimaryImageTag;
+    }
+    if (id == null) return null;
+    return Uri.tryParse(c.client.imageUrl(
+      baseUrl: c.session.baseUrl,
+      itemId: id,
+      tag: tag,
+      maxHeight: 512,
+    ));
+  }
+
+  static const _pkg = 'app.fathom.player';
+
+  /// A browsable folder. [childStyle] is how its children render (list / grid /
+  /// category-with-icons); [icon] is a res/drawable name shown as the folder's
+  /// own icon (loaded by the car via an android.resource URI).
+  MediaItem _autoFolder(String id, String title,
+          {int childStyle = AndroidContentStyle.listItemHintValue,
+          String? icon}) =>
+      MediaItem(
+        id: id,
+        title: title,
+        playable: false,
+        artUri: icon == null
+            ? null
+            : Uri.parse('android.resource://$_pkg/drawable/$icon'),
+        extras: {
+          AndroidContentStyle.browsableHintKey: childStyle,
+          AndroidContentStyle.playableHintKey:
+              AndroidContentStyle.listItemHintValue,
+        },
+      );
+
+  /// A playable "action" row (e.g. Shuffle All) with an icon.
+  MediaItem _autoAction(String id, String title, String icon) => MediaItem(
+        id: id,
+        title: title,
+        playable: true,
+        artUri: Uri.parse('android.resource://$_pkg/drawable/$icon'),
+      );
+
+  MediaItem _autoSong(String id, BaseItemDto t,
+          ({Session session, JellyfinClient client}) c) =>
+      MediaItem(
+        id: id,
+        title: t.name,
+        artist: t.albumArtist ??
+            (t.artists.isNotEmpty ? t.artists.join(', ') : null),
+        album: t.album,
+        playable: true,
+        artUri: _autoArt(t, c),
+      );
+
+  /// Children of a browse node. Root lists the categories that actually have
+  /// content; everything below pulls from the same Jellyfin/radio sources the
+  /// app uses.
+  Future<List<MediaItem>> _autoGetChildren(String parentMediaId) async {
+    try {
+      if (parentMediaId == AudioService.browsableRootId ||
+          parentMediaId == 'root') {
+        return _autoRoot();
+      }
+      // Top-level tabs.
+      if (parentMediaId == 'tab:home') return _autoHome();
+      if (parentMediaId == 'tab:library') return _autoLibrary();
+      if (parentMediaId == 'tab:radio') return _autoRadioStations();
+      if (parentMediaId == 'tab:youtube') return _autoYoutubeRoot();
+      // Home shortcuts + Library extras.
+      if (parentMediaId == 'home:recent') return _autoRecentlyPlayed();
+      if (parentMediaId == 'home:recentalbums') return _autoRecentAlbums();
+      if (parentMediaId == 'cat:genres') return _autoGenres();
+      if (parentMediaId.startsWith('genre:')) {
+        return _autoGenreAlbums(parentMediaId.substring('genre:'.length));
+      }
+      if (parentMediaId == 'cat:radio') return _autoRadioStations();
+      if (parentMediaId == 'radio:favorites') {
+        return _radioStationsWhere((s) => s.favorite);
+      }
+      if (parentMediaId == 'radio:ungrouped') {
+        return _radioStationsWhere((s) => s.group == null || s.group!.isEmpty);
+      }
+      if (parentMediaId.startsWith('radiogroup:')) {
+        final g = parentMediaId.substring('radiogroup:'.length);
+        return _radioStationsWhere((s) => s.group == g);
+      }
+      if (parentMediaId == 'cat:playlists') return _autoPlaylists();
+      if (parentMediaId == 'cat:albums') return _autoAlbums();
+      if (parentMediaId == 'cat:artists') return _autoArtists();
+      if (parentMediaId.startsWith('artist:')) {
+        return _autoArtistAlbums(parentMediaId.substring('artist:'.length));
+      }
+      if (parentMediaId == 'cat:youtube') return _autoYoutubeRoot();
+      if (parentMediaId == 'ytcat:whatsnew') return _autoYtWhatsNew();
+      if (parentMediaId == 'ytcat:playlists') return _autoYtPlaylists();
+      if (parentMediaId == 'ytcat:subs') return _autoYtSubs();
+      if (parentMediaId.startsWith('ytpl:')) {
+        return _autoYtPlaylistVideos(parentMediaId.substring('ytpl:'.length));
+      }
+      if (parentMediaId.startsWith('ytch:')) {
+        return _autoYtChannelVideos(parentMediaId.substring('ytch:'.length));
+      }
+      if (parentMediaId == 'cat:favorites') {
+        final tracks = await _songsForParent('favorites', '');
+        final c = _ctx();
+        if (c == null) return const [];
+        return tracks
+            .map((t) => _autoSong('song|favorites||${t.id}', t, c))
+            .toList();
+      }
+      if (parentMediaId.startsWith('playlist:')) {
+        final id = parentMediaId.substring('playlist:'.length);
+        final tracks = await _songsForParent('playlist', id);
+        final c = _ctx();
+        if (c == null) return const [];
+        return tracks
+            .map((t) => _autoSong('song|playlist|$id|${t.id}', t, c))
+            .toList();
+      }
+      if (parentMediaId.startsWith('album:')) {
+        final id = parentMediaId.substring('album:'.length);
+        final tracks = await _songsForParent('album', id);
+        final c = _ctx();
+        if (c == null) return const [];
+        return tracks
+            .map((t) => _autoSong('song|album|$id|${t.id}', t, c))
+            .toList();
+      }
+    } catch (_) {
+      // A failed fetch (network, expired token) yields an empty folder rather
+      // than a broken car UI.
+    }
+    return const [];
+  }
+
+  /// The root: the top-level tabs (Home / Library / Radio / YouTube). Android
+  /// Auto renders these browsable root nodes as the tab bar. Each is included
+  /// only when it has something to show.
+  Future<List<MediaItem>> _autoRoot() async {
+    final l = await _l10n();
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    final items = <MediaItem>[];
+    const cat = AndroidContentStyle.categoryListItemHintValue;
+    if (_ctx() != null) {
+      items
+        ..add(_autoFolder('tab:home', l.autoHome,
+            childStyle: cat, icon: 'ic_auto_home'))
+        ..add(_autoFolder('tab:library', l.autoLibrary,
+            childStyle: cat, icon: 'ic_auto_library'));
+    }
+    if (prefs?.radioEnabled ?? false) {
+      // Show the Radio tab whenever there's at least one saved station (not only
+      // favorites) — otherwise it silently vanishes for people who never starred
+      // one.
+      final stations = await ref.read(radioControllerProvider.future);
+      if (stations.isNotEmpty) {
+        items.add(_autoFolder('tab:radio', l.autoRadio, icon: 'ic_auto_radio'));
+      }
+    }
+    if (prefs?.youtubeEnabled ?? false) {
+      items.add(_autoFolder('tab:youtube', l.autoYoutube,
+          childStyle: cat, icon: 'ic_auto_youtube'));
+    }
+    return items;
+  }
+
+  /// Home: a quick-start mix of the most-reached-for shortcuts.
+  Future<List<MediaItem>> _autoHome() async {
+    final l = await _l10n();
+    const grid = AndroidContentStyle.gridItemHintValue;
+    return [
+      // One-tap "just play something" — ideal in the car.
+      _autoAction('mix:all', l.autoShuffleAll, 'ic_auto_shuffle'),
+      _autoAction('mix:favorites', l.autoFavoritesMix, 'ic_auto_favorite'),
+      _autoFolder('home:recent', l.autoRecentlyPlayed, icon: 'ic_auto_history'),
+      _autoFolder('home:recentalbums', l.autoRecentlyAdded,
+          childStyle: grid, icon: 'ic_auto_new'),
+      _autoFolder('cat:playlists', l.autoPlaylists, icon: 'ic_auto_playlists'),
+      _autoFolder('cat:favorites', l.autoFavoriteSongs,
+          icon: 'ic_auto_favorite'),
+    ];
+  }
+
+  /// Library: the full Jellyfin music browse.
+  Future<List<MediaItem>> _autoLibrary() async {
+    final l = await _l10n();
+    const grid = AndroidContentStyle.gridItemHintValue;
+    const cat = AndroidContentStyle.categoryListItemHintValue;
+    return [
+      _autoFolder('cat:playlists', l.autoPlaylists, icon: 'ic_auto_playlists'),
+      _autoFolder('cat:albums', l.autoAlbums,
+          childStyle: grid, icon: 'ic_auto_album'),
+      _autoFolder('cat:artists', l.autoArtists, icon: 'ic_auto_artist'),
+      _autoFolder('cat:genres', l.autoGenres,
+          childStyle: cat, icon: 'ic_auto_genre'),
+      _autoFolder('cat:favorites', l.autoFavoriteSongs,
+          icon: 'ic_auto_favorite'),
+    ];
+  }
+
+  MediaItem _radioItem(RadioStation s) {
+    final art = (s.favicon != null && s.favicon!.isNotEmpty)
+        ? Uri.tryParse(s.favicon!)
+        : _radioArtUri;
+    return MediaItem(
+      id: 'station:${s.id}',
+      title: s.name,
+      artist: s.tags,
+      playable: true,
+      artUri: art,
+    );
+  }
+
+  Future<List<MediaItem>> _radioStationsWhere(
+      bool Function(RadioStation) test) async {
+    final stations = await ref.read(radioControllerProvider.future);
+    await _ensureRadioArt();
+    return stations.where(test).map(_radioItem).toList();
+  }
+
+  /// The Radio tab. When the user has organised stations into groups, show the
+  /// groups (plus Favorites and any ungrouped) as folders; otherwise a flat
+  /// list, favorites first.
+  Future<List<MediaItem>> _autoRadioStations() async {
+    final stations = await ref.read(radioControllerProvider.future);
+    await _ensureRadioArt();
+    final groups = ref.read(radioControllerProvider.notifier).groups;
+    if (groups.isEmpty) {
+      final ordered = [
+        ...stations.where((s) => s.favorite),
+        ...stations.where((s) => !s.favorite),
+      ];
+      return ordered.map(_radioItem).toList();
+    }
+    final l = await _l10n();
+    final items = <MediaItem>[];
+    if (stations.any((s) => s.favorite)) {
+      items.add(_autoFolder('radio:favorites', l.autoRadioFavorites,
+          icon: 'ic_auto_favorite'));
+    }
+    for (final g in groups) {
+      items.add(_autoFolder('radiogroup:$g', g, icon: 'ic_auto_radio'));
+    }
+    if (stations.any((s) => s.group == null || s.group!.isEmpty)) {
+      items.add(_autoFolder('radio:ungrouped', l.autoRadioOther,
+          icon: 'ic_auto_radio'));
+    }
+    return items;
+  }
+
+  Future<List<MediaItem>> _autoPlaylists() async {
+    final c = _ctx();
+    if (c == null) return const [];
+    final pls = await c.client.getPlaylists(
+      baseUrl: c.session.baseUrl,
+      userId: c.session.userId,
+      token: c.session.accessToken,
+    );
+    return pls
+        .map((p) => MediaItem(
+              id: 'playlist:${p.id}',
+              title: p.name,
+              playable: false,
+              artUri: _autoArt(p, c),
+              extras: const {
+                AndroidContentStyle.browsableHintKey:
+                    AndroidContentStyle.listItemHintValue,
+                AndroidContentStyle.playableHintKey:
+                    AndroidContentStyle.listItemHintValue,
+              },
+            ))
+        .toList();
+  }
+
+  /// Library → Albums: the whole album collection, A–Z.
+  Future<List<MediaItem>> _autoAlbums() async {
+    final c = _ctx();
+    if (c == null) return const [];
+    final res = await c.client.getItems(
+      baseUrl: c.session.baseUrl,
+      userId: c.session.userId,
+      token: c.session.accessToken,
+      includeItemTypes: 'MusicAlbum',
+      recursive: true,
+      sortBy: 'SortName',
+      limit: 500,
+    );
+    return res.items.map((a) => _albumNode(a, c)).toList();
+  }
+
+  /// Home → Recently Added: newest albums first (kept short for the car).
+  Future<List<MediaItem>> _autoRecentAlbums() async {
+    final c = _ctx();
+    if (c == null) return const [];
+    final res = await c.client.getItems(
+      baseUrl: c.session.baseUrl,
+      userId: c.session.userId,
+      token: c.session.accessToken,
+      includeItemTypes: 'MusicAlbum',
+      recursive: true,
+      sortBy: 'DateCreated',
+      sortOrder: 'Descending',
+      limit: 100,
+    );
+    return res.items.map((a) => _albumNode(a, c)).toList();
+  }
+
+  /// Library → Genres.
+  Future<List<MediaItem>> _autoGenres() async {
+    final c = _ctx();
+    if (c == null) return const [];
+    final genres = await c.client.getGenres(
+      baseUrl: c.session.baseUrl,
+      userId: c.session.userId,
+      token: c.session.accessToken,
+    );
+    return genres
+        .map((g) => _autoFolder('genre:${g.name}', g.name,
+            childStyle: AndroidContentStyle.gridItemHintValue,
+            icon: 'ic_auto_genre'))
+        .toList();
+  }
+
+  Future<List<MediaItem>> _autoGenreAlbums(String genre) async {
+    final c = _ctx();
+    if (c == null) return const [];
+    final res = await c.client.getItems(
+      baseUrl: c.session.baseUrl,
+      userId: c.session.userId,
+      token: c.session.accessToken,
+      genres: genre,
+      includeItemTypes: 'MusicAlbum',
+      recursive: true,
+      sortBy: 'SortName',
+      limit: 300,
+    );
+    return res.items.map((a) => _albumNode(a, c)).toList();
+  }
+
+  /// Home → Recently Played songs (plays the list from the tapped track).
+  Future<List<MediaItem>> _autoRecentlyPlayed() async {
+    final c = _ctx();
+    if (c == null) return const [];
+    final tracks = await _songsForParent('recent', '');
+    return tracks
+        .map((t) => _autoSong('song|recent||${t.id}', t, c))
+        .toList();
+  }
+
+  MediaItem _albumNode(
+          BaseItemDto a, ({Session session, JellyfinClient client}) c) =>
+      MediaItem(
+        id: 'album:${a.id}',
+        title: a.name,
+        artist: a.albumArtist,
+        playable: false,
+        artUri: _autoArt(a, c),
+        extras: _listExtras,
+      );
+
+  Future<List<MediaItem>> _autoArtists() async {
+    final c = _ctx();
+    if (c == null) return const [];
+    final artists = await c.client.getArtists(
+      baseUrl: c.session.baseUrl,
+      userId: c.session.userId,
+      token: c.session.accessToken,
+    );
+    return artists
+        .map((a) => MediaItem(
+              id: 'artist:${a.id}',
+              title: a.name,
+              playable: false,
+              artUri: _autoArt(a, c),
+              extras: _listExtras,
+            ))
+        .toList();
+  }
+
+  Future<List<MediaItem>> _autoArtistAlbums(String artistId) async {
+    final c = _ctx();
+    if (c == null) return const [];
+    final res = await c.client.getItems(
+      baseUrl: c.session.baseUrl,
+      userId: c.session.userId,
+      token: c.session.accessToken,
+      albumArtistIds: artistId,
+      includeItemTypes: 'MusicAlbum',
+      recursive: true,
+      sortBy: 'ProductionYear,SortName',
+      sortOrder: 'Descending',
+      limit: 200,
+    );
+    return res.items.map((a) => _albumNode(a, c)).toList();
+  }
+
+  /// The audio tracks that make up a browse container, in play order.
+  Future<List<BaseItemDto>> _songsForParent(String type, String id) async {
+    final c = _ctx();
+    if (c == null) return const [];
+    switch (type) {
+      case 'playlist':
+        final items = await c.client.getPlaylistItems(
+          baseUrl: c.session.baseUrl,
+          userId: c.session.userId,
+          token: c.session.accessToken,
+          playlistId: id,
+        );
+        return items.where(_isAudio).toList();
+      case 'album':
+        final res = await c.client.getItems(
+          baseUrl: c.session.baseUrl,
+          userId: c.session.userId,
+          token: c.session.accessToken,
+          parentId: id,
+          includeItemTypes: 'Audio',
+          sortBy: 'ParentIndexNumber,IndexNumber,SortName',
+          limit: 500,
+        );
+        return res.items;
+      case 'favorites':
+        final res = await c.client.getItems(
+          baseUrl: c.session.baseUrl,
+          userId: c.session.userId,
+          token: c.session.accessToken,
+          includeItemTypes: 'Audio',
+          isFavorite: true,
+          recursive: true,
+          sortBy: 'SortName',
+          limit: 500,
+        );
+        return res.items;
+      case 'recent':
+        final res = await c.client.getItems(
+          baseUrl: c.session.baseUrl,
+          userId: c.session.userId,
+          token: c.session.accessToken,
+          includeItemTypes: 'Audio',
+          filters: 'IsPlayed',
+          recursive: true,
+          sortBy: 'DatePlayed',
+          sortOrder: 'Descending',
+          limit: 100,
+        );
+        return res.items;
+    }
+    return const [];
+  }
+
+  // ---- YouTube (audio-only), shown only when YouTube is enabled ------------
+
+  MediaItem _ytSong(String id, YoutubeVideo v) => MediaItem(
+        id: id,
+        title: v.title,
+        artist: v.author,
+        duration: v.duration,
+        playable: true,
+        artUri: Uri.tryParse(v.thumbnailUrl),
+      );
+
+  Future<List<MediaItem>> _autoYoutubeRoot() async {
+    final l = await _l10n();
+    return [
+      _autoFolder('ytcat:whatsnew', l.autoYoutubeWhatsNew, icon: 'ic_auto_new'),
+      _autoFolder('ytcat:playlists', l.autoYoutubePlaylists,
+          icon: 'ic_auto_playlists'),
+      _autoFolder('ytcat:subs', l.autoYoutubeSubscriptions,
+          icon: 'ic_auto_subscriptions'),
+    ];
+  }
+
+  /// YouTube → What's New: newest uploads from the channels you follow.
+  Future<List<MediaItem>> _autoYtWhatsNew() async {
+    final feed = await ref.read(youtubeFeedProvider.future);
+    for (final v in feed.videos) {
+      _autoYtCache[v.id] = v;
+    }
+    return feed.videos
+        .map((v) => _ytSong('ytsong|feed||${v.id}', v))
+        .toList();
+  }
+
+  Future<List<MediaItem>> _autoYtPlaylists() async {
+    final pls = await ref.read(youtubeLocalPlaylistsProvider.future);
+    return pls
+        .map((p) => MediaItem(
+              id: 'ytpl:${p.id}',
+              title: p.name,
+              playable: false,
+              artUri: p.thumbnailUrl.isNotEmpty
+                  ? Uri.tryParse(p.thumbnailUrl)
+                  : null,
+              extras: _listExtras,
+            ))
+        .toList();
+  }
+
+  Future<List<MediaItem>> _autoYtPlaylistVideos(String playlistId) async {
+    final pls = await ref.read(youtubeLocalPlaylistsProvider.future);
+    final match = pls.where((p) => p.id == playlistId);
+    if (match.isEmpty) return const [];
+    final vids = match.first.videos;
+    for (final v in vids) {
+      _autoYtCache[v.id] = v;
+    }
+    return vids
+        .map((v) => _ytSong('ytsong|pl|$playlistId|${v.id}', v))
+        .toList();
+  }
+
+  Future<List<MediaItem>> _autoYtSubs() async {
+    final chans = await ref.read(youtubeSubscriptionsProvider.future);
+    return chans
+        .map((ch) => MediaItem(
+              id: 'ytch:${ch.id}',
+              title: ch.title,
+              playable: false,
+              artUri:
+                  ch.logoUrl.isNotEmpty ? Uri.tryParse(ch.logoUrl) : null,
+              extras: _listExtras,
+            ))
+        .toList();
+  }
+
+  Future<List<MediaItem>> _autoYtChannelVideos(String channelId) async {
+    final tab = await ref
+        .read(youtubeInnerTubeProvider)
+        .channelTab(channelId, YtChannelTabKind.videos);
+    for (final v in tab.videos) {
+      _autoYtCache[v.id] = v;
+    }
+    return tab.videos
+        .map((v) => _ytSong('ytsong|ch|$channelId|${v.id}', v))
+        .toList();
+  }
+
+  /// The video list backing a YouTube "song" media id, for building the queue.
+  Future<List<YoutubeVideo>> _ytListFor(String kind, String ownerId) async {
+    if (kind == 'pl') {
+      final pls = await ref.read(youtubeLocalPlaylistsProvider.future);
+      final match = pls.where((p) => p.id == ownerId);
+      return match.isEmpty ? const [] : match.first.videos;
+    }
+    if (kind == 'ch') {
+      final tab = await ref
+          .read(youtubeInnerTubeProvider)
+          .channelTab(ownerId, YtChannelTabKind.videos);
+      return tab.videos;
+    }
+    if (kind == 'feed') {
+      final feed = await ref.read(youtubeFeedProvider.future);
+      return feed.videos;
+    }
+    return const [];
+  }
+
+  /// Play a YouTube video's audio, walking the rest of [list] afterwards via the
+  /// shared YouTube queue — the same handoff the in-app "Listen to all" uses.
+  Future<void> _playYtList(List<YoutubeVideo> list, int startIndex) async {
+    if (list.isEmpty) return;
+    final i = startIndex < 0 ? 0 : startIndex;
+    ref.read(youtubeQueueProvider.notifier).playAll(list.sublist(
+          i + 1 > list.length ? list.length : i + 1,
+        ));
+    await playYoutubeAudio(_toAudioItem(list[i]));
+  }
+
+  /// Play a tapped browse item. Songs play their whole list starting at the tap;
+  /// a container plays from its first track; a station tunes the radio.
+  Future<void> _autoPlayFromMediaId(String mediaId) async {
+    try {
+      if (mediaId == 'mix:all') {
+        // Shuffle All: a random batch of library songs, played shuffled.
+        final c = _ctx();
+        if (c == null) return;
+        final res = await c.client.getItems(
+          baseUrl: c.session.baseUrl,
+          userId: c.session.userId,
+          token: c.session.accessToken,
+          includeItemTypes: 'Audio',
+          recursive: true,
+          sortBy: 'Random',
+          limit: 200,
+        );
+        if (res.items.isNotEmpty) await playQueue(res.items, 0, shuffle: true);
+        return;
+      }
+      if (mediaId == 'mix:favorites') {
+        final tracks = await _songsForParent('favorites', '');
+        if (tracks.isNotEmpty) await playQueue(tracks, 0, shuffle: true);
+        return;
+      }
+      if (mediaId.startsWith('station:')) {
+        final id = mediaId.substring('station:'.length);
+        final stations = await ref.read(radioControllerProvider.future);
+        final match = stations.where((s) => s.id == id);
+        if (match.isNotEmpty) await playStation(match.first);
+        return;
+      }
+      if (mediaId.startsWith('ytsong|')) {
+        final parts = mediaId.split('|'); // ytsong | pl|ch | ownerId | videoId
+        if (parts.length != 4) return;
+        final list = await _ytListFor(parts[1], parts[2]);
+        await _playYtList(list, list.indexWhere((v) => v.id == parts[3]));
+        return;
+      }
+      if (mediaId.startsWith('ytsingle|')) {
+        final v = _autoYtCache[mediaId.substring('ytsingle|'.length)];
+        if (v == null) return; // metadata gone (process restart); ignore the tap
+        ref.read(youtubeQueueProvider.notifier).clear();
+        await playYoutubeAudio(_toAudioItem(v));
+        return;
+      }
+      if (mediaId.startsWith('ytsearchpl:')) {
+        // A YouTube playlist from search: fetch its videos and play the lot.
+        final vids = await ref
+            .read(youtubeInnerTubeProvider)
+            .playlist(mediaId.substring('ytsearchpl:'.length));
+        await _playYtList(vids, 0);
+        return;
+      }
+      if (mediaId.startsWith('single|')) {
+        final c = _ctx();
+        if (c == null) return;
+        final item = await c.client.getItem(
+          baseUrl: c.session.baseUrl,
+          userId: c.session.userId,
+          token: c.session.accessToken,
+          itemId: mediaId.substring('single|'.length),
+        );
+        await playQueue([item], 0);
+        return;
+      }
+      if (mediaId.startsWith('song|')) {
+        final parts = mediaId.split('|'); // song | parent | parentId | songId
+        if (parts.length != 4) return;
+        final tracks = await _songsForParent(parts[1], parts[2]);
+        if (tracks.isEmpty) return;
+        final idx = tracks.indexWhere((t) => t.id == parts[3]);
+        await playQueue(tracks, idx < 0 ? 0 : idx);
+        return;
+      }
+      if (mediaId.startsWith('album:')) {
+        final tracks = await _songsForParent('album', mediaId.substring(6));
+        if (tracks.isNotEmpty) await playQueue(tracks, 0);
+      } else if (mediaId.startsWith('playlist:')) {
+        final tracks = await _songsForParent('playlist', mediaId.substring(9));
+        if (tracks.isNotEmpty) await playQueue(tracks, 0);
+      }
+    } catch (_) {
+      // Swallow: a failed tap should never crash the car's media session.
+    }
+  }
+
+  /// Search results for the car's search UI: songs from the Jellyfin library
+  /// first, then YouTube videos (audio) when YouTube is enabled.
+  Future<List<MediaItem>> _autoSearch(String query) async {
+    if (query.trim().isEmpty) return const [];
+    final out = <MediaItem>[];
+    final c = _ctx();
+    if (c != null) {
+      try {
+        final res = await c.client.getItems(
+          baseUrl: c.session.baseUrl,
+          userId: c.session.userId,
+          token: c.session.accessToken,
+          searchTerm: query,
+          includeItemTypes: 'Audio',
+          recursive: true,
+          limit: 50,
+        );
+        out.addAll(res.items.map((t) => _autoSong('single|${t.id}', t, c)));
+      } catch (_) {}
+    }
+    if (ref.read(preferencesProvider).asData?.value.youtubeEnabled ?? false) {
+      try {
+        final page = await ref.read(youtubeInnerTubeProvider).search(query);
+        for (final v in page.videos.take(25)) {
+          _autoYtCache[v.id] = v;
+          out.add(_ytSong('ytsingle|${v.id}', v));
+        }
+        for (final pl in page.playlists.take(10)) {
+          out.add(MediaItem(
+            id: 'ytsearchpl:${pl.id}',
+            title: pl.title,
+            artist: pl.author,
+            playable: true,
+            artUri: pl.thumbnailUrl.isNotEmpty
+                ? Uri.tryParse(pl.thumbnailUrl)
+                : null,
+          ));
+        }
+      } catch (_) {}
+    }
+    return out;
+  }
+
+  /// A "Play ..." voice command from the car / Assistant: library first, then
+  /// YouTube (audio) if enabled, then a radio favorite whose name matches.
+  Future<void> _autoPlayFromSearch(String query) async {
+    if (query.trim().isEmpty) return;
+    try {
+      final c = _ctx();
+      if (c != null) {
+        final res = await c.client.getItems(
+          baseUrl: c.session.baseUrl,
+          userId: c.session.userId,
+          token: c.session.accessToken,
+          searchTerm: query,
+          includeItemTypes: 'Audio',
+          recursive: true,
+          limit: 50,
+        );
+        if (res.items.isNotEmpty) {
+          await playQueue(res.items, 0);
+          return;
+        }
+      }
+      final prefs = ref.read(preferencesProvider).asData?.value;
+      if (prefs?.youtubeEnabled ?? false) {
+        final page = await ref.read(youtubeInnerTubeProvider).search(query);
+        if (page.videos.isNotEmpty) {
+          await _playYtList(page.videos.take(25).toList(), 0);
+          return;
+        }
+      }
+      if (prefs?.radioEnabled ?? false) {
+        final q = query.toLowerCase();
+        final stations = await ref.read(radioControllerProvider.future);
+        final match = stations.where((s) => s.name.toLowerCase().contains(q));
+        if (match.isNotEmpty) await playStation(match.first);
+      }
+    } catch (_) {
+      // Best-effort: a failed voice search just does nothing.
+    }
   }
 }
 

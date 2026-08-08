@@ -7,6 +7,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../state/admin_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
+import 'tv_keyboard.dart';
 
 /// Opens the schedule-recording dialog for a Live TV program: pre/post padding
 /// (start early / stop late) and a one-off or whole-series choice.
@@ -106,15 +107,12 @@ class _RecordDialogState extends ConsumerState<_RecordDialog> {
   }
 
   Widget _padField(TextEditingController c, String label) => Expanded(
-        child: TextField(
+        child: TvTextField(
           controller: c,
+          label: label,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: InputDecoration(
-            labelText: label,
-            suffixText: AppLocalizations.of(context).playerMinutesSuffix,
-            border: const OutlineInputBorder(),
-          ),
+          suffixText: AppLocalizations.of(context).playerMinutesSuffix,
         ),
       );
 

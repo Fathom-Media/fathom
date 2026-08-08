@@ -206,17 +206,17 @@
   },
   "updateChannelLabel": "Update Channel",
   "@updateChannelLabel": {
-    "description": "Label above the stable/beta update channel selector."
+    "description": "Label above the stable/dev update channel selector."
   },
   "updateChannelStable": "Stable",
   "@updateChannelStable": {
     "description": "Update channel option: stable releases only."
   },
-  "updateChannelBeta": "Beta",
+  "updateChannelBeta": "Dev",
   "@updateChannelBeta": {
-    "description": "Update channel option: include pre-release/beta builds."
+    "description": "Update channel option: include the latest pre-release dev builds."
   },
-  "updateChannelHelp": "Beta includes pre-release test builds.",
+  "updateChannelHelp": "Dev includes the latest pre-release test builds.",
   "@updateChannelHelp": {
     "description": "Helper text under the update channel selector."
   },
@@ -854,6 +854,14 @@
   "@prefsAmoledBlackSub": {
     "description": "AMOLED-black toggle subtitle."
   },
+  "prefsForceTvMode": "Force TV Mode",
+  "@prefsForceTvMode": {
+    "description": "Toggle title: force the 10-foot D-pad interface."
+  },
+  "prefsForceTvModeSub": "Use the 10-foot remote interface even if this device isn't a television. Applies after restarting the app.",
+  "@prefsForceTvModeSub": {
+    "description": "Force TV mode toggle subtitle."
+  },
   "prefsRatingOnCards": "Rating on Cards",
   "@prefsRatingOnCards": {
     "description": "Appearance setting title: rating badge on poster cards."
@@ -1006,6 +1014,60 @@
   "@prefsAutoSkipCredits": {
     "description": "Player toggle title: automatically skip credits."
   },
+  "prefsUpNextTiming": "Up Next Timing",
+  "@prefsUpNextTiming": {
+    "description": "Player setting title: when the Up Next card appears during credits."
+  },
+  "prefsUpNextTimingSub": "How long the Up Next prompt shows before auto-playing the next episode",
+  "@prefsUpNextTimingSub": {
+    "description": "Player setting subtitle for Up Next timing."
+  },
+  "prefsUpNextFullCredits": "Full credits",
+  "@prefsUpNextFullCredits": {
+    "description": "Up Next timing option: stay for the whole credits, auto-play at the end (Jellyfin-style)."
+  },
+  "prefsUpNextSecondsBefore": "After {count}s",
+  "@prefsUpNextSecondsBefore": {
+    "description": "Up Next timing option: auto-play the next episode this many seconds after the credits start.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "prefsUpNextStyle": "Up Next Style",
+  "@prefsUpNextStyle": {
+    "description": "Player setting title: how the Up Next prompt is presented."
+  },
+  "prefsUpNextStyleSub": "How the next-episode prompt looks during credits",
+  "@prefsUpNextStyleSub": {
+    "description": "Player setting subtitle for Up Next style."
+  },
+  "prefsUpNextStyleCard": "Card",
+  "@prefsUpNextStyleCard": {
+    "description": "Up Next style option: a card with poster, title and countdown ring."
+  },
+  "prefsUpNextStylePill": "Pill",
+  "@prefsUpNextStylePill": {
+    "description": "Up Next style option: a compact pill with the countdown as a progress fill (Netflix-style)."
+  },
+  "playerUpNextPlayNow": "Play Now",
+  "@playerUpNextPlayNow": {
+    "description": "Up Next card button: start the next episode immediately."
+  },
+  "playerUpNextHide": "Hide",
+  "@playerUpNextHide": {
+    "description": "Up Next card button: dismiss the card."
+  },
+  "playerUpNextIn": "Playing in {seconds}s",
+  "@playerUpNextIn": {
+    "description": "Up Next card countdown text; seconds until the next episode auto-plays.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "prefsHardwareDecoding": "Hardware Decoding",
   "@prefsHardwareDecoding": {
     "description": "Player toggle title: hardware video decoding."
@@ -1013,6 +1075,14 @@
   "prefsHardwareDecodingSub": "Turn off if some videos glitch or fail",
   "@prefsHardwareDecodingSub": {
     "description": "Hardware-decoding toggle subtitle."
+  },
+  "prefsAudioPassthrough": "Audio Passthrough",
+  "@prefsAudioPassthrough": {
+    "description": "Advanced playback toggle title: bitstream surround audio to a receiver."
+  },
+  "prefsAudioPassthroughSub": "Send Dolby Atmos / DTS to a connected receiver untouched. Only for an AV receiver or soundbar; leave off for regular speakers.",
+  "@prefsAudioPassthroughSub": {
+    "description": "Audio-passthrough toggle subtitle."
   },
   "prefsDisplaySync": "Smooth Motion (Display Sync)",
   "@prefsDisplaySync": {
@@ -1510,6 +1580,28 @@
   "@playerPlaybackInfo": {
     "description": "Menu item / title for the playback details (stats) overlay."
   },
+  "playerPlayPause": "Play / Pause",
+  "@playerPlayPause": {
+    "description": "Player control tooltip: toggle play/pause."
+  },
+  "playerSeekBack": "Back {seconds}s",
+  "@playerSeekBack": {
+    "description": "Player control tooltip: seek backward by N seconds.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "playerSeekForward": "Forward {seconds}s",
+  "@playerSeekForward": {
+    "description": "Player control tooltip: seek forward by N seconds.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
   "playerStatPlayMethod": "Play Method",
   "@playerStatPlayMethod": {
     "description": "Playback stats label: how the server delivers the stream (direct play vs transcode)."
@@ -1724,6 +1816,10 @@
   "@playerSkipIntro": {
     "description": "Button label to skip the intro segment of an episode."
   },
+  "playerSkipRecap": "Skip Recap",
+  "@playerSkipRecap": {
+    "description": "Button label to skip a 'Previously on...' recap segment."
+  },
   "playerSkipCredits": "Skip Credits",
   "@playerSkipCredits": {
     "description": "Button label to skip the closing credits segment."
@@ -1881,6 +1977,26 @@
   "playerBackToApp": "Back to App",
   "@playerBackToApp": {
     "description": "Tooltip for the button that returns the popped-out desktop video back into the app window."
+  },
+  "actionShowDetails": "Show Details",
+  "@actionShowDetails": {
+    "description": "Context-menu row: open the item's detail page."
+  },
+  "actionDeleteSeries": "Delete Series",
+  "@actionDeleteSeries": {
+    "description": "Context-menu row: delete a whole series (all episodes)."
+  },
+  "actionDeleteSeason": "Delete Season",
+  "@actionDeleteSeason": {
+    "description": "Context-menu row: delete a whole season."
+  },
+  "actionDeleteEpisode": "Delete Episode",
+  "@actionDeleteEpisode": {
+    "description": "Context-menu row: delete a single episode."
+  },
+  "actionDeleteMovie": "Delete Movie",
+  "@actionDeleteMovie": {
+    "description": "Context-menu row: delete a movie."
   },
   "detailResume": "Resume",
   "@detailResume": {
@@ -2598,6 +2714,78 @@
   "@browseContinueWatching": {
     "description": "Home row title: items in progress."
   },
+  "autoHome": "Home",
+  "@autoHome": {
+    "description": "Android Auto top-level tab: a quick-start mix of shortcuts."
+  },
+  "autoLibrary": "Library",
+  "@autoLibrary": {
+    "description": "Android Auto top-level tab: the full Jellyfin music library."
+  },
+  "autoShuffleAll": "Shuffle All",
+  "@autoShuffleAll": {
+    "description": "Android Auto Home action: play a random shuffle of the whole music library."
+  },
+  "autoFavoritesMix": "Favorites Mix",
+  "@autoFavoritesMix": {
+    "description": "Android Auto Home action: shuffle-play favorite songs."
+  },
+  "autoRecentlyPlayed": "Recently Played",
+  "@autoRecentlyPlayed": {
+    "description": "Android Auto browse shortcut: songs played recently."
+  },
+  "autoRecentlyAdded": "Recently Added",
+  "@autoRecentlyAdded": {
+    "description": "Android Auto browse shortcut: newest albums."
+  },
+  "autoGenres": "Genres",
+  "@autoGenres": {
+    "description": "Android Auto browse category: music genres."
+  },
+  "autoRadio": "Radio",
+  "@autoRadio": {
+    "description": "Android Auto browse category: internet-radio favorite stations."
+  },
+  "autoRadioFavorites": "Favorites",
+  "@autoRadioFavorites": {
+    "description": "Android Auto radio sub-folder: favorite stations."
+  },
+  "autoRadioOther": "Other",
+  "@autoRadioOther": {
+    "description": "Android Auto radio sub-folder: stations not in any group."
+  },
+  "autoPlaylists": "Playlists",
+  "@autoPlaylists": {
+    "description": "Android Auto browse category: the user's music playlists."
+  },
+  "autoAlbums": "Albums",
+  "@autoAlbums": {
+    "description": "Android Auto browse category: recently added music albums."
+  },
+  "autoArtists": "Artists",
+  "@autoArtists": {
+    "description": "Android Auto browse category: music artists."
+  },
+  "autoFavoriteSongs": "Favorite Songs",
+  "@autoFavoriteSongs": {
+    "description": "Android Auto browse category: songs the user has favorited."
+  },
+  "autoYoutube": "YouTube",
+  "@autoYoutube": {
+    "description": "Android Auto browse category: YouTube audio."
+  },
+  "autoYoutubeWhatsNew": "What's New",
+  "@autoYoutubeWhatsNew": {
+    "description": "Android Auto browse subcategory: newest uploads from followed YouTube channels."
+  },
+  "autoYoutubePlaylists": "Your Playlists",
+  "@autoYoutubePlaylists": {
+    "description": "Android Auto browse subcategory: the user's saved YouTube playlists."
+  },
+  "autoYoutubeSubscriptions": "Subscriptions",
+  "@autoYoutubeSubscriptions": {
+    "description": "Android Auto browse subcategory: channels the user follows on YouTube."
+  },
   "browseNextUp": "Next Up",
   "@browseNextUp": {
     "description": "Home row title: the next episode to watch."
@@ -3214,6 +3402,30 @@
   "@ytSubscriptions": {
     "description": "YouTube section tab label: the channels you follow."
   },
+  "ytListen": "Listen",
+  "@ytListen": {
+    "description": "Button on the YouTube watch page: drop the video and keep the audio playing in the background."
+  },
+  "ytPlayAudio": "Play audio",
+  "@ytPlayAudio": {
+    "description": "Video row menu action: play just this video's audio in the background."
+  },
+  "ytWatchVideo": "Watch video",
+  "@ytWatchVideo": {
+    "description": "Button on the background-audio Now Playing: switch back to watching the video at the current position."
+  },
+  "ytListenAll": "Listen to all",
+  "@ytListenAll": {
+    "description": "Playlist action: play the whole playlist as background audio."
+  },
+  "ytSomeUnavailable": "Some videos are unavailable (age-restricted or private).",
+  "@ytSomeUnavailable": {
+    "description": "Quiet note on a playlist when fewer videos load than the count advertised, because YouTube won't return age-restricted or private videos to an anonymous client."
+  },
+  "ytQueueEmpty": "Nothing up next. A related track plays automatically when this one ends.",
+  "@ytQueueEmpty": {
+    "description": "Shown in the background-audio queue sheet when the up-next queue is empty."
+  },
   "ytWhatsNew": "What's New",
   "@ytWhatsNew": {
     "description": "YouTube section tab label: newest uploads from subscribed channels."
@@ -3616,6 +3828,14 @@
   "@ytComments": {
     "description": "Heading over the comments section on the watch page."
   },
+  "ytCommentsUnavailable": "Comments are unavailable.",
+  "@ytCommentsUnavailable": {
+    "description": "Shown in the Shorts comments sheet when a video has comments turned off or none could be loaded."
+  },
+  "ytShortUnavailable": "Couldn't load this Short.",
+  "@ytShortUnavailable": {
+    "description": "Shown over a Short in the vertical viewer when its video stream could not be resolved."
+  },
   "ytCommentsCount": "Comments  ·  {count}",
   "@ytCommentsCount": {
     "description": "Comments heading with a preformatted count string.",
@@ -3838,6 +4058,10 @@
   "@ytSubscribe": {
     "description": "Subscribe button label when not subscribed."
   },
+  "ytGoToChannel": "Go to Channel",
+  "@ytGoToChannel": {
+    "description": "Action-sheet row: open the video's channel page."
+  },
   "ytSaveToPlaylist": "Save to Playlist",
   "@ytSaveToPlaylist": {
     "description": "Title of the add-to-playlist bottom sheet."
@@ -3923,6 +4147,42 @@
   "appConnect": "Connect",
   "@appConnect": {
     "description": "Server connect screen: button that validates and connects to the entered server."
+  },
+  "searchPlayerBackend": "Video Player Engine",
+  "@searchPlayerBackend": {
+    "description": "Settings search: label for the Android video engine (ExoPlayer/media_kit) setting."
+  },
+  "prefsPlayerBackend": "Video Player (Android)",
+  "@prefsPlayerBackend": {
+    "description": "Preferences: title for the Android video engine selector."
+  },
+  "prefsPlayerBackendSub": "ExoPlayer plays 4K/HDR smoothly on TV; media_kit is the classic engine.",
+  "@prefsPlayerBackendSub": {
+    "description": "Preferences: subtitle for the Android video engine selector."
+  },
+  "prefsPlayerBackendAuto": "Automatic (ExoPlayer on TV)",
+  "@prefsPlayerBackendAuto": {
+    "description": "Preferences: automatic video backend option."
+  },
+  "prefsPlayerBackendExo": "ExoPlayer (native, 4K/HDR)",
+  "@prefsPlayerBackendExo": {
+    "description": "Preferences: native ExoPlayer video backend option."
+  },
+  "prefsPlayerBackendMediaKit": "media_kit (libmpv)",
+  "@prefsPlayerBackendMediaKit": {
+    "description": "Preferences: media_kit video backend option."
+  },
+  "appFindServers": "Find Servers on My Network",
+  "@appFindServers": {
+    "description": "Server connect screen: button that scans the local network for Jellyfin servers."
+  },
+  "appScanningServers": "Searching your network…",
+  "@appScanningServers": {
+    "description": "Server connect screen: label shown while scanning the local network for servers."
+  },
+  "appNoServersFound": "No servers found. Enter the address above instead.",
+  "@appNoServersFound": {
+    "description": "Server connect screen: shown when a network scan finds no Jellyfin servers."
   },
   "appTagline": "Dive into your media",
   "@appTagline": {
@@ -5124,6 +5384,26 @@
   "@adminConfigJsonHint": {
     "description": "Hint under the raw plugin configuration editor."
   },
+  "adminPluginSettings": "Settings",
+  "@adminPluginSettings": {
+    "description": "Heading above the generated plugin settings form."
+  },
+  "adminPluginSettingsHint": "Edit this plugin’s configuration.",
+  "@adminPluginSettingsHint": {
+    "description": "Subtitle under the plugin settings heading."
+  },
+  "adminEditAsJson": "Edit as JSON",
+  "@adminEditAsJson": {
+    "description": "Toggle: switch the plugin config editor to raw JSON."
+  },
+  "adminNoEntries": "No entries",
+  "@adminNoEntries": {
+    "description": "Shown for an empty list field in the plugin settings form."
+  },
+  "adminAdvancedJson": "Advanced (JSON)",
+  "@adminAdvancedJson": {
+    "description": "Label for a complex plugin setting edited as raw JSON."
+  },
   "adminSaveConfiguration": "Save Configuration",
   "@adminSaveConfiguration": {
     "description": "Button label: save the plugin configuration."
@@ -5918,6 +6198,14 @@
   "@searchAutoSkipCredits": {
     "description": "Settings search result title: automatically skip credits/outro segments."
   },
+  "searchUpNextTiming": "Up Next Timing",
+  "@searchUpNextTiming": {
+    "description": "Settings search result title: when the Up Next card appears during credits."
+  },
+  "searchUpNextStyle": "Up Next Style",
+  "@searchUpNextStyle": {
+    "description": "Settings search result title: how the Up Next prompt is presented (card or pill)."
+  },
   "searchHardwareDecoding": "Hardware Decoding",
   "@searchHardwareDecoding": {
     "description": "Settings search result title: GPU hardware video decoding toggle."
@@ -6451,5 +6739,7 @@
   "backupGroupRadio": "Internet radio",
   "@backupGroupRadio": { "description": "Backup group: saved radio stations, groups, favorites." },
   "backupGroupServers": "Servers",
-  "@backupGroupServers": { "description": "Backup group: server addresses and username." }
+  "@backupGroupServers": { "description": "Backup group: server addresses and username." },
+  "tvVoiceUnavailable": "Voice input isn't available on this device",
+  "@tvVoiceUnavailable": { "description": "Snackbar shown when the TV has no speech recognizer for the on-screen keyboard's mic button." }
 }

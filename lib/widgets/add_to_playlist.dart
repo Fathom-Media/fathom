@@ -5,6 +5,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../state/playlist_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
+import 'tv_keyboard.dart';
 
 /// Shows a sheet to add [itemIds] to an existing playlist or a new one.
 Future<void> showAddToPlaylistSheet(
@@ -61,10 +62,10 @@ class _AddToPlaylistSheet extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.appNewPlaylist),
-        content: TextField(
+        content: TvTextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(labelText: l.appPlaylistName),
+          label: l.appPlaylistName,
         ),
         actions: [
           TextButton(

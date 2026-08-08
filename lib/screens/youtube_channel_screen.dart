@@ -7,11 +7,14 @@ import '../models/youtube_channel.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
+import '../widgets/mini_player.dart';
 import '../widgets/subscribe_button.dart';
+import '../widgets/tv_focus.dart';
 import '../widgets/youtube_video_collection.dart';
 import '../widgets/youtube_skeletons.dart';
 import '../models/youtube_playlist.dart';
 import '../services/youtube_innertube.dart';
+import '../services/tv_mode.dart';
 import '../l10n/generated/app_localizations.dart';
 
 /// A YouTube channel page: banner + avatar header, a subscribe toggle, and the
@@ -37,11 +40,12 @@ class _YoutubeChannelScreenState extends ConsumerState<YoutubeChannelScreen> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final channel = ref.watch(youtubeChannelProvider(widget.channelId));
-    // The Videos tab doubles as the probe for which tabs exist: every browse
-    // response lists them, so this costs nothing extra.
+    // The Videos tab doubles as the probe for which tabs exist AND carries the
+    // channel header (name/avatar/banner/subs). That replaces a separate
+    // multi-megabyte channel-page scrape that used to stall this screen.
     final probe = ref.watch(youtubeChannelTabProvider(
         (channelId: widget.channelId, kind: YtChannelTabKind.videos)));
+    final channel = probe.asData?.value.channel;
     final available = probe.asData?.value.availableTabs ?? const <String>{};
 
     final tabs = <YtChannelTabKind>[
@@ -57,14 +61,17 @@ class _YoutubeChannelScreenState extends ConsumerState<YoutubeChannelScreen> {
     return DefaultTabController(
       length: tabs.length,
       child: Scaffold(
+        // Root route outside the shell, so dock the background-audio bar here
+        // too (collapses when idle, hidden on TV).
+        bottomNavigationBar: const MiniPlayer(),
         body: NestedScrollView(
           headerSliverBuilder: (context, _) => [
             SliverAppBar(
               pinned: true,
-              title: Text(channel.asData?.value.title ?? widget.title ?? l.ytChannelFallback),
+              title: Text(channel?.title ?? widget.title ?? l.ytChannelFallback),
             ),
             SliverToBoxAdapter(
-              child: channel.when(
+              child: probe.when(
                 loading: () => const SizedBox(
                   height: 140,
                   child: Center(child: CircularProgressIndicator()),
@@ -73,11 +80,20 @@ class _YoutubeChannelScreenState extends ConsumerState<YoutubeChannelScreen> {
                   padding: const EdgeInsets.all(16),
                   child: ErrorView(
                     message: '$e',
-                    onRetry: () =>
-                        ref.invalidate(youtubeChannelProvider(widget.channelId)),
+                    onRetry: () => ref.invalidate(youtubeChannelTabProvider(
+                        (channelId: widget.channelId,
+                        kind: YtChannelTabKind.videos))),
                   ),
                 ),
-                data: (c) => _Header(channel: c, fallbackName: widget.title),
+                data: (tab) => _Header(
+                  channel: tab.channel ??
+                      YoutubeChannel(
+                        id: widget.channelId,
+                        title: widget.title ?? '',
+                        logoUrl: '',
+                      ),
+                  fallbackName: widget.title,
+                ),
               ),
             ),
             if (tabs.length > 1)
@@ -182,7 +198,22 @@ class _BrowseTab extends ConsumerWidget {
           );
         }
         if (t.playlists.isEmpty) {
-          return YoutubeVideoCollection(videos: t.videos, showAuthor: false);
+          return YoutubeVideoCollection(
+            videos: t.videos,
+            showAuthor: false,
+            // Tapping a Short opens the vertical swipe viewer over this list
+            // (paging in more of the channel's Shorts on demand) instead of the
+            // regular watch page. Other tabs keep the default watch navigation.
+            onTap: kind == YtChannelTabKind.shorts && !isTvDevice
+                ? (v) => context.push('/youtube/shorts', extra: (
+                      shorts: t.videos,
+                      startIndex: t.videos
+                          .indexWhere((x) => x.id == v.id)
+                          .clamp(0, t.videos.length - 1),
+                      continuation: t.continuation,
+                    ))
+                : null,
+          );
         }
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -203,48 +234,55 @@ class _ChannelPlaylistRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return InkWell(
+    return TvFocusRing(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => context.push('/youtube/playlist',
-          extra: (playlistId: playlist.id, title: playlist.title)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: 140,
-                height: 79,
-                child: playlist.thumbnailUrl.isEmpty
-                    ? Container(color: scheme.surfaceContainerHigh)
-                    : CachedImage(
-                        url: playlist.thumbnailUrl,
-                        errorBuilder: (_) =>
-                            Container(color: scheme.surfaceContainerHigh)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/youtube/playlist',
+            extra: (
+              playlistId: playlist.id,
+              title: playlist.title,
+              count: playlist.videoCount
+            )),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 140,
+                  height: 79,
+                  child: playlist.thumbnailUrl.isEmpty
+                      ? Container(color: scheme.surfaceContainerHigh)
+                      : CachedImage(
+                          url: playlist.thumbnailUrl,
+                          errorBuilder: (_) =>
+                              Container(color: scheme.surfaceContainerHigh)),
+                ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(playlist.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  if (playlist.videoCountLabel.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(playlist.videoCountLabel,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(playlist.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    if (playlist.videoCountLabel.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(playlist.videoCountLabel,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant)),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
 import '../state/preferences.dart';
+import 'item_actions.dart';
 import 'media_image.dart';
 import 'motion.dart';
+import 'tv_focus.dart';
 
 /// Poster artwork with a tactile hover: it scales up, gains an accent ring, and
 /// reveals a play button. Fills its parent's constraints (wrap in AspectRatio
@@ -21,6 +24,16 @@ class HoverPosterArt extends ConsumerStatefulWidget {
   // one screen (Home's Continue Watching vs Next Up) pass a row-scoped tag so
   // the two don't collide into a duplicate-tag error.
   final String? heroTag;
+
+  /// Grabs focus on mount — used on TV so the remote lands on a grid's first
+  /// card as soon as it appears (Flutter's autofocus only fires when nothing
+  /// else in the scope holds focus, so it never steals focus later).
+  final bool autofocus;
+
+  /// Whether the poster exposes the shared item context menu (long-press /
+  /// right-click / hover hamburger). Off for non-item art and library-view
+  /// cards, which aren't playable/deletable.
+  final bool contextActions;
   const HoverPosterArt(
       {super.key,
       this.item,
@@ -29,7 +42,9 @@ class HoverPosterArt extends ConsumerStatefulWidget {
       this.hoverOverlay,
       this.onTap,
       this.borderRadius = 12,
-      this.heroTag})
+      this.heroTag,
+      this.autofocus = false,
+      this.contextActions = true})
       : assert(item != null || art != null);
 
   @override
@@ -42,7 +57,27 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
   // exact hover visuals (scale, accent ring, revealed overlay) so a focused
   // card on a TV reads the same as a moused-over one on desktop.
   bool _focused = false;
-  bool get _active => _hover || _focused;
+  // The focus ring/scale is a TV (D-pad) affordance; off TV only hover drives
+  // it, so desktop/mobile are unchanged.
+  bool get _active => _hover || (_focused && isTvDevice);
+
+  // Context menu is an off-TV affordance (long-press / right-click / hover
+  // hamburger); on TV a card opens detail and the menu lives on the detail
+  // overflow, so the card's D-pad path is left untouched. Only real media items
+  // get it, not library-view tiles or bare artwork.
+  bool get _canMenu =>
+      widget.contextActions &&
+      !isTvDevice &&
+      widget.item != null &&
+      widget.item!.collectionType == null;
+
+  void _openMenu() => showItemActionsMenu(
+        context,
+        ref,
+        widget.item!,
+        fromGrid: true,
+        onOpenDetails: widget.onTap,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +100,11 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
         curve: Curves.easeOut,
         child: FocusableActionDetector(
           mouseCursor: SystemMouseCursors.click,
-          onShowFocusHighlight: (v) => setState(() => _focused = v),
+          autofocus: widget.autofocus,
+          // Track ACTUAL focus (not Flutter's focus-highlight mode) so the ring +
+          // scale show whenever a D-pad remote lands on the card, including the
+          // first one focused on a screen.
+          onFocusChange: (v) => setState(() => _focused = v),
           actions: {
             ActivateIntent: CallbackAction<ActivateIntent>(
               onInvoke: (_) {
@@ -76,6 +115,8 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
           },
           child: GestureDetector(
           onTap: widget.onTap,
+          onLongPress: _canMenu ? _openMenu : null,
+          onSecondaryTapDown: _canMenu ? (_) => _openMenu() : null,
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -165,6 +206,22 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
                         child: IgnorePointer(
                           ignoring: !_active,
                           child: widget.hoverOverlay!,
+                        ),
+                      ),
+                    ),
+                  // Hover hamburger (desktop), bottom-right of the poster. On
+                  // touch the same menu is a long-press; on TV it lives on the
+                  // detail overflow.
+                  if (_canMenu)
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: AnimatedOpacity(
+                        opacity: _hover ? 1 : 0,
+                        duration: const Duration(milliseconds: 150),
+                        child: IgnorePointer(
+                          ignoring: !_hover,
+                          child: _CardMenuButton(onTap: _openMenu),
                         ),
                       ),
                     ),
@@ -303,6 +360,29 @@ class _WatchedBadge extends StatelessWidget {
 }
 
 /// Portrait poster card (Recently Added, library grids).
+/// Small circular hamburger drawn on a poster on hover (desktop). Opens the
+/// shared item context menu.
+class _CardMenuButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _CardMenuButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.55),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: const Padding(
+          padding: EdgeInsets.all(4),
+          child: Icon(Icons.more_vert_rounded, size: 20, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
+
 class PosterCard extends StatelessWidget {
   final BaseItemDto item;
   final VoidCallback? onTap;
@@ -355,7 +435,12 @@ class PosterTile extends StatelessWidget {
   final BaseItemDto item;
   final VoidCallback? onTap;
 
-  const PosterTile({super.key, required this.item, this.onTap});
+  /// Grabs focus on mount (TV): set on a grid's first tile so the remote lands
+  /// on content, not the app bar.
+  final bool autofocus;
+
+  const PosterTile(
+      {super.key, required this.item, this.onTap, this.autofocus = false});
 
   @override
   Widget build(BuildContext context) {
@@ -366,7 +451,9 @@ class PosterTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: HoverPosterArt(item: item, onTap: onTap)),
+        Expanded(
+            child: HoverPosterArt(
+                item: item, onTap: onTap, autofocus: autofocus)),
         const SizedBox(height: 6),
         Text(item.name,
             maxLines: 1,
@@ -409,7 +496,10 @@ class ContinueCard extends StatelessWidget {
           children: [
             // Flexible so the artwork shrinks to fit instead of overflowing.
             Flexible(
-              child: DecoratedBox(
+              child: TvFocusable(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(12),
+                child: DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
@@ -422,6 +512,9 @@ class ContinueCard extends StatelessWidget {
               ),
               child: InkWell(
                 onTap: onTap,
+                // Off TV the wrapping TvFocusable is a no-op, so this InkWell stays
+            // the (keyboard-)focusable target as it was originally.
+            canRequestFocus: isTvDevice,
                 borderRadius: BorderRadius.circular(12),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
@@ -458,6 +551,7 @@ class ContinueCard extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
             ),
             ),
             const SizedBox(height: 8),
@@ -500,7 +594,10 @@ class LibraryCard extends StatelessWidget {
     return HoverLift(
       child: SizedBox(
         width: width,
-        child: DecoratedBox(
+        child: TvFocusable(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
@@ -513,6 +610,9 @@ class LibraryCard extends StatelessWidget {
           ),
           child: InkWell(
             onTap: onTap,
+            // Off TV the wrapping TvFocusable is a no-op, so this InkWell stays
+            // the (keyboard-)focusable target as it was originally.
+            canRequestFocus: isTvDevice,
             borderRadius: BorderRadius.circular(12),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -556,6 +656,7 @@ class LibraryCard extends StatelessWidget {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

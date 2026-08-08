@@ -13,6 +13,7 @@ import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/error_view.dart';
+import '../widgets/tv_keyboard.dart';
 import '../widgets/ui_common.dart';
 import '../theme/app_theme.dart';
 
@@ -797,10 +798,10 @@ class AdminApiKeysScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.adminNewApiKey),
-        content: TextField(
+        content: TvTextField(
           controller: ctrl,
           autofocus: true,
-          decoration: InputDecoration(labelText: l.adminAppName),
+          label: l.adminAppName,
         ),
         actions: [
           TextButton(
@@ -1065,6 +1066,11 @@ class _InstalledPlugins extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final plugins = ref.watch(adminPluginsProvider);
+    // Watched once here (not inside itemBuilder, which runs lazily outside build).
+    final pkgs = ref.watch(adminPackagesProvider).asData?.value;
+    final session = ref.watch(sessionControllerProvider).asData?.value;
+    final client = ref.watch(jellyfinClientProvider);
+    final headers = ref.watch(imageHeadersProvider);
     return plugins.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => ErrorView(
@@ -1081,7 +1087,19 @@ class _InstalledPlugins extends ConsumerWidget {
                   final id = '${p['Id'] ?? ''}';
                   final name = '${p['Name'] ?? '—'}';
                   return ListTile(
-                    leading: const Icon(Icons.extension_rounded),
+                    leading: _pluginLogo(
+                      context,
+                      catalogUrl:
+                          _pluginCatalogImageUrl(pkgs, guid: id, name: name),
+                      serverUrl: session != null && id.isNotEmpty
+                          ? client.pluginImageUrl(
+                              baseUrl: session.baseUrl, pluginId: id)
+                          : null,
+                      headers: headers,
+                      height: 40,
+                      radius: 8,
+                      maxWidth: 84,
+                    ),
                     title: Text(name),
                     subtitle: Text('v${p['Version'] ?? '?'}'
                         '${p['Status'] != null ? '  ·  ${p['Status']}' : ''}'),
@@ -1214,17 +1232,16 @@ class _PluginRepositories extends ConsumerWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            TvTextField(
               controller: nameCtrl,
               autofocus: true,
-              decoration: InputDecoration(labelText: l.adminName),
+              label: l.adminName,
             ),
             const SizedBox(height: 12),
-            TextField(
+            TvTextField(
               controller: urlCtrl,
-              decoration: InputDecoration(
-                  labelText: l.adminManifestUrl,
-                  hintText: 'https://.../manifest.json'),
+              label: l.adminManifestUrl,
+              hint: 'https://.../manifest.json',
             ),
           ],
         ),
@@ -1305,10 +1322,18 @@ class AdminInstalledPluginScreen extends ConsumerStatefulWidget {
 
 class _AdminInstalledPluginState
     extends ConsumerState<AdminInstalledPluginScreen> {
-  final _json = TextEditingController();
+  // Live copy of the plugin's config, edited in place by the form. Dart Maps
+  // keep insertion order, so fields render in the plugin's own order.
+  Map<String, dynamic> _cfg = {};
+  final _json = TextEditingController(); // raw-JSON fallback editor
+  // Text controllers for text/number/nested-JSON fields, and the per-list
+  // "add" inputs — keyed by config key so they survive rebuilds.
+  final Map<String, TextEditingController> _fieldCtrls = {};
+  final Map<String, TextEditingController> _addCtrls = {};
   bool _configLoaded = false;
   bool _hasConfig = false;
   bool _saving = false;
+  bool _rawMode = false;
 
   String get _id => '${widget.plugin['Id'] ?? ''}';
   String get _name => '${widget.plugin['Name'] ?? 'Plugin'}';
@@ -1322,6 +1347,12 @@ class _AdminInstalledPluginState
   @override
   void dispose() {
     _json.dispose();
+    for (final c in _fieldCtrls.values) {
+      c.dispose();
+    }
+    for (final c in _addCtrls.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -1336,14 +1367,49 @@ class _AdminInstalledPluginState
           baseUrl: s.baseUrl, token: s.accessToken, pluginId: _id);
       if (!mounted) return;
       setState(() {
+        _cfg = cfg;
         _hasConfig = cfg.isNotEmpty;
-        _json.text =
-            const JsonEncoder.withIndent('  ').convert(cfg);
+        _json.text = const JsonEncoder.withIndent('  ').convert(cfg);
         _configLoaded = true;
       });
     } catch (_) {
       if (mounted) setState(() => _configLoaded = true);
     }
+  }
+
+  /// Turns a PascalCase / camelCase config key into a readable label, e.g.
+  /// "SettledSeasonDelayHours" → "Settled Season Delay Hours".
+  String _humanize(String key) {
+    final spaced = key
+        .replaceAllMapped(RegExp(r'(?<=[a-z0-9])(?=[A-Z])'), (_) => ' ')
+        .replaceAllMapped(RegExp(r'(?<=[A-Z])(?=[A-Z][a-z])'), (_) => ' ');
+    if (spaced.isEmpty) return key;
+    return spaced[0].toUpperCase() + spaced.substring(1);
+  }
+
+  TextEditingController _ctrl(String key, String initial) =>
+      _fieldCtrls.putIfAbsent(key, () => TextEditingController(text: initial));
+
+  /// Switches between the typed form and the raw-JSON editor, carrying edits
+  /// across in both directions.
+  void _toggleRaw(bool raw) {
+    if (raw) {
+      _json.text = const JsonEncoder.withIndent('  ').convert(_cfg);
+    } else {
+      try {
+        _cfg = Map<String, dynamic>.from(jsonDecode(_json.text) as Map);
+      } catch (_) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).adminInvalidJson)));
+        return;
+      }
+      // Rebuild field controllers from the (possibly) new values.
+      for (final c in _fieldCtrls.values) {
+        c.dispose();
+      }
+      _fieldCtrls.clear();
+    }
+    setState(() => _rawMode = raw);
   }
 
   Future<void> _saveConfig() async {
@@ -1352,12 +1418,15 @@ class _AdminInstalledPluginState
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     Map<String, dynamic> parsed;
-    try {
-      parsed = Map<String, dynamic>.from(jsonDecode(_json.text) as Map);
-    } catch (_) {
-      messenger.showSnackBar(
-          SnackBar(content: Text(l.adminInvalidJson)));
-      return;
+    if (_rawMode) {
+      try {
+        parsed = Map<String, dynamic>.from(jsonDecode(_json.text) as Map);
+      } catch (_) {
+        messenger.showSnackBar(SnackBar(content: Text(l.adminInvalidJson)));
+        return;
+      }
+    } else {
+      parsed = _cfg;
     }
     setState(() => _saving = true);
     try {
@@ -1372,6 +1441,152 @@ class _AdminInstalledPluginState
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  // ---- Typed field builders -------------------------------------------------
+
+  Widget _configForm(ThemeData theme, AppLocalizations l) {
+    final entries = _cfg.entries.toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final e in entries) ...[
+          _field(theme, l, e.key, e.value),
+          const SizedBox(height: 14),
+        ],
+      ],
+    );
+  }
+
+  Widget _field(ThemeData theme, AppLocalizations l, String key, dynamic value) {
+    final label = _humanize(key);
+    if (value is bool) {
+      return SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        title: Text(label),
+        value: value,
+        onChanged: (v) => setState(() => _cfg[key] = v),
+      );
+    }
+    if (value is num) {
+      final c = _ctrl(key, '$value');
+      return TextField(
+        controller: c,
+        keyboardType:
+            TextInputType.numberWithOptions(decimal: value is double),
+        decoration: InputDecoration(
+            labelText: label, border: const OutlineInputBorder()),
+        onChanged: (t) {
+          final n = value is int ? int.tryParse(t) : num.tryParse(t);
+          if (n != null) _cfg[key] = n;
+        },
+      );
+    }
+    if (value is String) {
+      final c = _ctrl(key, value);
+      return TextField(
+        controller: c,
+        decoration: InputDecoration(
+            labelText: label, border: const OutlineInputBorder()),
+        onChanged: (t) => _cfg[key] = t,
+      );
+    }
+    if (value is List &&
+        value.every((e) => e is String || e is num || e is bool)) {
+      return _listField(theme, l, key, label, value);
+    }
+    // Nested object or complex list → edit as JSON inline.
+    return _jsonField(theme, l, key, label);
+  }
+
+  Widget _listField(ThemeData theme, AppLocalizations l, String key,
+      String label, List<dynamic> list) {
+    final add = _addCtrls.putIfAbsent(key, () => TextEditingController());
+    void addEntry() {
+      final t = add.text.trim();
+      if (t.isEmpty) return;
+      setState(() {
+        list.add(t);
+        add.clear();
+      });
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        if (list.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(l.adminNoEntries,
+                style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant)),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              for (var i = 0; i < list.length; i++)
+                InputChip(
+                  label: Text('${list[i]}'),
+                  onDeleted: () => setState(() => list.removeAt(i)),
+                ),
+            ],
+          ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: add,
+                decoration: const InputDecoration(
+                    isDense: true, border: OutlineInputBorder()),
+                onSubmitted: (_) => addEntry(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(onPressed: addEntry, child: Text(l.commonAdd)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _jsonField(
+      ThemeData theme, AppLocalizations l, String key, String label) {
+    final c = _ctrl(
+        key, const JsonEncoder.withIndent('  ').convert(_cfg[key]));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600)),
+        Text(l.adminAdvancedJson,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: c,
+          minLines: 2,
+          maxLines: 10,
+          style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+          onChanged: (t) {
+            try {
+              _cfg[key] = jsonDecode(t);
+            } catch (_) {
+              // Keep the last valid value until the JSON parses again.
+            }
+          },
+        ),
+      ],
+    );
   }
 
   Future<void> _uninstall() async {
@@ -1423,22 +1638,19 @@ class _AdminInstalledPluginState
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 96,
-                  height: 96,
-                  child: s == null || _id.isEmpty
-                      ? _pluginPlaceholder(context)
-                      : Image.network(
-                          client.pluginImageUrl(
-                              baseUrl: s.baseUrl, pluginId: _id),
-                          fit: BoxFit.cover,
-                          headers: headers,
-                          errorBuilder: (context, _, _) =>
-                              _pluginPlaceholder(context),
-                        ),
-                ),
+              _pluginLogo(
+                context,
+                catalogUrl: _pluginCatalogImageUrl(
+                    ref.watch(adminPackagesProvider).asData?.value,
+                    guid: _id,
+                    name: _name),
+                serverUrl: s != null && _id.isNotEmpty
+                    ? client.pluginImageUrl(baseUrl: s.baseUrl, pluginId: _id)
+                    : null,
+                headers: headers,
+                height: 84,
+                radius: 14,
+                maxWidth: 220,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -1447,7 +1659,9 @@ class _AdminInstalledPluginState
                   children: [
                     Text(_name, style: theme.textTheme.titleLarge),
                     const SizedBox(height: 4),
-                    Text(l.adminPluginVersion('${widget.plugin['Version'] ?? '?'}'),
+                    Text(
+                        l.adminPluginVersion(
+                            '${widget.plugin['Version'] ?? '?'}'),
                         style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant)),
                     if (widget.plugin['Status'] != null)
@@ -1468,22 +1682,47 @@ class _AdminInstalledPluginState
           if (!_configLoaded)
             const Center(child: CircularProgressIndicator())
           else if (_hasConfig) ...[
-            Text(l.adminConfigJson,
-                style: theme.textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-            Text(
-              l.adminConfigJsonHint,
-              style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_rawMode ? l.adminConfigJson : l.adminPluginSettings,
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700)),
+                      Text(
+                        _rawMode
+                            ? l.adminConfigJsonHint
+                            : l.adminPluginSettingsHint,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(l.adminEditAsJson,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant)),
+                    Switch(value: _rawMode, onChanged: _toggleRaw),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _json,
-              minLines: 6,
-              maxLines: 24,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-            ),
+            const SizedBox(height: 12),
+            if (_rawMode)
+              TextField(
+                controller: _json,
+                minLines: 6,
+                maxLines: 24,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+              )
+            else
+              _configForm(theme, l),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: _saving ? null : _saveConfig,
@@ -1523,6 +1762,85 @@ Widget _pluginPlaceholder(BuildContext context) => Container(
       child: Icon(Icons.extension_rounded,
           color: Theme.of(context).colorScheme.onSurfaceVariant),
     );
+
+/// The plugin's logo from the repository catalog (what the Jellyfin dashboard
+/// shows), matched to an installed plugin by GUID then name. Returns null if
+/// the catalog isn't loaded or has no image for it.
+String? _pluginCatalogImageUrl(List<dynamic>? pkgs,
+    {String? guid, String? name}) {
+  if (pkgs == null) return null;
+  final g = guid?.replaceAll('-', '').toLowerCase();
+  if (g != null && g.isNotEmpty) {
+    for (final p in pkgs) {
+      final m = p as Map;
+      if ('${m['guid'] ?? ''}'.replaceAll('-', '').toLowerCase() == g) {
+        final img = '${m['imageUrl'] ?? ''}';
+        return img.isEmpty ? null : img;
+      }
+    }
+  }
+  if (name != null && name.isNotEmpty) {
+    final n = name.toLowerCase();
+    for (final p in pkgs) {
+      final m = p as Map;
+      if ('${m['name'] ?? ''}'.toLowerCase() == n) {
+        final img = '${m['imageUrl'] ?? ''}';
+        return img.isEmpty ? null : img;
+      }
+    }
+  }
+  return null;
+}
+
+/// A plugin logo sized to the image itself (fixed [height], natural width) with
+/// rounded corners — the catalog logos carry their own background, so we hug
+/// the image rather than pad it inside a big tile. Falls back catalog → server
+/// thumb → a small rounded puzzle square.
+Widget _pluginLogo(
+  BuildContext context, {
+  required String? catalogUrl,
+  required String? serverUrl,
+  required Map<String, String> headers,
+  required double height,
+  double radius = 12,
+  double? maxWidth,
+}) {
+  final cs = Theme.of(context).colorScheme;
+  Widget placeholder() => ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: Container(
+          width: height,
+          height: height,
+          color: cs.surfaceContainerHighest,
+          alignment: Alignment.center,
+          child: Icon(Icons.extension_rounded,
+              color: cs.onSurfaceVariant, size: height * 0.55),
+        ),
+      );
+  Widget net(String url,
+      {Map<String, String>? h, required Widget Function() onErr}) {
+    Widget image = Image.network(url,
+        height: height,
+        fit: BoxFit.contain,
+        headers: h,
+        errorBuilder: (_, _, _) => onErr());
+    if (maxWidth != null) {
+      image = ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth), child: image);
+    }
+    return ClipRRect(borderRadius: BorderRadius.circular(radius), child: image);
+  }
+  if (catalogUrl != null && catalogUrl.isNotEmpty) {
+    return net(catalogUrl,
+        onErr: () => (serverUrl != null && serverUrl.isNotEmpty)
+            ? net(serverUrl, h: headers, onErr: placeholder)
+            : placeholder());
+  }
+  if (serverUrl != null && serverUrl.isNotEmpty) {
+    return net(serverUrl, h: headers, onErr: placeholder);
+  }
+  return placeholder();
+}
 
 /// Detail for a catalog package: art, overview, versions, and install.
 class AdminPackageScreen extends ConsumerWidget {
@@ -1679,18 +1997,16 @@ class AdminLiveTvScreen extends ConsumerWidget {
                 onChanged: (v) => setLocal(() => type = v ?? 'm3u'),
               ),
               const SizedBox(height: 12),
-              TextField(
+              TvTextField(
                 controller: urlCtrl,
-                decoration: InputDecoration(
-                    labelText: type == 'm3u' ? l.adminM3uUrl : l.adminDeviceUrl,
-                    hintText:
-                        type == 'hdhomerun' ? 'http://192.168.1.x' : null),
+                label: type == 'm3u' ? l.adminM3uUrl : l.adminDeviceUrl,
+                hint: type == 'hdhomerun' ? 'http://192.168.1.x' : null,
               ),
               const SizedBox(height: 12),
-              TextField(
+              TvTextField(
                 controller: nameCtrl,
-                decoration: InputDecoration(
-                    labelText: l.adminFriendlyName, hintText: l.adminHintOptional),
+                label: l.adminFriendlyName,
+                hint: l.adminHintOptional,
               ),
             ],
           ),
@@ -1774,12 +2090,11 @@ class AdminLiveTvScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(editing ? l.adminEditXmltvGuide : l.adminAddXmltvGuide),
-        content: TextField(
+        content: TvTextField(
           controller: ctrl,
           autofocus: true,
-          decoration: InputDecoration(
-              labelText: l.adminXmltvPathLabel,
-              hintText: 'https://.../guide.xml'),
+          label: l.adminXmltvPathLabel,
+          hint: 'https://.../guide.xml',
         ),
         actions: [
           TextButton(
@@ -2591,16 +2906,16 @@ class _SchedulesDirectDialogState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_step == 0) ...[
-                TextField(
+                TvTextField(
                   controller: _user,
                   autofocus: true,
-                  decoration: InputDecoration(labelText: loc.adminUsername),
+                  label: loc.adminUsername,
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                TvTextField(
                   controller: _pass,
-                  obscureText: true,
-                  decoration: InputDecoration(labelText: loc.adminPassword),
+                  obscure: true,
+                  label: loc.adminPassword,
                   onSubmitted: (_) => _busy ? null : _signIn(),
                 ),
               ] else ...[
@@ -2621,10 +2936,10 @@ class _SchedulesDirectDialogState
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
-                      child: TextField(
+                      child: TvTextField(
                         controller: _zip,
-                        decoration: InputDecoration(
-                            labelText: loc.adminPostalCode, hintText: '10001'),
+                        label: loc.adminPostalCode,
+                        hint: '10001',
                         onSubmitted: (_) => _busy ? null : _findLineups(),
                       ),
                     ),

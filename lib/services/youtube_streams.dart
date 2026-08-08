@@ -48,6 +48,15 @@ String? youtubeVideoId(String url) {
 bool isYoutubeUrl(String url) =>
     url.contains('youtube.com') || url.contains('youtu.be');
 
+/// The best audio-only stream URL for [videoId], for background/audio-only
+/// playback. Falls back to the self-contained muxed stream when the video has no
+/// separate audio track. Resolved fresh each call so an expired URL is never
+/// reused (YouTube stream URLs are time-limited). Null if nothing resolves.
+Future<String?> resolveYoutubeAudioUrl(String videoId) async {
+  final s = await resolveYoutubeStreams('https://www.youtube.com/watch?v=$videoId');
+  return s.audioUrl ?? s.muxedUrl;
+}
+
 /// Resolves the playable streams for [url].
 ///
 /// Fast path: the primary client (ANDROID_VR, whose adaptive URLs are fetchable

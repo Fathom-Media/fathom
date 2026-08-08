@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <!-- Show a splash screen on the activity. Automatically removed when
+             the Flutter engine draws its first frame -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <!-- Theme applied to the Android Window as soon as the process has started.
+         This theme determines the color of the Android Window while your
+         Flutter UI initializes, as well as behind your Flutter UI while its
+         running.
+
+         This Theme is only used starting with V2 of Flutter's Android embedding. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+    <!-- Best-effort brand tint for the car media UI. Older Android Auto and
+         Android Automotive honor these; modern Auto (Coolwalk) mostly derives
+         colors from artwork instead, so this is additive and ignored where
+         unsupported. Fathom's soft-indigo accent (#6C8CFF). -->
+    <style name="CarTheme" parent="@android:style/Theme.Material">
+        <item name="android:colorPrimary">#6C8CFF</item>
+        <item name="android:colorPrimaryDark">#4E6AD6</item>
+        <item name="android:colorAccent">#6C8CFF</item>
+    </style>
+</resources>

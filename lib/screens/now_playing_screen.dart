@@ -8,12 +8,15 @@ import 'package:media_kit/media_kit.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
 import '../models/radio_station.dart';
+import '../models/youtube_audio_item.dart';
+import '../services/tv_mode.dart';
 import '../state/audio_player.dart';
 import '../state/cast.dart';
 import '../state/lyrics_provider.dart';
 import '../state/preferences.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
+import '../state/youtube_providers.dart';
 import '../widgets/cast_button.dart';
 import '../widgets/control_button.dart';
 import '../widgets/glass.dart';
@@ -33,6 +36,7 @@ class NowPlayingScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final audio = ref.watch(audioControllerProvider);
     if (audio.isRadio) return const _RadioNowPlaying();
+    if (audio.isYoutubeAudio) return const _YoutubeNowPlaying();
     final track = audio.current;
 
     // A manual artwork/lyrics flip belongs to the song it was made on. When the
@@ -136,24 +140,30 @@ class NowPlayingScreen extends ConsumerWidget {
         child: SafeArea(
           child: LayoutBuilder(
           builder: (context, constraints) {
-            final cover = math
-                .min(constraints.maxWidth - 56, constraints.maxHeight * 0.46)
-                .clamp(120.0, 420.0);
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+            // On a wide screen (TV/desktop landscape) put the art on the LEFT
+            // and the info+transport on the RIGHT so it fits 16:9 without
+            // overflowing; narrow keeps the vertical stack.
+            // The wide (art-left) layout is a TV affordance; desktop/mobile keep
+            // the original centered stack regardless of window width.
+            final wide = isTvDevice && constraints.maxWidth >= 840;
+            final cover = wide
+                ? math
+                    .min(constraints.maxWidth * 0.34,
+                        constraints.maxHeight - 96)
+                    .clamp(160.0, 360.0)
+                : math
+                    .min(constraints.maxWidth - 56, constraints.maxHeight * 0.46)
+                    .clamp(120.0, 420.0);
+            final coverWidget =
+                _CoverOrLyrics(track: track, player: player, size: cover);
+            final infoColumn = Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: wide
+                        ? CrossAxisAlignment.stretch
+                        : CrossAxisAlignment.center,
                     children: [
-                      // Artwork, or the lyrics in its place. Same footprint, so
-                      // the transport below doesn't jump when you flip.
-                      _CoverOrLyrics(track: track, player: player, size: cover),
-                      const SizedBox(height: 28),
                       Text(track.name,
-                          textAlign: TextAlign.center,
+                          textAlign: wide ? TextAlign.start : TextAlign.center,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.headlineSmall
@@ -229,6 +239,7 @@ class NowPlayingScreen extends ConsumerWidget {
                           if (cast.casting)
                             ControlButton(
                               size: 64,
+                              autofocus: isTvDevice,
                               icon: cast.playing
                                   ? Icons.pause_circle_filled_rounded
                                   : Icons.play_circle_fill_rounded,
@@ -243,6 +254,7 @@ class NowPlayingScreen extends ConsumerWidget {
                                 final playing = snap.data ?? false;
                                 return ControlButton(
                                   size: 64,
+                                  autofocus: isTvDevice,
                                   icon: playing
                                       ? Icons.pause_circle_filled_rounded
                                       : Icons.play_circle_fill_rounded,
@@ -268,11 +280,13 @@ class NowPlayingScreen extends ConsumerWidget {
                           ),
                             ],
                           ),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: InlineVolume(
-                                player: player, expandLeft: true),
-                          ),
+                          // No volume on TV — the remote owns it.
+                          if (!isTvDevice)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: InlineVolume(
+                                  player: player, expandLeft: true),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -287,8 +301,39 @@ class NowPlayingScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
-                  ),
-                ),
+                  );
+            // The 440px cap is a wide (TV) affordance; narrow keeps the original
+            // full-width column so desktop/mobile are unchanged.
+            final info = wide
+                ? ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: infoColumn)
+                : infoColumn;
+            final content = wide
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      coverWidget,
+                      const SizedBox(width: 48),
+                      info,
+                    ],
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      coverWidget,
+                      const SizedBox(height: 28),
+                      info,
+                    ],
+                  );
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(28, 16, 28, 28),
+              child: ConstrainedBox(
+                constraints:
+                    BoxConstraints(minHeight: constraints.maxHeight - 44),
+                child: Center(child: content),
               ),
             );
           },
@@ -585,6 +630,10 @@ class _RadioNowPlaying extends ConsumerWidget {
                   : Icons.play_circle_fill_rounded,
               tooltip: playing ? l.commonPause : l.commonPlay,
               size: 72,
+              // TV: land the remote on play/stop when the screen opens, same as
+              // the music Now Playing — else nothing has focus and the D-pad
+              // appears to do nothing.
+              autofocus: isTvDevice,
               onTap: controller.togglePlay,
             );
           },
@@ -601,7 +650,8 @@ class _RadioNowPlaying extends ConsumerWidget {
           ),
         ],
         const Spacer(),
-        InlineVolume(player: player, expandLeft: true),
+        // No volume on TV — the remote owns it.
+        if (!isTvDevice) InlineVolume(player: player, expandLeft: true),
       ],
     );
   }
@@ -1348,6 +1398,382 @@ class _FlipCard extends StatelessWidget {
               : front,
         );
       },
+    );
+  }
+}
+
+/// Full-screen controls for background YouTube audio: the video's thumbnail,
+/// title and channel, a scrub bar, transport, and Stop (leaves the mode). It's a
+/// seekable track, so unlike radio it has a real progress bar and skip.
+class _YoutubeNowPlaying extends ConsumerWidget {
+  const _YoutubeNowPlaying();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final audio = ref.watch(audioControllerProvider);
+    final controller = ref.read(audioControllerProvider.notifier);
+    final player = ref.watch(audioPlayerProvider);
+    final scheme = Theme.of(context).colorScheme;
+    final item = audio.ytCurrent;
+    if (item == null) {
+      return Scaffold(
+          appBar: AppBar(),
+          body: Center(child: Text(l.playerNothingPlaying)));
+    }
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: Text(l.playerNowPlaying),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          // Round-trip back to video: reopen the watch page at the current audio
+          // position (persisted to history so the player resumes there), and
+          // leave audio mode.
+          IconButton(
+            tooltip: l.ytWatchVideo,
+            icon: const Icon(Icons.ondemand_video_rounded),
+            onPressed: () async {
+              final router = GoRouter.of(context);
+              await ref.read(youtubeHistoryProvider.notifier).record(
+                    videoId: item.videoId,
+                    title: item.title,
+                    author: item.author,
+                    position: player.state.position,
+                    duration: player.state.duration,
+                    now: DateTime.now(),
+                  );
+              await controller.stopYoutubeAudio();
+              // Swap this Now Playing route for the watch page (a plain
+              // Navigator pop + GoRouter push races and lands nowhere).
+              router.pushReplacement('/youtube/watch',
+                  extra: (videoId: item.videoId, title: item.title));
+            },
+          ),
+          Consumer(builder: (context, ref, _) {
+            final upNext = ref.watch(youtubeQueueProvider);
+            if (upNext.isEmpty) return const SizedBox.shrink();
+            return IconButton(
+              tooltip: l.ytUpNext,
+              icon: Badge(
+                label: Text('${upNext.length}'),
+                child: const Icon(Icons.queue_music_rounded),
+              ),
+              onPressed: () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                showDragHandle: true,
+                builder: (_) => const _YtQueueSheet(),
+              ),
+            );
+          }),
+          TextButton.icon(
+            icon: const Icon(Icons.stop_rounded),
+            label: Text(l.radioStop),
+            onPressed: () {
+              controller.stopYoutubeAudio();
+              Navigator.of(context).maybePop();
+            },
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: LayoutBuilder(builder: (context, c) {
+          // Landscape on a phone is short: a full-width 16:9 thumbnail would
+          // swallow the viewport and push the transport off the bottom. So put
+          // the art beside the controls when it's wider than it is tall, and
+          // keep the vertical stack in portrait.
+          final landscape = c.maxWidth > c.maxHeight;
+          final accent = Theme.of(context).colorScheme.primary;
+          final artImage = ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.network(
+              // A crisp thumbnail for the big now-playing art. maxres 404s on
+              // some videos, so fall back to the item's own (medium) thumbnail,
+              // then to an icon.
+              'https://i.ytimg.com/vi/${item.videoId}/maxresdefault.jpg',
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Image.network(
+                item.thumbnailUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => ColoredBox(
+                  color: scheme.surfaceContainerHighest,
+                  child: Icon(Icons.headset_rounded,
+                      size: 64, color: scheme.onSurfaceVariant),
+                ),
+              ),
+            ),
+          );
+          // The same soft accent glow radio uses, pulsing while it plays.
+          final art = StreamBuilder<bool>(
+            stream: player.stream.playing,
+            initialData: player.state.playing,
+            builder: (context, snap) => _AuraGlow(
+              playing: snap.data ?? false,
+              borderRadius: 16,
+              color: accent,
+              child: artImage,
+            ),
+          );
+          final info = Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(item.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Text(item.author,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: scheme.onSurfaceVariant)),
+              const SizedBox(height: 20),
+              _YtScrub(player: player),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    iconSize: 36,
+                    icon: const Icon(Icons.skip_previous_rounded),
+                    onPressed: controller.previous,
+                  ),
+                  const SizedBox(width: 12),
+                  StreamBuilder<bool>(
+                    stream: player.stream.playing,
+                    initialData: player.state.playing,
+                    builder: (context, snap) {
+                      final playing = snap.data ?? false;
+                      return IconButton(
+                        iconSize: 68,
+                        icon: Icon(playing
+                            ? Icons.pause_circle_filled_rounded
+                            : Icons.play_circle_fill_rounded),
+                        onPressed: controller.togglePlay,
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    iconSize: 36,
+                    icon: const Icon(Icons.skip_next_rounded),
+                    onPressed: controller.next,
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          if (landscape) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: Center(
+                      child: AspectRatio(aspectRatio: 16 / 9, child: art),
+                    ),
+                  ),
+                  const SizedBox(width: 28),
+                  Expanded(
+                    flex: 5,
+                    child: Center(child: SingleChildScrollView(child: info)),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              children: [
+                const Spacer(),
+                AspectRatio(aspectRatio: 16 / 9, child: art),
+                const SizedBox(height: 24),
+                info,
+                const Spacer(),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+/// A seek bar for the YouTube-audio now-playing screen, bound to the audio
+/// player's position/duration.
+class _YtScrub extends StatefulWidget {
+  final Player player;
+  const _YtScrub({required this.player});
+
+  @override
+  State<_YtScrub> createState() => _YtScrubState();
+}
+
+class _YtScrubState extends State<_YtScrub> {
+  double? _drag;
+
+  static String _fmt(Duration d) {
+    final h = d.inHours;
+    final mm = (d.inMinutes % 60).toString().padLeft(h > 0 ? 2 : 1, '0');
+    final ss = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall;
+    return StreamBuilder<Duration>(
+      stream: widget.player.stream.position,
+      initialData: widget.player.state.position,
+      builder: (context, snap) {
+        final dur = widget.player.state.duration;
+        final durMs = dur.inMilliseconds;
+        final pos = snap.data ?? Duration.zero;
+        final frac = _drag ??
+            (durMs > 0 ? (pos.inMilliseconds / durMs).clamp(0.0, 1.0) : 0.0);
+        return Column(
+          children: [
+            SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 3,
+                overlayShape:
+                    const RoundSliderOverlayShape(overlayRadius: 14),
+                thumbShape:
+                    const RoundSliderThumbShape(enabledThumbRadius: 7),
+              ),
+              child: Slider(
+                value: frac,
+                onChanged: (v) => setState(() => _drag = v),
+                onChangeEnd: (v) {
+                  if (durMs > 0) widget.player.seek(dur * v);
+                  setState(() => _drag = null);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(_fmt(durMs > 0 ? dur * frac : pos), style: style),
+                  Text(_fmt(dur), style: style),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The shared YouTube up-next queue, shown from the background-audio Now Playing.
+/// It's the SAME youtubeQueueProvider the video player uses — tap to jump, drag
+/// to reorder, swipe/remove to drop.
+class _YtQueueSheet extends ConsumerWidget {
+  const _YtQueueSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final queue = ref.watch(youtubeQueueProvider);
+    final qn = ref.read(youtubeQueueProvider.notifier);
+    final audio = ref.read(audioControllerProvider.notifier);
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 12, 8),
+            child: Row(
+              children: [
+                Text(l.ytUpNext,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700)),
+                const Spacer(),
+                if (queue.isNotEmpty)
+                  TextButton(
+                    onPressed: qn.clear,
+                    child: Text(l.commonClear),
+                  ),
+              ],
+            ),
+          ),
+          if (queue.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+              child: Text(l.ytQueueEmpty,
+                  style: TextStyle(color: scheme.onSurfaceVariant)),
+            )
+          else
+            Flexible(
+              child: ReorderableListView.builder(
+                shrinkWrap: true,
+                itemCount: queue.length,
+                onReorder: qn.reorder,
+                itemBuilder: (context, i) {
+                  final v = queue[i];
+                  return ListTile(
+                    key: ValueKey(v.id),
+                    contentPadding: const EdgeInsets.only(left: 16, right: 4),
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: SizedBox(
+                        width: 56,
+                        height: 40,
+                        child: Image.network(v.thumbnailUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => ColoredBox(
+                                color: scheme.surfaceContainerHighest)),
+                      ),
+                    ),
+                    title: Text(v.title,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Text(v.author,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    onTap: () {
+                      // Jump: play the tapped item now, keep the rest as up-next.
+                      qn.playAll(queue.sublist(i + 1));
+                      audio.playYoutubeAudio(YoutubeAudioItem(
+                        videoId: v.id,
+                        title: v.title,
+                        author: v.author,
+                        thumbnailUrl: v.thumbnailUrl,
+                        duration: v.duration,
+                      ));
+                      Navigator.of(context).maybePop();
+                    },
+                    trailing: IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => qn.remove(v.id),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

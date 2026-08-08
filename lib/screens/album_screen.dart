@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
 import '../state/audio_player.dart';
 import '../state/library_providers.dart';
 import '../widgets/media_image.dart';
+import '../widgets/tv_focus.dart';
 import '../widgets/hover_pill_button.dart';
 
 /// Album detail: cover, artist, a play button, and the track list. Rendered by
@@ -93,9 +95,17 @@ class AlbumView extends ConsumerWidget {
                             icon: Icons.play_arrow_rounded,
                             label: l.commonPlay,
                             primary: true,
-                            onTap: tracks.isEmpty
-                                ? null
-                                : () => controller.playQueue(tracks, 0),
+                            // On TV the remote lands on Play as soon as the album
+                            // opens (no hunting for focus). onTap stays non-null so
+                            // the button is focusable even while the track list is
+                            // still loading — a null onTap disables the InkWell and
+                            // autofocus would no-op.
+                            autofocus: isTvDevice,
+                            onTap: () {
+                              if (tracks.isNotEmpty) {
+                                controller.playQueue(tracks, 0);
+                              }
+                            },
                           ),
                           HoverPillButton(
                             icon: Icons.shuffle_rounded,
@@ -133,7 +143,9 @@ class AlbumView extends ConsumerWidget {
             itemBuilder: (context, i) {
               final track = tracks[i];
               final isCurrent = playing?.id == track.id;
-              return ListTile(
+              return TvFocusRing(
+                borderRadius: BorderRadius.circular(8),
+                child: ListTile(
                 dense: true,
                 leading: SizedBox(
                   width: 28,
@@ -181,6 +193,7 @@ class AlbumView extends ConsumerWidget {
                 onTap: () => ref
                     .read(audioControllerProvider.notifier)
                     .playQueue(tracks, i),
+              ),
               );
             },
           ),

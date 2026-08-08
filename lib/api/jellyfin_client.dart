@@ -10,6 +10,8 @@ import '../models/media_segment.dart';
 import '../models/public_system_info.dart';
 import '../models/user_dto.dart';
 import '../models/lyrics.dart';
+import '../services/diagnostics.dart';
+import '../services/tv_mode.dart';
 
 /// A user-facing error carrying a message safe to show in the UI.
 class JellyfinException implements Exception {
@@ -48,11 +50,14 @@ class JellyfinClient {
     this.clientName = 'Fathom',
     this.clientVersion = '0.1.0',
     Dio? httpClient,
-  }) : _dio = httpClient ??
-            Dio(BaseOptions(
-              connectTimeout: const Duration(seconds: 10),
-              receiveTimeout: const Duration(seconds: 20),
-            ));
+  }) : _dio =
+           httpClient ??
+           Dio(
+             BaseOptions(
+               connectTimeout: const Duration(seconds: 10),
+               receiveTimeout: const Duration(seconds: 20),
+             ),
+           );
 
   /// Builds the `Authorization` header. Include [token] once authenticated.
   String authHeader({String? token}) {
@@ -83,12 +88,13 @@ class JellyfinClient {
   /// the unauthenticated /System/Info/Public with a short timeout: a reachable
   /// server replies in milliseconds, so a slow failure means offline. Never
   /// throws, offline is an answer.
-  Future<bool> pingServer(String baseUrl,
-      {Duration timeout = const Duration(seconds: 4)}) async {
-    final probe = Dio(BaseOptions(
-      connectTimeout: timeout,
-      receiveTimeout: timeout,
-    ));
+  Future<bool> pingServer(
+    String baseUrl, {
+    Duration timeout = const Duration(seconds: 4),
+  }) async {
+    final probe = Dio(
+      BaseOptions(connectTimeout: timeout, receiveTimeout: timeout),
+    );
     try {
       final res = await probe.get('$baseUrl/System/Info/Public');
       return res.statusCode == 200;
@@ -99,6 +105,59 @@ class JellyfinClient {
     }
   }
 
+  /// Resolves a user-typed server address to a reachable base URL and its public
+  /// info. When the user omits the scheme, tries `https://` then `http://` (home
+  /// servers on a LAN IP are usually plain http), each with a short timeout so a
+  /// dead scheme fails fast. This is why a user can type `10.0.1.3:8096` without
+  /// the `http://`. If a scheme was typed, it's honoured as-is.
+  Future<({String baseUrl, PublicSystemInfo info})> resolvePublicServer(
+    String input,
+  ) async {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) {
+      throw JellyfinException('Please enter a server address.');
+    }
+    final hasScheme =
+        trimmed.startsWith('http://') || trimmed.startsWith('https://');
+    final candidates = <String>[];
+    if (hasScheme) {
+      candidates.add(normalizeBaseUrl(trimmed));
+    } else {
+      final host = trimmed.replaceAll(RegExp(r'/+$'), '');
+      candidates
+        ..add('https://$host')
+        ..add('http://$host');
+    }
+    final probe = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+      ),
+    );
+    JellyfinException? lastErr;
+    try {
+      for (final url in candidates) {
+        try {
+          final res = await probe.get('$url/System/Info/Public');
+          final data = res.data;
+          if (data is Map) {
+            return (
+              baseUrl: url,
+              info: PublicSystemInfo.fromJson(Map<String, dynamic>.from(data)),
+            );
+          }
+          lastErr = JellyfinException(
+            'That address did not return a Jellyfin server response.',
+          );
+        } on DioException catch (e) {
+          lastErr = JellyfinException(_friendlyDioError(e, connecting: true));
+        }
+      }
+    } finally {
+      probe.close();
+    }
+    throw lastErr ?? JellyfinException('Could not reach that server.');
+  }
 
   /// Validates that [baseUrl] points at a reachable Jellyfin server.
   Future<PublicSystemInfo> getPublicSystemInfo(String baseUrl) async {
@@ -107,7 +166,8 @@ class JellyfinClient {
       final data = res.data;
       if (data is! Map) {
         throw JellyfinException(
-            'That address did not return a Jellyfin server response.');
+          'That address did not return a Jellyfin server response.',
+        );
       }
       return PublicSystemInfo.fromJson(Map<String, dynamic>.from(data));
     } on DioException catch (e) {
@@ -125,13 +185,16 @@ class JellyfinClient {
       final res = await _dio.post(
         '$baseUrl/Users/AuthenticateByName',
         data: {'Username': username, 'Pw': password},
-        options: Options(headers: {
-          'Authorization': authHeader(),
-          'Content-Type': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': authHeader(),
+            'Content-Type': 'application/json',
+          },
+        ),
       );
       return AuthenticationResult.fromJson(
-          Map<String, dynamic>.from(res.data as Map));
+        Map<String, dynamic>.from(res.data as Map),
+      );
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         throw JellyfinException('Incorrect username or password.');
@@ -153,17 +216,15 @@ class JellyfinClient {
   /// Starts a Quick Connect request; returns the code to show the user and the
   /// secret to poll with.
   Future<({String secret, String code})> quickConnectInitiate(
-      String baseUrl) async {
+    String baseUrl,
+  ) async {
     try {
       final res = await _dio.get(
         '$baseUrl/QuickConnect/Initiate',
         options: Options(headers: {'Authorization': authHeader()}),
       );
       final data = Map<String, dynamic>.from(res.data as Map);
-      return (
-        secret: data['Secret'] as String,
-        code: data['Code'] as String,
-      );
+      return (secret: data['Secret'] as String, code: data['Code'] as String);
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -220,13 +281,16 @@ class JellyfinClient {
       final res = await _dio.post(
         '$baseUrl/Users/AuthenticateWithQuickConnect',
         data: {'Secret': secret},
-        options: Options(headers: {
-          'Authorization': authHeader(),
-          'Content-Type': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': authHeader(),
+            'Content-Type': 'application/json',
+          },
+        ),
       );
       return AuthenticationResult.fromJson(
-          Map<String, dynamic>.from(res.data as Map));
+        Map<String, dynamic>.from(res.data as Map),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -308,8 +372,11 @@ class JellyfinClient {
     Map<String, dynamic>? query,
   }) async {
     try {
-      final res =
-          await _dio.get(url, queryParameters: query, options: _authed(token));
+      final res = await _dio.get(
+        url,
+        queryParameters: query,
+        options: _authed(token),
+      );
       final data = res.data;
       final rawList = data is List
           ? data
@@ -503,8 +570,7 @@ class JellyfinClient {
     required String baseUrl,
     required String token,
     required String playlistId,
-  }) =>
-      deleteItem(baseUrl: baseUrl, token: token, itemId: playlistId);
+  }) => deleteItem(baseUrl: baseUrl, token: token, itemId: playlistId);
 
   /// Move a playlist entry to a new index. [entryId] is the per-entry
   /// PlaylistItemId (not the underlying item id).
@@ -534,11 +600,7 @@ class JellyfinClient {
     return _getItems(
       '$baseUrl/Studios',
       token,
-      query: {
-        'UserId': userId,
-        'SortBy': 'SortName',
-        'Recursive': 'true',
-      },
+      query: {'UserId': userId, 'SortBy': 'SortName', 'Recursive': 'true'},
     );
   }
 
@@ -647,8 +709,10 @@ class JellyfinClient {
     required String timerId,
   }) async {
     try {
-      await _dio.delete('$baseUrl/LiveTv/Timers/$timerId',
-          options: _authed(token));
+      await _dio.delete(
+        '$baseUrl/LiveTv/Timers/$timerId',
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -747,10 +811,11 @@ class JellyfinClient {
     required String userId,
     required String token,
   }) async {
-    final all = await _getList('$baseUrl/Sessions', token, query: {
-      'ControllableByUserId': userId,
-      'ActiveWithinSeconds': '600',
-    });
+    final all = await _getList(
+      '$baseUrl/Sessions',
+      token,
+      query: {'ControllableByUserId': userId, 'ActiveWithinSeconds': '600'},
+    );
     return all.where((s) => s['SupportsRemoteControl'] == true).toList();
   }
 
@@ -780,8 +845,10 @@ class JellyfinClient {
     required String command,
   }) async {
     try {
-      await _dio.post('$baseUrl/Sessions/$sessionId/Playing/$command',
-          options: _authed(token));
+      await _dio.post(
+        '$baseUrl/Sessions/$sessionId/Playing/$command',
+        options: _authed(token),
+      );
     } on DioException {
       // Best-effort remote command.
     }
@@ -794,8 +861,10 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/SyncPlay/List', options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/SyncPlay/List',
+        options: _authed(token),
+      );
       final data = res.data;
       final listRaw = data is List ? data : const [];
       return listRaw
@@ -813,8 +882,11 @@ class JellyfinClient {
     required String groupName,
   }) async {
     try {
-      await _dio.post('$baseUrl/SyncPlay/New',
-          data: {'GroupName': groupName}, options: _authed(token));
+      await _dio.post(
+        '$baseUrl/SyncPlay/New',
+        data: {'GroupName': groupName},
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -826,8 +898,11 @@ class JellyfinClient {
     required String groupId,
   }) async {
     try {
-      await _dio.post('$baseUrl/SyncPlay/Join',
-          data: {'GroupId': groupId}, options: _authed(token));
+      await _dio.post(
+        '$baseUrl/SyncPlay/Join',
+        data: {'GroupId': groupId},
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -847,29 +922,38 @@ class JellyfinClient {
   /// Group playback controls. These tell the SERVER what this client did, and
   /// the server broadcasts the coordinated command to every member (including
   /// us). All best-effort: a dropped control just misses one sync tick.
-  Future<void> _syncPost(String baseUrl, String path, String token,
-      [Object? data]) async {
+  Future<void> _syncPost(
+    String baseUrl,
+    String path,
+    String token, [
+    Object? data,
+  ]) async {
     try {
-      await _dio.post('$baseUrl/SyncPlay/$path',
-          data: data, options: _authed(token));
+      await _dio.post(
+        '$baseUrl/SyncPlay/$path',
+        data: data,
+        options: _authed(token),
+      );
     } on DioException {
       // Best-effort; SyncPlay tolerates a missed message.
     }
   }
 
-  Future<void> syncPlayPause(
-          {required String baseUrl, required String token}) =>
-      _syncPost(baseUrl, 'Pause', token);
+  Future<void> syncPlayPause({
+    required String baseUrl,
+    required String token,
+  }) => _syncPost(baseUrl, 'Pause', token);
 
-  Future<void> syncPlayUnpause(
-          {required String baseUrl, required String token}) =>
-      _syncPost(baseUrl, 'Unpause', token);
+  Future<void> syncPlayUnpause({
+    required String baseUrl,
+    required String token,
+  }) => _syncPost(baseUrl, 'Unpause', token);
 
-  Future<void> syncPlaySeek(
-          {required String baseUrl,
-          required String token,
-          required int positionTicks}) =>
-      _syncPost(baseUrl, 'Seek', token, {'PositionTicks': positionTicks});
+  Future<void> syncPlaySeek({
+    required String baseUrl,
+    required String token,
+    required int positionTicks,
+  }) => _syncPost(baseUrl, 'Seek', token, {'PositionTicks': positionTicks});
 
   /// Set the group's queue to [itemId] at [startPositionTicks]. This is how a
   /// client tells the group WHAT to watch; every member then opens it. Without
@@ -880,12 +964,11 @@ class JellyfinClient {
     required List<String> playingQueue,
     required int playingItemPosition,
     required int startPositionTicks,
-  }) =>
-      _syncPost(baseUrl, 'SetNewQueue', token, {
-        'PlayingQueue': playingQueue,
-        'PlayingItemPosition': playingItemPosition,
-        'StartPositionTicks': startPositionTicks,
-      });
+  }) => _syncPost(baseUrl, 'SetNewQueue', token, {
+    'PlayingQueue': playingQueue,
+    'PlayingItemPosition': playingItemPosition,
+    'StartPositionTicks': startPositionTicks,
+  });
 
   /// Report that this client began buffering (so the group waits for it).
   Future<void> syncPlayBuffering({
@@ -895,13 +978,12 @@ class JellyfinClient {
     required bool isPlaying,
     required String whenIso,
     String? playlistItemId,
-  }) =>
-      _syncPost(baseUrl, 'Buffering', token, {
-        'When': whenIso,
-        'PositionTicks': positionTicks,
-        'IsPlaying': isPlaying,
-        if (playlistItemId != null) 'PlaylistItemId': playlistItemId,
-      });
+  }) => _syncPost(baseUrl, 'Buffering', token, {
+    'When': whenIso,
+    'PositionTicks': positionTicks,
+    'IsPlaying': isPlaying,
+    if (playlistItemId != null) 'PlaylistItemId': playlistItemId,
+  });
 
   /// Report that this client is ready to resume at [positionTicks].
   Future<void> syncPlayReady({
@@ -911,21 +993,20 @@ class JellyfinClient {
     required bool isPlaying,
     required String whenIso,
     String? playlistItemId,
-  }) =>
-      _syncPost(baseUrl, 'Ready', token, {
-        'When': whenIso,
-        'PositionTicks': positionTicks,
-        'IsPlaying': isPlaying,
-        if (playlistItemId != null) 'PlaylistItemId': playlistItemId,
-      });
+  }) => _syncPost(baseUrl, 'Ready', token, {
+    'When': whenIso,
+    'PositionTicks': positionTicks,
+    'IsPlaying': isPlaying,
+    if (playlistItemId != null) 'PlaylistItemId': playlistItemId,
+  });
 
   /// Report this client's measured round-trip ping (ms) so the server can
   /// schedule commands accounting for its latency.
-  Future<void> syncPlayPing(
-          {required String baseUrl,
-          required String token,
-          required int pingMs}) =>
-      _syncPost(baseUrl, 'Ping', token, {'Ping': pingMs});
+  Future<void> syncPlayPing({
+    required String baseUrl,
+    required String token,
+    required int pingMs,
+  }) => _syncPost(baseUrl, 'Ping', token, {'Ping': pingMs});
 
   /// The server's clock, with reception/transmission stamps, for estimating the
   /// client-server time offset that SyncPlay's `When` scheduling needs.
@@ -934,8 +1015,10 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/GetUtcTime', options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/GetUtcTime',
+        options: _authed(token),
+      );
       return Map<String, dynamic>.from(res.data as Map);
     } on DioException {
       return null;
@@ -944,11 +1027,18 @@ class JellyfinClient {
 
   // --- Administration (all require the user to be an administrator) ---
 
-  Future<List<Map<String, dynamic>>> _getList(String url, String token,
-      {Map<String, dynamic>? query, String? itemsKey}) async {
+  Future<List<Map<String, dynamic>>> _getList(
+    String url,
+    String token, {
+    Map<String, dynamic>? query,
+    String? itemsKey,
+  }) async {
     try {
-      final res = await _dio.get(url,
-          queryParameters: query, options: _authed(token));
+      final res = await _dio.get(
+        url,
+        queryParameters: query,
+        options: _authed(token),
+      );
       final data = res.data;
       final list = itemsKey != null
           ? ((data as Map)[itemsKey] as List? ?? const [])
@@ -965,8 +1055,7 @@ class JellyfinClient {
   Future<List<Map<String, dynamic>>> getUsers({
     required String baseUrl,
     required String token,
-  }) =>
-      _getList('$baseUrl/Users', token);
+  }) => _getList('$baseUrl/Users', token);
 
   Future<Map<String, dynamic>> getUser({
     required String baseUrl,
@@ -974,8 +1063,10 @@ class JellyfinClient {
     required String userId,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/Users/$userId', options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/Users/$userId',
+        options: _authed(token),
+      );
       return Map<String, dynamic>.from(res.data as Map);
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -989,8 +1080,11 @@ class JellyfinClient {
     required Map<String, dynamic> policy,
   }) async {
     try {
-      await _dio.post('$baseUrl/Users/$userId/Policy',
-          data: policy, options: _authed(token));
+      await _dio.post(
+        '$baseUrl/Users/$userId/Policy',
+        data: policy,
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1003,12 +1097,14 @@ class JellyfinClient {
     String? password,
   }) async {
     try {
-      final res = await _dio.post('$baseUrl/Users/New',
-          data: {
-            'Name': name,
-            if (password != null && password.isNotEmpty) 'Password': password,
-          },
-          options: _authed(token));
+      final res = await _dio.post(
+        '$baseUrl/Users/New',
+        data: {
+          'Name': name,
+          if (password != null && password.isNotEmpty) 'Password': password,
+        },
+        options: _authed(token),
+      );
       return Map<String, dynamic>.from((res.data as Map?) ?? {});
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1049,8 +1145,7 @@ class JellyfinClient {
   Future<List<Map<String, dynamic>>> getVirtualFolders({
     required String baseUrl,
     required String token,
-  }) =>
-      _getList('$baseUrl/Library/VirtualFolders', token);
+  }) => _getList('$baseUrl/Library/VirtualFolders', token);
 
   /// Client devices that have connected to the server (admin only).
   Future<List<Map<String, dynamic>>> getDevices({
@@ -1058,8 +1153,7 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/Devices', options: _authed(token));
+      final res = await _dio.get('$baseUrl/Devices', options: _authed(token));
       final items = (res.data as Map)['Items'] as List? ?? const [];
       return items
           .whereType<Map>()
@@ -1077,8 +1171,11 @@ class JellyfinClient {
     required String id,
   }) async {
     try {
-      await _dio.delete('$baseUrl/Devices',
-          queryParameters: {'id': id}, options: _authed(token));
+      await _dio.delete(
+        '$baseUrl/Devices',
+        queryParameters: {'id': id},
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1090,8 +1187,10 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res = await _dio.get('$baseUrl/Localization/ParentalRatings',
-          options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/Localization/ParentalRatings',
+        options: _authed(token),
+      );
       return (res.data as List)
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
@@ -1113,10 +1212,14 @@ class JellyfinClient {
     required String pluginId,
   }) async {
     try {
-      final res = await _dio.get('$baseUrl/Plugins/$pluginId/Configuration',
-          options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/Plugins/$pluginId/Configuration',
+        options: _authed(token),
+      );
       final data = res.data;
-      return data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+      return data is Map
+          ? Map<String, dynamic>.from(data)
+          : <String, dynamic>{};
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1133,10 +1236,12 @@ class JellyfinClient {
       await _dio.post(
         '$baseUrl/Plugins/$pluginId/Configuration',
         data: config,
-        options: Options(headers: {
-          'Authorization': authHeader(token: token),
-          'Content-Type': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': authHeader(token: token),
+            'Content-Type': 'application/json',
+          },
+        ),
       );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1151,8 +1256,10 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/LiveTv/Info', options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/LiveTv/Info',
+        options: _authed(token),
+      );
       return Map<String, dynamic>.from(res.data as Map);
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1167,12 +1274,16 @@ class JellyfinClient {
     required Map<String, dynamic> tuner,
   }) async {
     try {
-      await _dio.post('$baseUrl/LiveTv/TunerHosts',
-          data: tuner,
-          options: Options(headers: {
+      await _dio.post(
+        '$baseUrl/LiveTv/TunerHosts',
+        data: tuner,
+        options: Options(
+          headers: {
             'Authorization': authHeader(token: token),
             'Content-Type': 'application/json',
-          }));
+          },
+        ),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1185,8 +1296,11 @@ class JellyfinClient {
     required String id,
   }) async {
     try {
-      await _dio.delete('$baseUrl/LiveTv/TunerHosts',
-          queryParameters: {'id': id}, options: _authed(token));
+      await _dio.delete(
+        '$baseUrl/LiveTv/TunerHosts',
+        queryParameters: {'id': id},
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1199,13 +1313,17 @@ class JellyfinClient {
     required String pathOrUrl,
   }) async {
     try {
-      await _dio.post('$baseUrl/LiveTv/ListingProviders',
-          queryParameters: {'validateListings': false},
-          data: {'Type': 'xmltv', 'Path': pathOrUrl},
-          options: Options(headers: {
+      await _dio.post(
+        '$baseUrl/LiveTv/ListingProviders',
+        queryParameters: {'validateListings': false},
+        data: {'Type': 'xmltv', 'Path': pathOrUrl},
+        options: Options(
+          headers: {
             'Authorization': authHeader(token: token),
             'Content-Type': 'application/json',
-          }));
+          },
+        ),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1230,10 +1348,12 @@ class JellyfinClient {
           'validateListings': validateListings,
         },
         data: info,
-        options: Options(headers: {
-          'Authorization': authHeader(token: token),
-          'Content-Type': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': authHeader(token: token),
+            'Content-Type': 'application/json',
+          },
+        ),
       );
       return Map<String, dynamic>.from(res.data as Map);
     } on DioException catch (e) {
@@ -1301,8 +1421,11 @@ class JellyfinClient {
     required String id,
   }) async {
     try {
-      await _dio.delete('$baseUrl/LiveTv/ListingProviders',
-          queryParameters: {'id': id}, options: _authed(token));
+      await _dio.delete(
+        '$baseUrl/LiveTv/ListingProviders',
+        queryParameters: {'id': id},
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1315,7 +1438,10 @@ class JellyfinClient {
     required String baseUrl,
     required String token,
   }) async {
-    final res = await _dio.get('$baseUrl/LiveTv/Timers', options: _authed(token));
+    final res = await _dio.get(
+      '$baseUrl/LiveTv/Timers',
+      options: _authed(token),
+    );
     return _itemsOf(res.data);
   }
 
@@ -1324,8 +1450,10 @@ class JellyfinClient {
     required String baseUrl,
     required String token,
   }) async {
-    final res =
-        await _dio.get('$baseUrl/LiveTv/SeriesTimers', options: _authed(token));
+    final res = await _dio.get(
+      '$baseUrl/LiveTv/SeriesTimers',
+      options: _authed(token),
+    );
     return _itemsOf(res.data);
   }
 
@@ -1337,8 +1465,11 @@ class JellyfinClient {
     required String programId,
   }) async {
     try {
-      final res = await _dio.get('$baseUrl/LiveTv/Timers/Defaults',
-          queryParameters: {'programId': programId}, options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/LiveTv/Timers/Defaults',
+        queryParameters: {'programId': programId},
+        options: _authed(token),
+      );
       return Map<String, dynamic>.from(res.data as Map);
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1351,12 +1482,16 @@ class JellyfinClient {
     required Map<String, dynamic> timer,
   }) async {
     try {
-      await _dio.post('$baseUrl/LiveTv/Timers',
-          data: timer,
-          options: Options(headers: {
+      await _dio.post(
+        '$baseUrl/LiveTv/Timers',
+        data: timer,
+        options: Options(
+          headers: {
             'Authorization': authHeader(token: token),
             'Content-Type': 'application/json',
-          }));
+          },
+        ),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1368,12 +1503,16 @@ class JellyfinClient {
     required Map<String, dynamic> timer,
   }) async {
     try {
-      await _dio.post('$baseUrl/LiveTv/SeriesTimers',
-          data: timer,
-          options: Options(headers: {
+      await _dio.post(
+        '$baseUrl/LiveTv/SeriesTimers',
+        data: timer,
+        options: Options(
+          headers: {
             'Authorization': authHeader(token: token),
             'Content-Type': 'application/json',
-          }));
+          },
+        ),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1386,12 +1525,16 @@ class JellyfinClient {
     required Map<String, dynamic> timer,
   }) async {
     try {
-      await _dio.post('$baseUrl/LiveTv/SeriesTimers/$id',
-          data: timer,
-          options: Options(headers: {
+      await _dio.post(
+        '$baseUrl/LiveTv/SeriesTimers/$id',
+        data: timer,
+        options: Options(
+          headers: {
             'Authorization': authHeader(token: token),
             'Content-Type': 'application/json',
-          }));
+          },
+        ),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1403,8 +1546,10 @@ class JellyfinClient {
     required String id,
   }) async {
     try {
-      await _dio.delete('$baseUrl/LiveTv/SeriesTimers/$id',
-          options: _authed(token));
+      await _dio.delete(
+        '$baseUrl/LiveTv/SeriesTimers/$id',
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1434,8 +1579,7 @@ class JellyfinClient {
   Future<List<Map<String, dynamic>>> getPlugins({
     required String baseUrl,
     required String token,
-  }) =>
-      _getList('$baseUrl/Plugins', token);
+  }) => _getList('$baseUrl/Plugins', token);
 
   Future<void> scanAllLibraries({
     required String baseUrl,
@@ -1452,8 +1596,7 @@ class JellyfinClient {
     required String baseUrl,
     required String token,
   }) =>
-      _getList('$baseUrl/ScheduledTasks', token,
-          query: {'isHidden': 'false'});
+      _getList('$baseUrl/ScheduledTasks', token, query: {'isHidden': 'false'});
 
   Future<void> runScheduledTask({
     required String baseUrl,
@@ -1461,8 +1604,10 @@ class JellyfinClient {
     required String taskId,
   }) async {
     try {
-      await _dio.post('$baseUrl/ScheduledTasks/Running/$taskId',
-          options: _authed(token));
+      await _dio.post(
+        '$baseUrl/ScheduledTasks/Running/$taskId',
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1471,23 +1616,27 @@ class JellyfinClient {
   Future<List<Map<String, dynamic>>> getSessions({
     required String baseUrl,
     required String token,
-  }) =>
-      _getList('$baseUrl/Sessions', token);
+  }) => _getList('$baseUrl/Sessions', token);
 
   Future<List<Map<String, dynamic>>> getActivityLog({
     required String baseUrl,
     required String token,
-  }) =>
-      _getList('$baseUrl/System/ActivityLog/Entries', token,
-          query: {'limit': '50'}, itemsKey: 'Items');
+  }) => _getList(
+    '$baseUrl/System/ActivityLog/Entries',
+    token,
+    query: {'limit': '50'},
+    itemsKey: 'Items',
+  );
 
   Future<Map<String, dynamic>> getSystemInfo({
     required String baseUrl,
     required String token,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/System/Info', options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/System/Info',
+        options: _authed(token),
+      );
       return Map<String, dynamic>.from(res.data as Map);
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1501,8 +1650,10 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res = await _dio.get('$baseUrl/System/Configuration',
-          options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/System/Configuration',
+        options: _authed(token),
+      );
       return Map<String, dynamic>.from(res.data as Map);
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1520,10 +1671,12 @@ class JellyfinClient {
       await _dio.post(
         '$baseUrl/System/Configuration',
         data: config,
-        options: Options(headers: {
-          'Authorization': authHeader(token: token),
-          'Content-Type': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': authHeader(token: token),
+            'Content-Type': 'application/json',
+          },
+        ),
       );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1536,8 +1689,7 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/Packages', options: _authed(token));
+      final res = await _dio.get('$baseUrl/Packages', options: _authed(token));
       return (res.data as List)
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
@@ -1592,8 +1744,10 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/Repositories', options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/Repositories',
+        options: _authed(token),
+      );
       return (res.data as List)
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
@@ -1613,10 +1767,12 @@ class JellyfinClient {
       await _dio.post(
         '$baseUrl/Repositories',
         data: repositories,
-        options: Options(headers: {
-          'Authorization': authHeader(token: token),
-          'Content-Type': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': authHeader(token: token),
+            'Content-Type': 'application/json',
+          },
+        ),
       );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1634,8 +1790,10 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res = await _dio.get('$baseUrl/Branding/Configuration',
-          options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/Branding/Configuration',
+        options: _authed(token),
+      );
       return Map<String, dynamic>.from(res.data as Map);
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1653,10 +1811,12 @@ class JellyfinClient {
       await _dio.post(
         '$baseUrl/System/Configuration/Branding',
         data: branding,
-        options: Options(headers: {
-          'Authorization': authHeader(token: token),
-          'Content-Type': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': authHeader(token: token),
+            'Content-Type': 'application/json',
+          },
+        ),
       );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1696,8 +1856,10 @@ class JellyfinClient {
     required String key,
   }) async {
     try {
-      final res = await _dio.get('$baseUrl/System/Configuration/$key',
-          options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/System/Configuration/$key',
+        options: _authed(token),
+      );
       return Map<String, dynamic>.from(res.data as Map);
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1715,10 +1877,12 @@ class JellyfinClient {
       await _dio.post(
         '$baseUrl/System/Configuration/$key',
         data: config,
-        options: Options(headers: {
-          'Authorization': authHeader(token: token),
-          'Content-Type': 'application/json',
-        }),
+        options: Options(
+          headers: {
+            'Authorization': authHeader(token: token),
+            'Content-Type': 'application/json',
+          },
+        ),
       );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -1731,8 +1895,7 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/Auth/Keys', options: _authed(token));
+      final res = await _dio.get('$baseUrl/Auth/Keys', options: _authed(token));
       final items = (res.data as Map)['Items'] as List? ?? const [];
       return items
           .whereType<Map>()
@@ -1750,8 +1913,11 @@ class JellyfinClient {
     required String appName,
   }) async {
     try {
-      await _dio.post('$baseUrl/Auth/Keys',
-          queryParameters: {'app': appName}, options: _authed(token));
+      await _dio.post(
+        '$baseUrl/Auth/Keys',
+        queryParameters: {'app': appName},
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -1776,8 +1942,10 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      final res =
-          await _dio.get('$baseUrl/System/Logs', options: _authed(token));
+      final res = await _dio.get(
+        '$baseUrl/System/Logs',
+        options: _authed(token),
+      );
       return (res.data as List)
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
@@ -1818,7 +1986,10 @@ class JellyfinClient {
     final config = await getServerConfiguration(baseUrl: baseUrl, token: token);
     config['QuickConnectAvailable'] = available;
     await updateServerConfiguration(
-        baseUrl: baseUrl, token: token, config: config);
+      baseUrl: baseUrl,
+      token: token,
+      config: config,
+    );
   }
 
   Future<void> restartServer({
@@ -1942,16 +2113,37 @@ class JellyfinClient {
     required String itemId,
   }) async {
     try {
+      // The endpoint filters by includeSegmentTypes. ASP.NET binds an omitted
+      // `IReadOnlyList<MediaSegmentType>` to an EMPTY (non-null) list, so leaving
+      // it off makes the server filter to nothing and return zero segments —
+      // which is why Skip Intro/Credits never appeared. Ask for every type we
+      // can skip, sent as repeated query keys (ListFormat.multi), which is what
+      // the server's list binder expects.
       final res = await _dio.get(
         '$baseUrl/MediaSegments/$itemId',
-        options: _authed(token),
+        queryParameters: const {
+          'includeSegmentTypes': [
+            'Intro',
+            'Outro',
+            'Recap',
+            'Preview',
+            'Commercial',
+          ],
+        },
+        options: _authed(token).copyWith(listFormat: ListFormat.multi),
       );
       final items = (res.data['Items'] as List? ?? const []);
       return items
           .whereType<Map>()
           .map((e) => MediaSegment.fromJson(Map<String, dynamic>.from(e)))
           .toList();
-    } on DioException {
+    } on DioException catch (e) {
+      // Don't blind-swallow: a real failure should be distinguishable from a
+      // server that simply has no Media Segments provider (empty success).
+      Diagnostics.instance.add(
+        'jellyfin',
+        'MediaSegments $itemId failed: ${e.response?.statusCode ?? e.type}',
+      );
       return const [];
     }
   }
@@ -1976,7 +2168,9 @@ class JellyfinClient {
       );
       final items = (res.data['Items'] as List? ?? const []);
       if (items.isEmpty) return null;
-      return BaseItemDto.fromJson(Map<String, dynamic>.from(items.first as Map));
+      return BaseItemDto.fromJson(
+        Map<String, dynamic>.from(items.first as Map),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -2032,18 +2226,20 @@ class JellyfinClient {
     int? maxBitrate,
   }) async {
     try {
+      final profile = _deviceVideoProfile;
+      final force = forceTranscode;
       final res = await _dio.post(
         '$baseUrl/Items/$itemId/PlaybackInfo',
         queryParameters: {
           'UserId': userId,
           'MaxStreamingBitrate': '${maxBitrate ?? 120000000}',
-          'EnableDirectPlay': forceTranscode ? 'false' : 'true',
-          'EnableDirectStream': forceTranscode ? 'false' : 'true',
+          'EnableDirectPlay': force ? 'false' : 'true',
+          'EnableDirectStream': force ? 'false' : 'true',
           'EnableTranscoding': 'true',
           'AllowVideoStreamCopy': 'true',
           'AllowAudioStreamCopy': 'true',
         },
-        data: {'DeviceProfile': _videoDeviceProfile},
+        data: {'DeviceProfile': profile},
         options: _authed(token),
       );
       final data = Map<String, dynamic>.from(res.data as Map);
@@ -2115,8 +2311,11 @@ class JellyfinClient {
             : '$baseUrl$transcodingUrl';
         return (url: url, contentType: 'application/x-mpegurl');
       }
-      final container =
-          (ms['Container'] as String?)?.split(',').first.trim().toLowerCase();
+      final container = (ms['Container'] as String?)
+          ?.split(',')
+          .first
+          .trim()
+          .toLowerCase();
       final params = {
         'static': 'true',
         'mediaSourceId': ?(ms['Id'] as String?),
@@ -2165,9 +2364,12 @@ class JellyfinClient {
     required String token,
     required String channelId,
   }) async {
-    // On mobile, media_kit can't play a raw broadcast MPEG-TS the way desktop
-    // libmpv does, so drop the direct-play profiles to force the server down its
-    // HLS h264/aac transcode path (which media_kit plays on Android/iOS).
+    // Mobile and Android TV both force the server's HLS h264 transcode. On the TV
+    // this keeps the video in a clean 8-bit h264 the box decodes without wedging
+    // its GPU (raw broadcast MPEG-TS / interlaced wedged the compositor), and the
+    // ExoPlayer path still shows live captions: it injects a CLOSED-CAPTIONS
+    // declaration into the HLS playlist so the embedded CEA-608 becomes selectable
+    // (see ExoVideoPlayer). Desktop (libmpv) direct-plays the TS.
     final profile = (Platform.isAndroid || Platform.isIOS)
         ? {..._liveDeviceProfile, 'DirectPlayProfiles': const <Map>[]}
         : _liveDeviceProfile;
@@ -2181,6 +2383,11 @@ class JellyfinClient {
       );
     } on JellyfinException {
       // Some channels 500 with a custom profile but work when the server picks.
+      // NOT on Android TV: it renders through ExoPlayer, which wedges the Amlogic
+      // GPU compositor on a raw MPEG-2 stream (needs a reboot to clear), and
+      // letting the server pick can hand back exactly that. Surfacing the error is
+      // far better than wedging the box. Phones use media_kit, which plays it fine.
+      if (isTvDevice) rethrow;
       return _requestLiveStream(
         baseUrl: baseUrl,
         userId: userId,
@@ -2285,6 +2492,43 @@ class JellyfinClient {
   // What a modern Cast device (Chromecast with Google TV / Android TV) plays
   // directly. Broad enough that an h264/aac MKV direct-plays (cast as-is), while
   // codecs a Chromecast can't handle fall back to an h264/aac HLS transcode.
+  // The video profile actually sent for playback. On Android it restricts video
+  // direct-play to codecs the device can HARDWARE decode (see
+  // [hardwareVideoCodecs]); everything else transcodes to h264, which the device
+  // decodes in hardware. This is what keeps AV1 (software-only on cheaper TV
+  // sticks) from stuttering. Elsewhere (and until the codec probe runs) it's the
+  // full profile unchanged.
+  static Map<String, dynamic> get _deviceVideoProfile {
+    bool android;
+    try {
+      android = Platform.isAndroid;
+    } catch (_) {
+      android = false;
+    }
+    if (!android || hardwareVideoCodecs.isEmpty) return _videoDeviceProfile;
+    // Always keep h264: it's the transcode target and is hardware-decodable on
+    // essentially every Android device, so it's the safe direct-play floor.
+    final allowed = {...hardwareVideoCodecs, 'h264'};
+    final profile =
+        jsonDecode(jsonEncode(_videoDeviceProfile)) as Map<String, dynamic>;
+    for (final p in (profile['DirectPlayProfiles'] as List)) {
+      final m = p as Map;
+      if (m['Type'] != 'Video') continue;
+      final kept = (m['VideoCodec'] as String)
+          .split(',')
+          .where(allowed.contains)
+          .toList();
+      m['VideoCodec'] = (kept.isEmpty ? ['h264'] : kept).join(',');
+    }
+    // Transcode to h264 for the TV: universal hardware support, so a transcoded
+    // stream is guaranteed to decode in hardware even if hevc isn't available.
+    for (final p in (profile['TranscodingProfiles'] as List)) {
+      final m = p as Map;
+      if (m['Type'] == 'Video') m['VideoCodec'] = 'h264';
+    }
+    return profile;
+  }
+
   static const _castDeviceProfile = {
     'MaxStreamingBitrate': 120000000,
     'MaxStaticBitrate': 120000000,
@@ -2320,20 +2564,20 @@ class JellyfinClient {
         'Type': 'Video',
         'Container':
             'mp4,m4v,mkv,webm,mov,avi,flv,ts,m2ts,mts,mpegts,wmv,asf,3gp,3g2,'
-                'ogv,ogm,mpg,mpeg,vob,divx,dvr-ms,f4v,rm,rmvb',
+            'ogv,ogm,mpg,mpeg,vob,divx,dvr-ms,f4v,rm,rmvb',
         'VideoCodec':
             'h264,hevc,h265,mpeg2video,mpeg4,msmpeg4v3,vc1,vp8,vp9,av1,theora,'
-                'wmv1,wmv2,wmv3,prores,dv,mjpeg',
+            'wmv1,wmv2,wmv3,prores,dv,mjpeg',
         'AudioCodec':
             'aac,ac3,eac3,mp3,mp2,opus,flac,vorbis,dts,dca,truehd,mlp,alac,pcm,'
-                'pcm_s16le,pcm_s24le,pcm_dvd,wmav2,wmapro,wmavoice,nellymoser,'
-                'speex,amr_nb,amr_wb,ape,tta,wavpack',
+            'pcm_s16le,pcm_s24le,pcm_dvd,wmav2,wmapro,wmavoice,nellymoser,'
+            'speex,amr_nb,amr_wb,ape,tta,wavpack',
       },
       {
         'Type': 'Audio',
         'Container':
             'mp3,aac,m4a,m4b,flac,alac,ogg,oga,opus,wav,wma,ape,wv,mka,tak,'
-                'dsf,dff,mpc',
+            'dsf,dff,mpc',
       },
     ],
     'TranscodingProfiles': [
@@ -2434,11 +2678,7 @@ class JellyfinClient {
     required String itemId,
     required String token,
   }) {
-    final params = {
-      'static': 'true',
-      'api_key': token,
-      'deviceId': deviceId,
-    };
+    final params = {'static': 'true', 'api_key': token, 'deviceId': deviceId};
     final q = params.entries
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
         .join('&');
@@ -2484,9 +2724,12 @@ class JellyfinClient {
     required String token,
     required String itemId,
     required int positionTicks,
-  }) =>
-      _postPlayState(
-          '$baseUrl/Sessions/Playing/Progress', token, itemId, positionTicks);
+  }) => _postPlayState(
+    '$baseUrl/Sessions/Playing/Progress',
+    token,
+    itemId,
+    positionTicks,
+  );
 
   /// Tells the server playback ended.
   ///
@@ -2502,15 +2745,14 @@ class JellyfinClient {
     required int positionTicks,
     String? liveStreamId,
     String? playSessionId,
-  }) =>
-      _postPlayState(
-        '$baseUrl/Sessions/Playing/Stopped',
-        token,
-        itemId,
-        positionTicks,
-        liveStreamId: liveStreamId,
-        playSessionId: playSessionId,
-      );
+  }) => _postPlayState(
+    '$baseUrl/Sessions/Playing/Stopped',
+    token,
+    itemId,
+    positionTicks,
+    liveStreamId: liveStreamId,
+    playSessionId: playSessionId,
+  );
 
   Future<void> _postPlayState(
     String url,
@@ -2618,8 +2860,10 @@ class JellyfinClient {
     required String userId,
   }) async {
     try {
-      await _dio.delete('$baseUrl/Users/$userId/Images/Primary',
-          options: _authed(token));
+      await _dio.delete(
+        '$baseUrl/Users/$userId/Images/Primary',
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -2640,10 +2884,12 @@ class JellyfinClient {
       await _dio.post(
         '$baseUrl/Branding/Splashscreen',
         data: base64Encode(bytes),
-        options: Options(headers: {
-          'Authorization': authHeader(token: token),
-          'Content-Type': contentType,
-        }),
+        options: Options(
+          headers: {
+            'Authorization': authHeader(token: token),
+            'Content-Type': contentType,
+          },
+        ),
       );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
@@ -2656,8 +2902,10 @@ class JellyfinClient {
     required String token,
   }) async {
     try {
-      await _dio.delete('$baseUrl/Branding/Splashscreen',
-          options: _authed(token));
+      await _dio.delete(
+        '$baseUrl/Branding/Splashscreen',
+        options: _authed(token),
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -2673,7 +2921,7 @@ class JellyfinClient {
       case DioExceptionType.connectionError:
         return connecting
             ? 'Could not reach that server. Check the address, port, and your '
-                'network connection.'
+                  'network connection.'
             : 'Lost connection to the server.';
       case DioExceptionType.badCertificate:
         return "The server's security certificate could not be verified.";

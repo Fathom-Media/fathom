@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/tv_mode.dart';
+
 /// The app's dropdown: a rounded pill showing the current value with a chevron
 /// that flips as it opens, and a menu that fades + scales in from the top with
 /// hover highlights and the current value marked. One widget so every dropdown
@@ -33,6 +35,7 @@ class _AppDropdownState<T> extends State<AppDropdown<T>>
   final _portal = OverlayPortalController();
   bool _open = false;
   bool _hover = false;
+  bool _focused = false; // D-pad focus (TV)
   double _pillWidth = 120;
 
   late final AnimationController _anim = AnimationController(
@@ -45,6 +48,12 @@ class _AppDropdownState<T> extends State<AppDropdown<T>>
   }
 
   void _toggle() {
+    // On TV the fancy hover/overlay menu isn't D-pad navigable, so open a
+    // focusable bottom sheet (like the app's other TV pickers) instead.
+    if (isTvDevice) {
+      _showTvSheet();
+      return;
+    }
     if (_open) {
       _close();
       return;
@@ -54,6 +63,31 @@ class _AppDropdownState<T> extends State<AppDropdown<T>>
     _portal.show();
     setState(() => _open = true);
     _anim.forward(from: 0);
+  }
+
+  Future<void> _showTvSheet() async {
+    final scheme = Theme.of(context).colorScheme;
+    final chosen = await showModalBottomSheet<T>(
+      context: context,
+      backgroundColor: scheme.surfaceContainerHigh,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final e in widget.options.entries)
+              ListTile(
+                autofocus: e.key == widget.value,
+                title: Text(e.value),
+                trailing: e.key == widget.value
+                    ? Icon(Icons.check_rounded, color: scheme.primary)
+                    : null,
+                onTap: () => Navigator.of(ctx).pop(e.key),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (chosen != null && chosen != widget.value) widget.onChanged(chosen);
   }
 
   void _close() {
@@ -81,60 +115,81 @@ class _AppDropdownState<T> extends State<AppDropdown<T>>
             ? scheme.surfaceContainerHighest
             : scheme.surfaceContainerHigh);
 
+    // On TV the pill is a real D-pad target (focus node + ring + activate).
+    final tvFocused = isTvDevice && _focused;
+
+    final Widget pill = AnimatedContainer(
+      key: _pillKey,
+      duration: const Duration(milliseconds: 140),
+      constraints: const BoxConstraints(minWidth: 96),
+      padding:
+          EdgeInsets.fromLTRB(widget.leading != null ? 11 : 14, 9, 8, 9),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: tvFocused
+                ? scheme.primary
+                : (_open
+                    ? scheme.primary.withValues(alpha: 0.55)
+                    : scheme.outlineVariant.withValues(alpha: 0.5)),
+            width: tvFocused ? 2.5 : 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.leading != null) ...[
+            Icon(widget.leading, size: 18, color: fg),
+            const SizedBox(width: 8),
+          ],
+          Flexible(
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: fg, fontWeight: FontWeight.w600, fontSize: 14)),
+          ),
+          const SizedBox(width: 6),
+          AnimatedRotation(
+            turns: _open ? 0.5 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: Icon(Icons.keyboard_arrow_down_rounded,
+                size: 20, color: fg),
+          ),
+        ],
+      ),
+    );
+
+    Widget trigger = MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _toggle,
+        child: pill,
+      ),
+    );
+
+    if (isTvDevice) {
+      trigger = FocusableActionDetector(
+        onFocusChange: (v) => setState(() => _focused = v),
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              _toggle();
+              return null;
+            },
+          ),
+        },
+        child: trigger,
+      );
+    }
+
     return OverlayPortal(
       controller: _portal,
       overlayChildBuilder: (context) => _overlay(scheme),
-      child: CompositedTransformTarget(
-        link: _link,
-        child: MouseRegion(
-          onEnter: (_) => setState(() => _hover = true),
-          onExit: (_) => setState(() => _hover = false),
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _toggle,
-            child: AnimatedContainer(
-              key: _pillKey,
-              duration: const Duration(milliseconds: 140),
-              constraints: const BoxConstraints(minWidth: 96),
-              padding: EdgeInsets.fromLTRB(widget.leading != null ? 11 : 14, 9, 8, 9),
-              decoration: BoxDecoration(
-                color: bg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: _open
-                        ? scheme.primary.withValues(alpha: 0.55)
-                        : scheme.outlineVariant.withValues(alpha: 0.5)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.leading != null) ...[
-                    Icon(widget.leading, size: 18, color: fg),
-                    const SizedBox(width: 8),
-                  ],
-                  Flexible(
-                    child: Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            color: fg,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14)),
-                  ),
-                  const SizedBox(width: 6),
-                  AnimatedRotation(
-                    turns: _open ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 180),
-                    child: Icon(Icons.keyboard_arrow_down_rounded,
-                        size: 20, color: fg),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      child: CompositedTransformTarget(link: _link, child: trigger),
     );
   }
 

@@ -16,6 +16,8 @@ import '../widgets/cached_image.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/search_field.dart';
+import '../widgets/tv_focus.dart';
+import '../widgets/tv_keyboard.dart';
 import '../widgets/youtube_cards.dart';
 import '../models/youtube_playlist.dart';
 import '../models/youtube_local_playlist.dart';
@@ -203,69 +205,74 @@ class _SubscriptionCard extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.push('/youtube/channel',
-            extra: (channelId: channel.id, title: channel.title)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: scheme.surfaceContainerHigh,
-                foregroundImage: channel.logoUrl.isEmpty
-                    ? null
-                    : cachedImageProvider(channel.logoUrl),
-                child: const Icon(Icons.person_rounded),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      channel.title.isEmpty ? l.ytChannelFallback : channel.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    if (channel.subscribersLabel.isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      Text(channel.subscribersLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: scheme.onSurfaceVariant)),
+    return TvFocusRing(
+      borderRadius: BorderRadius.circular(12),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.push('/youtube/channel',
+              extra: (channelId: channel.id, title: channel.title)),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: scheme.surfaceContainerHigh,
+                  foregroundImage: channel.logoUrl.isEmpty
+                      ? null
+                      : cachedImageProvider(channel.logoUrl),
+                  child: const Icon(Icons.person_rounded),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        channel.title.isEmpty
+                            ? l.ytChannelFallback
+                            : channel.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (channel.subscribersLabel.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(channel.subscribersLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant)),
+                      ],
                     ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: l.ytOptions,
+                  onSelected: (v) {
+                    if (v == 'unsub') {
+                      ref
+                          .read(youtubeSubscriptionsProvider.notifier)
+                          .unsubscribe(channel.id);
+                    } else if (v == 'groups') {
+                      showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        showDragHandle: true,
+                        builder: (_) => _FeedGroupSheet(channel: channel),
+                      );
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(value: 'groups', child: Text(l.ytFeedGroups)),
+                    PopupMenuItem(value: 'unsub', child: Text(l.ytUnsubscribe)),
                   ],
                 ),
-              ),
-              PopupMenuButton<String>(
-                tooltip: l.ytOptions,
-                onSelected: (v) {
-                  if (v == 'unsub') {
-                    ref
-                        .read(youtubeSubscriptionsProvider.notifier)
-                        .unsubscribe(channel.id);
-                  } else if (v == 'groups') {
-                    showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      showDragHandle: true,
-                      builder: (_) => _FeedGroupSheet(channel: channel),
-                    );
-                  }
-                },
-                itemBuilder: (_) => [
-                  PopupMenuItem(value: 'groups', child: Text(l.ytFeedGroups)),
-                  PopupMenuItem(value: 'unsub', child: Text(l.ytUnsubscribe)),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -392,10 +399,10 @@ class _PlaylistsTab extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.ytNewPlaylist),
-        content: TextField(
+        content: TvTextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(labelText: l.ytName),
+          label: l.ytName,
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
@@ -473,11 +480,11 @@ class _FeedGroupSheet extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.ytNewFeedGroup),
-        content: TextField(
+        content: TvTextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(
-              labelText: l.ytName, hintText: l.ytFeedGroupHint),
+          label: l.ytName,
+          hint: l.ytFeedGroupHint,
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
@@ -581,61 +588,68 @@ class _SavedPlaylistRow extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return InkWell(
+    return TvFocusRing(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => context.push('/youtube/playlist',
-          extra: (playlistId: playlist.id, title: playlist.title)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: 140,
-                height: 79,
-                child: playlist.thumbnailUrl.isEmpty
-                    ? Container(
-                        color: scheme.surfaceContainerHigh,
-                        child: Icon(Icons.playlist_play_rounded,
-                            color: scheme.onSurfaceVariant),
-                      )
-                    : CachedImage(
-                        url: playlist.thumbnailUrl,
-                        errorBuilder: (_) =>
-                            Container(color: scheme.surfaceContainerHigh)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/youtube/playlist',
+            extra: (
+              playlistId: playlist.id,
+              title: playlist.title,
+              count: playlist.videoCount
+            )),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 140,
+                  height: 79,
+                  child: playlist.thumbnailUrl.isEmpty
+                      ? Container(
+                          color: scheme.surfaceContainerHigh,
+                          child: Icon(Icons.playlist_play_rounded,
+                              color: scheme.onSurfaceVariant),
+                        )
+                      : CachedImage(
+                          url: playlist.thumbnailUrl,
+                          errorBuilder: (_) =>
+                              Container(color: scheme.surfaceContainerHigh)),
+                ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(playlist.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                  if (playlist.author.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(playlist.author,
-                        maxLines: 1,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(playlist.title,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant)),
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    if (playlist.author.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(playlist.author,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant)),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            IconButton(
-              tooltip: l.commonRemove,
-              icon: const Icon(Icons.bookmark_remove_outlined),
-              onPressed: () => ref
-                  .read(youtubeSavedPlaylistsProvider.notifier)
-                  .toggle(playlist),
-            ),
-          ],
+              IconButton(
+                tooltip: l.commonRemove,
+                icon: const Icon(Icons.bookmark_remove_outlined),
+                onPressed: () => ref
+                    .read(youtubeSavedPlaylistsProvider.notifier)
+                    .toggle(playlist),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -651,87 +665,91 @@ class _LocalPlaylistRow extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    return InkWell(
+    return TvFocusRing(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => context.push('/youtube/my-playlist', extra: playlist.id),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: SizedBox(
-                width: 140,
-                height: 79,
-                child: playlist.thumbnailUrl.isEmpty
-                    ? Container(
-                        color: scheme.surfaceContainerHigh,
-                        child: Icon(Icons.playlist_play_rounded,
-                            color: scheme.onSurfaceVariant),
-                      )
-                    : CachedImage(
-                        url: playlist.thumbnailUrl,
-                        errorBuilder: (_) =>
-                            Container(color: scheme.surfaceContainerHigh)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/youtube/my-playlist', extra: playlist.id),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 140,
+                  height: 79,
+                  child: playlist.thumbnailUrl.isEmpty
+                      ? Container(
+                          color: scheme.surfaceContainerHigh,
+                          child: Icon(Icons.playlist_play_rounded,
+                              color: scheme.onSurfaceVariant),
+                        )
+                      : CachedImage(
+                          url: playlist.thumbnailUrl,
+                          errorBuilder: (_) =>
+                              Container(color: scheme.surfaceContainerHigh)),
+                ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(playlist.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
-                  Text(playlist.countLabel(l),
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(playlist.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text(playlist.countLabel(l),
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: l.ytOptions,
+                onSelected: (v) async {
+                  final n = ref.read(youtubeLocalPlaylistsProvider.notifier);
+                  if (v == 'delete') {
+                    await n.delete(playlist.id);
+                  } else if (v == 'rename') {
+                    final controller =
+                        TextEditingController(text: playlist.name);
+                    final name = await showDialog<String>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text(l.ytRenamePlaylist),
+                        content: TvTextField(
+                            controller: controller,
+                            autofocus: true,
+                            label: l.ytName,
+                            onSubmitted: (v) => Navigator.pop(ctx, v)),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: Text(l.commonCancel)),
+                          FilledButton(
+                              onPressed: () =>
+                                  Navigator.pop(ctx, controller.text),
+                              child: Text(l.commonSave)),
+                        ],
+                      ),
+                    );
+                    if (name != null && name.trim().isNotEmpty) {
+                      await n.rename(playlist.id, name);
+                    }
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'rename', child: Text(l.ytRename)),
+                  PopupMenuItem(value: 'delete', child: Text(l.commonDelete)),
                 ],
               ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: l.ytOptions,
-              onSelected: (v) async {
-                final n = ref.read(youtubeLocalPlaylistsProvider.notifier);
-                if (v == 'delete') {
-                  await n.delete(playlist.id);
-                } else if (v == 'rename') {
-                  final controller =
-                      TextEditingController(text: playlist.name);
-                  final name = await showDialog<String>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: Text(l.ytRenamePlaylist),
-                      content: TextField(
-                          controller: controller,
-                          autofocus: true,
-                          onSubmitted: (v) => Navigator.pop(ctx, v)),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: Text(l.commonCancel)),
-                        FilledButton(
-                            onPressed: () =>
-                                Navigator.pop(ctx, controller.text),
-                            child: Text(l.commonSave)),
-                      ],
-                    ),
-                  );
-                  if (name != null && name.trim().isNotEmpty) {
-                    await n.rename(playlist.id, name);
-                  }
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(value: 'rename', child: Text(l.ytRename)),
-                PopupMenuItem(value: 'delete', child: Text(l.commonDelete)),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -799,107 +817,109 @@ class _DownloadRow extends ConsumerWidget {
     void play() => context.push('/youtube/file',
         extra: (path: d.filePath!, title: d.title));
 
-    return InkWell(
+    return TvFocusRing(
       borderRadius: BorderRadius.circular(12),
-      // The whole point of downloading is watching it later, offline. Tapping
-      // the row plays the file from disk rather than re-streaming it.
-      onTap: playable ? play : null,
-      child: Padding(
-      padding: const EdgeInsets.all(8),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: SizedBox(
-              width: 100,
-              height: 56,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  d.thumbnailUrl.isEmpty
-                      ? Container(color: scheme.surfaceContainerHigh)
-                      : CachedImage(
-                        url: d.thumbnailUrl,
-                        errorBuilder: (_) =>
-                            Container(color: scheme.surfaceContainerHigh)),
-                  if (playable)
-                    Container(
-                      color: Colors.black38,
-                      child: const Icon(Icons.play_arrow_rounded,
-                          color: Colors.white, size: 28),
-                    ),
-                ],
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        // The whole point of downloading is watching it later, offline. Tapping
+        // the row plays the file from disk rather than re-streaming it.
+        onTap: playable ? play : null,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 100,
+                  height: 56,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      d.thumbnailUrl.isEmpty
+                          ? Container(color: scheme.surfaceContainerHigh)
+                          : CachedImage(
+                              url: d.thumbnailUrl,
+                              errorBuilder: (_) => Container(
+                                  color: scheme.surfaceContainerHigh)),
+                      if (playable)
+                        Container(
+                          color: Colors.black38,
+                          child: const Icon(Icons.play_arrow_rounded,
+                              color: Colors.white, size: 28),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(d.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(status,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: d.status == YtDownloadStatus.failed
+                              ? scheme.error
+                              : scheme.onSurfaceVariant,
+                        )),
+                    if (d.isActive) ...[
+                      const SizedBox(height: 6),
+                      // Indeterminate when the size is unknown or while merging,
+                      // rather than a bar that sits still and looks stuck.
+                      LinearProgressIndicator(value: d.progress, minHeight: 3),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (d.isActive)
+                IconButton(
+                  tooltip: l.commonCancel,
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () => n.cancel(d.id),
+                )
+              else
+                PopupMenuButton<String>(
+                  tooltip: l.ytOptions,
+                  onSelected: (v) async {
+                    if (v == 'play') {
+                      play();
+                    } else if (v == 'remove') {
+                      await n.remove(d.id);
+                    } else if (v == 'delete') {
+                      await n.remove(d.id, deleteFile: true);
+                    } else if (v == 'folder' && d.filePath != null) {
+                      await launchUrl(Uri.file(File(d.filePath!).parent.path));
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    if (playable)
+                      PopupMenuItem(value: 'play', child: Text(l.commonPlay)),
+                    if (d.filePath != null)
+                      PopupMenuItem(
+                          value: 'folder', child: Text(l.ytShowInFolder)),
+                    // Two verbs, because they're different intentions: clearing
+                    // the list is not the same as deleting the video.
+                    PopupMenuItem(
+                        value: 'remove', child: Text(l.ytRemoveFromList)),
+                    if (d.filePath != null)
+                      PopupMenuItem(
+                          value: 'delete', child: Text(l.ytDeleteFile)),
+                  ],
+                ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(d.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text(status,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: d.status == YtDownloadStatus.failed
-                          ? scheme.error
-                          : scheme.onSurfaceVariant,
-                    )),
-                if (d.isActive) ...[
-                  const SizedBox(height: 6),
-                  // Indeterminate when the size is unknown or while merging,
-                  // rather than a bar that sits still and looks stuck.
-                  LinearProgressIndicator(value: d.progress, minHeight: 3),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (d.isActive)
-            IconButton(
-              tooltip: l.commonCancel,
-              icon: const Icon(Icons.close_rounded),
-              onPressed: () => n.cancel(d.id),
-            )
-          else
-            PopupMenuButton<String>(
-              tooltip: l.ytOptions,
-              onSelected: (v) async {
-                if (v == 'play') {
-                  play();
-                } else if (v == 'remove') {
-                  await n.remove(d.id);
-                } else if (v == 'delete') {
-                  await n.remove(d.id, deleteFile: true);
-                } else if (v == 'folder' && d.filePath != null) {
-                  await launchUrl(
-                      Uri.file(File(d.filePath!).parent.path));
-                }
-              },
-              itemBuilder: (_) => [
-                if (playable)
-                  PopupMenuItem(value: 'play', child: Text(l.commonPlay)),
-                if (d.filePath != null)
-                  PopupMenuItem(
-                      value: 'folder', child: Text(l.ytShowInFolder)),
-                // Two verbs, because they're different intentions: clearing the
-                // list is not the same as deleting the video.
-                PopupMenuItem(
-                    value: 'remove', child: Text(l.ytRemoveFromList)),
-                if (d.filePath != null)
-                  PopupMenuItem(
-                      value: 'delete', child: Text(l.ytDeleteFile)),
-              ],
-            ),
-        ],
-      ),
+        ),
       ),
     );
   }
@@ -1141,11 +1161,15 @@ class _Suggestions extends ConsumerWidget {
             padding: EdgeInsets.zero,
             children: [
               for (final s in list.take(10))
-                ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.search_rounded, size: 18),
-                  title: Text(s, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  onTap: () => onPick(s),
+                TvFocusRing(
+                  borderRadius: BorderRadius.circular(12),
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.search_rounded, size: 18),
+                    title:
+                        Text(s, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    onTap: () => onPick(s),
+                  ),
                 ),
             ],
           ),
@@ -1213,17 +1237,20 @@ class _RecentSearches extends ConsumerWidget {
           ],
         ),
         for (final q in recent)
-          ListTile(
-            dense: true,
-            leading: const Icon(Icons.history_rounded, size: 20),
-            title: Text(q, maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: IconButton(
-              tooltip: l.commonRemove,
-              icon: const Icon(Icons.close_rounded, size: 18),
-              onPressed: () =>
-                  ref.read(youtubeSearchHistoryProvider.notifier).remove(q),
+          TvFocusRing(
+            borderRadius: BorderRadius.circular(12),
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.history_rounded, size: 20),
+              title: Text(q, maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: IconButton(
+                tooltip: l.commonRemove,
+                icon: const Icon(Icons.close_rounded, size: 18),
+                onPressed: () =>
+                    ref.read(youtubeSearchHistoryProvider.notifier).remove(q),
+              ),
+              onTap: () => onPick(q),
             ),
-            onTap: () => onPick(q),
           ),
       ],
     );
@@ -1460,46 +1487,50 @@ class _ChannelResultRow extends StatelessWidget {
       if ((channel.handle ?? '').isNotEmpty) channel.handle!,
       if (channel.subscribersLabel.isNotEmpty) channel.subscribersLabel,
     ].join('  ·  ');
-    return InkWell(
+    return TvFocusRing(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => context.push('/youtube/channel',
-          extra: (channelId: channel.id, title: channel.title)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 32,
-              backgroundColor: scheme.surfaceContainerHigh,
-              foregroundImage:
-                  channel.logoUrl.isEmpty ? null : cachedImageProvider(channel.logoUrl),
-              child: const Icon(Icons.person_rounded),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(channel.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700)),
-                  if (meta.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(meta,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/youtube/channel',
+            extra: (channelId: channel.id, title: channel.title)),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 32,
+                backgroundColor: scheme.surfaceContainerHigh,
+                foregroundImage: channel.logoUrl.isEmpty
+                    ? null
+                    : cachedImageProvider(channel.logoUrl),
+                child: const Icon(Icons.person_rounded),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(channel.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant)),
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    if (meta.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(meta,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant)),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            SubscribeButton(channel: channel),
-          ],
+              const SizedBox(width: 12),
+              SubscribeButton(channel: channel),
+            ],
+          ),
         ),
       ),
     );
@@ -1518,65 +1549,72 @@ class _PlaylistResultRow extends StatelessWidget {
       if (playlist.author.isNotEmpty) playlist.author,
       if (playlist.videoCountLabel.isNotEmpty) playlist.videoCountLabel,
     ].join('  ·  ');
-    return InkWell(
+    return TvFocusRing(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => context.push('/youtube/playlist',
-          extra: (playlistId: playlist.id, title: playlist.title)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Stack(
-                children: [
-                  SizedBox(
-                    width: 178,
-                    height: 100,
-                    child: playlist.thumbnailUrl.isEmpty
-                        ? Container(color: scheme.surfaceContainerHigh)
-                        : CachedImage(
-                        url: playlist.thumbnailUrl,
-                        errorBuilder: (_) =>
-                            Container(color: scheme.surfaceContainerHigh)),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 58,
-                      color: Colors.black.withValues(alpha: 0.75),
-                      child: const Icon(Icons.playlist_play_rounded,
-                          color: Colors.white),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/youtube/playlist',
+            extra: (
+              playlistId: playlist.id,
+              title: playlist.title,
+              count: playlist.videoCount
+            )),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Stack(
+                  children: [
+                    SizedBox(
+                      width: 178,
+                      height: 100,
+                      child: playlist.thumbnailUrl.isEmpty
+                          ? Container(color: scheme.surfaceContainerHigh)
+                          : CachedImage(
+                              url: playlist.thumbnailUrl,
+                              errorBuilder: (_) => Container(
+                                  color: scheme.surfaceContainerHigh)),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(playlist.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600)),
-                  if (meta.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(meta,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSurfaceVariant)),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 58,
+                        color: Colors.black.withValues(alpha: 0.75),
+                        child: const Icon(Icons.playlist_play_rounded,
+                            color: Colors.white),
+                      ),
+                    ),
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(playlist.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600)),
+                    if (meta.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(meta,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant)),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

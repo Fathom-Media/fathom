@@ -3,8 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/youtube_audio_item.dart';
 import '../models/youtube_download.dart';
 import '../models/youtube_video.dart';
+import '../services/tv_mode.dart';
+import '../state/audio_player.dart';
 import '../state/youtube_providers.dart';
 import 'add_to_youtube_playlist.dart';
 import 'hover_pill_button.dart';
@@ -155,6 +158,15 @@ class YoutubeActions {
         );
 
     return [
+      // Start background audio straight from the row (no video screen). Up-next
+      // then flows from the same shared queue as "Add to queue" below. Off TV.
+      if (!isTvDevice)
+        PopupMenuItem(
+          value: () => ref
+              .read(audioControllerProvider.notifier)
+              .playYoutubeAudio(youtubeAudioItemOf(video)),
+          child: _MenuRow(icon: Icons.headset_rounded, label: l.ytPlayAudio),
+        ),
       // Queue actions, then the playlist entry, then the rest below a divider.
       for (final a in actions.take(2)) item(a),
       if (includePlaylist)
@@ -172,6 +184,78 @@ class YoutubeActions {
       const PopupMenuDivider(),
       for (final a in actions.skip(2)) item(a),
     ];
+  }
+
+  /// The D-pad-friendly equivalent of the pop-up menu for TV: a bottom sheet of
+  /// focusable rows built from the same [actionsFor]. On a TV the whole video
+  /// card is one focus target (a remote can't reach a tiny inline 3-dot), so
+  /// selecting a card opens this — Play first (autofocused), then the actions.
+  static Future<void> showTvActionSheet(
+    BuildContext context,
+    WidgetRef ref,
+    YoutubeVideo video, {
+    bool includePlaylist = true,
+    VoidCallback? onPlay,
+  }) async {
+    final l = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final actions = actionsFor(context, ref, video);
+    final saved = ref
+            .read(youtubeLocalPlaylistsProvider)
+            .asData
+            ?.value
+            .any((p) => p.contains(video.id)) ??
+        false;
+
+    ListTile row(IconData icon, String label, VoidCallback onTap,
+            {bool autofocus = false, bool tint = false}) =>
+        ListTile(
+          autofocus: autofocus,
+          leading: Icon(icon, color: tint ? scheme.primary : null),
+          title: Text(label,
+              style: tint ? TextStyle(color: scheme.primary) : null),
+          onTap: () => Navigator.of(context).pop(onTap),
+        );
+
+    final chosen = await showModalBottomSheet<VoidCallback>(
+      context: context,
+      backgroundColor: scheme.surfaceContainerHigh,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+              child: Text(video.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700)),
+            ),
+            if (onPlay != null)
+              row(Icons.play_arrow_rounded, l.commonPlay, onPlay,
+                  autofocus: true),
+            for (final a in actions.take(2))
+              row(a.icon, a.label, a.onTap, tint: a.tinted),
+            if (includePlaylist)
+              row(
+                saved
+                    ? Icons.playlist_add_check_rounded
+                    : Icons.playlist_add_rounded,
+                saved ? l.ytSavedToPlaylist : l.ytAddToPlaylist,
+                () => showAddToYoutubePlaylist(context, video),
+                tint: saved,
+              ),
+            const Divider(),
+            for (final a in actions.skip(2))
+              row(a.icon, a.label, a.onTap, tint: a.tinted),
+          ],
+        ),
+      ),
+    );
+    chosen?.call();
   }
 }
 
@@ -207,21 +291,36 @@ class YoutubeVideoActionBar extends ConsumerWidget {
   /// Opens the queue. Without it, videos can be queued and never seen.
   final VoidCallback? onShowQueue;
 
+  /// The player's live position, so "Listen" resumes the audio exactly where
+  /// the video was (falls back to watch history when absent).
+  final Duration Function()? currentPosition;
+
   const YoutubeVideoActionBar({
     super.key,
     required this.video,
     this.leading,
     this.onShowQueue,
+    this.currentPosition,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
     return Wrap(
       spacing: 6,
       runSpacing: 6,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         ?leading,
+        // "Listen": drop the video and keep the audio playing in the background,
+        // through the same player/notification as music and radio. A phone/
+        // desktop paradigm — a TV is always on-screen, so it's hidden there.
+        if (!isTvDevice)
+          HoverPillButton(
+            icon: Icons.headset_rounded,
+            label: l.ytListen,
+            onTap: () => _listenInBackground(context, ref),
+          ),
         for (final a in YoutubeActions.actionsFor(context, ref, video,
             onShowQueue: onShowQueue))
           HoverPillButton(
@@ -233,4 +332,40 @@ class YoutubeVideoActionBar extends ConsumerWidget {
       ],
     );
   }
+
+  void _listenInBackground(BuildContext context, WidgetRef ref) {
+    final audio = ref.read(audioControllerProvider.notifier);
+    // Resume exactly where the video is: the live player position if we have it,
+    // else the (whole-second, async) watch-history entry.
+    final live = currentPosition?.call();
+    final entry = ref.read(youtubeHistoryProvider.notifier).entryFor(video.id);
+    final startAt = (live != null && live > Duration.zero)
+        ? live
+        : (entry != null && !entry.finished)
+            ? entry.position
+            : Duration.zero;
+    final item = YoutubeAudioItem(
+      videoId: video.id,
+      title: video.title,
+      author: video.author,
+      thumbnailUrl: video.thumbnailUrl,
+      duration: video.duration,
+    );
+    // Drop the video screen first (stops the video player so audio isn't
+    // doubled), then start the background audio. Up-next carries over: it's the
+    // same shared youtubeQueueProvider the video player was using.
+    Navigator.of(context).maybePop();
+    audio.playYoutubeAudio(item, startAt: startAt);
+  }
 }
+
+/// Starts background YouTube audio from a video row (no video screen involved),
+/// so up-next flows from the shared queue / autoplay. Shared helper for the
+/// row menu entry.
+YoutubeAudioItem youtubeAudioItemOf(YoutubeVideo v) => YoutubeAudioItem(
+      videoId: v.id,
+      title: v.title,
+      author: v.author,
+      thumbnailUrl: v.thumbnailUrl,
+      duration: v.duration,
+    );

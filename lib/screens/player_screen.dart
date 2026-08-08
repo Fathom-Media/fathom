@@ -19,8 +19,11 @@ import '../state/admin_providers.dart';
 import '../models/media_segment.dart';
 import '../models/session.dart';
 import '../services/diagnostics.dart';
+import '../services/tv_mode.dart';
+import '../widgets/window_frame.dart';
 import '../widgets/cast_button.dart';
 import '../widgets/cast_remote.dart';
+import '../widgets/player_prompts.dart';
 import '../state/audio_player.dart';
 import '../state/media_session.dart';
 import '../state/cast.dart';
@@ -161,6 +164,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // (Android). The on-screen controls hide themselves so the PiP window shows
   // just the video.
   bool _inPip = false;
+  bool _chromeVisible = true; // mirrors FathomPlayerControls' auto-hide
   bool _triedTranscode = false;
   bool _appliedTracks = false;
   String? _error;
@@ -174,6 +178,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String? _livePlaySessionId;
   List<MediaSegment> _segments = const [];
   MediaSegment? _activeSkip;
+  // Drives the Skip pill directly. media_kit's Video does not re-run its
+  // `controls:` builder on our setState, so a plain rebuild never reaches the
+  // button; a ValueListenableBuilder inside the controls layer rebuilds itself
+  // when this changes, independent of the closure's lifecycle.
+  final ValueNotifier<MediaSegment?> _activeSkipVN =
+      ValueNotifier<MediaSegment?>(null);
+  // The Skip pill is drawn through the root Overlay, not inside the video
+  // Stack: nothing placed in the outer Stack or media_kit's `controls:` builder
+  // paints over the video on this GL setup, but the Overlay (the layer dialogs
+  // and tooltips use) does. It rebuilds itself off [_activeSkipVN].
+  OverlayEntry? _skipOverlay;
+  // Up Next card (drawn in the same Overlay as the Skip pill). During the
+  // credits segment, when a next episode exists, this takes over from the Skip
+  // Credits pill: poster + title, and — when Autoplay next is on — a countdown
+  // ring that auto-advances. Null = card not shown.
+  final ValueNotifier<({BaseItemDto item, int? remaining, int total})?>
+      _upNextVN = ValueNotifier(null);
+  bool _upNextHidden = false; // user pressed Hide for this episode
+  bool _upNextFocused = false; // D-pad has been landed on the Up Next card (TV)
+  bool _advancingNext = false; // guards the auto-advance from double-firing
+  int? _upNextSegTicks; // the credits segment currently driving Up Next
+  Duration? _upNextAnchor; // where the card appeared (credits start or seek-in)
+  bool _upNextCounted = false; // the countdown ran down via playback (not a seek)
+  bool _upNextSuppressed = false; // seeked back in the credits: hide until forward
+  // TV: the Skip Intro/Credits button lives outside the control scope, so a
+  // remote can't reach it. When a segment appears we move focus to it (so OK
+  // skips), remembering the previously focused control to restore afterward.
+  final FocusNode _skipFocus = FocusNode(debugLabel: 'skipSegment');
+  FocusNode? _preSkipFocus;
   final Set<int> _autoSkipped = {};
 
   // Sibling episodes, for the Previous/Next episode buttons (TV episodes only).
@@ -452,6 +485,60 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     ), _sessionToken);
   }
 
+  /// TV only: a small "Up Next" panel (next episode) shown lower-left with the
+  /// controls. Null for movies, the last episode, or off TV.
+  Widget? _tvInfoPanel() {
+    if (!isTvDevice) return null;
+    if (_epIndex < 0 || _epIndex + 1 >= _episodes.length) return null;
+    final next = _episodes[_epIndex + 1];
+    final l = AppLocalizations.of(context);
+    final sub = _sessionSubtitle(next);
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 360),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.skip_next_rounded, color: Colors.white70, size: 20),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l.playerUpNext.toUpperCase(),
+                    style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        letterSpacing: 0.8,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                if (next.name.isNotEmpty)
+                  Text(next.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600)),
+                if (sub != null)
+                  Text(sub,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white54, fontSize: 12.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// "Series · S1:E2" for episodes; null for movies.
   String? _sessionSubtitle(BaseItemDto item) {
     if (!widget.item.isEpisode) return null;
@@ -579,6 +666,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         try {
           await (_player.platform as dynamic).setProperty('hwdec', 'no');
         } catch (_) {}
+      } else if (_isMobile) {
+        // Android: libmpv defaults to hwdec=no, so without this every frame is
+        // decoded on the CPU — fine on a phone SoC but it drops frames on a
+        // low-power TV stick (Chromecast/Google TV). Select the MediaCodec
+        // decoder in copy-back mode: the hardware VPU does the decode and frames
+        // are copied into media_kit's GL texture (bare `mediacodec` renders to a
+        // Surface media_kit doesn't use, so it would play black).
+        try {
+          await (_player.platform as dynamic)
+              .setProperty('hwdec', 'mediacodec-copy');
+        } catch (_) {}
       }
       // Give mpv a generous network cache and read-ahead. media_kit leaves these
       // at libmpv's defaults, which are tuned for local files, so streaming
@@ -605,6 +703,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           await mpv.setProperty('video-sync', 'display-resample');
           await mpv.setProperty('interpolation', 'yes');
           await mpv.setProperty('tscale', 'oversample');
+        } catch (_) {}
+      }
+      // Bitstream compressed surround straight to an AV receiver — Dolby Atmos
+      // (over Dolby Digital Plus / TrueHD) and DTS pass through untouched instead
+      // of being decoded to PCM. Opt-in: on plain stereo speakers this is
+      // silence, so it's only right for an HDMI/optical link to a capable
+      // receiver. (Android uses ExoPlayer, which passes through automatically.)
+      if (startPrefs?.audioPassthrough ?? false) {
+        try {
+          await (_player.platform as dynamic)
+              .setProperty('audio-spdif', 'ac3,eac3,dts,dts-hd,truehd');
         } catch (_) {}
       }
       // In a SyncPlay group (VOD): a FOLLOWER (we opened this because the group
@@ -638,6 +747,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         try {
           await (_player.platform as dynamic)
               .setProperty('sub-pos', prefs.subtitlePosition.toString());
+        } catch (_) {}
+      }
+      // Captions off by default. mpv would otherwise auto-enable a default or
+      // forced subtitle track; keep them off unless the user set a preferred
+      // subtitle language (they can still turn a track on from the player).
+      if ((prefs?.subtitleLanguage ?? '').isEmpty) {
+        try {
+          await _player.setSubtitleTrack(SubtitleTrack.no());
         } catch (_) {}
       }
       // Apply the default playback speed (Live TV always plays at 1x).
@@ -922,6 +1039,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ref.read(syncPlaySessionProvider).seek(pos);
       }
     }
+    // Up Next seek detection: a jump back hides the card (you're going back to
+    // watch, not advance); forward progress lets it show again.
+    final backSeek = pos < _lastPos - const Duration(seconds: 2);
+    final forwardProgress = pos > _lastPos;
     _lastPos = pos;
     if (widget.item.isLiveChannel || _segments.isEmpty) return;
     MediaSegment? active;
@@ -943,8 +1064,78 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         active = null;
       }
     }
+    // Credits of an episode that has a next episode: the action is "Next
+    // episode", surfaced via the Up Next card/pill — NEVER the plain Skip
+    // Credits pill, which only seeks to the end of the file and would strand
+    // you at black instead of advancing. The Up Next prompt is the sole credits
+    // affordance here (the Skip Credits pill is kept only for movies and the
+    // last episode, where seek-to-end is the right behaviour).
+    final hasNext = widget.item.isEpisode &&
+        _epIndex >= 0 &&
+        _epIndex + 1 < _episodes.length;
+    final inCredits = active != null && active.isCredits && hasNext;
+    var upNextHandled = false;
+    if (inCredits) {
+      final seg = active;
+      active = null; // never show the seek-to-end Skip Credits pill for episodes
+      if (!_upNextHidden) {
+        if (backSeek) {
+          // Seeked back inside the credits: hide the prompt.
+          _upNextSuppressed = true;
+        } else if (_upNextSuppressed && forwardProgress) {
+          // Playing forward again: bring it back with a fresh countdown.
+          _upNextSuppressed = false;
+          _upNextAnchor = pos;
+          _upNextCounted = false;
+        }
+        if (!_upNextSuppressed) upNextHandled = _handleUpNext(seg, pos);
+      }
+    } else {
+      // Left the credits entirely → clear the back-seek suppression so re-entering
+      // (by playing forward) shows the card again.
+      _upNextSuppressed = false;
+    }
+    if (!upNextHandled && _upNextVN.value != null) _upNextVN.value = null;
+    // On TV, land the D-pad on the Up Next card's Play Now button (it shares
+    // _skipFocus) when the card first appears — the skip pill does the same, but
+    // the Up Next branch bypasses that block below. Once only, so it doesn't
+    // fight the remote each tick.
+    if (isTvDevice) {
+      if (upNextHandled && !_upNextFocused) {
+        _upNextFocused = true;
+        // Capture fresh (not ??=) — a prior skip pill may have left a stale one.
+        _preSkipFocus = FocusManager.instance.primaryFocus;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _upNextVN.value != null) _skipFocus.requestFocus();
+        });
+      } else if (!upNextHandled && _upNextFocused) {
+        _upNextFocused = false;
+        // Card dismissed (Hide, or seeked out of credits): return the remote
+        // where it was, so it isn't stranded on the removed Play Now button.
+        _preSkipFocus?.requestFocus();
+      }
+    }
     if (active?.startTicks != _activeSkip?.startTicks && mounted) {
+      final wasNull = _activeSkip == null;
       setState(() => _activeSkip = active);
+      _activeSkipVN.value = active;
+      if (active != null) _ensureSkipOverlay();
+      Diagnostics.instance.add(
+          'segments',
+          active == null
+              ? 'skip button hidden'
+              : 'skip button shown (${active.isIntro ? "intro" : active.isCredits ? "credits" : "segment"})');
+      if (isTvDevice) {
+        if (active != null && wasNull) {
+          // Remember where the remote was, then land it on the Skip button.
+          _preSkipFocus = FocusManager.instance.primaryFocus;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _activeSkip != null) _skipFocus.requestFocus();
+          });
+        } else if (active == null && !wasNull) {
+          _preSkipFocus?.requestFocus();
+        }
+      }
     }
   }
 
@@ -1212,6 +1403,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // (which replaces this screen) doesn't clear the incoming screen's session.
     _mediaSession?.end(_sessionToken);
     _statsOpen.dispose();
+    _skipFocus.dispose();
+    _skipOverlay?.remove();
+    _skipOverlay = null;
+    _activeSkipVN.dispose();
+    _upNextVN.dispose();
     // The verbose logger belongs to this screen; drop it on either exit path
     // (a handed-off dock player keeps playing but stops feeding diagnostics).
     _logSub?.cancel();
@@ -1385,7 +1581,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       body: _error != null
           ? _ErrorOverlay(message: _error!)
           : Focus(
-              autofocus: true,
+              // On desktop the keyboard authority is the focus node inside the
+              // controls (works in both windowed and media_kit's fullscreen
+              // route). Two autofocus nodes fought and broke Space, so the outer
+              // one yields on desktop; TV/mobile keep it.
+              autofocus: !isDesktopWindowFrame,
               child: CallbackShortcuts(
                 bindings: _buildShortcuts(context),
                 child: Stack(
@@ -1395,11 +1595,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         controller: _controller,
                         fit: fit,
                         subtitleViewConfiguration: subtitleConfig,
+                        // Track fullscreen (desktop) so the custom window title
+                        // bar hides while the video is edge-to-edge. Still runs
+                        // media_kit's native fullscreen; mobile keeps the default.
+                        onEnterFullscreen: isDesktopWindowFrame
+                            ? () async {
+                                desktopFullscreen.value = true;
+                                await defaultEnterNativeFullscreen();
+                              }
+                            : defaultEnterNativeFullscreen,
+                        onExitFullscreen: isDesktopWindowFrame
+                            ? () async {
+                                desktopFullscreen.value = false;
+                                await defaultExitNativeFullscreen();
+                              }
+                            : defaultExitNativeFullscreen,
                         // Controls live inside Video so fullscreen lookups
                         // (toggleFullscreen/isFullscreen) resolve correctly.
                         // In a system PiP window, show just the video (the OS
                         // draws its own play/pause), so hide our chrome.
-                        controls: (state) => _inPip
+                        controls: (state) => _wrapControls(_inPip
                             ? const SizedBox.shrink()
                             : FathomPlayerControls(
                           player: _player,
@@ -1458,10 +1673,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           headers: ref.read(imageHeadersProvider),
                           showThumbnailPreview:
                               prefs?.previewThumbnailsWhileSeeking ?? true,
-                          infoPanel: null,
+                          infoPanel: _tvInfoPanel(),
                           liveBottomInfo: liveBottomInfo,
                           overlayBadge: liveRecBadge,
-                          onMinimize: _minimize,
+                          // No picture-in-picture on TV: the mini-player is a
+                          // phone/desktop paradigm and isn't reachable on a TV, so
+                          // the button is dropped there (kept elsewhere).
+                          onMinimize: isTvDevice ? null : _minimize,
+                          onVisibilityChanged: (v) {
+                            if (mounted) setState(() => _chromeVisible = v);
+                          },
                           onPrevious: _epIndex > 0
                               ? () => _playEpisodeAt(_epIndex - 1)
                               : null,
@@ -1469,51 +1690,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               (_epIndex >= 0 && _epIndex < _episodes.length - 1)
                                   ? () => _playEpisodeAt(_epIndex + 1)
                                   : null,
-                        ),
-                      ),
-                    ),
-                    // Slides + fades in with a slight pop instead of appearing
-                    // abruptly, matching the animated chrome around it. Hidden
-                    // in a PiP window (just the bare video floats there).
-                    if (!_inPip)
-                    Positioned(
-                      right: 28,
-                      bottom: 116,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 260),
-                        switchInCurve: Curves.easeOutBack,
-                        switchOutCurve: Curves.easeIn,
-                        transitionBuilder: (child, anim) => FadeTransition(
-                          opacity: anim,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                                    begin: const Offset(0, 0.4),
-                                    end: Offset.zero)
-                                .animate(anim),
-                            child: child,
-                          ),
-                        ),
-                        child: _activeSkip == null
-                            ? const SizedBox.shrink(key: ValueKey('no-skip'))
-                            : FilledButton.icon(
-                                key: ValueKey(_activeSkip!.isCredits
-                                    ? 'credits'
-                                    : 'intro'),
-                                onPressed: () {
-                                  final s = _activeSkip!;
-                                  // Mark it skipped so an in-flight position
-                                  // event can't flash the button back before
-                                  // the seek lands; suppress the group echo.
-                                  _autoSkipped.add(s.startTicks);
-                                  _suppressGroup();
-                                  _player.seek(s.end);
-                                  setState(() => _activeSkip = null);
-                                },
-                                icon: const Icon(Icons.skip_next_rounded),
-                                label: Text(_activeSkip!.isCredits
-                                    ? l.playerSkipCredits
-                                    : l.playerSkipIntro),
-                              ),
+                        )),
                       ),
                     ),
                     // SyncPlay status cue (waiting/aligning, or SkipToSync).
@@ -1526,11 +1703,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       Positioned(
                         top: MediaQuery.of(context).padding.top + 4,
                         right: 8,
-                        child: CastButton(
-                          resolve: _castMedia,
-                          title: _title,
-                          position: () => _player.state.position.inMilliseconds,
-                          color: Colors.white,
+                        // Fade with the chrome so it doesn't float over the
+                        // video after the controls auto-hide.
+                        child: AnimatedOpacity(
+                          opacity: _chromeVisible ? 1 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: IgnorePointer(
+                            ignoring: !_chromeVisible,
+                            child: CastButton(
+                              resolve: _castMedia,
+                              title: _title,
+                              position: () =>
+                                  _player.state.position.inMilliseconds,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     // While a cast session is live (or connecting), local
@@ -1555,6 +1742,173 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ),
             ),
     );
+  }
+
+  /// Drives the Up Next prompt during the credits of an episode that has a next
+  /// episode. The prompt appears once you're in the credits. Two independent
+  /// prefs:
+  ///   • Timing (upNextLeadSeconds): 0 = Full credits (counts down to the real
+  ///     end of the credits); N = a fixed N-second countdown measured from where
+  ///     the card first appears (_upNextAnchor: the credits start when played
+  ///     through, or the seek target when you jump in), so seeking into the
+  ///     credits gets a fresh countdown, not one already eaten by skipped time.
+  ///   • Autoplay next = whether it counts down / auto-advances at all — on =
+  ///     ring/fill runs and it plays the next episode when the countdown ends;
+  ///     off = a static prompt whose Play Now waits until clicked.
+  /// Returns true whenever the prompt is on screen (so the caller keeps the
+  /// Skip Credits pill suppressed).
+  bool _handleUpNext(MediaSegment seg, Duration pos) {
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    final autoplayOn = prefs?.autoplayNext ?? true;
+    final lead = prefs?.upNextLeadSeconds ?? 20;
+    final next = _episodes[_epIndex + 1];
+
+    // Countdown length measured from the START of the credits. Full (lead<=0)
+    // runs the whole credits; otherwise it is exactly `lead` seconds.
+    final segId = seg.startTicks;
+    if (_upNextSegTicks != segId) {
+      _upNextSegTicks = segId;
+      _upNextCounted = false;
+      // Anchor the countdown to WHERE the card first appears this segment: the
+      // credits start when played through, or the seek target when you jump in.
+      // So seeking into the credits gets a fresh countdown instead of one
+      // already eaten by the skipped-over seconds.
+      _upNextAnchor = pos;
+    }
+    final creditsLen = (seg.end - seg.start).inSeconds;
+    final int total;
+    int remainingSecs;
+    if (lead <= 0) {
+      // Full: run to the real end of the credits (position-based).
+      total = creditsLen < 1 ? 1 : creditsLen;
+      remainingSecs = (seg.end - pos).inSeconds;
+    } else {
+      // Fixed N seconds, measured from the anchor (appearance / seek-in).
+      total = lead;
+      remainingSecs = lead - (pos - (_upNextAnchor ?? seg.start)).inSeconds;
+    }
+    if (remainingSecs < 0) remainingSecs = 0;
+    if (remainingSecs > total) remainingSecs = total; // never grow past the length
+
+    // Autoplay off → static prompt (no countdown); on → live remaining.
+    final int? remaining = autoplayOn ? remainingSecs : null;
+    // Mark that the countdown has actually been running (remaining > 0 seen via
+    // playback), so we only auto-advance on a genuine run-down.
+    if (autoplayOn && remainingSecs > 0) _upNextCounted = true;
+
+    // Countdown elapsed → advance to the next episode (once). Requires the
+    // countdown to have run down through playback, not a manual seek straight to
+    // the end (which would otherwise jump to the next episode).
+    if (autoplayOn &&
+        remainingSecs <= 0 &&
+        _upNextCounted &&
+        !_advancingNext) {
+      _advancingNext = true;
+      _playEpisodeAt(_epIndex + 1);
+      return true;
+    }
+
+    _ensureSkipOverlay();
+    _upNextVN.value = (item: next, remaining: remaining, total: total);
+    return true;
+  }
+
+  /// Inserts the Skip Intro / Skip Credits pill and Up Next card into the root
+  /// Overlay once (on the first segment). The entry stays for the life of the
+  /// screen and shows the card, the pill, or nothing off [_upNextVN] /
+  /// [_activeSkipVN] — so it never depends on the video Stack's compositing,
+  /// which on this GL setup refuses to draw any overlay placed as a sibling or
+  /// in media_kit's `controls:` over the frame.
+  void _ensureSkipOverlay() {
+    if (_skipOverlay != null || !mounted) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+    _skipOverlay = OverlayEntry(builder: (context) {
+      return AnimatedBuilder(
+        animation: Listenable.merge([_upNextVN, _activeSkipVN]),
+        builder: (context, _) {
+          if (_inPip) return const SizedBox.shrink();
+          final upNext = _upNextVN.value;
+          final seg = _activeSkipVN.value;
+          Widget? content;
+          var bottom = 116.0;
+          if (upNext != null) {
+            final style =
+                ref.read(preferencesProvider).asData?.value.upNextStyle ??
+                    'card';
+            content = UpNextPrompt(
+              style: style,
+              title: upNext.item.name,
+              subtitle: _sessionSubtitle(upNext.item),
+              artUrl: _sessionArtUrl(upNext.item),
+              imageHeaders: ref.read(imageHeadersProvider),
+              remaining: upNext.remaining,
+              total: upNext.total,
+              onPlayNow: _upNextPlayNow,
+              onHide: _upNextHide,
+              playFocus: _skipFocus,
+            );
+            bottom = style == 'card' ? 96.0 : 116.0;
+          } else if (seg != null) {
+            content = SkipPill(
+              label: _skipLabel(seg, AppLocalizations.of(context)),
+              onTap: () => _doSkipSegment(seg),
+              focusNode: _skipFocus,
+            );
+          }
+          if (content == null) return const SizedBox.shrink();
+          return Positioned(right: 28, bottom: bottom, child: content);
+        },
+      );
+    });
+    overlay.insert(_skipOverlay!);
+  }
+
+  /// Skips the active segment (Skip pill tap): jump past it, clear the pill,
+  /// and on TV restore focus to where the remote was.
+  void _doSkipSegment(MediaSegment seg) {
+    // Mark it skipped so an in-flight position event can't flash it back before
+    // the seek lands; suppress the group echo.
+    _autoSkipped.add(seg.startTicks);
+    _suppressGroup();
+    _player.seek(seg.end);
+    _activeSkipVN.value = null;
+    if (mounted) setState(() => _activeSkip = null);
+    if (isTvDevice) _preSkipFocus?.requestFocus();
+  }
+
+  /// Type-aware skip label so a "Previously on…" recap reads "Skip Recap",
+  /// distinct from the actual "Skip Intro" (both are separate server segments).
+  String _skipLabel(MediaSegment seg, AppLocalizations l) {
+    switch (seg.type) {
+      case 'Recap':
+        return l.playerSkipRecap;
+      case 'Outro':
+        return l.playerSkipCredits;
+      case 'Intro':
+        return l.playerSkipIntro;
+      default:
+        return l.playerSkipSegment(seg.categoryLabel(l));
+    }
+  }
+
+  /// Advance to the next episode now (Play Now / pill tap). Guarded so it can't
+  /// double-fire with the countdown's own auto-advance.
+  void _upNextPlayNow() {
+    if (_advancingNext) return;
+    _advancingNext = true;
+    _upNextVN.value = null;
+    _playEpisodeAt(_epIndex + 1);
+  }
+
+  void _upNextHide() {
+    _upNextHidden = true;
+    _upNextVN.value = null;
+    // Restore the D-pad now (paused → no position tick to defer the restore to).
+    if (isTvDevice && _upNextFocused) {
+      _upNextFocused = false;
+      _preSkipFocus?.requestFocus();
+    }
   }
 
   void _seekBy(int seconds) {
@@ -1585,6 +1939,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  /// media_kit pushes its own route for desktop fullscreen, so the screen's
+  /// CallbackShortcuts (Space, arrows, F, Esc) don't reach it. Re-bind them
+  /// inside the controls, which media_kit reuses in both the windowed and
+  /// fullscreen trees. The Builder gives a context beneath the Video so
+  /// toggleFullscreen/isFullscreen resolve; TV keeps its own D-pad handler.
+  Widget _wrapControls(Widget controls) {
+    if (!isDesktopWindowFrame) return controls;
+    // Desktop keyboard authority for BOTH windowed and fullscreen. The controls
+    // live inside the Video, so this one focus node covers the windowed player
+    // AND media_kit's separate fullscreen route (which the screen-level
+    // shortcuts don't reach). The screen's outer Focus drops its autofocus on
+    // desktop (see build) so there's exactly one autofocus — two fought each
+    // other and broke Space. The Builder gives a context beneath the Video so
+    // toggleFullscreen/isFullscreen resolve correctly.
+    return Builder(
+      builder: (ctx) => CallbackShortcuts(
+        bindings: _buildShortcuts(ctx),
+        child: Focus(autofocus: true, child: controls),
+      ),
+    );
+  }
+
   Map<ShortcutActivator, VoidCallback> _buildShortcuts(BuildContext context) {
     final keys = ref.read(preferencesProvider).asData?.value.effectiveKeys ??
         defaultKeyBindings();
@@ -1602,8 +1978,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       a('playPause'): _player.playOrPause,
       // Match the on-screen skip buttons (10 back / 30 forward), so the same
       // action isn't 10s by key and 30s by click.
-      a('seekBackward'): () => _seekBy(-_kSeekBack),
-      a('seekForward'): () => _seekBy(_kSeekForward),
+      // On TV the D-pad IS the arrow keys, and the player-controls key handler
+      // owns them (LEFT/RIGHT scrub on the seek bar, step between buttons
+      // elsewhere). Binding them here too would fire whenever focus sits on a
+      // bar button, scrubbing instead of moving to the next control, so skip
+      // the arrow-seek shortcuts on TV and let the handler drive.
+      if (!isTvDevice) a('seekBackward'): () => _seekBy(-_kSeekBack),
+      if (!isTvDevice) a('seekForward'): () => _seekBy(_kSeekForward),
       a('volumeUp'): () => _bumpVolume(5),
       a('volumeDown'): () => _bumpVolume(-5),
       a('mute'): _toggleMute,
@@ -1673,6 +2054,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     for (final o in _qualityOptions)
                       ListTile(
                         dense: true,
+                        autofocus: isTvDevice && o.$1 == _qualityBitrate,
                         // Trailing checkmark, matching the subtitle/audio/speed
                         // sheets, instead of leading radio buttons.
                         title: Text(o.$2 == 'Auto' ? l.playerAuto : o.$2,
@@ -1737,6 +2119,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _showChapters() async {
     if (!mounted) return;
     final l = AppLocalizations.of(context);
+    // TV: pre-focus the chapter the playhead is currently in.
+    final pos = _player.state.position;
+    var currentChapter = 0;
+    for (var j = 0; j < widget.item.chapters.length; j++) {
+      if (widget.item.chapters[j].start <= pos) {
+        currentChapter = j;
+      } else {
+        break;
+      }
+    }
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -1759,6 +2151,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 children: [
                   for (var i = 0; i < widget.item.chapters.length; i++)
                     ListTile(
+                      autofocus: isTvDevice && i == currentChapter,
                       title: Text(
                           widget.item.chapters[i].name?.isNotEmpty == true
                               ? widget.item.chapters[i].name!
@@ -1815,6 +2208,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 children: [
                   for (final o in options)
                     ListTile(
+                      // TV: land the remote on the current selection so the first
+                      // press moves or confirms rather than just taking focus.
+                      autofocus: isTvDevice && isSelected(o),
                       title: Text(label(o)),
                       trailing:
                           isSelected(o) ? const Icon(Icons.check_rounded) : null,

@@ -17,4 +17,10 @@ class YoutubePlaylist {
     this.author = '',
     this.videoCountLabel = '',
   });
+
+  /// The count as a plain integer when the label is a simple number
+  /// (e.g. "4 videos" -> 4). Null for abbreviated counts like "1.2K videos",
+  /// where an exact "we loaded fewer than this" comparison isn't possible.
+  int? get videoCount =>
+      int.tryParse(videoCountLabel.trim().split(' ').first.replaceAll(',', ''));
 }

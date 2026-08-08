@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
 import '../models/base_item.dart';
+import '../services/tv_mode.dart';
 import '../state/library_providers.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
@@ -44,7 +45,8 @@ class ArtistsScreen extends ConsumerWidget {
             itemBuilder: (context, i) => EntranceFade(
               index: i,
               onceKey: list[i].id,
-              child: _ArtistTile(artist: list[i]),
+              child: _ArtistTile(
+                  artist: list[i], autofocus: isTvDevice && i == 0),
             ),
           );
         },
@@ -55,13 +57,15 @@ class ArtistsScreen extends ConsumerWidget {
 
 class _ArtistTile extends StatelessWidget {
   final BaseItemDto artist;
-  const _ArtistTile({required this.artist});
+  final bool autofocus;
+  const _ArtistTile({required this.artist, this.autofocus = false});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return HoverLift(
       child: InkWell(
+        autofocus: autofocus,
         onTap: () => context.push('/artist', extra: artist),
         borderRadius: BorderRadius.circular(80),
         child: Column(

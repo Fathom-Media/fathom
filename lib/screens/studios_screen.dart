@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
+import '../services/tv_mode.dart';
 import '../state/library_providers.dart';
 import '../widgets/browse_tile.dart';
 import '../widgets/empty_state.dart';
@@ -45,6 +46,7 @@ class StudiosScreen extends ConsumerWidget {
               child: GradientBrowseTile(
                 label: list[i].name,
                 icon: Icons.business_rounded,
+                autofocus: isTvDevice && i == 0,
                 onTap: () => context.push('/studio', extra: list[i].name),
               ),
             ),

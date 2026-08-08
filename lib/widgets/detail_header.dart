@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/tv_mode.dart';
+
 /// A circular action button for the detail header, over the backdrop. At rest
 /// it's an icon-only circle (accent for the primary action, translucent dark
 /// for the rest); on hover it expands into a pill that reveals the label beside
@@ -13,6 +15,14 @@ class HeaderActionButton extends StatefulWidget {
   final VoidCallback? onTap;
   final bool primary;
 
+  /// Grabs focus on mount — used on Android TV so the hero's Play button is the
+  /// D-pad landing spot when a browse screen opens.
+  final bool autofocus;
+
+  /// An external focus node, so the detail screen can pull the remote back onto
+  /// this button (its UP-from-body handler focuses the header Play).
+  final FocusNode? focusNode;
+
   /// Replaces the icon (e.g. a progress spinner).
   final Widget? iconOverride;
 
@@ -23,6 +33,8 @@ class HeaderActionButton extends StatefulWidget {
     this.label,
     this.onTap,
     this.primary = false,
+    this.autofocus = false,
+    this.focusNode,
     this.iconOverride,
   });
 
@@ -33,6 +45,13 @@ class HeaderActionButton extends StatefulWidget {
 class _HeaderActionButtonState extends State<HeaderActionButton>
     with SingleTickerProviderStateMixin {
   bool _hover = false;
+  // A D-pad/remote focus reads the same as a mouse hover: the pill expands to
+  // show its label and gains an accent ring, so it's obvious which action the
+  // remote is on.
+  bool _focused = false;
+  // Focus ring/expand/scale is a TV (D-pad) affordance; off TV only hover
+  // drives it, so desktop/mobile keep the original look.
+  bool get _active => _hover || (_focused && isTvDevice);
 
   // A quick pop on the icon when the button is pressed, for tactile feedback.
   late final AnimationController _tapController = AnimationController(
@@ -71,19 +90,29 @@ class _HeaderActionButtonState extends State<HeaderActionButton>
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: Opacity(
+      child: AnimatedScale(
+        scale: (_focused && isTvDevice) ? 1.08 : 1.0,
+        duration: const Duration(milliseconds: 130),
+        curve: Curves.easeOut,
+        child: Opacity(
         opacity: enabled ? 1 : 0.5,
         child: Material(
           color:
               widget.primary ? scheme.primary : Colors.black.withValues(alpha: 0.5),
           shape: StadiumBorder(
-            side: widget.primary
-                ? BorderSide.none
-                : BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+            side: (_focused && isTvDevice)
+                ? BorderSide(color: scheme.primary, width: 3)
+                : widget.primary
+                    ? BorderSide.none
+                    : BorderSide(color: Colors.white.withValues(alpha: 0.25)),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: widget.onTap,
+            autofocus: widget.autofocus,
+            focusNode: widget.focusNode,
+            onFocusChange: (v) => setState(() => _focused = v),
+            focusColor: Colors.transparent,
             // Pop on press so the feedback fires even when the tap navigates
             // away a moment later.
             onTapDown:
@@ -94,7 +123,7 @@ class _HeaderActionButtonState extends State<HeaderActionButton>
               alignment: Alignment.centerLeft,
               child: SizedBox(
                 height: h,
-                child: _hover
+                child: _active
                     ? Padding(
                         padding: EdgeInsets.symmetric(
                             horizontal: widget.primary ? 20 : 18),
@@ -116,6 +145,7 @@ class _HeaderActionButtonState extends State<HeaderActionButton>
             ),
           ),
         ),
+      ),
       ),
     );
   }

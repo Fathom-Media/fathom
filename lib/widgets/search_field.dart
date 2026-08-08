@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../services/tv_mode.dart';
+import 'tv_keyboard.dart';
+
 /// The app's unified search box: a rounded field that, on focus, draws an accent
 /// outline that grows from the centre of the top and bottom edges outward until
 /// the two halves meet at the sides, plus a soft accent glow. Use everywhere a
@@ -66,6 +69,10 @@ class _SearchFieldState extends State<SearchField>
 
   void _onText() {
     if (mounted && widget.suffix == null) setState(() {});
+    // On TV the text is edited through the on-screen TvKeyboard (not a live
+    // TextField), so surface each change to the caller here to keep search
+    // results updating as the user types.
+    if (isTvDevice) widget.onChanged?.call(widget.controller.text);
   }
 
   @override
@@ -135,29 +142,37 @@ class _SearchFieldState extends State<SearchField>
                 size: 20, color: scheme.onSurfaceVariant),
           ),
           Expanded(
-            child: TextField(
-              controller: widget.controller,
-              focusNode: _focus,
-              autofocus: widget.autofocus,
-              cursorColor: scheme.primary,
-              textInputAction: TextInputAction.search,
-              onChanged: widget.onChanged,
-              onSubmitted: widget.onSubmitted,
-              // Strip the global inputDecorationTheme (filled + a rounded
-              // focused outline) so nothing draws inside our own frame.
-              decoration: InputDecoration(
-                hintText: widget.hint,
-                filled: false,
-                isCollapsed: true,
-                contentPadding: EdgeInsets.zero,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                errorBorder: InputBorder.none,
-                focusedErrorBorder: InputBorder.none,
-                disabledBorder: InputBorder.none,
-              ),
-            ),
+            child: isTvDevice
+                ? _TvSearchField(
+                    controller: widget.controller,
+                    focusNode: _focus,
+                    autofocus: widget.autofocus,
+                    hint: widget.hint,
+                    onSubmitted: widget.onSubmitted,
+                  )
+                : TextField(
+                    controller: widget.controller,
+                    focusNode: _focus,
+                    autofocus: widget.autofocus,
+                    cursorColor: scheme.primary,
+                    textInputAction: TextInputAction.search,
+                    onChanged: widget.onChanged,
+                    onSubmitted: widget.onSubmitted,
+                    // Strip the global inputDecorationTheme (filled + a rounded
+                    // focused outline) so nothing draws inside our own frame.
+                    decoration: InputDecoration(
+                      hintText: widget.hint,
+                      filled: false,
+                      isCollapsed: true,
+                      contentPadding: EdgeInsets.zero,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      errorBorder: InputBorder.none,
+                      focusedErrorBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                    ),
+                  ),
           ),
           if (widget.suffix != null)
             Padding(
@@ -178,6 +193,69 @@ class _SearchFieldState extends State<SearchField>
           else
             const SizedBox(width: 10),
         ],
+      ),
+    );
+  }
+}
+
+/// The TV variant of the search input: a focusable region (no system keyboard,
+/// which a D-pad can't drive) that opens the on-screen [TvKeyboard] on Select
+/// and shows the live query or hint. Editing flows back through the bound
+/// controller, so the parent's onChanged still fires per keystroke.
+class _TvSearchField extends StatelessWidget {
+  const _TvSearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.hint,
+    this.autofocus = false,
+    this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hint;
+  final bool autofocus;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    void open() => showTvKeyboard(
+          context,
+          controller: controller,
+          label: hint,
+        ).then((_) => onSubmitted?.call(controller.text));
+    return FocusableActionDetector(
+      focusNode: focusNode,
+      autofocus: autofocus,
+      mouseCursor: SystemMouseCursors.click,
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) {
+          open();
+          return null;
+        }),
+      },
+      child: GestureDetector(
+        onTap: open,
+        behavior: HitTestBehavior.opaque,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (_, value, child) {
+              final empty = value.text.isEmpty;
+              return Text(
+                empty ? hint : value.text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: empty ? scheme.onSurfaceVariant : scheme.onSurface,
+                  fontSize: 16,
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }

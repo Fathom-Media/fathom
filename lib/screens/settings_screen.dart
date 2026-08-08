@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,13 +7,28 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/session.dart';
+import '../services/tv_mode.dart';
 import '../state/app_info.dart';
 import '../state/preferences.dart';
 import '../state/session_controller.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/search_field.dart';
+import '../widgets/tv_keyboard.dart';
 import '../widgets/user_avatar.dart';
 import 'settings_search.dart';
+
+/// The form factor this build is running on, for the About row's pill. Not
+/// localized — these are platform proper nouns (Android TV, Windows, …). TV is a
+/// runtime distinction from plain Android (same APK).
+String platformLabel() {
+  if (isTvDevice) return 'Android TV';
+  if (Platform.isAndroid) return 'Android';
+  if (Platform.isWindows) return 'Windows';
+  if (Platform.isLinux) return 'Linux';
+  if (Platform.isMacOS) return 'macOS';
+  if (Platform.isIOS) return 'iOS';
+  return 'Unknown';
+}
 
 /// Account, server, and app info, plus a search box that jumps straight to any
 /// setting. A home for future prefs (playback, subtitles, theme).
@@ -239,6 +256,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             width: 38, height: 38, child: FathomLogo(size: 38)),
         title: Text(l.appName),
         subtitle: Text(l.settingsVersion(version)),
+        // A pill naming the platform this build runs on (Fladder-style), so a
+        // tester can tell at a glance which form factor they're on — Android TV
+        // and plain Android share one APK but read differently here.
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            platformLabel(),
+            style: TextStyle(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ),
       ),
       ListTile(
         leading: _leading(context, Icons.favorite_rounded),
@@ -357,26 +392,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
+              TvTextField(
                 controller: internalCtrl,
-                autocorrect: false,
                 keyboardType: TextInputType.url,
-                decoration: InputDecoration(
-                  labelText: l.serverAddressInternalLabel,
-                  hintText: l.serverAddressInternalHint,
-                  prefixIcon: const Icon(Icons.home_rounded),
-                ),
+                label: l.serverAddressInternalLabel,
+                hint: l.serverAddressInternalHint,
+                icon: Icons.home_rounded,
               ),
               const SizedBox(height: 14),
-              TextField(
+              TvTextField(
                 controller: externalCtrl,
-                autocorrect: false,
                 keyboardType: TextInputType.url,
-                decoration: InputDecoration(
-                  labelText: l.serverAddressExternalLabel,
-                  hintText: l.serverAddressExternalHint,
-                  prefixIcon: const Icon(Icons.public_rounded),
-                ),
+                label: l.serverAddressExternalLabel,
+                hint: l.serverAddressExternalHint,
+                icon: Icons.public_rounded,
               ),
               const SizedBox(height: 16),
               Text(l.serverAddressHelp,

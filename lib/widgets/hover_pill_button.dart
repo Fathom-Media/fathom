@@ -3,6 +3,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import '../services/tv_mode.dart';
+
 /// An action that rests as an icon-only pill and expands to reveal its label,
 /// with a small pop on press. On desktop it expands on hover; on touch (no
 /// hover) it expands while pressed, so a single tap still fires the action.
@@ -27,6 +29,12 @@ class HoverPillButton extends StatefulWidget {
   /// flight). Still gets the tap-pop scale and the expand-on-hover/press label.
   final Widget? iconWidget;
 
+  /// Grabs focus on mount — used on TV so the remote lands on the primary
+  /// action (e.g. Play on an album).
+  final bool autofocus;
+
+  final FocusNode? focusNode;
+
   const HoverPillButton({
     super.key,
     required this.icon,
@@ -36,6 +44,8 @@ class HoverPillButton extends StatefulWidget {
     this.primary = false,
     this.color,
     this.iconWidget,
+    this.autofocus = false,
+    this.focusNode,
   });
 
   @override
@@ -46,6 +56,9 @@ class _HoverPillButtonState extends State<HoverPillButton>
     with SingleTickerProviderStateMixin {
   bool _hover = false;
   bool _pressed = false;
+  // A D-pad/remote focus reads like a hover (expands to the label) and adds a
+  // ring, so the remote always shows which action it's on.
+  bool _focused = false;
 
   // Touch platforms have no hover, so the label expands on press instead.
   static final bool _isTouch =
@@ -91,8 +104,12 @@ class _HoverPillButtonState extends State<HoverPillButton>
       bg = scheme.surfaceContainerHighest;
     }
     const h = 38.0;
-    // Desktop reveals the label on hover; touch reveals it while pressed.
-    final expanded = _isTouch ? _pressed : _hover;
+    // The focus ring/expand is a TV affordance only; off TV this keeps the
+    // original hover/press behaviour (desktop keyboard focus untouched).
+    final showFocus = _focused && isTvDevice;
+    // Desktop reveals the label on hover; touch reveals it while pressed. A
+    // remote focus always reveals it, so the focused action names itself.
+    final expanded = (_isTouch ? _pressed : _hover) || showFocus;
     final icon = ScaleTransition(
       scale: _tapScale,
       child: widget.iconWidget ?? Icon(widget.icon, size: 20, color: fg),
@@ -123,9 +140,25 @@ class _HoverPillButtonState extends State<HoverPillButton>
             onExit: (_) => setState(() => _hover = false),
             child: Material(
               color: bg,
-              shape: const StadiumBorder(),
+              shape: StadiumBorder(
+                side: showFocus
+                    ? BorderSide(
+                        // A primary ring vanishes on a primary/coloured fill,
+                        // so filled pills get a white ring instead.
+                        color: (widget.primary || widget.color != null)
+                            ? Colors.white
+                            : scheme.primary,
+                        width: 2.5)
+                    : BorderSide.none,
+              ),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
+                autofocus: widget.autofocus,
+                focusNode: widget.focusNode,
+                onFocusChange: (v) => setState(() => _focused = v),
+                // The ring (drawn on the Material shape) is the focus cue; the
+                // accent-tinted default overlay is invisible over a primary fill.
+                focusColor: Colors.transparent,
                 onTap: widget.onTap,
                 onTapDown:
                     widget.onTap == null ? null : (_) => _tap.forward(from: 0),

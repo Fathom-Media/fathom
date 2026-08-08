@@ -71,6 +71,9 @@ class Prefs {
   /// lyrics and LrcLib is a sanctioned open API, not a scrape.
   final bool lookUpMissingLyrics;
   final bool hardwareDecoding; // mpv hwdec on/off
+  // Android video backend: 'auto' (ExoPlayer on TV, media_kit elsewhere),
+  // 'mediakit' (libmpv), or 'exoplayer' (native Media3 — tunneled 4K/HDR).
+  final String playerBackend;
   // mpv video-sync=display-resample + interpolation: paces frames to the
   // monitor refresh instead of libmpv's default audio-clock sync. Smooths
   // judder/stutter on displays whose refresh doesn't divide the content fps.
@@ -83,6 +86,20 @@ class Prefs {
   final bool desktopNotifications; // downloads / requests
   final bool autoSkipIntro;
   final bool autoSkipCredits;
+  // Up Next card timing during the credits segment. 0 = whole credits length
+  // (Jellyfin-style: card shows when credits start). >0 = a short countdown
+  // that many seconds before the end (Netflix-style progress ring).
+  final int upNextLeadSeconds;
+  // Up Next presentation: 'card' = poster + title + countdown ring + buttons;
+  // 'pill' = compact Netflix-style pill with the countdown as a progress fill.
+  final String upNextStyle;
+  // Bitstream compressed surround (AC3/E-AC3/DTS/TrueHD, incl. Dolby Atmos)
+  // straight to an AV receiver instead of decoding to PCM — the desktop mpv
+  // path. Off by default: on plain stereo speakers, passthrough is silence.
+  final bool audioPassthrough;
+  // Force the TV / 10-foot D-pad interface even when the device doesn't report
+  // itself as a television (HTPC, desktop-on-a-TV). Applied at next launch.
+  final bool forceTvMode;
 
   // Home & layout
   final String startupScreen; // 'home' | 'libraries' | 'livetv'
@@ -275,12 +292,17 @@ class Prefs {
     this.showLyricsAutomatically = true,
     this.lookUpMissingLyrics = true,
     this.hardwareDecoding = true,
+    this.playerBackend = 'auto',
     this.displaySync = false,
     this.diagnosticLogging = false,
     this.previewThumbnailsWhileSeeking = true,
     this.desktopNotifications = true,
     this.autoSkipIntro = false,
     this.autoSkipCredits = false,
+    this.upNextLeadSeconds = 20,
+    this.upNextStyle = 'card',
+    this.audioPassthrough = false,
+    this.forceTvMode = false,
     this.startupScreen = 'home',
     this.homeBanner = 'carousel',
     this.showContinueWatching = true,
@@ -390,12 +412,17 @@ class Prefs {
     bool? showLyricsAutomatically,
     bool? lookUpMissingLyrics,
     bool? hardwareDecoding,
+    String? playerBackend,
     bool? displaySync,
     bool? diagnosticLogging,
     bool? previewThumbnailsWhileSeeking,
     bool? desktopNotifications,
     bool? autoSkipIntro,
     bool? autoSkipCredits,
+    int? upNextLeadSeconds,
+    String? upNextStyle,
+    bool? audioPassthrough,
+    bool? forceTvMode,
     String? startupScreen,
     String? homeBanner,
     bool? showContinueWatching,
@@ -499,6 +526,7 @@ class Prefs {
         lookUpMissingLyrics:
             lookUpMissingLyrics ?? this.lookUpMissingLyrics,
         hardwareDecoding: hardwareDecoding ?? this.hardwareDecoding,
+        playerBackend: playerBackend ?? this.playerBackend,
         displaySync: displaySync ?? this.displaySync,
         diagnosticLogging: diagnosticLogging ?? this.diagnosticLogging,
         previewThumbnailsWhileSeeking:
@@ -506,6 +534,10 @@ class Prefs {
         desktopNotifications: desktopNotifications ?? this.desktopNotifications,
         autoSkipIntro: autoSkipIntro ?? this.autoSkipIntro,
         autoSkipCredits: autoSkipCredits ?? this.autoSkipCredits,
+        upNextLeadSeconds: upNextLeadSeconds ?? this.upNextLeadSeconds,
+        upNextStyle: upNextStyle ?? this.upNextStyle,
+        audioPassthrough: audioPassthrough ?? this.audioPassthrough,
+        forceTvMode: forceTvMode ?? this.forceTvMode,
         startupScreen: startupScreen ?? this.startupScreen,
         homeBanner: homeBanner ?? this.homeBanner,
         showContinueWatching:
@@ -621,12 +653,17 @@ class Prefs {
         'showLyricsAutomatically': showLyricsAutomatically,
         'lookUpMissingLyrics': lookUpMissingLyrics,
         'hardwareDecoding': hardwareDecoding,
+        'playerBackend': playerBackend,
         'displaySync': displaySync,
         'diagnosticLogging': diagnosticLogging,
         'previewThumbnailsWhileSeeking': previewThumbnailsWhileSeeking,
         'desktopNotifications': desktopNotifications,
         'autoSkipIntro': autoSkipIntro,
         'autoSkipCredits': autoSkipCredits,
+        'upNextLeadSeconds': upNextLeadSeconds,
+        'upNextStyle': upNextStyle,
+        'audioPassthrough': audioPassthrough,
+        'forceTvMode': forceTvMode,
         'startupScreen': startupScreen,
         'homeBanner': homeBanner,
         'showContinueWatching': showContinueWatching,
@@ -733,6 +770,7 @@ class Prefs {
             j['showLyricsAutomatically'] as bool? ?? true,
         lookUpMissingLyrics: j['lookUpMissingLyrics'] as bool? ?? true,
         hardwareDecoding: j['hardwareDecoding'] as bool? ?? true,
+        playerBackend: j['playerBackend'] as String? ?? 'auto',
         displaySync: j['displaySync'] as bool? ?? false,
         diagnosticLogging: j['diagnosticLogging'] as bool? ?? false,
         previewThumbnailsWhileSeeking:
@@ -740,6 +778,10 @@ class Prefs {
         desktopNotifications: j['desktopNotifications'] as bool? ?? true,
         autoSkipIntro: j['autoSkipIntro'] as bool? ?? false,
         autoSkipCredits: j['autoSkipCredits'] as bool? ?? false,
+        upNextLeadSeconds: (j['upNextLeadSeconds'] as num?)?.toInt() ?? 20,
+        upNextStyle: j['upNextStyle'] as String? ?? 'card',
+        audioPassthrough: j['audioPassthrough'] as bool? ?? false,
+        forceTvMode: j['forceTvMode'] as bool? ?? false,
         startupScreen: j['startupScreen'] as String? ?? 'home',
         homeBanner: j['homeBanner'] as String? ?? 'carousel',
         showContinueWatching: j['showContinueWatching'] as bool? ?? true,

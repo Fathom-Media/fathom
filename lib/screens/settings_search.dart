@@ -70,7 +70,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // Integrations — Seerr connection / sign-in
   SettingResult(title: l.searchSeerrConnection, section: l.settingsSectionIntegrations, icon: _integrations, route: '/seerr-settings', keywords: ['seerr', 'jellyseerr', 'overseerr', 'connect', 'connection', 'login', 'log in', 'sign in', 'signin', 'account', 'jellyfin', 'local', 'api key', 'apikey', 'token', 'email', 'password', 'url', 'server', 'requests']),
   // System — updates, backup, diagnostics
-  SettingResult(title: l.settingsUpdates, section: l.settingsSectionSystem, icon: Icons.system_update_alt_rounded, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'beta', 'stable', 'latest']),
+  SettingResult(title: l.settingsUpdates, section: l.settingsSectionSystem, icon: Icons.system_update_alt_rounded, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'dev', 'beta', 'stable', 'latest']),
   SettingResult(title: l.settingsBackup, section: l.settingsSectionSystem, icon: Icons.settings_backup_restore_rounded, route: '/backup', keywords: ['backup', 'restore', 'export', 'import', 'settings', 'save settings', 'transfer', 'migrate', 'move', 'sync', 'json', 'share', 'download settings']),
   SettingResult(title: l.diagnosticsTitle, section: l.settingsSectionSystem, icon: Icons.bug_report_rounded, route: '/diagnostics', keywords: ['diagnostic', 'diagnostics', 'log', 'logging', 'verbose', 'debug', 'troubleshoot', 'troubleshooting', 'bug report', 'mpv log', 'copy log', 'crash', 'issue']),
   SettingResult(title: l.searchDownloadComplete, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'download', 'complete', 'finished', 'youtube']),
@@ -80,6 +80,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // Appearance
   SettingResult(title: l.searchTheme, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['dark', 'light', 'mode', 'system', 'appearance', 'color scheme']),
   SettingResult(title: l.searchAmoledBlack, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['amoled', 'oled', 'pure black', 'true black', 'dark']),
+  SettingResult(title: l.prefsForceTvMode, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['tv', 'television', 'leanback', 'remote', 'd-pad', 'dpad', '10-foot', 'couch', 'htpc', 'force', 'android tv']),
   SettingResult(title: l.searchRatingOnCards, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['rating', 'cards', 'poster', 'badge', 'rotten tomatoes', 'community', 'star', 'critics', 'imdb']),
   SettingResult(title: l.searchAccentColor, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['accent', 'color', 'colour', 'highlight', 'tint', 'theme color', 'custom accent']),
 
@@ -99,7 +100,11 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   SettingResult(title: l.searchPreviewThumbnailsWhileSeeking, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['thumbnail', 'preview', 'trickplay', 'scrub', 'seek', 'hover']),
   SettingResult(title: l.searchAutoSkipIntros, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['skip', 'intro', 'opening', 'media segments']),
   SettingResult(title: l.searchAutoSkipCredits, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['skip', 'credits', 'outro', 'ending', 'media segments']),
+  SettingResult(title: l.searchUpNextTiming, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['up next', 'next episode', 'countdown', 'credits', 'autoplay', 'netflix', 'binge', 'card']),
+  SettingResult(title: l.searchUpNextStyle, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['up next', 'next episode', 'style', 'card', 'pill', 'netflix', 'progress', 'countdown']),
   SettingResult(title: l.searchHardwareDecoding, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['hardware', 'hwdec', 'gpu', 'decode', 'acceleration', 'glitch']),
+  SettingResult(title: l.prefsAudioPassthrough, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['audio', 'passthrough', 'atmos', 'dolby', 'dts', 'surround', 'receiver', 'bitstream', 'spdif', 'hdmi', 'ac3', 'eac3', 'truehd', 'avr']),
+  SettingResult(title: l.searchPlayerBackend, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['exoplayer', 'exo', 'media_kit', 'mediakit', 'libmpv', 'backend', 'engine', 'hdr', '4k', 'tunneling', 'android tv']),
   SettingResult(title: l.prefsDisplaySync, section: l.searchPlayer, icon: _player, route: '/preferences', extra: 'player', keywords: ['smooth', 'motion', 'display sync', 'vsync', 'judder', 'stutter', 'tearing', 'refresh', 'frame pacing', 'interpolation']),
 
   // Audio & Subtitles

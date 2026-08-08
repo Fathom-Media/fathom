@@ -526,7 +526,7 @@ abstract class AppLocalizations {
   /// **'Current Version: {version}'**
   String updateCurrentVersion(String version);
 
-  /// Label above the stable/beta update channel selector.
+  /// Label above the stable/dev update channel selector.
   ///
   /// In en, this message translates to:
   /// **'Update Channel'**
@@ -538,16 +538,16 @@ abstract class AppLocalizations {
   /// **'Stable'**
   String get updateChannelStable;
 
-  /// Update channel option: include pre-release/beta builds.
+  /// Update channel option: include the latest pre-release dev builds.
   ///
   /// In en, this message translates to:
-  /// **'Beta'**
+  /// **'Dev'**
   String get updateChannelBeta;
 
   /// Helper text under the update channel selector.
   ///
   /// In en, this message translates to:
-  /// **'Beta includes pre-release test builds.'**
+  /// **'Dev includes the latest pre-release test builds.'**
   String get updateChannelHelp;
 
   /// Toggle: automatically check for updates when the app starts.
@@ -1480,6 +1480,18 @@ abstract class AppLocalizations {
   /// **'Pure-black backgrounds in dark mode'**
   String get prefsAmoledBlackSub;
 
+  /// Toggle title: force the 10-foot D-pad interface.
+  ///
+  /// In en, this message translates to:
+  /// **'Force TV Mode'**
+  String get prefsForceTvMode;
+
+  /// Force TV mode toggle subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Use the 10-foot remote interface even if this device isn\'t a television. Applies after restarting the app.'**
+  String get prefsForceTvModeSub;
+
   /// Appearance setting title: rating badge on poster cards.
   ///
   /// In en, this message translates to:
@@ -1714,6 +1726,72 @@ abstract class AppLocalizations {
   /// **'Auto-Skip Credits'**
   String get prefsAutoSkipCredits;
 
+  /// Player setting title: when the Up Next card appears during credits.
+  ///
+  /// In en, this message translates to:
+  /// **'Up Next Timing'**
+  String get prefsUpNextTiming;
+
+  /// Player setting subtitle for Up Next timing.
+  ///
+  /// In en, this message translates to:
+  /// **'How long the Up Next prompt shows before auto-playing the next episode'**
+  String get prefsUpNextTimingSub;
+
+  /// Up Next timing option: stay for the whole credits, auto-play at the end (Jellyfin-style).
+  ///
+  /// In en, this message translates to:
+  /// **'Full credits'**
+  String get prefsUpNextFullCredits;
+
+  /// Up Next timing option: auto-play the next episode this many seconds after the credits start.
+  ///
+  /// In en, this message translates to:
+  /// **'After {count}s'**
+  String prefsUpNextSecondsBefore(int count);
+
+  /// Player setting title: how the Up Next prompt is presented.
+  ///
+  /// In en, this message translates to:
+  /// **'Up Next Style'**
+  String get prefsUpNextStyle;
+
+  /// Player setting subtitle for Up Next style.
+  ///
+  /// In en, this message translates to:
+  /// **'How the next-episode prompt looks during credits'**
+  String get prefsUpNextStyleSub;
+
+  /// Up Next style option: a card with poster, title and countdown ring.
+  ///
+  /// In en, this message translates to:
+  /// **'Card'**
+  String get prefsUpNextStyleCard;
+
+  /// Up Next style option: a compact pill with the countdown as a progress fill (Netflix-style).
+  ///
+  /// In en, this message translates to:
+  /// **'Pill'**
+  String get prefsUpNextStylePill;
+
+  /// Up Next card button: start the next episode immediately.
+  ///
+  /// In en, this message translates to:
+  /// **'Play Now'**
+  String get playerUpNextPlayNow;
+
+  /// Up Next card button: dismiss the card.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide'**
+  String get playerUpNextHide;
+
+  /// Up Next card countdown text; seconds until the next episode auto-plays.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing in {seconds}s'**
+  String playerUpNextIn(int seconds);
+
   /// Player toggle title: hardware video decoding.
   ///
   /// In en, this message translates to:
@@ -1725,6 +1803,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Turn off if some videos glitch or fail'**
   String get prefsHardwareDecodingSub;
+
+  /// Advanced playback toggle title: bitstream surround audio to a receiver.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio Passthrough'**
+  String get prefsAudioPassthrough;
+
+  /// Audio-passthrough toggle subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Dolby Atmos / DTS to a connected receiver untouched. Only for an AV receiver or soundbar; leave off for regular speakers.'**
+  String get prefsAudioPassthroughSub;
 
   /// Player toggle title: pace video to the display refresh.
   ///
@@ -2410,6 +2500,24 @@ abstract class AppLocalizations {
   /// **'Playback Info'**
   String get playerPlaybackInfo;
 
+  /// Player control tooltip: toggle play/pause.
+  ///
+  /// In en, this message translates to:
+  /// **'Play / Pause'**
+  String get playerPlayPause;
+
+  /// Player control tooltip: seek backward by N seconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Back {seconds}s'**
+  String playerSeekBack(int seconds);
+
+  /// Player control tooltip: seek forward by N seconds.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward {seconds}s'**
+  String playerSeekForward(int seconds);
+
   /// Playback stats label: how the server delivers the stream (direct play vs transcode).
   ///
   /// In en, this message translates to:
@@ -2686,6 +2794,12 @@ abstract class AppLocalizations {
   /// **'Skip Intro'**
   String get playerSkipIntro;
 
+  /// Button label to skip a 'Previously on...' recap segment.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Recap'**
+  String get playerSkipRecap;
+
   /// Button label to skip the closing credits segment.
   ///
   /// In en, this message translates to:
@@ -2895,6 +3009,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back to App'**
   String get playerBackToApp;
+
+  /// Context-menu row: open the item's detail page.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Details'**
+  String get actionShowDetails;
+
+  /// Context-menu row: delete a whole series (all episodes).
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Series'**
+  String get actionDeleteSeries;
+
+  /// Context-menu row: delete a whole season.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Season'**
+  String get actionDeleteSeason;
+
+  /// Context-menu row: delete a single episode.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Episode'**
+  String get actionDeleteEpisode;
+
+  /// Context-menu row: delete a movie.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Movie'**
+  String get actionDeleteMovie;
 
   /// Play button label/tooltip when a title can resume from a saved position.
   ///
@@ -3760,6 +3904,114 @@ abstract class AppLocalizations {
   /// **'Continue Watching'**
   String get browseContinueWatching;
 
+  /// Android Auto top-level tab: a quick-start mix of shortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get autoHome;
+
+  /// Android Auto top-level tab: the full Jellyfin music library.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get autoLibrary;
+
+  /// Android Auto Home action: play a random shuffle of the whole music library.
+  ///
+  /// In en, this message translates to:
+  /// **'Shuffle All'**
+  String get autoShuffleAll;
+
+  /// Android Auto Home action: shuffle-play favorite songs.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites Mix'**
+  String get autoFavoritesMix;
+
+  /// Android Auto browse shortcut: songs played recently.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently Played'**
+  String get autoRecentlyPlayed;
+
+  /// Android Auto browse shortcut: newest albums.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently Added'**
+  String get autoRecentlyAdded;
+
+  /// Android Auto browse category: music genres.
+  ///
+  /// In en, this message translates to:
+  /// **'Genres'**
+  String get autoGenres;
+
+  /// Android Auto browse category: internet-radio favorite stations.
+  ///
+  /// In en, this message translates to:
+  /// **'Radio'**
+  String get autoRadio;
+
+  /// Android Auto radio sub-folder: favorite stations.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get autoRadioFavorites;
+
+  /// Android Auto radio sub-folder: stations not in any group.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get autoRadioOther;
+
+  /// Android Auto browse category: the user's music playlists.
+  ///
+  /// In en, this message translates to:
+  /// **'Playlists'**
+  String get autoPlaylists;
+
+  /// Android Auto browse category: recently added music albums.
+  ///
+  /// In en, this message translates to:
+  /// **'Albums'**
+  String get autoAlbums;
+
+  /// Android Auto browse category: music artists.
+  ///
+  /// In en, this message translates to:
+  /// **'Artists'**
+  String get autoArtists;
+
+  /// Android Auto browse category: songs the user has favorited.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorite Songs'**
+  String get autoFavoriteSongs;
+
+  /// Android Auto browse category: YouTube audio.
+  ///
+  /// In en, this message translates to:
+  /// **'YouTube'**
+  String get autoYoutube;
+
+  /// Android Auto browse subcategory: newest uploads from followed YouTube channels.
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s New'**
+  String get autoYoutubeWhatsNew;
+
+  /// Android Auto browse subcategory: the user's saved YouTube playlists.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Playlists'**
+  String get autoYoutubePlaylists;
+
+  /// Android Auto browse subcategory: channels the user follows on YouTube.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscriptions'**
+  String get autoYoutubeSubscriptions;
+
   /// Home row title: the next episode to watch.
   ///
   /// In en, this message translates to:
@@ -4522,6 +4774,42 @@ abstract class AppLocalizations {
   /// **'Subscriptions'**
   String get ytSubscriptions;
 
+  /// Button on the YouTube watch page: drop the video and keep the audio playing in the background.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen'**
+  String get ytListen;
+
+  /// Video row menu action: play just this video's audio in the background.
+  ///
+  /// In en, this message translates to:
+  /// **'Play audio'**
+  String get ytPlayAudio;
+
+  /// Button on the background-audio Now Playing: switch back to watching the video at the current position.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch video'**
+  String get ytWatchVideo;
+
+  /// Playlist action: play the whole playlist as background audio.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen to all'**
+  String get ytListenAll;
+
+  /// Quiet note on a playlist when fewer videos load than the count advertised, because YouTube won't return age-restricted or private videos to an anonymous client.
+  ///
+  /// In en, this message translates to:
+  /// **'Some videos are unavailable (age-restricted or private).'**
+  String get ytSomeUnavailable;
+
+  /// Shown in the background-audio queue sheet when the up-next queue is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing up next. A related track plays automatically when this one ends.'**
+  String get ytQueueEmpty;
+
   /// YouTube section tab label: newest uploads from subscribed channels.
   ///
   /// In en, this message translates to:
@@ -5068,6 +5356,18 @@ abstract class AppLocalizations {
   /// **'Comments'**
   String get ytComments;
 
+  /// Shown in the Shorts comments sheet when a video has comments turned off or none could be loaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Comments are unavailable.'**
+  String get ytCommentsUnavailable;
+
+  /// Shown over a Short in the vertical viewer when its video stream could not be resolved.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load this Short.'**
+  String get ytShortUnavailable;
+
   /// Comments heading with a preformatted count string.
   ///
   /// In en, this message translates to:
@@ -5332,6 +5632,12 @@ abstract class AppLocalizations {
   /// **'Subscribe'**
   String get ytSubscribe;
 
+  /// Action-sheet row: open the video's channel page.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to Channel'**
+  String get ytGoToChannel;
+
   /// Title of the add-to-playlist bottom sheet.
   ///
   /// In en, this message translates to:
@@ -5445,6 +5751,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Connect'**
   String get appConnect;
+
+  /// Settings search: label for the Android video engine (ExoPlayer/media_kit) setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Video Player Engine'**
+  String get searchPlayerBackend;
+
+  /// Preferences: title for the Android video engine selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Video Player (Android)'**
+  String get prefsPlayerBackend;
+
+  /// Preferences: subtitle for the Android video engine selector.
+  ///
+  /// In en, this message translates to:
+  /// **'ExoPlayer plays 4K/HDR smoothly on TV; media_kit is the classic engine.'**
+  String get prefsPlayerBackendSub;
+
+  /// Preferences: automatic video backend option.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic (ExoPlayer on TV)'**
+  String get prefsPlayerBackendAuto;
+
+  /// Preferences: native ExoPlayer video backend option.
+  ///
+  /// In en, this message translates to:
+  /// **'ExoPlayer (native, 4K/HDR)'**
+  String get prefsPlayerBackendExo;
+
+  /// Preferences: media_kit video backend option.
+  ///
+  /// In en, this message translates to:
+  /// **'media_kit (libmpv)'**
+  String get prefsPlayerBackendMediaKit;
+
+  /// Server connect screen: button that scans the local network for Jellyfin servers.
+  ///
+  /// In en, this message translates to:
+  /// **'Find Servers on My Network'**
+  String get appFindServers;
+
+  /// Server connect screen: label shown while scanning the local network for servers.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching your network…'**
+  String get appScanningServers;
+
+  /// Server connect screen: shown when a network scan finds no Jellyfin servers.
+  ///
+  /// In en, this message translates to:
+  /// **'No servers found. Enter the address above instead.'**
+  String get appNoServersFound;
 
   /// Splash screen tagline shown under the Fathom wordmark.
   ///
@@ -7168,6 +7528,36 @@ abstract class AppLocalizations {
   /// **'Advanced: edit this plugin’s raw configuration.'**
   String get adminConfigJsonHint;
 
+  /// Heading above the generated plugin settings form.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get adminPluginSettings;
+
+  /// Subtitle under the plugin settings heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit this plugin’s configuration.'**
+  String get adminPluginSettingsHint;
+
+  /// Toggle: switch the plugin config editor to raw JSON.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit as JSON'**
+  String get adminEditAsJson;
+
+  /// Shown for an empty list field in the plugin settings form.
+  ///
+  /// In en, this message translates to:
+  /// **'No entries'**
+  String get adminNoEntries;
+
+  /// Label for a complex plugin setting edited as raw JSON.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced (JSON)'**
+  String get adminAdvancedJson;
+
   /// Button label: save the plugin configuration.
   ///
   /// In en, this message translates to:
@@ -8272,6 +8662,18 @@ abstract class AppLocalizations {
   /// **'Auto-Skip Credits'**
   String get searchAutoSkipCredits;
 
+  /// Settings search result title: when the Up Next card appears during credits.
+  ///
+  /// In en, this message translates to:
+  /// **'Up Next Timing'**
+  String get searchUpNextTiming;
+
+  /// Settings search result title: how the Up Next prompt is presented (card or pill).
+  ///
+  /// In en, this message translates to:
+  /// **'Up Next Style'**
+  String get searchUpNextStyle;
+
   /// Settings search result title: GPU hardware video decoding toggle.
   ///
   /// In en, this message translates to:
@@ -9129,6 +9531,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Servers'**
   String get backupGroupServers;
+
+  /// Snackbar shown when the TV has no speech recognizer for the on-screen keyboard's mic button.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice input isn\'t available on this device'**
+  String get tvVoiceUnavailable;
 }
 
 class _AppLocalizationsDelegate

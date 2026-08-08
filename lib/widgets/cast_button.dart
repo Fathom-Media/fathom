@@ -49,7 +49,12 @@ class CastButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cast = ref.watch(castControllerProvider);
-    if (!cast.available) return const SizedBox.shrink();
+    // Hide unless the Cast SDK is present AND a Cast device is actually reachable
+    // (like any major app: no button off Wi-Fi / with no Chromecast on the LAN).
+    // Stay visible while connected so the session can be ended.
+    if (!cast.available || (!cast.routeAvailable && !cast.connected)) {
+      return const SizedBox.shrink();
+    }
     final l = AppLocalizations.of(context);
     return IconButton(
       tooltip: l.castTo,

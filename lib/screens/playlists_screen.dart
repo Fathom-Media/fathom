@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
+import '../services/tv_mode.dart';
 import '../state/playlist_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
@@ -12,6 +13,7 @@ import '../widgets/error_view.dart';
 import '../widgets/media_cards.dart';
 import '../widgets/motion.dart';
 import '../widgets/shimmer.dart';
+import '../widgets/tv_keyboard.dart';
 
 /// Lists the user's playlists and lets them create a new (empty) one.
 class PlaylistsScreen extends ConsumerWidget {
@@ -27,10 +29,10 @@ class PlaylistsScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.appNewPlaylist),
-        content: TextField(
+        content: TvTextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(labelText: l.appPlaylistName),
+          label: l.appPlaylistName,
         ),
         actions: [
           TextButton(
@@ -107,6 +109,7 @@ class PlaylistsScreen extends ConsumerWidget {
                   onceKey: p.id,
                   child: PosterTile(
                     item: p,
+                    autofocus: isTvDevice && i == 0,
                     onTap: () => context.push('/playlist', extra: p),
                   ),
                 );

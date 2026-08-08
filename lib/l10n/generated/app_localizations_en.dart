@@ -240,10 +240,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateChannelStable => 'Stable';
 
   @override
-  String get updateChannelBeta => 'Beta';
+  String get updateChannelBeta => 'Dev';
 
   @override
-  String get updateChannelHelp => 'Beta includes pre-release test builds.';
+  String get updateChannelHelp =>
+      'Dev includes the latest pre-release test builds.';
 
   @override
   String get updateAutoCheckLabel => 'Check on Startup';
@@ -748,6 +749,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsAmoledBlackSub => 'Pure-black backgrounds in dark mode';
 
   @override
+  String get prefsForceTvMode => 'Force TV Mode';
+
+  @override
+  String get prefsForceTvModeSub =>
+      'Use the 10-foot remote interface even if this device isn\'t a television. Applies after restarting the app.';
+
+  @override
   String get prefsRatingOnCards => 'Rating on Cards';
 
   @override
@@ -868,11 +876,57 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsAutoSkipCredits => 'Auto-Skip Credits';
 
   @override
+  String get prefsUpNextTiming => 'Up Next Timing';
+
+  @override
+  String get prefsUpNextTimingSub =>
+      'How long the Up Next prompt shows before auto-playing the next episode';
+
+  @override
+  String get prefsUpNextFullCredits => 'Full credits';
+
+  @override
+  String prefsUpNextSecondsBefore(int count) {
+    return 'After ${count}s';
+  }
+
+  @override
+  String get prefsUpNextStyle => 'Up Next Style';
+
+  @override
+  String get prefsUpNextStyleSub =>
+      'How the next-episode prompt looks during credits';
+
+  @override
+  String get prefsUpNextStyleCard => 'Card';
+
+  @override
+  String get prefsUpNextStylePill => 'Pill';
+
+  @override
+  String get playerUpNextPlayNow => 'Play Now';
+
+  @override
+  String get playerUpNextHide => 'Hide';
+
+  @override
+  String playerUpNextIn(int seconds) {
+    return 'Playing in ${seconds}s';
+  }
+
+  @override
   String get prefsHardwareDecoding => 'Hardware Decoding';
 
   @override
   String get prefsHardwareDecodingSub =>
       'Turn off if some videos glitch or fail';
+
+  @override
+  String get prefsAudioPassthrough => 'Audio Passthrough';
+
+  @override
+  String get prefsAudioPassthroughSub =>
+      'Send Dolby Atmos / DTS to a connected receiver untouched. Only for an AV receiver or soundbar; leave off for regular speakers.';
 
   @override
   String get prefsDisplaySync => 'Smooth Motion (Display Sync)';
@@ -1263,6 +1317,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerPlaybackInfo => 'Playback Info';
 
   @override
+  String get playerPlayPause => 'Play / Pause';
+
+  @override
+  String playerSeekBack(int seconds) {
+    return 'Back ${seconds}s';
+  }
+
+  @override
+  String playerSeekForward(int seconds) {
+    return 'Forward ${seconds}s';
+  }
+
+  @override
   String get playerStatPlayMethod => 'Play Method';
 
   @override
@@ -1414,6 +1481,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerSkipIntro => 'Skip Intro';
 
   @override
+  String get playerSkipRecap => 'Skip Recap';
+
+  @override
   String get playerSkipCredits => 'Skip Credits';
 
   @override
@@ -1525,6 +1595,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playerBackToApp => 'Back to App';
+
+  @override
+  String get actionShowDetails => 'Show Details';
+
+  @override
+  String get actionDeleteSeries => 'Delete Series';
+
+  @override
+  String get actionDeleteSeason => 'Delete Season';
+
+  @override
+  String get actionDeleteEpisode => 'Delete Episode';
+
+  @override
+  String get actionDeleteMovie => 'Delete Movie';
 
   @override
   String get detailResume => 'Resume';
@@ -2024,6 +2109,60 @@ class AppLocalizationsEn extends AppLocalizations {
   String get browseContinueWatching => 'Continue Watching';
 
   @override
+  String get autoHome => 'Home';
+
+  @override
+  String get autoLibrary => 'Library';
+
+  @override
+  String get autoShuffleAll => 'Shuffle All';
+
+  @override
+  String get autoFavoritesMix => 'Favorites Mix';
+
+  @override
+  String get autoRecentlyPlayed => 'Recently Played';
+
+  @override
+  String get autoRecentlyAdded => 'Recently Added';
+
+  @override
+  String get autoGenres => 'Genres';
+
+  @override
+  String get autoRadio => 'Radio';
+
+  @override
+  String get autoRadioFavorites => 'Favorites';
+
+  @override
+  String get autoRadioOther => 'Other';
+
+  @override
+  String get autoPlaylists => 'Playlists';
+
+  @override
+  String get autoAlbums => 'Albums';
+
+  @override
+  String get autoArtists => 'Artists';
+
+  @override
+  String get autoFavoriteSongs => 'Favorite Songs';
+
+  @override
+  String get autoYoutube => 'YouTube';
+
+  @override
+  String get autoYoutubeWhatsNew => 'What\'s New';
+
+  @override
+  String get autoYoutubePlaylists => 'Your Playlists';
+
+  @override
+  String get autoYoutubeSubscriptions => 'Subscriptions';
+
+  @override
   String get browseNextUp => 'Next Up';
 
   @override
@@ -2488,6 +2627,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytSubscriptions => 'Subscriptions';
 
   @override
+  String get ytListen => 'Listen';
+
+  @override
+  String get ytPlayAudio => 'Play audio';
+
+  @override
+  String get ytWatchVideo => 'Watch video';
+
+  @override
+  String get ytListenAll => 'Listen to all';
+
+  @override
+  String get ytSomeUnavailable =>
+      'Some videos are unavailable (age-restricted or private).';
+
+  @override
+  String get ytQueueEmpty =>
+      'Nothing up next. A related track plays automatically when this one ends.';
+
+  @override
   String get ytWhatsNew => 'What\'s New';
 
   @override
@@ -2803,6 +2962,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytComments => 'Comments';
 
   @override
+  String get ytCommentsUnavailable => 'Comments are unavailable.';
+
+  @override
+  String get ytShortUnavailable => 'Couldn\'t load this Short.';
+
+  @override
   String ytCommentsCount(String count) {
     return 'Comments  ·  $count';
   }
@@ -2961,6 +3126,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytSubscribe => 'Subscribe';
 
   @override
+  String get ytGoToChannel => 'Go to Channel';
+
+  @override
   String get ytSaveToPlaylist => 'Save to Playlist';
 
   @override
@@ -3025,6 +3193,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appConnect => 'Connect';
+
+  @override
+  String get searchPlayerBackend => 'Video Player Engine';
+
+  @override
+  String get prefsPlayerBackend => 'Video Player (Android)';
+
+  @override
+  String get prefsPlayerBackendSub =>
+      'ExoPlayer plays 4K/HDR smoothly on TV; media_kit is the classic engine.';
+
+  @override
+  String get prefsPlayerBackendAuto => 'Automatic (ExoPlayer on TV)';
+
+  @override
+  String get prefsPlayerBackendExo => 'ExoPlayer (native, 4K/HDR)';
+
+  @override
+  String get prefsPlayerBackendMediaKit => 'media_kit (libmpv)';
+
+  @override
+  String get appFindServers => 'Find Servers on My Network';
+
+  @override
+  String get appScanningServers => 'Searching your network…';
+
+  @override
+  String get appNoServersFound =>
+      'No servers found. Enter the address above instead.';
 
   @override
   String get appTagline => 'Dive into your media';
@@ -3970,6 +4167,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Advanced: edit this plugin’s raw configuration.';
 
   @override
+  String get adminPluginSettings => 'Settings';
+
+  @override
+  String get adminPluginSettingsHint => 'Edit this plugin’s configuration.';
+
+  @override
+  String get adminEditAsJson => 'Edit as JSON';
+
+  @override
+  String get adminNoEntries => 'No entries';
+
+  @override
+  String get adminAdvancedJson => 'Advanced (JSON)';
+
+  @override
   String get adminSaveConfiguration => 'Save Configuration';
 
   @override
@@ -4579,6 +4791,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchAutoSkipCredits => 'Auto-Skip Credits';
 
   @override
+  String get searchUpNextTiming => 'Up Next Timing';
+
+  @override
+  String get searchUpNextStyle => 'Up Next Style';
+
+  @override
   String get searchHardwareDecoding => 'Hardware Decoding';
 
   @override
@@ -5025,4 +5243,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupGroupServers => 'Servers';
+
+  @override
+  String get tvVoiceUnavailable =>
+      'Voice input isn\'t available on this device';
 }

@@ -23,6 +23,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/hover_pill_button.dart';
 import '../widgets/media_section.dart';
+import '../widgets/tv_focus.dart';
 import '../widgets/media_cards.dart';
 import '../widgets/motion.dart';
 import '../widgets/seerr_add_slider_dialog.dart';
@@ -480,22 +481,23 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
             : l.browseMovieNumber(r.tmdbId));
     final (statusLabel, statusColor) = _status(context);
 
-    return MouseRegion(
+    final onTap = detail == null
+        ? null
+        : () => context.push('/seerr-detail',
+            extra: SeerrResult(
+              tmdbId: r.tmdbId,
+              mediaType: r.mediaType,
+              title: title,
+              posterPath: detail.posterPath,
+              backdropPath: detail.backdropPath,
+              status: r.mediaStatus,
+            ));
+    final card = MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: detail == null
-            ? null
-            : () => context.push('/seerr-detail',
-                extra: SeerrResult(
-                  tmdbId: r.tmdbId,
-                  mediaType: r.mediaType,
-                  title: title,
-                  posterPath: detail.posterPath,
-                  backdropPath: detail.backdropPath,
-                  status: r.mediaStatus,
-                )),
+        onTap: onTap,
         child: AnimatedScale(
           scale: _hover ? 1.02 : 1.0,
           duration: const Duration(milliseconds: 150),
@@ -562,6 +564,9 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
         ),
       ),
     );
+    if (onTap == null) return card;
+    return TvFocusable(
+        onTap: onTap, borderRadius: BorderRadius.circular(14), child: card);
   }
 
   Widget _info(
@@ -2044,16 +2049,20 @@ class _PosterThumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return GestureDetector(
+    return TvFocusable(
       onTap: onTap,
-      child: SizedBox(
-        width: 56,
-        height: 84,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: url != null
-              ? CachedImage(url: url!, errorBuilder: (_) => _ph(theme))
-              : _ph(theme),
+      borderRadius: BorderRadius.circular(8),
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 56,
+          height: 84,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: url != null
+                ? CachedImage(url: url!, errorBuilder: (_) => _ph(theme))
+                : _ph(theme),
+          ),
         ),
       ),
     );

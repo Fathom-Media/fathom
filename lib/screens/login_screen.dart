@@ -10,9 +10,12 @@ import '../l10n/generated/app_localizations.dart';
 import '../models/authentication_result.dart';
 import '../models/server_connection.dart';
 import '../models/session.dart';
+import '../services/tv_mode.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/error_banner.dart';
+import '../widgets/tv_focus.dart';
+import '../widgets/tv_keyboard.dart';
 
 /// Step 2 of sign-in: authenticate against the connected server.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -40,7 +43,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _signIn() async {
     final l = AppLocalizations.of(context);
-    FocusScope.of(context).unfocus();
+    if (!isTvDevice) FocusScope.of(context).unfocus();
     if (_userCtrl.text.trim().isEmpty) {
       setState(() => _error = l.appEnterUsername);
       return;
@@ -88,7 +91,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _quickConnect() async {
     final l = AppLocalizations.of(context);
-    FocusScope.of(context).unfocus();
+    if (!isTvDevice) FocusScope.of(context).unfocus();
     setState(() {
       _error = null;
       _qcLoading = true;
@@ -162,61 +165,83 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 36),
-                // Group the credential fields so a password manager (Bitwarden,
-                // Google) treats them as one login, keyed to the app package and
-                // its "Fathom" label rather than a server URL.
-                AutofillGroup(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextField(
-                        controller: _userCtrl,
-                        autofocus: true,
-                        enabled: !_loading,
-                        autocorrect: false,
-                        autofillHints: const [AutofillHints.username],
-                        textInputAction: TextInputAction.next,
-                        decoration: InputDecoration(
-                          labelText: l.appUsername,
-                          prefixIcon: const Icon(Icons.person_outline_rounded),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: _passCtrl,
-                        enabled: !_loading,
-                        obscureText: _obscure,
-                        autofillHints: const [AutofillHints.password],
-                        onSubmitted: (_) => _loading ? null : _signIn(),
-                        decoration: InputDecoration(
-                          labelText: l.appPassword,
-                          prefixIcon: const Icon(Icons.lock_outline_rounded),
-                          suffixIcon: IconButton(
-                            icon: Icon(_obscure
-                                ? Icons.visibility_rounded
-                                : Icons.visibility_off_rounded),
-                            onPressed: () =>
-                                setState(() => _obscure = !_obscure),
+                // On TV the system keyboard can't be driven by the remote, so use
+                // the D-pad-friendly TvTextField (focusable tile -> on-screen
+                // keyboard sheet). Elsewhere keep the native fields inside an
+                // AutofillGroup so password managers treat them as one login.
+                if (isTvDevice) ...[
+                  TvTextField(
+                    controller: _userCtrl,
+                    label: l.appUsername,
+                    icon: Icons.person_outline_rounded,
+                    enabled: !_loading,
+                    autofocus: true,
+                  ),
+                  const SizedBox(height: 14),
+                  TvTextField(
+                    controller: _passCtrl,
+                    label: l.appPassword,
+                    icon: Icons.lock_outline_rounded,
+                    obscure: true,
+                    enabled: !_loading,
+                  ),
+                ] else
+                  AutofillGroup(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: _userCtrl,
+                          autofocus: true,
+                          enabled: !_loading,
+                          autocorrect: false,
+                          autofillHints: const [AutofillHints.username],
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: l.appUsername,
+                            prefixIcon:
+                                const Icon(Icons.person_outline_rounded),
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _passCtrl,
+                          enabled: !_loading,
+                          obscureText: _obscure,
+                          autofillHints: const [AutofillHints.password],
+                          onSubmitted: (_) => _loading ? null : _signIn(),
+                          decoration: InputDecoration(
+                            labelText: l.appPassword,
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscure
+                                  ? Icons.visibility_rounded
+                                  : Icons.visibility_off_rounded),
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 if (_error != null) ...[
                   const SizedBox(height: 16),
                   ErrorBanner(_error!),
                 ],
                 const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: _loading ? null : _signIn,
-                  child: _loading
-                      ? const SizedBox(
-                          height: 22,
-                          width: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        )
-                      : Text(l.commonSignIn),
+                TvFocusAura(
+                  builder: (node) => FilledButton(
+                    focusNode: node,
+                    onPressed: _loading ? null : _signIn,
+                    child: _loading
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          )
+                        : Text(l.commonSignIn),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -234,18 +259,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: (_loading || _qcLoading) ? null : _quickConnect,
-                  icon: _qcLoading
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        )
-                      : const Icon(Icons.qr_code_2_rounded),
-                  label: Text(l.appUseQuickConnect),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
+                TvFocusAura(
+                  builder: (node) => OutlinedButton.icon(
+                    focusNode: node,
+                    onPressed: (_loading || _qcLoading) ? null : _quickConnect,
+                    icon: _qcLoading
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          )
+                        : const Icon(Icons.qr_code_2_rounded),
+                    label: Text(l.appUseQuickConnect),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
                   ),
                 ),
               ],

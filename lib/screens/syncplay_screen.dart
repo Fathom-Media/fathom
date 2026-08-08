@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../services/tv_mode.dart';
 import '../state/session_controller.dart';
 import '../state/syncplay.dart';
+import '../widgets/tv_focus.dart';
+import '../widgets/tv_keyboard.dart';
 import '../widgets/user_avatar.dart';
 
 /// Watch Together (SyncPlay) management panel: create or join a group, see who
@@ -36,10 +39,11 @@ class _SyncPlayScreenState extends ConsumerState<SyncPlayScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.appCreateGroup),
-        content: TextField(
+        content: TvTextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(hintText: l.appGroupName),
+          label: l.appGroupName,
+          hint: l.appGroupName,
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
@@ -205,6 +209,9 @@ class _Intro extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         FilledButton.icon(
+          // Land the remote on the primary action when the panel opens on TV, so
+          // DOWN then steps into the (now focusable) group list below.
+          autofocus: isTvDevice,
           onPressed: onCreate,
           icon: const Icon(Icons.add_rounded),
           label: Text(l.appCreateGroup),
@@ -346,55 +353,66 @@ class _GroupTile extends StatelessWidget {
     // instead of a FilledButton (which also wouldn't paint here).
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      // On TV the row is a bare GestureDetector (no focus node), so a D-pad can't
+      // land on it — this is why DOWN couldn't reach the joinable groups.
+      // TvFocusable adds the focus node + accent ring and fires onJoin on Select;
+      // off TV it's a pass-through so the GestureDetector below still handles
+      // mouse/touch taps unchanged.
+      child: TvFocusable(
         onTap: canJoin ? onJoin : null,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            height: 68,
-            color: scheme.surfaceContainerHighest,
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.groups_rounded, color: scheme.onSurfaceVariant),
-                const SizedBox(width: 14),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${group['GroupName'] ?? l.appGroup}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, height: 1.25)),
-                      Text(subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12.5,
-                              height: 1.25,
-                              color: scheme.onSurfaceVariant)),
-                    ],
+        borderRadius: BorderRadius.circular(12),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: canJoin ? onJoin : null,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 68,
+              color: scheme.surfaceContainerHighest,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              // Full-width row so the Join affordance sits hard right (a Spacer
+              // pushes it there). Expanded on the title column collapsed here in
+              // the past, so keep the width-capped column + Spacer instead.
+              child: Row(
+                children: [
+                  Icon(Icons.groups_rounded, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 14),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${group['GroupName'] ?? l.appGroup}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, height: 1.25)),
+                        Text(subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                height: 1.25,
+                                color: scheme.onSurfaceVariant)),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 20),
-                Text(
-                  canJoin ? l.appJoin : l.appInAGroup,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color:
-                        canJoin ? scheme.primary : scheme.onSurfaceVariant,
+                  const Spacer(),
+                  Text(
+                    canJoin ? l.appJoin : l.appInAGroup,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color:
+                          canJoin ? scheme.primary : scheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                if (canJoin)
-                  Icon(Icons.chevron_right_rounded, color: scheme.primary),
-              ],
+                  const SizedBox(width: 6),
+                  if (canJoin)
+                    Icon(Icons.chevron_right_rounded, color: scheme.primary),
+                ],
+              ),
             ),
           ),
         ),

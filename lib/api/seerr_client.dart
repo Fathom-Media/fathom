@@ -255,8 +255,13 @@ class SeerrClient {
   /// the person page, matching Jellyseerr's mixed search.
   Future<List<SeerrResult>> search(String query) async {
     try {
-      final res = await _dio.get('$baseUrl/api/v1/search',
-          queryParameters: {'query': query}, options: _opts);
+      // Percent-encode the term as %20 (matching the Jellyseerr web app). Dio's
+      // queryParameters encode a space as "+", which some Jellyseerr instances
+      // reject with a 400 ("Lasso" works, "ted lasso" fails), so build the URL
+      // with the value pre-encoded and skip queryParameters here.
+      final res = await _dio.get(
+          '$baseUrl/api/v1/search?query=${Uri.encodeComponent(query)}',
+          options: _opts);
       final results = (res.data['results'] as List?) ?? const [];
       return [
         for (final e in results.whereType<Map>())

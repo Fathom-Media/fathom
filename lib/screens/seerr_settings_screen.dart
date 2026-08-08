@@ -7,6 +7,7 @@ import '../api/seerr_client.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../state/preferences.dart';
 import '../state/session_controller.dart';
+import '../widgets/tv_keyboard.dart';
 
 /// Configure the Seerr connection: an admin API key, or sign in so requests are
 /// attributed to you, either with your Jellyfin account or a local Seerr one.
@@ -141,15 +142,12 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
           Text(l.seerrIntro,
               style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 20),
-          TextField(
+          TvTextField(
             controller: _url,
             keyboardType: TextInputType.url,
-            autocorrect: false,
-            decoration: InputDecoration(
-              labelText: l.seerrServerUrl,
-              hintText: 'https://requests.example.com',
-              prefixIcon: const Icon(Icons.link_rounded),
-            ),
+            label: l.seerrServerUrl,
+            hint: 'https://requests.example.com',
+            icon: Icons.link_rounded,
           ),
           const SizedBox(height: 20),
           SegmentedButton<String>(
@@ -168,15 +166,12 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
           ),
           const SizedBox(height: 20),
           if (_mode == 'apikey') ...[
-            TextField(
+            TvTextField(
               controller: _key,
-              autocorrect: false,
-              obscureText: true,
-              decoration: InputDecoration(
-                labelText: l.seerrApiKeyLabel,
-                helperText: l.seerrApiKeyHelper,
-                prefixIcon: const Icon(Icons.key_rounded),
-              ),
+              obscure: true,
+              label: l.seerrApiKeyLabel,
+              helperText: l.seerrApiKeyHelper,
+              icon: Icons.key_rounded,
             ),
             const SizedBox(height: 24),
             FilledButton(
@@ -222,41 +217,28 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (_loginKind == 'local')
-                      TextField(
+                      TvTextField(
                         controller: _email,
                         keyboardType: TextInputType.emailAddress,
-                        autocorrect: false,
-                        autofillHints: const [
-                          AutofillHints.email,
-                          AutofillHints.username
-                        ],
-                        decoration: InputDecoration(
-                          labelText: l.seerrEmailLabel,
-                          prefixIcon:
-                              const Icon(Icons.alternate_email_rounded),
-                        ),
+                        label: l.seerrEmailLabel,
+                        autofillHints: const [AutofillHints.email],
+                        icon: Icons.alternate_email_rounded,
                       )
                     else
-                      TextField(
+                      TvTextField(
                         controller: _username,
-                        autocorrect: false,
+                        label: l.seerrUsernameLabel,
                         autofillHints: const [AutofillHints.username],
-                        decoration: InputDecoration(
-                          labelText: l.seerrUsernameLabel,
-                          prefixIcon:
-                              const Icon(Icons.person_outline_rounded),
-                        ),
+                        icon: Icons.person_outline_rounded,
                       ),
                     const SizedBox(height: 14),
-                    TextField(
+                    TvTextField(
                       controller: _password,
-                      obscureText: true,
+                      obscure: true,
+                      label: l.seerrPasswordLabel,
                       autofillHints: const [AutofillHints.password],
+                      icon: Icons.lock_outline_rounded,
                       onSubmitted: (_) => _busy ? null : _signIn(),
-                      decoration: InputDecoration(
-                        labelText: l.seerrPasswordLabel,
-                        prefixIcon: const Icon(Icons.lock_outline_rounded),
-                      ),
                     ),
                   ],
                 ),

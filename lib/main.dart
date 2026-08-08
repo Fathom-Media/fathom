@@ -13,6 +13,7 @@ import 'package:audio_service/audio_service.dart';
 
 import 'app.dart';
 import 'services/secure_http.dart';
+import 'services/tv_mode.dart';
 import 'services/app_installer.dart';
 import 'services/desktop_integration.dart';
 import 'services/diagnostics.dart';
@@ -28,6 +29,17 @@ Future<void> main() async {
   // Trust the bundled CA roots for all HTTPS (Windows only; see the function).
   // Must run before any outbound request (YouTube, fonts, update checks).
   await installSecureHttpOverrides();
+
+  // Detect Android TV (leanback) up front so screens can swap the un-drivable
+  // system keyboard for the on-screen TvKeyboard.
+  await detectTvMode();
+  // Honor a manual "Force TV mode" preference (HTPC / desktop-on-a-TV) when
+  // the platform didn't report a television.
+  await applyForcedTvMode();
+  // Learn which video codecs decode in hardware so the Jellyfin profile can
+  // transcode the rest (keeps AV1 off low-power TV sticks that would software
+  // decode it and stutter).
+  await detectHardwareCodecs();
 
   // App-wide diagnostics capture. These hooks are always installed but only
   // record while the user has Diagnostic Logging on (Diagnostics.add no-ops
@@ -109,6 +121,20 @@ Future<void> main() async {
           // a white silhouette (res/drawable-*/ic_stat_fathom.png). Without this
           // it falls back to a blank launcher-derived square.
           androidNotificationIcon: 'drawable/ic_stat_fathom',
+          // Android Auto: opt into content styling so browse folders/items can
+          // ask to render as lists or grids (see AudioController's browse tree),
+          // and declare search support on the browsable root — THIS is what makes
+          // the car draw the search button. ACTION_PLAY_FROM_SEARCH alone only
+          // enables voice; the browser-root SEARCH_SUPPORTED extra renders the UI.
+          androidBrowsableRootExtras: {
+            AndroidContentStyle.supportedKey: true,
+            // Category style so the top-level tabs render with their icons.
+            AndroidContentStyle.browsableHintKey:
+                AndroidContentStyle.categoryListItemHintValue,
+            AndroidContentStyle.playableHintKey:
+                AndroidContentStyle.listItemHintValue,
+            'android.media.browse.SEARCH_SUPPORTED': true,
+          },
         ),
       );
     } catch (_) {

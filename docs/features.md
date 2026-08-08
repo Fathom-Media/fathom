@@ -2,7 +2,7 @@
 
 ## Your library
 
-- **Movies and TV**: libraries, search, rich detail pages, resume and Next Up, next and previous episode, skip intro and credits, chapters, and trickplay thumbnails as you scrub.
+- **Movies and TV**: libraries, search, rich detail pages, resume and Next Up, next and previous episode, skip intro, recap, and credits, an Up Next prompt that rolls into the next episode during the credits, chapters, and trickplay thumbnails as you scrub.
 - **Music**: albums, a play queue, now playing, shuffle and repeat, synced lyrics with an online fallback, and scrobbling. The now-playing screen flips between artwork and lyrics.
 - **Live TV and DVR**: a channel list, an EPG guide, recording with series rules, and tuner and guide-provider setup.
 
@@ -12,6 +12,8 @@ The same player drives Jellyfin and [YouTube](youtube.md): one control bar, one 
 
 - **mpv-grade playback** through media_kit and libmpv: direct play with a transcode fallback, hardware decoding, and proper subtitle and audio track selection.
 - **Picture in picture**: shrink a video into a floating mini player and keep browsing, or pop it out to a resizable, always-on-top window.
+- **Up Next**: for an episode that has a next one, an Up Next card or compact Netflix-style pill appears during the credits and rolls into the next episode. Pick the style, and how long it waits before auto-skipping (the whole credits or a short countdown), under **Settings → Playback**, or leave Autoplay off and use its Play Now button.
+- **Audio passthrough (desktop)**: bitstream Dolby Digital, DTS, and Dolby Atmos straight to an AV receiver instead of decoding to stereo.
 - **Tune it to taste**: video fit, playback speed, a control bar you can style (glass, dark, or plain), remappable keyboard shortcuts, and scrub-preview thumbnails.
 
 ### Playback Info
@@ -37,6 +39,10 @@ Add stations by URL or search the built-in [radio-browser.info](https://www.radi
 
 Fathom casts to Chromecast and Google TV devices (on Android). Video direct-plays when the target supports the codecs, or falls back to a transcode for audio-only speakers, with a queue and skip that advance on the device.
 
+## Android Auto
+
+On Android, Fathom offers an audio-only Android Auto experience: browse your Jellyfin music, internet radio, and YouTube in tabs, search (including by voice) to play a song or playlist, and control playback, shuffle, repeat, favorites, and the up-next queue from the car's screen.
+
 ## Requests, ratings, and watch together
 
 - **Seerr (optional)**: browse and request titles, then approve, decline, or manage requests without leaving the page, with download progress shown right on the detail view. Set it up in [First-run setup](setup.md#seerr-requests).
@@ -45,11 +51,11 @@ Fathom casts to Chromecast and Google TV devices (on Android). Video direct-play
 
 ## Server administration
 
-Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, and plugins.
+Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, and plugins. Each plugin's configuration is an in-app form (toggles, fields, and add/remove lists), with a raw-JSON option if you prefer, and plugin logos show in the list.
 
 ## Personalization
 
-Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, in-app updates with a Stable or Beta channel, system and in-app notifications, a Settings screen you can search, and a fully translatable interface.
+Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, in-app updates with a Stable or Dev channel, system and in-app notifications, a Settings screen you can search, and a fully translatable interface.
 
 ## Notifications
 

@@ -7,6 +7,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../state/admin_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
+import '../widgets/tv_keyboard.dart';
 
 typedef _Toggle = (String key, String label, String subtitle);
 
@@ -152,12 +153,12 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.adminSetPassword),
-        content: TextField(
+        content: TvTextField(
           controller: controller,
-          obscureText: true,
+          obscure: true,
           autofocus: true,
-          decoration:
-              InputDecoration(hintText: l.adminNewPasswordHint),
+          label: l.adminNewPasswordHint,
+          hint: l.adminNewPasswordHint,
         ),
         actions: [
           TextButton(

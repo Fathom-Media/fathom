@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/tv_mode.dart';
+
 /// Whether the OS has asked for reduced motion. Big decorative animations (the
 /// Ken Burns hero, entrance fades) honour this; hover feedback stays, since it's
 /// pointer-driven, not autonomous motion.
@@ -9,12 +11,22 @@ bool reduceMotion(BuildContext context) {
 }
 
 /// Lifts and scales its child slightly on pointer hover — the "alive" feel on
-/// desktop. No-op on touch (there's no hover).
+/// desktop. On a remote/D-pad it does the same on focus and adds an accent ring,
+/// so the focused card is unmistakable (a plain focus overlay is invisible over
+/// a bright poster). No-op on touch (there's no hover and nothing focused).
 class HoverLift extends StatefulWidget {
   final Widget child;
   final double scale;
 
-  const HoverLift({super.key, required this.child, this.scale = 1.04});
+  /// Corner radius of the focus ring; match the child's own rounding.
+  final double radius;
+
+  const HoverLift({
+    super.key,
+    required this.child,
+    this.scale = 1.04,
+    this.radius = 14,
+  });
 
   @override
   State<HoverLift> createState() => _HoverLiftState();
@@ -22,17 +34,41 @@ class HoverLift extends StatefulWidget {
 
 class _HoverLiftState extends State<HoverLift> {
   bool _hovering = false;
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedScale(
-        scale: _hovering ? widget.scale : 1.0,
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
-        child: widget.child,
+    final scheme = Theme.of(context).colorScheme;
+    // The focus ring/scale is a TV affordance only; off TV this stays pure
+    // hover behaviour (desktop keyboard focus is left untouched).
+    final showFocus = _focused && isTvDevice;
+    final active = _hovering || showFocus;
+    // Focus reports true when a descendant (the card's InkWell) is focused, so
+    // the ring tracks the D-pad without the card owning a focus node itself.
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onFocusChange: (v) => setState(() => _focused = v),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: AnimatedScale(
+          scale: active ? widget.scale : 1.0,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.radius),
+              border: Border.all(
+                color: showFocus ? scheme.primary : Colors.transparent,
+                width: 3,
+              ),
+            ),
+            child: widget.child,
+          ),
+        ),
       ),
     );
   }

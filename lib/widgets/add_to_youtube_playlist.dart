@@ -5,6 +5,7 @@ import '../models/youtube_local_playlist.dart';
 import '../models/youtube_video.dart';
 import '../state/youtube_providers.dart';
 import 'hover_pill_button.dart';
+import 'tv_keyboard.dart';
 import '../l10n/generated/app_localizations.dart';
 
 /// Pick a playlist to drop [video] into, or make one on the spot.
@@ -61,10 +62,10 @@ class _AddToPlaylistSheet extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l.ytNewPlaylist),
-        content: TextField(
+        content: TvTextField(
           controller: controller,
           autofocus: true,
-          decoration: InputDecoration(labelText: l.ytName),
+          label: l.ytName,
           onSubmitted: (v) => Navigator.pop(ctx, v),
         ),
         actions: [
