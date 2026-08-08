@@ -187,10 +187,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (e is BaseItemDto) {
             item = e;
             resume = true;
+          } else if (e is ({BaseItemDto item, bool resume})) {
+            item = e.item;
+            resume = e.resume;
           } else {
-            final r = e as ({BaseItemDto item, bool resume});
-            item = r.item;
-            resume = r.resume;
+            // The route's `extra` was lost (e.g. an app-level remount rebuilt
+            // this page from scratch — go_router doesn't retain `extra` across
+            // that). Never hard-cast null here; that crashes the whole app to a
+            // blank screen. Send the user home instead.
+            return _fadePage(const _LostPlayerRoute(),
+                key: const ValueKey('player-lost'));
           }
           // The native ExoPlayer backend handles VOD when selected (tunneled
           // 4K/HDR). Live TV also uses ExoPlayer on Android TV: it's the only
@@ -576,3 +582,26 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// Fallback shown if a `/player` route is ever built without its `extra` (the
+/// item). Rather than crash on a null cast, it bounces straight back home.
+class _LostPlayerRoute extends StatefulWidget {
+  const _LostPlayerRoute();
+
+  @override
+  State<_LostPlayerRoute> createState() => _LostPlayerRouteState();
+}
+
+class _LostPlayerRouteState extends State<_LostPlayerRoute> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.go('/');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(backgroundColor: Colors.black);
+}

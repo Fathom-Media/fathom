@@ -20,6 +20,7 @@ import '../models/media_segment.dart';
 import '../models/session.dart';
 import '../services/diagnostics.dart';
 import '../services/tv_mode.dart';
+import '../widgets/window_frame.dart';
 import '../widgets/cast_button.dart';
 import '../widgets/cast_remote.dart';
 import '../widgets/player_prompts.dart';
@@ -1538,7 +1539,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       body: _error != null
           ? _ErrorOverlay(message: _error!)
           : Focus(
-              autofocus: true,
+              // On desktop the keyboard authority is the focus node inside the
+              // controls (works in both windowed and media_kit's fullscreen
+              // route). Two autofocus nodes fought and broke Space, so the outer
+              // one yields on desktop; TV/mobile keep it.
+              autofocus: !isDesktopWindowFrame,
               child: CallbackShortcuts(
                 bindings: _buildShortcuts(context),
                 child: Stack(
@@ -1548,11 +1553,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         controller: _controller,
                         fit: fit,
                         subtitleViewConfiguration: subtitleConfig,
+                        // Track fullscreen (desktop) so the custom window title
+                        // bar hides while the video is edge-to-edge. Still runs
+                        // media_kit's native fullscreen; mobile keeps the default.
+                        onEnterFullscreen: isDesktopWindowFrame
+                            ? () async {
+                                desktopFullscreen.value = true;
+                                await defaultEnterNativeFullscreen();
+                              }
+                            : defaultEnterNativeFullscreen,
+                        onExitFullscreen: isDesktopWindowFrame
+                            ? () async {
+                                desktopFullscreen.value = false;
+                                await defaultExitNativeFullscreen();
+                              }
+                            : defaultExitNativeFullscreen,
                         // Controls live inside Video so fullscreen lookups
                         // (toggleFullscreen/isFullscreen) resolve correctly.
                         // In a system PiP window, show just the video (the OS
                         // draws its own play/pause), so hide our chrome.
-                        controls: (state) => _inPip
+                        controls: (state) => _wrapControls(_inPip
                             ? const SizedBox.shrink()
                             : FathomPlayerControls(
                           player: _player,
@@ -1628,7 +1648,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               (_epIndex >= 0 && _epIndex < _episodes.length - 1)
                                   ? () => _playEpisodeAt(_epIndex + 1)
                                   : null,
-                        ),
+                        )),
                       ),
                     ),
                     // SyncPlay status cue (waiting/aligning, or SkipToSync).
@@ -1855,6 +1875,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } else {
       _player.setVolume(_preMuteVolume == 0 ? 100 : _preMuteVolume);
     }
+  }
+
+  /// media_kit pushes its own route for desktop fullscreen, so the screen's
+  /// CallbackShortcuts (Space, arrows, F, Esc) don't reach it. Re-bind them
+  /// inside the controls, which media_kit reuses in both the windowed and
+  /// fullscreen trees. The Builder gives a context beneath the Video so
+  /// toggleFullscreen/isFullscreen resolve; TV keeps its own D-pad handler.
+  Widget _wrapControls(Widget controls) {
+    if (!isDesktopWindowFrame) return controls;
+    // Desktop keyboard authority for BOTH windowed and fullscreen. The controls
+    // live inside the Video, so this one focus node covers the windowed player
+    // AND media_kit's separate fullscreen route (which the screen-level
+    // shortcuts don't reach). The screen's outer Focus drops its autofocus on
+    // desktop (see build) so there's exactly one autofocus — two fought each
+    // other and broke Space. The Builder gives a context beneath the Video so
+    // toggleFullscreen/isFullscreen resolve correctly.
+    return Builder(
+      builder: (ctx) => CallbackShortcuts(
+        bindings: _buildShortcuts(ctx),
+        child: Focus(autofocus: true, child: controls),
+      ),
+    );
   }
 
   Map<ShortcutActivator, VoidCallback> _buildShortcuts(BuildContext context) {

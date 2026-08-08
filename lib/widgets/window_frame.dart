@@ -16,6 +16,12 @@ bool get isDesktopWindowFrame =>
 
 bool get _isDesktop => isDesktopWindowFrame;
 
+/// True while the desktop video player is in fullscreen. The player flips this
+/// from media_kit's fullscreen enter/exit callbacks (which fire for every
+/// trigger: the bar button, double-tap, or the F key), so [WindowFrame] can drop
+/// the custom title bar and its inset while the video is edge-to-edge.
+final ValueNotifier<bool> desktopFullscreen = ValueNotifier<bool>(false);
+
 /// Draws a seamless, transparent title bar (drag region + window buttons) over
 /// the content, Fladder-style: full-bleed art runs to the very top edge while
 /// app bars drop below the bar (we inject an equivalent top padding so their
@@ -28,19 +34,33 @@ class WindowFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!_isDesktop) return child;
     final mq = MediaQuery.of(context);
-    return Stack(
-      children: [
-        // App content sees the top strip as a safe-area inset, so Scaffolds and
-        // AppBars keep their chrome below the window buttons. Full-bleed slivers
-        // (hero, backdrops) ignore padding and run edge-to-edge behind the bar.
-        MediaQuery(
-          data: mq.copyWith(
-            padding: mq.padding.copyWith(top: mq.padding.top + _titleBarHeight),
-          ),
-          child: child,
-        ),
-        const Positioned(top: 0, left: 0, right: 0, child: _TitleBar()),
-      ],
+    return ValueListenableBuilder<bool>(
+      valueListenable: desktopFullscreen,
+      // CRITICAL: keep the tree structure IDENTICAL across the fullscreen
+      // toggle. [child] must always sit at the same depth (Stack > MediaQuery),
+      // or Flutter remounts the whole app subtree — including the media_kit
+      // Video — which blanks the texture and stops playback. So in fullscreen we
+      // only zero the top inset and drop the title bar sibling; we never rewrap
+      // [child].
+      builder: (context, fullscreen, _) {
+        final topInset = fullscreen ? 0.0 : _titleBarHeight;
+        return Stack(
+          children: [
+            // App content sees the top strip as a safe-area inset, so Scaffolds
+            // and AppBars keep their chrome below the window buttons. Full-bleed
+            // slivers (hero, backdrops) ignore padding and run edge-to-edge
+            // behind the bar.
+            MediaQuery(
+              data: mq.copyWith(
+                padding: mq.padding.copyWith(top: mq.padding.top + topInset),
+              ),
+              child: child,
+            ),
+            if (!fullscreen)
+              const Positioned(top: 0, left: 0, right: 0, child: _TitleBar()),
+          ],
+        );
+      },
     );
   }
 }
