@@ -140,12 +140,13 @@ class NowPlayingScreen extends ConsumerWidget {
         child: SafeArea(
           child: LayoutBuilder(
           builder: (context, constraints) {
-            // On a wide screen (TV/desktop landscape) put the art on the LEFT
-            // and the info+transport on the RIGHT so it fits 16:9 without
-            // overflowing; narrow keeps the vertical stack.
-            // The wide (art-left) layout is a TV affordance; desktop/mobile keep
-            // the original centered stack regardless of window width.
-            final wide = isTvDevice && constraints.maxWidth >= 840;
+            // Put the art on the LEFT and the info+transport on the RIGHT when
+            // the viewport is wide (TV/desktop) OR short-and-landscape (a phone
+            // rotated to landscape), so the vertical stack doesn't overflow into
+            // a scroll. Portrait keeps the centered stack.
+            final wide = (isTvDevice && constraints.maxWidth >= 840) ||
+                (constraints.maxWidth > constraints.maxHeight &&
+                    constraints.maxHeight < 500);
             final cover = wide
                 ? math
                     .min(constraints.maxWidth * 0.34,
@@ -1542,35 +1543,48 @@ class _YoutubeNowPlaying extends ConsumerWidget {
               const SizedBox(height: 20),
               _YtScrub(player: player),
               const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Stack(
+                alignment: Alignment.center,
                 children: [
-                  IconButton(
-                    iconSize: 36,
-                    icon: const Icon(Icons.skip_previous_rounded),
-                    onPressed: controller.previous,
+                  // Transport clusters in the center; volume floats at the right
+                  // edge and expands leftward, matching the music layout.
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        iconSize: 36,
+                        icon: const Icon(Icons.skip_previous_rounded),
+                        onPressed: controller.previous,
+                      ),
+                      const SizedBox(width: 12),
+                      StreamBuilder<bool>(
+                        stream: player.stream.playing,
+                        initialData: player.state.playing,
+                        builder: (context, snap) {
+                          final playing = snap.data ?? false;
+                          return IconButton(
+                            iconSize: 68,
+                            icon: Icon(playing
+                                ? Icons.pause_circle_filled_rounded
+                                : Icons.play_circle_fill_rounded),
+                            onPressed: controller.togglePlay,
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        iconSize: 36,
+                        icon: const Icon(Icons.skip_next_rounded),
+                        onPressed: controller.next,
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  StreamBuilder<bool>(
-                    stream: player.stream.playing,
-                    initialData: player.state.playing,
-                    builder: (context, snap) {
-                      final playing = snap.data ?? false;
-                      return IconButton(
-                        iconSize: 68,
-                        icon: Icon(playing
-                            ? Icons.pause_circle_filled_rounded
-                            : Icons.play_circle_fill_rounded),
-                        onPressed: controller.togglePlay,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 12),
-                  IconButton(
-                    iconSize: 36,
-                    icon: const Icon(Icons.skip_next_rounded),
-                    onPressed: controller.next,
-                  ),
+                  // No volume on TV — the remote owns it.
+                  if (!isTvDevice)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: InlineVolume(player: player, expandLeft: true),
+                    ),
                 ],
               ),
             ],
