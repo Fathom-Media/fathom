@@ -34,7 +34,7 @@ See the [feature tour](https://fathom-media.github.io/fathom/features/) for the 
 
 ## Install
 
-Fathom runs on **Linux** and **Windows** (self-contained, nothing else to install) and on **Android** phones, tablets, and **Android TV**. macOS and iOS need Mac hardware.
+Fathom runs on **Linux** and **Windows** (self-contained, nothing else to install) and on **Android** phones and tablets. **Android TV** is supported but experimental for now. macOS and iOS need Mac hardware.
 
 Grab the latest build from [Releases](https://github.com/Fathom-Media/fathom/releases/latest). On Linux:
 
@@ -43,7 +43,7 @@ chmod +x Fathom-x86_64.AppImage
 ./Fathom-x86_64.AppImage
 ```
 
-On Android, download the `.apk` and open it to install (allow installs from your browser or file manager if prompted). The same APK covers phones, tablets, and Android TV.
+On Android, download the `.apk` and open it to install (allow installs from your browser or file manager if prompted). The same APK covers phones, tablets, and Android TV (Android TV is experimental for now).
 
 Full instructions, first-run setup, and troubleshooting are in the **[documentation](https://fathom-media.github.io/fathom/install/)**.
 
