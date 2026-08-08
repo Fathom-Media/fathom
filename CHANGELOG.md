@@ -3,7 +3,7 @@
 ## 0.11.0
 
 ### Added
-- Android, and experimental Android TV: Fathom now runs on Android phones and tablets from the same universal APK, with a native ExoPlayer backend at parity with the desktop player (skip, trickplay, picture-in-picture, SyncPlay), Chromecast, and background YouTube audio with lock-screen controls. Android TV is included but experimental: D-pad navigation and a 10-foot interface are in place, with more polish to come.
+- Android, and experimental Android TV: Fathom now runs on Android phones and tablets from the same universal APK, at parity with the desktop player (skip, trickplay, picture-in-picture, SyncPlay), with Chromecast and background YouTube audio with lock-screen controls. A native ExoPlayer backend is the default on Android TV (and optional on phones) for tunneled 4K/HDR playback. Android TV is included but experimental: D-pad navigation and a 10-foot interface are in place, with more polish to come.
 - Android Auto (audio-only): browse your Jellyfin music, internet radio, and YouTube in tabs, search by voice, and control playback, shuffle, repeat, favorites, and the up-next queue from the car's screen.
 - YouTube Shorts viewer: a vertical swipe pager through a channel's Shorts, with comments, a scrubbable progress bar, watch history, and portrait fullscreen.
 - Up Next: episodes that have a next episode show an Up Next prompt over the credits, as a poster Card or a Netflix-style Pill, so it advances to the next episode instead of leaving you at the end of the file. Choose the style and timing under Settings, and Autoplay Next Episode decides whether it counts down on its own or waits for Play Now.
@@ -15,7 +15,7 @@
 
 ### Changed
 - Faster YouTube "What's New" and channel browsing (InnerTube, bounded hydration, cached feed metadata).
-- The Android TV YouTube player gains an actions sheet (Subscribe, Add to Playlist, open Channel) and higher-resolution audio artwork.
+- YouTube audio now uses higher-resolution artwork.
 - Your last volume is restored when playback hands off between the player and background audio.
 
 ### Fixed
