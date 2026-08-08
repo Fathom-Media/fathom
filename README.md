@@ -6,13 +6,13 @@
 
 **Dive into your media**
 
-An all-in-one desktop client for Jellyfin. Your media, your server, Seerr requests, and YouTube, without leaving the app.
+An all-in-one client for Jellyfin, on desktop and Android. Your media, your server, Seerr requests, and YouTube, without leaving the app.
 
 [![License](https://img.shields.io/github/license/Fathom-Media/fathom?color=blue)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/Fathom-Media/fathom)](https://github.com/Fathom-Media/fathom/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Fathom-Media/fathom/total)](https://github.com/Fathom-Media/fathom/releases)
 [![Stars](https://img.shields.io/github/stars/Fathom-Media/fathom)](https://github.com/Fathom-Media/fathom/stargazers)
-![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
+![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android%20%7C%20Android%20TV-lightgrey)
 
 **[Documentation](https://fathom-media.github.io/fathom/) · [Install](https://fathom-media.github.io/fathom/install/) · [Releases](https://github.com/Fathom-Media/fathom/releases/latest)**
 
@@ -34,7 +34,7 @@ See the [feature tour](https://fathom-media.github.io/fathom/features/) for the 
 
 ## Install
 
-Fathom runs on **Linux** and **Windows** today, self-contained (nothing else to install). Android is planned; macOS and iOS need Mac hardware.
+Fathom runs on **Linux** and **Windows** (self-contained, nothing else to install) and on **Android** phones, tablets, and **Android TV**. macOS and iOS need Mac hardware.
 
 Grab the latest build from [Releases](https://github.com/Fathom-Media/fathom/releases/latest). On Linux:
 
@@ -42,6 +42,8 @@ Grab the latest build from [Releases](https://github.com/Fathom-Media/fathom/rel
 chmod +x Fathom-x86_64.AppImage
 ./Fathom-x86_64.AppImage
 ```
+
+On Android, download the `.apk` and open it to install (allow installs from your browser or file manager if prompted). The same APK covers phones, tablets, and Android TV.
 
 Full instructions, first-run setup, and troubleshooting are in the **[documentation](https://fathom-media.github.io/fathom/install/)**.
 
