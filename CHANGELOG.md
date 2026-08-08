@@ -10,23 +10,18 @@
 - Item context menu: a per-item menu on posters (long-press, right-click, or the hover hamburger), on each episode row, and in the detail overflow, with Play or Resume, Show Details, Mark Watched, Add to Favorites, Add to Playlist, Refresh Metadata, and Delete.
 - Delete media: with the right server permission, delete a whole series, a season, a single episode, or a movie, each behind a confirmation.
 - Audio passthrough: bitstream Atmos, Dolby Digital, and DTS to a receiver on the desktop player.
-- In-app plugin configuration: a real form with toggles, number and text fields, and add/remove lists instead of a raw JSON blob, with an Edit as JSON switch, plus plugin logos in the list and on the plugin page.
 - Skip Recap: "Previously On" recaps get their own Skip Recap button, separate from Skip Intro.
 
 ### Changed
+- Plugin configuration is now an in-app form (toggles, number and text fields, add/remove lists) instead of a raw JSON blob, with an Edit as JSON switch, plus plugin logos in the list and on the plugin page.
 - Faster YouTube "What's New" and channel browsing (InnerTube, bounded hydration, cached feed metadata).
 - YouTube audio now uses higher-resolution artwork.
 - Your last volume is restored when playback hands off between the player and background audio.
 
 ### Fixed
 - Skip Intro and Skip Credits now appear reliably (the app requests segment types from the server).
-- Android (ExoPlayer): 4:3 video is pillarboxed instead of stretched to a 16:9 screen, and seeking near the end of an episode no longer jumps to the next one.
-- Android TV: selecting an episode now plays it, and the Skip and Up Next buttons are reachable and clickable with the D-pad.
-- Desktop fullscreen: the window's minimize, maximize, and close buttons are hidden, the video no longer blanks when entering fullscreen, and Space and the other shortcuts work in both windowed and fullscreen.
-- The cast button now hides when no Cast device is reachable, and fades away with the rest of the player controls.
-- Android Auto: switching from YouTube audio to internet radio or music now updates the car display with the correct title, artwork, and time, instead of keeping the previous YouTube track's info.
+- Desktop fullscreen: the window's minimize, maximize, and close buttons are now hidden, and Space and the other player shortcuts work in fullscreen as well as windowed.
 - Seerr search no longer fails on multi-word queries.
-- The YouTube Listen queue no longer gets stuck when a track fails to open.
 
 ## 0.10.1
 
