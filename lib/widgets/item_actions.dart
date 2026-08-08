@@ -11,11 +11,28 @@ import '../state/session_controller.dart';
 import 'add_to_playlist.dart';
 import 'tv_focus.dart';
 
+/// The actions the shared context menu can return.
+enum _ItemAction {
+  play,
+  showDetails,
+  toggleWatched,
+  toggleFavorite,
+  addToPlaylist,
+  refresh,
+  delete,
+}
+
 /// Shared per-item context menu (the "hamburger"), the same surface Jellyfin and
 /// Fladder expose on a poster, in a detail page, and on an individual episode.
 /// Reached off TV by long-press / right-click / a hover hamburger, and on TV by
 /// the episode row's visible three-dot stop (grids on TV use the detail
 /// overflow instead, keeping the card's D-pad path untouched).
+///
+/// The bottom sheet only PICKS an action and pops with it; the work runs here,
+/// after the sheet closes. Data reads/invalidations go through the app-wide
+/// [ProviderContainer], not the caller's `ref`, so they survive the caller
+/// unmounting mid-request (a grid card recycled by a scroll, a route pop) — and
+/// they never touch the sheet's own `ref`, which is gone once it pops.
 ///
 /// [fromGrid] adds a "Show Details" row (pointless on a page that already shows
 /// them). [onOpenDetails] performs that navigation (usually the card's own tap).
@@ -28,34 +45,148 @@ Future<void> showItemActionsMenu(
   bool fromGrid = false,
   VoidCallback? onOpenDetails,
   VoidCallback? onDeleted,
-}) {
-  final tv = isTvDevice;
-  return showModalBottomSheet<void>(
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final container = ProviderScope.containerOf(context, listen: false);
+  final action = await showModalBottomSheet<_ItemAction>(
     context: context,
     useRootNavigator: true,
-    showDragHandle: !tv,
+    showDragHandle: !isTvDevice,
     isScrollControlled: true,
     builder: (ctx) => _ItemActionsSheet(
       item: item,
-      fromGrid: fromGrid,
-      onOpenDetails: onOpenDetails,
-      onDeleted: onDeleted,
+      showDetailsRow: fromGrid && onOpenDetails != null,
     ),
   );
+  if (action == null || !context.mounted) return;
+
+  switch (action) {
+    case _ItemAction.play:
+      context.push('/player', extra: item);
+    case _ItemAction.showDetails:
+      onOpenDetails?.call();
+    case _ItemAction.addToPlaylist:
+      await showAddToPlaylistSheet(context, ref,
+          itemIds: [item.id], label: item.name);
+    case _ItemAction.toggleWatched:
+      await _mutate(messenger, () async {
+        final s = container.read(sessionControllerProvider).asData?.value;
+        if (s == null) return;
+        await container.read(jellyfinClientProvider).setPlayed(
+              baseUrl: s.baseUrl,
+              userId: s.userId,
+              token: s.accessToken,
+              itemId: item.id,
+              played: !item.userData.played,
+            );
+        _invalidateLists(container, item);
+      });
+    case _ItemAction.toggleFavorite:
+      await _mutate(messenger, () async {
+        final s = container.read(sessionControllerProvider).asData?.value;
+        if (s == null) return;
+        await container.read(jellyfinClientProvider).setFavorite(
+              baseUrl: s.baseUrl,
+              userId: s.userId,
+              token: s.accessToken,
+              itemId: item.id,
+              favorite: !item.userData.isFavorite,
+            );
+        _invalidateLists(container, item);
+      });
+    case _ItemAction.refresh:
+      final started = AppLocalizations.of(context).detailMetadataRefreshStarted;
+      await _mutate(messenger, () async {
+        final s = container.read(sessionControllerProvider).asData?.value;
+        if (s == null) return;
+        await container.read(jellyfinClientProvider).refreshItem(
+              baseUrl: s.baseUrl,
+              token: s.accessToken,
+              itemId: item.id,
+            );
+        messenger.showSnackBar(SnackBar(content: Text(started)));
+      });
+    case _ItemAction.delete:
+      await _confirmAndDelete(context, container, messenger, item, onDeleted);
+  }
+}
+
+Future<void> _mutate(
+  ScaffoldMessengerState messenger,
+  Future<void> Function() action,
+) async {
+  try {
+    await action();
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('$e')));
+  }
+}
+
+Future<void> _confirmAndDelete(
+  BuildContext context,
+  ProviderContainer container,
+  ScaffoldMessengerState messenger,
+  BaseItemDto item,
+  VoidCallback? onDeleted,
+) async {
+  final l = AppLocalizations.of(context);
+  final s = container.read(sessionControllerProvider).asData?.value;
+  if (s == null) return;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (dctx) => AlertDialog(
+      title: Text(l.detailDeleteItem),
+      content: Text(l.detailDeleteConfirm(item.name)),
+      actions: [
+        TextButton(
+          autofocus: true,
+          onPressed: () => Navigator.pop(dctx, false),
+          child: Text(l.commonCancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(dctx).colorScheme.error,
+          ),
+          onPressed: () => Navigator.pop(dctx, true),
+          child: Text(l.commonDelete),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  try {
+    await container.read(jellyfinClientProvider).deleteItem(
+          baseUrl: s.baseUrl,
+          token: s.accessToken,
+          itemId: item.id,
+        );
+    _invalidateLists(container, item);
+    if (item.isEpisode) {
+      final sid = item.seriesId;
+      if (sid != null) {
+        container.invalidate(episodesProvider(sid));
+        container.invalidate(nextUpProvider(sid));
+      }
+    }
+    onDeleted?.call();
+    messenger.showSnackBar(SnackBar(content: Text(l.detailDeleted(item.name))));
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(content: Text('$e')));
+  }
+}
+
+void _invalidateLists(ProviderContainer container, BaseItemDto item) {
+  container.invalidate(itemDetailProvider(item.id));
+  container.invalidate(resumeItemsProvider);
+  container.invalidate(latestItemsProvider);
+  container.invalidate(favoriteItemsProvider);
 }
 
 class _ItemActionsSheet extends ConsumerWidget {
   final BaseItemDto item;
-  final bool fromGrid;
-  final VoidCallback? onOpenDetails;
-  final VoidCallback? onDeleted;
+  final bool showDetailsRow;
 
-  const _ItemActionsSheet({
-    required this.item,
-    required this.fromGrid,
-    required this.onOpenDetails,
-    required this.onDeleted,
-  });
+  const _ItemActionsSheet({required this.item, required this.showDetailsRow});
 
   String _deleteLabel(AppLocalizations l) {
     if (item.isSeries) return l.actionDeleteSeries;
@@ -79,141 +210,84 @@ class _ItemActionsSheet extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final cs = Theme.of(context).colorScheme;
     final user = ref.watch(currentUserProvider).asData?.value;
-    final canDelete =
-        (user?.enableContentDeletion ?? false) ||
-        (user?.isAdministrator ?? false);
-    final canRefresh = user?.isAdministrator ?? false;
+    final session = ref.watch(sessionControllerProvider).asData?.value;
+    // Mirror the detail overflow's gate exactly (session fallback included) so
+    // the same admin sees the same rows from a poster, an episode, or detail.
+    final canDelete = (user?.enableContentDeletion ?? false) ||
+        (user?.isAdministrator ?? false) ||
+        (session?.canDelete ?? false);
+    final canRefresh =
+        (user?.isAdministrator ?? false) || (session?.isAdmin ?? false);
 
     final rows = <Widget>[];
     var first = true;
-    Widget row({
+    void add({
       required IconData icon,
       required String label,
-      required VoidCallback onTap,
+      required _ItemAction action,
       Color? color,
     }) {
-      final w = _ActionRow(
+      rows.add(_ActionRow(
         icon: icon,
         label: label,
         color: color,
         autofocus: first,
-        onTap: onTap,
-      );
+        onTap: () => Navigator.pop(context, action),
+      ));
       first = false;
-      return w;
     }
 
-    // Play / Resume (leaf items only; a container's "play" is ambiguous).
     if (_isPlayable) {
-      rows.add(row(
+      add(
         icon: item.canResume
             ? Icons.play_circle_outline_rounded
             : Icons.play_arrow_rounded,
         label: item.canResume ? l.detailResume : l.commonPlay,
-        onTap: () {
-          Navigator.pop(context);
-          context.push('/player', extra: item);
-        },
-      ));
+        action: _ItemAction.play,
+      );
     }
-
-    // Show Details (only useful when invoked away from the detail page).
-    if (fromGrid && onOpenDetails != null) {
-      rows.add(row(
+    if (showDetailsRow) {
+      add(
         icon: Icons.info_outline_rounded,
         label: l.actionShowDetails,
-        onTap: () {
-          Navigator.pop(context);
-          onOpenDetails!.call();
-        },
-      ));
+        action: _ItemAction.showDetails,
+      );
     }
-
-    // Mark watched / unwatched.
-    rows.add(row(
+    add(
       icon: item.userData.played
           ? Icons.check_circle_rounded
           : Icons.check_circle_outline_rounded,
       label: item.userData.played ? l.detailMarkUnwatched : l.detailMarkWatched,
-      onTap: () => _run(context, ref, () async {
-        final s = ref.read(sessionControllerProvider).asData?.value;
-        if (s == null) return;
-        await ref.read(jellyfinClientProvider).setPlayed(
-              baseUrl: s.baseUrl,
-              userId: s.userId,
-              token: s.accessToken,
-              itemId: item.id,
-              played: !item.userData.played,
-            );
-        _invalidateLists(ref);
-      }),
-    ));
-
-    // Favorite / unfavorite.
-    rows.add(row(
+      action: _ItemAction.toggleWatched,
+    );
+    add(
       icon: item.userData.isFavorite
           ? Icons.favorite_rounded
           : Icons.favorite_border_rounded,
-      label: item.userData.isFavorite ? l.detailRemoveFavorite : l.detailAddFavorite,
+      label:
+          item.userData.isFavorite ? l.detailRemoveFavorite : l.detailAddFavorite,
       color: item.userData.isFavorite ? Colors.redAccent : null,
-      onTap: () => _run(context, ref, () async {
-        final s = ref.read(sessionControllerProvider).asData?.value;
-        if (s == null) return;
-        await ref.read(jellyfinClientProvider).setFavorite(
-              baseUrl: s.baseUrl,
-              userId: s.userId,
-              token: s.accessToken,
-              itemId: item.id,
-              favorite: !item.userData.isFavorite,
-            );
-        _invalidateLists(ref);
-      }),
-    ));
-
-    // Add to playlist.
-    rows.add(row(
+      action: _ItemAction.toggleFavorite,
+    );
+    add(
       icon: Icons.playlist_add_rounded,
       label: l.detailAddToPlaylist,
-      onTap: () {
-        Navigator.pop(context);
-        showAddToPlaylistSheet(context, ref,
-            itemIds: [item.id], label: item.name);
-      },
-    ));
-
-    // Refresh metadata (admin).
+      action: _ItemAction.addToPlaylist,
+    );
     if (canRefresh) {
-      rows.add(row(
+      add(
         icon: Icons.refresh_rounded,
         label: l.detailRefreshMetadata,
-        onTap: () => _run(context, ref, () async {
-          final s = ref.read(sessionControllerProvider).asData?.value;
-          if (s == null) return;
-          await ref.read(jellyfinClientProvider).refreshItem(
-                baseUrl: s.baseUrl,
-                token: s.accessToken,
-                itemId: item.id,
-              );
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l.detailMetadataRefreshStarted)),
-            );
-          }
-        }),
-      ));
+        action: _ItemAction.refresh,
+      );
     }
-
-    // Delete (permission-gated, destructive, always last).
     if (canDelete) {
-      rows.add(row(
+      add(
         icon: Icons.delete_outline_rounded,
         label: _deleteLabel(l),
         color: cs.error,
-        onTap: () async {
-          Navigator.pop(context);
-          await _confirmAndDelete(context, ref);
-        },
-      ));
+        action: _ItemAction.delete,
+      );
     }
 
     return SafeArea(
@@ -243,78 +317,6 @@ class _ItemActionsSheet extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  /// Close the sheet, run [action], surface any error as a SnackBar.
-  Future<void> _run(
-    BuildContext context,
-    WidgetRef ref,
-    Future<void> Function() action,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    Navigator.pop(context);
-    try {
-      await action();
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
-  Future<void> _confirmAndDelete(BuildContext context, WidgetRef ref) async {
-    final l = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    final s = ref.read(sessionControllerProvider).asData?.value;
-    if (s == null) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dctx) => AlertDialog(
-        title: Text(l.detailDeleteItem),
-        content: Text(l.detailDeleteConfirm(item.name)),
-        actions: [
-          TextButton(
-            autofocus: true,
-            onPressed: () => Navigator.pop(dctx, false),
-            child: Text(l.commonCancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.pop(dctx, true),
-            child: Text(l.commonDelete),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      await ref.read(jellyfinClientProvider).deleteItem(
-            baseUrl: s.baseUrl,
-            token: s.accessToken,
-            itemId: item.id,
-          );
-      _invalidateLists(ref);
-      if (item.isEpisode) {
-        final sid = item.seriesId;
-        if (sid != null) {
-          ref.invalidate(episodesProvider(sid));
-          ref.invalidate(nextUpProvider(sid));
-        }
-      }
-      onDeleted?.call();
-      messenger.showSnackBar(
-        SnackBar(content: Text(l.detailDeleted(item.name))),
-      );
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
-    }
-  }
-
-  void _invalidateLists(WidgetRef ref) {
-    ref.invalidate(itemDetailProvider(item.id));
-    ref.invalidate(resumeItemsProvider);
-    ref.invalidate(latestItemsProvider);
-    ref.invalidate(favoriteItemsProvider);
   }
 }
 
