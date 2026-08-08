@@ -196,9 +196,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final ValueNotifier<({BaseItemDto item, int? remaining, int total})?>
       _upNextVN = ValueNotifier(null);
   bool _upNextHidden = false; // user pressed Hide for this episode
+  bool _upNextFocused = false; // D-pad has been landed on the Up Next card (TV)
   bool _advancingNext = false; // guards the auto-advance from double-firing
   int? _upNextSegTicks; // the credits segment currently driving Up Next
+  Duration? _upNextAnchor; // where the card appeared (credits start or seek-in)
   bool _upNextCounted = false; // the countdown ran down via playback (not a seek)
+  bool _upNextSuppressed = false; // seeked back in the credits: hide until forward
   // TV: the Skip Intro/Credits button lives outside the control scope, so a
   // remote can't reach it. When a segment appears we move focus to it (so OK
   // skips), remembering the previously focused control to restore afterward.
@@ -1036,6 +1039,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ref.read(syncPlaySessionProvider).seek(pos);
       }
     }
+    // Up Next seek detection: a jump back hides the card (you're going back to
+    // watch, not advance); forward progress lets it show again.
+    final backSeek = pos < _lastPos - const Duration(seconds: 2);
+    final forwardProgress = pos > _lastPos;
     _lastPos = pos;
     if (widget.item.isLiveChannel || _segments.isEmpty) return;
     MediaSegment? active;
@@ -1066,13 +1073,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final hasNext = widget.item.isEpisode &&
         _epIndex >= 0 &&
         _epIndex + 1 < _episodes.length;
+    final inCredits = active != null && active.isCredits && hasNext;
     var upNextHandled = false;
-    if (active != null && active.isCredits && hasNext) {
+    if (inCredits) {
       final seg = active;
-      active = null; // suppress the seek-to-end Skip Credits pill for episodes
-      if (!_upNextHidden) upNextHandled = _handleUpNext(seg, pos);
+      active = null; // never show the seek-to-end Skip Credits pill for episodes
+      if (!_upNextHidden) {
+        if (backSeek) {
+          // Seeked back inside the credits: hide the prompt.
+          _upNextSuppressed = true;
+        } else if (_upNextSuppressed && forwardProgress) {
+          // Playing forward again: bring it back with a fresh countdown.
+          _upNextSuppressed = false;
+          _upNextAnchor = pos;
+          _upNextCounted = false;
+        }
+        if (!_upNextSuppressed) upNextHandled = _handleUpNext(seg, pos);
+      }
+    } else {
+      // Left the credits entirely → clear the back-seek suppression so re-entering
+      // (by playing forward) shows the card again.
+      _upNextSuppressed = false;
     }
     if (!upNextHandled && _upNextVN.value != null) _upNextVN.value = null;
+    // On TV, land the D-pad on the Up Next card's Play Now button (it shares
+    // _skipFocus) when the card first appears — the skip pill does the same, but
+    // the Up Next branch bypasses that block below. Once only, so it doesn't
+    // fight the remote each tick.
+    if (isTvDevice) {
+      if (upNextHandled && !_upNextFocused) {
+        _upNextFocused = true;
+        // Capture fresh (not ??=) — a prior skip pill may have left a stale one.
+        _preSkipFocus = FocusManager.instance.primaryFocus;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _upNextVN.value != null) _skipFocus.requestFocus();
+        });
+      } else if (!upNextHandled && _upNextFocused) {
+        _upNextFocused = false;
+        // Card dismissed (Hide, or seeked out of credits): return the remote
+        // where it was, so it isn't stranded on the removed Play Now button.
+        _preSkipFocus?.requestFocus();
+      }
+    }
     if (active?.startTicks != _activeSkip?.startTicks && mounted) {
       final wasNull = _activeSkip == null;
       setState(() => _activeSkip = active);
@@ -1703,11 +1745,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   /// Drives the Up Next prompt during the credits of an episode that has a next
-  /// episode. The prompt ALWAYS appears from the start of the credits. Two
-  /// independent prefs:
-  ///   • Timing (upNextLeadSeconds) = how long it stays before auto-skipping,
-  ///     measured from the start of the credits — 0 = Full credits (auto-skip
-  ///     at the end); N = auto-skip N seconds in.
+  /// episode. The prompt appears once you're in the credits. Two independent
+  /// prefs:
+  ///   • Timing (upNextLeadSeconds): 0 = Full credits (counts down to the real
+  ///     end of the credits); N = a fixed N-second countdown measured from where
+  ///     the card first appears (_upNextAnchor: the credits start when played
+  ///     through, or the seek target when you jump in), so seeking into the
+  ///     credits gets a fresh countdown, not one already eaten by skipped time.
   ///   • Autoplay next = whether it counts down / auto-advances at all — on =
   ///     ring/fill runs and it plays the next episode when the countdown ends;
   ///     off = a static prompt whose Play Now waits until clicked.
@@ -1725,13 +1769,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_upNextSegTicks != segId) {
       _upNextSegTicks = segId;
       _upNextCounted = false;
+      // Anchor the countdown to WHERE the card first appears this segment: the
+      // credits start when played through, or the seek target when you jump in.
+      // So seeking into the credits gets a fresh countdown instead of one
+      // already eaten by the skipped-over seconds.
+      _upNextAnchor = pos;
     }
     final creditsLen = (seg.end - seg.start).inSeconds;
-    var total = lead <= 0 ? creditsLen : lead;
-    if (total < 1) total = 1;
-    final elapsed = (pos - seg.start).inSeconds;
-    var remainingSecs = total - elapsed;
+    final int total;
+    int remainingSecs;
+    if (lead <= 0) {
+      // Full: run to the real end of the credits (position-based).
+      total = creditsLen < 1 ? 1 : creditsLen;
+      remainingSecs = (seg.end - pos).inSeconds;
+    } else {
+      // Fixed N seconds, measured from the anchor (appearance / seek-in).
+      total = lead;
+      remainingSecs = lead - (pos - (_upNextAnchor ?? seg.start)).inSeconds;
+    }
     if (remainingSecs < 0) remainingSecs = 0;
+    if (remainingSecs > total) remainingSecs = total; // never grow past the length
 
     // Autoplay off → static prompt (no countdown); on → live remaining.
     final int? remaining = autoplayOn ? remainingSecs : null;
@@ -1847,6 +1904,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _upNextHide() {
     _upNextHidden = true;
     _upNextVN.value = null;
+    // Restore the D-pad now (paused → no position tick to defer the restore to).
+    if (isTvDevice && _upNextFocused) {
+      _upNextFocused = false;
+      _preSkipFocus?.requestFocus();
+    }
   }
 
   void _seekBy(int seconds) {

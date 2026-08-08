@@ -97,7 +97,10 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
   bool _upNextHidden = false; // user pressed Hide for this episode
   bool _advancingNext = false; // guards the auto-advance from double-firing
   int? _upNextSegTicks; // the credits segment currently driving Up Next
+  Duration? _upNextAnchor; // where the card appeared (credits start or seek-in)
   bool _upNextCounted = false; // the countdown ran down via playback (not a seek)
+  bool _upNextSuppressed = false; // seeked back in the credits: hide until forward
+  bool _upNextFocused = false; // D-pad landed on the Up Next card (TV), captured once
   final _fUpNextPlay = FocusNode(debugLabel: 'exoUpNextPlay');
   final _fUpNextHide = FocusNode(debugLabel: 'exoUpNextHide');
   // Trickplay scrub-preview geometry (VOD only). Null until loaded / if absent.
@@ -885,6 +888,10 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
   void _checkSegments(Duration pos) {
     // A late state event during teardown must not read providers after unmount.
     if (_disposed || _deactivated || !mounted) return;
+    // Up Next seek detection (uses the still-previous _lastPos; _onState updates
+    // it after this call). A jump back hides the card; forward progress shows it.
+    final backSeek = pos < _lastPos - const Duration(seconds: 2);
+    final forwardProgress = pos > _lastPos;
     MediaSegment? active;
     for (final seg in _segments) {
       if (seg.isSkippable && seg.contains(pos)) {
@@ -908,16 +915,31 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     final hasNext = widget.item.isEpisode &&
         _epIndex >= 0 &&
         _epIndex + 1 < _episodes.length;
-    if (active != null && active.isCredits && hasNext) {
+    final inCredits = active != null && active.isCredits && hasNext;
+    if (inCredits) {
       final seg = active;
       active = null;
       if (!_upNextHidden) {
-        _handleUpNext(seg, pos);
-      } else if (_upNext != null && mounted) {
-        setState(() => _upNext = null);
+        if (backSeek) {
+          // Seeked back inside the credits: hide the prompt.
+          _upNextSuppressed = true;
+        } else if (_upNextSuppressed && forwardProgress) {
+          // Playing forward again: bring it back with a fresh countdown.
+          _upNextSuppressed = false;
+          _upNextAnchor = pos;
+          _upNextCounted = false;
+        }
       }
-    } else if (_upNext != null && mounted) {
-      setState(() => _upNext = null);
+      if (_upNextHidden || _upNextSuppressed) {
+        _dismissUpNext();
+      } else {
+        _handleUpNext(seg, pos);
+      }
+    } else {
+      // Left the credits entirely → clear the back-seek suppression so re-entering
+      // (by playing forward) shows the card again.
+      _upNextSuppressed = false;
+      _dismissUpNext();
     }
     if (active?.startTicks != _activeSkip?.startTicks) {
       final wasNull = _activeSkip == null;
@@ -962,9 +984,11 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     }
   }
 
-  /// Drives the Up Next prompt during credits. Timing = how long it stays
-  /// before auto-skipping (from the credits' start; 0 = whole credits); Autoplay
-  /// next = whether it counts down / auto-advances. Mirrors the media_kit path.
+  /// Drives the Up Next prompt during credits. Timing: 0 = Full (counts down to
+  /// the real end of the credits); N = a fixed N-second countdown from where the
+  /// card appears (_upNextAnchor: the credits start when played through, or the
+  /// seek target when you jump in). Autoplay next = whether it auto-advances.
+  /// Mirrors the media_kit path.
   void _handleUpNext(MediaSegment seg, Duration pos) {
     final prefs = ref.read(preferencesProvider).asData?.value;
     final autoplayOn = prefs?.autoplayNext ?? true;
@@ -973,13 +997,26 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     if (_upNextSegTicks != segId) {
       _upNextSegTicks = segId;
       _upNextCounted = false;
+      // Anchor the countdown to WHERE the card first appears this segment: the
+      // credits start when played through, or the seek target when you jump in.
+      // So seeking into the credits gets a fresh countdown instead of one
+      // already eaten by the skipped-over seconds.
+      _upNextAnchor = pos;
     }
     final creditsLen = (seg.end - seg.start).inSeconds;
-    var total = lead <= 0 ? creditsLen : lead;
-    if (total < 1) total = 1;
-    final elapsed = (pos - seg.start).inSeconds;
-    var remainingSecs = total - elapsed;
+    final int total;
+    int remainingSecs;
+    if (lead <= 0) {
+      // Full: run to the real end of the credits (position-based).
+      total = creditsLen < 1 ? 1 : creditsLen;
+      remainingSecs = (seg.end - pos).inSeconds;
+    } else {
+      // Fixed N seconds, measured from the anchor (appearance / seek-in).
+      total = lead;
+      remainingSecs = lead - (pos - (_upNextAnchor ?? seg.start)).inSeconds;
+    }
     if (remainingSecs < 0) remainingSecs = 0;
+    if (remainingSecs > total) remainingSecs = total; // never grow past the length
     final int? remaining = autoplayOn ? remainingSecs : null;
     if (autoplayOn && remainingSecs > 0) _upNextCounted = true;
 
@@ -994,9 +1031,11 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     final next = _episodes[_epIndex + 1];
     final value = (item: next, remaining: remaining, total: total);
     if (_upNext != value && mounted) {
-      final wasNull = _upNext == null;
       setState(() => _upNext = value);
-      if (isTvDevice && wasNull) {
+      // Capture the pre-card focus ONCE per appearance (a re-show after a
+      // back-seek must not overwrite it with the now-removed card node).
+      if (isTvDevice && !_upNextFocused) {
+        _upNextFocused = true;
         _preSkipFocus = FocusManager.instance.primaryFocus;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _upNext != null) _fUpNextPlay.requestFocus();
@@ -1005,9 +1044,20 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     }
   }
 
+  // Clears the Up Next card and, on TV, hands the D-pad back to wherever it was
+  // before the card grabbed it (captured once per appearance in _handleUpNext).
+  void _dismissUpNext() {
+    if (_upNext != null && mounted) setState(() => _upNext = null);
+    if (isTvDevice && _upNextFocused) {
+      _upNextFocused = false;
+      _preSkipFocus?.requestFocus();
+    }
+  }
+
   void _upNextPlayNow() {
     if (_advancingNext) return;
     _advancingNext = true;
+    _upNextFocused = false;
     setState(() => _upNext = null);
     _goEpisode(_epIndex + 1);
   }
@@ -1017,7 +1067,10 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
       _upNextHidden = true;
       _upNext = null;
     });
-    if (isTvDevice) _preSkipFocus?.requestFocus();
+    if (isTvDevice && _upNextFocused) {
+      _upNextFocused = false;
+      _preSkipFocus?.requestFocus();
+    }
   }
 
   String? _upNextSubtitle(BaseItemDto item) {
