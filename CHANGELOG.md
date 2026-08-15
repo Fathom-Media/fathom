@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.1
+
+### Added
+- Refresh Home on desktop from a button in the top-right, or with F5 / Ctrl+R.
+- A volume control on the background YouTube-audio Now Playing screen.
+- Episode and recording pages now link their title through to the series.
+
+### Fixed
+- Pull-to-refresh on Home fires reliably even when the page fits on screen without scrolling.
+- Music Now Playing no longer needs scrolling in landscape on phones (the artwork moves beside the info).
+
 ## 0.11.0
 
 ### Added
