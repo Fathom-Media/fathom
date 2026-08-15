@@ -1570,8 +1570,50 @@ class _DetailTitle extends ConsumerWidget {
             : null,
       ),
     );
+    // Episodes render the SERIES name as the title; make it tap through to the
+    // series page (requested in #16). Mouse cursor is the desktop affordance.
+    if (item.isEpisode) {
+      final seriesId = item.seriesId;
+      if (seriesId == null) return text;
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => context.push('/item',
+              extra: BaseItemDto(
+                  id: seriesId,
+                  name: item.seriesName ?? item.name,
+                  type: 'Series')),
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(text: item.seriesName ?? item.name),
+              // A small chevron so the title reads as navigable on touch too,
+              // not just via the desktop hover cursor.
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 2),
+                  child: Icon(Icons.chevron_right_rounded,
+                      size: 26,
+                      color: onDark ? Colors.white : null,
+                      shadows: onDark
+                          ? const [Shadow(blurRadius: 8, color: Colors.black)]
+                          : null),
+                ),
+              ),
+            ]),
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: onDark ? Colors.white : null,
+              shadows: onDark
+                  ? const [Shadow(blurRadius: 8, color: Colors.black)]
+                  : null,
+            ),
+          ),
+        ),
+      );
+    }
     final session = ref.watch(sessionControllerProvider).asData?.value;
-    if (item.isEpisode || !item.hasLogo || session == null) return text;
+    if (!item.hasLogo || session == null) return text;
 
     final url = ref
         .watch(jellyfinClientProvider)
