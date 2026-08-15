@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,6 +14,7 @@ import '../widgets/featured_hero.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/media_cards.dart';
 import '../widgets/media_section.dart';
+import '../widgets/window_frame.dart';
 import '../widgets/motion.dart';
 import '../widgets/error_view.dart';
 import '../widgets/shimmer.dart';
@@ -57,7 +59,7 @@ class HomeScreen extends ConsumerWidget {
         : ref.watch(itemAccentProvider(heroItem)).asData?.value;
     final scheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
@@ -84,6 +86,9 @@ class HomeScreen extends ConsumerWidget {
           RefreshIndicator(
             onRefresh: refresh,
             child: CustomScrollView(
+              // Always scrollable so pull-to-refresh fires even when Home fits
+              // on screen without needing to scroll.
+              physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
             if (prefs.homeBanner != 'hide' &&
                 hero.isLoading &&
@@ -231,8 +236,30 @@ class HomeScreen extends ConsumerWidget {
                 child: DrawerMenuButton(),
               ),
             ),
+          // Desktop has no pull-to-refresh gesture, so give it a visible refresh
+          // control in the top-right, clear of the window buttons (requested in
+          // #16). Touch keeps the pull gesture.
+          if (isDesktopWindowFrame)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 4,
+              right: 8,
+              child: _HomeRefreshButton(onRefresh: refresh),
+            ),
         ],
       ),
+    );
+    // Desktop refresh shortcuts (F5 / Ctrl+R / Cmd+R). Autofocus so they fire
+    // without a click first; touch uses pull-to-refresh, TV uses the D-pad.
+    if (!isDesktopWindowFrame) return scaffold;
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.f5): () => refresh(),
+        const SingleActivator(LogicalKeyboardKey.keyR, control: true): () =>
+            refresh(),
+        const SingleActivator(LogicalKeyboardKey.keyR, meta: true): () =>
+            refresh(),
+      },
+      child: Focus(autofocus: true, child: scaffold),
     );
   }
 
@@ -300,4 +327,59 @@ class HomeScreen extends ConsumerWidget {
 
   Widget _title(BuildContext context, String title) =>
       SectionHeader(title: title);
+}
+
+/// Desktop refresh control for Home (top-right). Spins while the providers
+/// refetch. Touch uses pull-to-refresh instead, so this is desktop-only.
+class _HomeRefreshButton extends StatefulWidget {
+  final Future<void> Function() onRefresh;
+  const _HomeRefreshButton({required this.onRefresh});
+
+  @override
+  State<_HomeRefreshButton> createState() => _HomeRefreshButtonState();
+}
+
+class _HomeRefreshButtonState extends State<_HomeRefreshButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 800));
+  bool _busy = false;
+
+  Future<void> _run() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    _spin.repeat();
+    try {
+      await widget.onRefresh();
+    } finally {
+      if (mounted) {
+        _spin.stop();
+        _spin.reset();
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.35),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: IconButton(
+        tooltip: AppLocalizations.of(context).commonRefresh,
+        onPressed: _run,
+        icon: RotationTransition(
+          turns: _spin,
+          child: const Icon(Icons.refresh_rounded, color: Colors.white),
+        ),
+      ),
+    );
+  }
 }
