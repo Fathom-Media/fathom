@@ -14,7 +14,9 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          # Pinned to the maintainer's local version so CI's analyzer matches
+          # local (floating `stable` pulled newer lints/deprecations and broke).
+          flutter-version: 3.44.8
           cache: true
 
       - name: Install libmpv
