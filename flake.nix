@@ -1,5 +1,5 @@
 {
-  description = "A modern desktop client for Jellyfin, with an optional built-in YouTube player and Seerr requests.";
+  description = "A modern desktop client for Jellyfin, with an optional built-in YouTube player and Seerr requests";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
@@ -27,6 +27,17 @@
         '';
       });
     }) inputs.nixpkgs.legacyPackages;
+
+    apps =
+      let
+        mkApp = system: {
+          fathom = {
+            type = "app";
+            program = "${inputs.self.packages.${system}.fathom}/bin/fathom";
+          };
+        };
+      in
+      builtins.mapAttrs (system: pkgs: mkApp system) inputs.nixpkgs.legacyPackages;
 
     overlays.default = final: prev: {
       fathom = inputs.self.packages.${final.system}.fathom;
