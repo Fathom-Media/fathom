@@ -506,15 +506,29 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
               );
             }
             final ep = shown[i - 1];
+            // Played/resume/next-up state can change whether we played the
+            // episode or opened its page (and played from there), so refresh on
+            // return from either.
+            Future<void> refreshOnReturn() async {
+              if (!mounted) return; // torn down while the pushed page was open
+              ref.invalidate(episodesProvider(widget.seriesId));
+              ref.invalidate(resumeItemsProvider);
+              ref.invalidate(nextUpProvider(widget.seriesId));
+            }
+
             final tile = HoverHighlight(
               child: _EpisodeTile(
                 episode: ep,
-                onTap: () async {
+                // Thumbnail (and the trailing play icon) play the episode
+                // directly; the rest of the row opens its detail page — the
+                // convention other Jellyfin clients use (issue #20).
+                onPlay: () async {
                   await context.push('/player', extra: ep);
-                  if (!mounted) return; // torn down while the player was open
-                  ref.invalidate(episodesProvider(widget.seriesId));
-                  ref.invalidate(resumeItemsProvider);
-                  ref.invalidate(nextUpProvider(widget.seriesId));
+                  await refreshOnReturn();
+                },
+                onOpen: () async {
+                  await context.push('/item', extra: ep);
+                  await refreshOnReturn();
                 },
               ),
             );
@@ -573,8 +587,13 @@ class _EpisodeMenuButton extends StatelessWidget {
 
 class _EpisodeTile extends StatelessWidget {
   final BaseItemDto episode;
-  final VoidCallback onTap;
-  const _EpisodeTile({required this.episode, required this.onTap});
+  final VoidCallback onPlay;
+  final VoidCallback onOpen;
+  const _EpisodeTile({
+    required this.episode,
+    required this.onPlay,
+    required this.onOpen,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -585,61 +604,76 @@ class _EpisodeTile extends StatelessWidget {
     final label = episode.indexNumber != null
         ? '${episode.indexNumber}. ${episode.name}'
         : episode.name;
-    // On TV, TvFocusable is the single D-pad stop (ring + activate); the ListTile
-    // must not also be focusable or every episode would trap two focus stops.
-    // Off TV this whole wrapper is a pass-through and the ListTile keeps its tap.
+    // On TV, TvFocusable is the single D-pad stop (ring + activate) and selecting
+    // an episode plays it, unchanged. Off TV the row splits: the thumbnail and
+    // trailing icon play, the rest of the row opens the episode page (issue #20).
+    final thumbnail = SizedBox(
+      width: 96,
+      height: 54,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: MediaImage(item: episode, landscape: true),
+          ),
+          if (played)
+            Positioned(
+              top: 3,
+              right: 3,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: scheme.primary,
+                  shape: BoxShape.circle,
+                ),
+                padding: const EdgeInsets.all(2),
+                child: Icon(
+                  Icons.check_rounded,
+                  size: 12,
+                  color: scheme.onPrimary,
+                ),
+              ),
+            ),
+          if (!played && episode.progress > 0)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(8),
+                ),
+                child: LinearProgressIndicator(
+                  value: episode.progress,
+                  minHeight: 3,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+
+    final playIcon = Icon(
+      episode.canResume
+          ? Icons.play_circle_outline_rounded
+          : Icons.play_arrow_rounded,
+    );
+
     return TvFocusable(
-      onTap: onTap,
+      onTap: onPlay,
       borderRadius: const BorderRadius.all(Radius.circular(10)),
       scale: 1.0,
       child: ListTile(
         hoverColor: Colors.transparent, // HoverHighlight handles the hover tint
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-        leading: SizedBox(
-          width: 96,
-          height: 54,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: MediaImage(item: episode, landscape: true),
+        // Thumbnail plays the episode directly (off TV); on TV the enclosing
+        // TvFocusable already plays, so leave the thumbnail as a plain image.
+        leading: isTvDevice
+            ? thumbnail
+            : MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(onTap: onPlay, child: thumbnail),
               ),
-              if (played)
-                Positioned(
-                  top: 3,
-                  right: 3,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: scheme.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(2),
-                    child: Icon(
-                      Icons.check_rounded,
-                      size: 12,
-                      color: scheme.onPrimary,
-                    ),
-                  ),
-                ),
-              if (!played && episode.progress > 0)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      bottom: Radius.circular(8),
-                    ),
-                    child: LinearProgressIndicator(
-                      value: episode.progress,
-                      minHeight: 3,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
         title: Text(
           label,
           maxLines: 1,
@@ -654,12 +688,16 @@ class _EpisodeTile extends StatelessWidget {
                 ),
               )
             : null,
-        trailing: Icon(
-          episode.canResume
-              ? Icons.play_circle_outline_rounded
-              : Icons.play_arrow_rounded,
-        ),
-        onTap: isTvDevice ? null : onTap,
+        trailing: isTvDevice
+            ? playIcon
+            : IconButton(
+                icon: playIcon,
+                tooltip: l.commonPlay,
+                onPressed: onPlay,
+              ),
+        // Off TV the row body opens the episode page; the thumbnail and trailing
+        // button play. On TV the whole TvFocusable plays (unchanged).
+        onTap: isTvDevice ? null : onOpen,
       ),
     );
   }
