@@ -9409,7 +9409,7 @@ abstract class AppLocalizations {
   /// Action to export settings to a file.
   ///
   /// In en, this message translates to:
-  /// **'Export settings'**
+  /// **'Export Settings'**
   String get backupExportTitle;
 
   /// Export subtitle on desktop (save to a file).
@@ -9439,7 +9439,7 @@ abstract class AppLocalizations {
   /// Action to import settings from a file.
   ///
   /// In en, this message translates to:
-  /// **'Import settings'**
+  /// **'Import Settings'**
   String get backupImportTitle;
 
   /// Import subtitle.
@@ -9523,7 +9523,7 @@ abstract class AppLocalizations {
   /// Backup group: saved radio stations, groups, favorites.
   ///
   /// In en, this message translates to:
-  /// **'Internet radio'**
+  /// **'Internet Radio'**
   String get backupGroupRadio;
 
   /// Backup group: server addresses and username.

@@ -5173,7 +5173,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Move your app settings and server addresses between devices. Passwords and API keys are never exported, so you\'ll sign in again after importing.';
 
   @override
-  String get backupExportTitle => 'Export settings';
+  String get backupExportTitle => 'Export Settings';
 
   @override
   String get backupExportSub => 'Save your settings to a file.';
@@ -5190,7 +5190,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get backupImportTitle => 'Import settings';
+  String get backupImportTitle => 'Import Settings';
 
   @override
   String get backupImportSub =>
@@ -5239,7 +5239,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupGroupGeneral => 'General';
 
   @override
-  String get backupGroupRadio => 'Internet radio';
+  String get backupGroupRadio => 'Internet Radio';
 
   @override
   String get backupGroupServers => 'Servers';
