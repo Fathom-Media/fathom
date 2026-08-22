@@ -6,6 +6,11 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Video;
 
 import '../models/youtube_caption.dart';
 
+/// A transient network failure (DNS / socket) during resolution. Callers retry
+/// the same track rather than skip it — common when the phone's radio naps
+/// between songs during background playback.
+class _YtTransientError implements Exception {}
+
 // ---- VISIONOS resolver (a faithful port of NewPipe's method) ----
 //
 // YouTube bot-gates androidVr/web/tv (and VISIONOS without a visitorData) for
@@ -105,6 +110,14 @@ Future<YtStreams?> resolveVisionOs(String videoId) async {
       debugPrint('[yt] visionOS resolved in ${sw.elapsedMilliseconds}ms');
     }
     return streams;
+  } on DioException catch (e) {
+    if (e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
+      throw _YtTransientError(); // let the caller retry, don't skip the track
+    }
+    debugPrint('[yt] visionOS resolve failed: $e');
+    return null;
   } catch (e) {
     debugPrint('[yt] visionOS resolve failed: $e');
     return null;
@@ -225,10 +238,28 @@ bool isYoutubeUrl(String url) =>
 /// reused (YouTube stream URLs are time-limited). Null if nothing resolves.
 Future<String?> resolveYoutubeAudioUrl(String videoId) async {
   // Primary: VISIONOS + visitorData (NewPipe's method) clears the bot gate and
-  // returns direct, pot-free audio URLs.
-  final vision = await resolveVisionOs(videoId);
-  final visionUrl = vision?.audioUrl ?? vision?.muxedUrl;
-  if (visionUrl != null) return visionUrl;
+  // returns direct, pot-free audio URLs. Retry on transient network errors so a
+  // momentary DNS blip between songs (background radio nap) doesn't skip the
+  // track and stall the queue — it waits for the connection to come back.
+  const backoff = [
+    Duration(seconds: 2),
+    Duration(seconds: 4),
+    Duration(seconds: 8),
+    Duration(seconds: 15),
+  ];
+  for (var attempt = 0;; attempt++) {
+    try {
+      final vision = await resolveVisionOs(videoId);
+      final visionUrl = vision?.audioUrl ?? vision?.muxedUrl;
+      if (visionUrl != null) return visionUrl;
+      break; // resolved but no usable audio — fall through to the legacy clients
+    } on _YtTransientError {
+      if (attempt >= backoff.length) break; // give up on the primary
+      debugPrint('[yt] visionOS network error; retry ${attempt + 1} in '
+          '${backoff[attempt].inSeconds}s');
+      await Future.delayed(backoff[attempt]);
+    }
+  }
 
   // Fallback: youtube_explode's clients for anything VISIONOS couldn't serve.
   final id = VideoId(videoId);
