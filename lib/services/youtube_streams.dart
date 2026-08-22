@@ -6,6 +6,177 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Video;
 
 import '../models/youtube_caption.dart';
 
+// ---- VISIONOS resolver (a faithful port of NewPipe's method) ----
+//
+// YouTube bot-gates androidVr/web/tv (and VISIONOS without a visitorData) for
+// many videos — music especially — with "Sign in to confirm you're not a bot".
+// NewPipe's extractor clears this by calling the VISIONOS InnerTube client WITH
+// a valid visitorData; that returns playabilityStatus OK and direct, pot-free,
+// uncipher'd stream URLs. Ports YoutubeStreamHelper.getVisionOsPlayerResponse:
+// fetch a visitorData (visitor_id endpoint), then POST the VISIONOS /player.
+
+const _visionOsUserAgent =
+    'Mozilla/5.0 (Apple Vision Pro; CPU visionOS 26_6_0 like Mac OS X) '
+    'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15';
+
+Map<String, dynamic> _visionOsClient(String? visitorData) => {
+      'clientName': 'VISIONOS',
+      'clientVersion': '1.04',
+      'clientScreen': 'WATCH',
+      'platform': 'MOBILE',
+      'deviceMake': 'Apple',
+      'deviceModel': 'RealityDevice17,1',
+      'osName': 'visionOS',
+      'osVersion': '26.6.0.23O770',
+      'hl': 'en',
+      'gl': 'US',
+      'timeZone': 'UTC',
+      'utcOffsetMinutes': 0,
+      if (visitorData != null) 'visitorData': visitorData,
+    };
+
+final Dio _ytDio = Dio(BaseOptions(
+  responseType: ResponseType.json,
+  headers: const {
+    'Content-Type': 'application/json',
+    'X-Goog-Api-Format-Version': '2',
+    'User-Agent': _visionOsUserAgent,
+  },
+  validateStatus: (_) => true,
+));
+
+String? _cachedVisitorData;
+
+/// Fetches (and caches) a visitorData from the InnerTube visitor_id endpoint
+/// with the VISIONOS client, matching NewPipe's getVisitorDataFromInnertube.
+/// Without it, VISIONOS player responses come back bot-gated.
+Future<String?> _visionOsVisitorData() async {
+  if (_cachedVisitorData != null) return _cachedVisitorData;
+  try {
+    final resp = await _ytDio.post<Map<String, dynamic>>(
+      'https://www.youtube.com/youtubei/v1/visitor_id?prettyPrint=false',
+      data: {
+        'context': {'client': _visionOsClient(null)},
+      },
+    );
+    final rc = resp.data?['responseContext'];
+    final v = rc is Map ? rc['visitorData'] : null;
+    if (v is String && v.isNotEmpty) {
+      _cachedVisitorData = v;
+      debugPrint('[yt] visionOS visitorData ok (${v.length})');
+      return v;
+    }
+    debugPrint('[yt] visionOS visitorData missing');
+  } catch (e) {
+    debugPrint('[yt] visionOS visitorData failed: $e');
+  }
+  return null;
+}
+
+/// Resolves streams via the VISIONOS client + visitorData. Null if unavailable
+/// or gated, so the caller can fall back to youtube_explode's clients.
+Future<YtStreams?> resolveVisionOs(String videoId) async {
+  final visitor = await _visionOsVisitorData();
+  if (visitor == null) return null;
+  final sw = Stopwatch()..start();
+  try {
+    final resp = await _ytDio.post<Map<String, dynamic>>(
+      'https://youtubei.googleapis.com/youtubei/v1/player'
+      '?prettyPrint=false&id=$videoId',
+      data: {
+        'context': {'client': _visionOsClient(visitor)},
+        'videoId': videoId,
+        'contentCheckOk': true,
+        'racyCheckOk': true,
+      },
+    );
+    final data = resp.data;
+    if (data == null) return null;
+    final ps = data['playabilityStatus'];
+    final status = ps is Map ? ps['status'] : null;
+    if (status != 'OK') {
+      debugPrint('[yt] visionOS $videoId status=$status');
+      return null;
+    }
+    final sd = data['streamingData'];
+    if (sd is! Map) return null;
+    final streams = _buildStreamsFromJson(sd.cast<String, dynamic>());
+    if (streams != null) {
+      debugPrint('[yt] visionOS resolved in ${sw.elapsedMilliseconds}ms');
+    }
+    return streams;
+  } catch (e) {
+    debugPrint('[yt] visionOS resolve failed: $e');
+    return null;
+  }
+}
+
+/// Builds [YtStreams] from a raw InnerTube `streamingData` object (VISIONOS
+/// returns direct, uncipher'd URLs, so no signature/n solving is needed).
+YtStreams? _buildStreamsFromJson(Map<String, dynamic> sd) {
+  final adaptive = (sd['adaptiveFormats'] as List?) ?? const [];
+  final progressive = (sd['formats'] as List?) ?? const [];
+
+  bool hasUrl(dynamic f) => f is Map && f['url'] is String;
+  String mimeOf(dynamic f) => (f['mimeType'] as String?) ?? '';
+  int bitrateOf(dynamic f) => (f['bitrate'] as num?)?.toInt() ?? 0;
+  int heightOf(dynamic f) => (f['height'] as num?)?.toInt() ?? 0;
+
+  final audios =
+      adaptive.where((f) => hasUrl(f) && mimeOf(f).startsWith('audio/')).toList();
+  final videos =
+      adaptive.where((f) => hasUrl(f) && mimeOf(f).startsWith('video/')).toList();
+
+  String? muxedUrl;
+  var muxedQualities = const <YtQuality>[];
+  final mux = progressive.where(hasUrl).toList();
+  if (mux.isNotEmpty) {
+    mux.sort((a, b) => bitrateOf(b).compareTo(bitrateOf(a)));
+    muxedUrl = mux.first['url'] as String;
+    muxedQualities = _dedupeByHeight([
+      for (final f in mux)
+        (
+          label: '${heightOf(f)}p',
+          url: f['url'] as String,
+          bitrate: bitrateOf(f),
+          height: heightOf(f),
+        ),
+    ]);
+  }
+
+  String? audioUrl;
+  if (audios.isNotEmpty) {
+    final mp4 = audios.where((f) => mimeOf(f).contains('mp4')).toList();
+    final pick = (mp4.isNotEmpty ? mp4 : audios)
+      ..sort((a, b) => bitrateOf(b).compareTo(bitrateOf(a)));
+    audioUrl = pick.first['url'] as String;
+  }
+
+  // One entry per resolution, highest bitrate wins.
+  final byH = <int, YtQuality>{};
+  for (final f in videos) {
+    final h = heightOf(f);
+    final q = (
+      label: '${h}p',
+      url: f['url'] as String,
+      bitrate: bitrateOf(f),
+      height: h,
+    );
+    final cur = byH[h];
+    if (cur == null || q.bitrate > cur.bitrate) byH[h] = q;
+  }
+  final qualities = byH.values.toList()
+    ..sort((a, b) => b.height.compareTo(a.height));
+
+  if (audioUrl == null && muxedUrl == null && qualities.isEmpty) return null;
+  return YtStreams(
+    qualities: qualities.isNotEmpty ? qualities : muxedQualities,
+    audioUrl: audioUrl,
+    muxedUrl: muxedUrl,
+    muxedQualities: muxedQualities,
+  );
+}
+
 /// One selectable video quality (a YouTube stream), or the 'Auto' default.
 typedef YtQuality = ({String label, String url, int bitrate, int height});
 
@@ -53,8 +224,30 @@ bool isYoutubeUrl(String url) =>
 /// separate audio track. Resolved fresh each call so an expired URL is never
 /// reused (YouTube stream URLs are time-limited). Null if nothing resolves.
 Future<String?> resolveYoutubeAudioUrl(String videoId) async {
-  final s = await resolveYoutubeStreams('https://www.youtube.com/watch?v=$videoId');
-  return s.audioUrl ?? s.muxedUrl;
+  // Primary: VISIONOS + visitorData (NewPipe's method) clears the bot gate and
+  // returns direct, pot-free audio URLs.
+  final vision = await resolveVisionOs(videoId);
+  final visionUrl = vision?.audioUrl ?? vision?.muxedUrl;
+  if (visionUrl != null) return visionUrl;
+
+  // Fallback: youtube_explode's clients for anything VISIONOS couldn't serve.
+  final id = VideoId(videoId);
+  final yt = YoutubeExplode();
+  try {
+    for (final (name, client) in <(String, YoutubeApiClient)>[
+      ('androidVr', YoutubeApiClient.androidVr),
+      ('ios', YoutubeApiClient.ios),
+    ]) {
+      final s = await _tryVod(yt, id, name, [client]);
+      if (s != null) return s.audioUrl ?? s.muxedUrl;
+    }
+  } on RequestLimitExceededException {
+    debugPrint('[yt] rate limited resolving audio for $videoId');
+  } finally {
+    yt.close();
+  }
+  debugPrint('[yt] audio unresolved for $videoId');
+  return null;
 }
 
 /// Resolves the playable streams for [url].
@@ -65,30 +258,35 @@ Future<String?> resolveYoutubeAudioUrl(String videoId) async {
 /// manifest are resolved CONCURRENTLY and the first to land wins, so a live
 /// stream doesn't wait out the whole VOD failure chain before its manifest is
 /// even tried (that sequential walk is what made live streams slow to start).
-Future<YtStreams> resolveYoutubeStreams(String url) async {
+Future<YtStreams> resolveYoutubeStreams(String url, {bool live = true}) async {
   final yt = YoutubeExplode();
   final id = VideoId(url);
   final sw = Stopwatch()..start();
   try {
     var primaryDone = false;
-    final primary = _tryVod(yt, id, 'androidVr', [YoutubeApiClient.androidVr])
-        .then((s) {
+    // VISIONOS + visitorData first (NewPipe's method): clears the bot gate,
+    // pot-free, direct URLs. androidVr (now bot-gated) drops to the fallback.
+    final primary = resolveVisionOs(id.value).then((s) {
       if (s != null) primaryDone = true;
       return s;
     });
 
+    final candidates = <Future<YtStreams?>>[primary];
     // Hedge: the primary client ALWAYS fails for a live stream, and that failure
-    // can take seconds. Rather than wait it out before even trying the live
-    // manifest, spin the live lookup up in parallel once the primary is a little
-    // slow. Normal (VOD) videos resolve under this delay, so they never fire the
-    // live requests and pay no extra cost.
-    final live = Future.delayed(const Duration(milliseconds: 600))
-        .then<String?>(
-            (_) => primaryDone ? null : _resolveLiveManifest(id.value))
-        .then((u) =>
-            (u == null || u.isEmpty) ? null : YtStreams(muxedUrl: u, isLive: true));
+    // can take seconds. Spin the live lookup up in parallel once the primary is
+    // a little slow. But skip it entirely for callers that can't be live (audio
+    // Listen is always VOD music): those 3 extra requests are pure waste and a
+    // big driver of YouTube's IP rate-limiting.
+    if (live) {
+      candidates.add(Future.delayed(const Duration(milliseconds: 600))
+          .then<String?>(
+              (_) => primaryDone ? null : _resolveLiveManifest(id.value))
+          .then((u) => (u == null || u.isEmpty)
+              ? null
+              : YtStreams(muxedUrl: u, isLive: true)));
+    }
 
-    final first = await _firstNonNull<YtStreams>([primary, live]);
+    final first = await _firstNonNull<YtStreams>(candidates);
     if (first != null) {
       debugPrint('[yt] resolved in ${sw.elapsedMilliseconds}ms');
       return first;
@@ -113,9 +311,11 @@ Future<YtStreams> resolveYoutubeStreams(String url) async {
 /// One getManifest attempt with a specific client set, built into [YtStreams] if
 /// the result is usable, else null. Never throws.
 Future<YtStreams?> _tryVod(YoutubeExplode yt, VideoId id, String name,
-    List<YoutubeApiClient> clients) async {
+    List<YoutubeApiClient> clients,
+    {bool requireWatchPage = true}) async {
   try {
-    final m = await yt.videos.streamsClient.getManifest(id, ytClients: clients);
+    final m = await yt.videos.streamsClient
+        .getManifest(id, ytClients: clients, requireWatchPage: requireWatchPage);
     if (m.muxed.isNotEmpty ||
         (m.videoOnly.isNotEmpty && m.audioOnly.isNotEmpty)) {
       return _buildStreams(m);
@@ -130,8 +330,12 @@ Future<YtStreams?> _tryVod(YoutubeExplode yt, VideoId id, String name,
 /// The VOD clients past the primary, plus the library default as a last resort.
 Future<YtStreams?> _resolveVodRemaining(YoutubeExplode yt, VideoId id) async {
   for (final (name, clients) in <(String, List<YoutubeApiClient>)>[
+    // androidVr was the old primary; keep it as a fallback for when VISIONOS
+    // can't serve a given video (it's bot-gated intermittently, not always).
+    ('androidVr', [YoutubeApiClient.androidVr]),
     ('ios', [YoutubeApiClient.ios]),
-    ('tv', [YoutubeApiClient.tv]),
+    // 'tv' (TVHTML5) consistently returns "No host specified in URI" in this
+    // youtube_explode version — a guaranteed-failed request, so it's dropped.
     ('mweb', [YoutubeApiClient.mweb]),
   ]) {
     final s = await _tryVod(yt, id, name, clients);

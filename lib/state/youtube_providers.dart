@@ -1046,6 +1046,11 @@ class YoutubeQueue extends Notifier<List<YoutubeVideo>> {
   @override
   List<YoutubeVideo> build() => const [];
 
+  // The last full list handed to [playAll], kept so the audio layer can
+  // un-shuffle (restore original order) and repeat-all (reload the list).
+  List<YoutubeVideo> _source = const [];
+  List<YoutubeVideo> get source => _source;
+
   /// Appended to the end. Adding one that's already queued is a no-op rather
   /// than a duplicate.
   void add(YoutubeVideo video) {
@@ -1055,7 +1060,22 @@ class YoutubeQueue extends Notifier<List<YoutubeVideo>> {
 
   /// Replaces the whole queue — used when starting a playlist from one of its
   /// items, so Next/autoplay then walk the rest of the playlist in order.
-  void playAll(List<YoutubeVideo> videos) => state = List.of(videos);
+  void playAll(List<YoutubeVideo> videos) {
+    _source = List.of(videos);
+    state = List.of(videos);
+  }
+
+  /// Shuffle the remaining up-next (audio Shuffle toggle).
+  void shuffleRemaining() => state = [...state]..shuffle();
+
+  /// Restore the remaining up-next to its original [source] order (Shuffle off).
+  void restoreOrder() {
+    final remaining = state.map((v) => v.id).toSet();
+    state = [for (final v in _source) if (remaining.contains(v.id)) v];
+  }
+
+  /// Reload the whole source list (audio Repeat-all when the queue runs out).
+  void reloadSource() => state = List.of(_source);
 
   /// Jumps the queue: the next thing to play.
   void playNext(YoutubeVideo video) {
