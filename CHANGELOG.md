@@ -7,10 +7,12 @@
 
 ### Changed
 - In a series, tapping an episode row opens its page. Tap the thumbnail or the play icon to play the episode directly. (#20, thanks @numkem)
+- YouTube live streams start in a couple of seconds instead of tens of seconds.
 
 ### Fixed
 - YouTube playback works again. Audio and video had been blocked by YouTube's "confirm you're not a bot" gate. Fathom now resolves streams through the VISIONOS client, which plays without it.
-- Background YouTube audio no longer freezes on an unplayable track. It skips ahead instead of stalling.
+- Background YouTube audio no longer freezes on an unplayable track, and recovers from brief network drops instead of stalling on the next song.
+- Saved radio stations are no longer left out of settings backups.
 
 ## 0.11.1
 
