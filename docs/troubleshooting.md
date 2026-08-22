@@ -56,6 +56,20 @@ Fathom lets mpv direct-play the file and only falls back to a server transcode o
 
 The [Playback Info](features.md#playback-info) overlay is the fastest way: it reports the real decode path (hardware vs software), dropped frames, resolution, and codecs, live from mpv.
 
+## Android
+
+### Fathom does not appear in Android Auto
+
+Android Auto only lists apps installed from the Play Store by default, and Fathom is sideloaded, so you have to allow apps from unknown sources once per device:
+
+1. Open **Settings → Connected devices → Connection preferences → Android Auto** (it lives here on Pixel, not as a separate app icon).
+2. Scroll to the bottom and tap **Version** about ten times to unlock developer mode.
+3. Open the **⋮ menu (top right) → Developer settings**.
+4. Turn on **Unknown sources** (called **Add new cars to Android Auto** on some builds).
+5. Reconnect to the car, or restart Android Auto, so it re-scans for apps.
+
+This allowance is per device and gets cleared when you switch phones, reinstall Fathom, or update the Android Auto app, so you may need to redo it after any of those.
+
 ## Diagnostics
 
 For anything harder to pin down, turn on **Diagnostic Logging** in Settings, reproduce the problem, and export the log. It captures app errors and playback details in one place, which is the best thing to attach to a bug report.
