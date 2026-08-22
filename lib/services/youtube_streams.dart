@@ -105,6 +105,26 @@ Future<YtStreams?> resolveVisionOs(String videoId) async {
     }
     final sd = data['streamingData'];
     if (sd is! Map) return null;
+
+    // Currently-live streams: iOS-family clients return an HLS manifest. Serve
+    // that (the player opens it at the live edge) rather than parsing live
+    // segments as a VOD, which yields an unplayable result and broke live
+    // playback. Null when there's no HLS, so resolveYoutubeStreams' live-manifest
+    // hedge can take over.
+    if (_isLiveNow(data)) {
+      final master = sd['hlsManifestUrl'];
+      if (master is String && master.isNotEmpty) {
+        // Handing mpv the HLS MASTER playlist makes ffmpeg spend ~20s before the
+        // first frame; a single variant media playlist starts in a few seconds
+        // (like NewPipe). Pick the best variant from the master and use that.
+        final variant = await _hlsVariantUrl(master);
+        debugPrint('[yt] visionOS live in ${sw.elapsedMilliseconds}ms '
+            '(${variant != null ? "variant" : "master"})');
+        return YtStreams(muxedUrl: variant ?? master, isLive: true);
+      }
+      return null;
+    }
+
     final streams = _buildStreamsFromJson(sd.cast<String, dynamic>());
     if (streams != null) {
       debugPrint('[yt] visionOS resolved in ${sw.elapsedMilliseconds}ms');
@@ -122,6 +142,45 @@ Future<YtStreams?> resolveVisionOs(String videoId) async {
     debugPrint('[yt] visionOS resolve failed: $e');
     return null;
   }
+}
+
+/// YouTube's live HLS manifest is a master playlist; handing ffmpeg the master
+/// costs ~20s before the first frame, while a single variant media playlist
+/// starts in a few seconds. Fetches the master and returns the highest-
+/// resolution variant's URL, or null on failure (caller falls back to master).
+Future<String?> _hlsVariantUrl(String masterUrl) async {
+  try {
+    final resp = await _ytDio.get<String>(masterUrl,
+        options: Options(responseType: ResponseType.plain));
+    final lines = (resp.data ?? '').split('\n');
+    String? bestUrl;
+    var bestHeight = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (!lines[i].startsWith('#EXT-X-STREAM-INF')) continue;
+      final m = RegExp(r'RESOLUTION=\d+x(\d+)').firstMatch(lines[i]);
+      final h = m != null ? (int.tryParse(m.group(1)!) ?? 0) : 0;
+      final url = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
+      if (url.startsWith('http') && h > bestHeight) {
+        bestHeight = h;
+        bestUrl = url;
+      }
+    }
+    return bestUrl;
+  } catch (e) {
+    debugPrint('[yt] HLS variant pick failed: $e');
+    return null;
+  }
+}
+
+/// True when the /player response is a currently-live broadcast, which needs an
+/// HLS manifest rather than VOD adaptive formats.
+bool _isLiveNow(Map<String, dynamic> data) {
+  final vd = data['videoDetails'];
+  if (vd is Map && (vd['isLive'] == true || vd['isLiveNow'] == true)) return true;
+  final mf = data['microformat'];
+  final pmf = mf is Map ? mf['playerMicroformatRenderer'] : null;
+  final lbd = pmf is Map ? pmf['liveBroadcastDetails'] : null;
+  return lbd is Map && lbd['isLiveNow'] == true;
 }
 
 /// Builds [YtStreams] from a raw InnerTube `streamingData` object (VISIONOS

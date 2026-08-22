@@ -410,6 +410,11 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         final mpv = _player.platform as dynamic;
         await mpv.setProperty('cache-on-disk', 'no');
         await mpv.setProperty('network-timeout', '30');
+        if (s.isLive) {
+          // Start live HLS at the newest segment (lower latency, faster first
+          // frame) rather than buffering from the start of the DVR window.
+          await mpv.setProperty('demuxer-lavf-o', 'live_start_index=-1');
+        }
       } catch (_) {}
       // One-shot: log when the first video frame actually lands, so start-up
       // cost is visible end to end (resolution + mpv buffering to first frame).
