@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.12.0
+
+### Added
+- Shuffle and repeat for background YouTube audio, plus skip back to the previous track.
+
+### Changed
+- In a series, tapping an episode row opens its page. Tap the thumbnail or the play icon to play the episode directly. (#20, thanks @numkem)
+
+### Fixed
+- YouTube playback works again. Audio and video had been blocked by YouTube's "confirm you're not a bot" gate. Fathom now resolves streams through the VISIONOS client, which plays without it.
+- Background YouTube audio no longer freezes on an unplayable track. It skips ahead instead of stalling.
+
 ## 0.11.1
 
 ### Added
