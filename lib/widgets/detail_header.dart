@@ -45,13 +45,15 @@ class HeaderActionButton extends StatefulWidget {
 class _HeaderActionButtonState extends State<HeaderActionButton>
     with SingleTickerProviderStateMixin {
   bool _hover = false;
+  // Touch has no hover, so a press (and hold) expands the label instead.
+  bool _pressed = false;
   // A D-pad/remote focus reads the same as a mouse hover: the pill expands to
   // show its label and gains an accent ring, so it's obvious which action the
   // remote is on.
   bool _focused = false;
-  // Focus ring/expand/scale is a TV (D-pad) affordance; off TV only hover
-  // drives it, so desktop/mobile keep the original look.
-  bool get _active => _hover || (_focused && isTvDevice);
+  // Focus ring/expand/scale is a TV (D-pad) affordance; off TV, hover (desktop)
+  // or a press (touch) drives the label expand.
+  bool get _active => _hover || _pressed || (_focused && isTvDevice);
 
   // A quick pop on the icon when the button is pressed, for tactile feedback.
   late final AnimationController _tapController = AnimationController(
@@ -87,7 +89,17 @@ class _HeaderActionButtonState extends State<HeaderActionButton>
           Icon(widget.icon, size: widget.primary ? 26 : 22, color: fg),
     );
 
-    return MouseRegion(
+    return Listener(
+      // Raw pointer events (not InkWell's deferred highlight) so holding a
+      // finger expands the label immediately, even inside a scroll view.
+      onPointerDown: (_) => setState(() => _pressed = true),
+      onPointerUp: (_) {
+        if (_pressed) setState(() => _pressed = false);
+      },
+      onPointerCancel: (_) {
+        if (_pressed) setState(() => _pressed = false);
+      },
+      child: MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: AnimatedScale(
@@ -145,6 +157,7 @@ class _HeaderActionButtonState extends State<HeaderActionButton>
             ),
           ),
         ),
+      ),
       ),
       ),
     );

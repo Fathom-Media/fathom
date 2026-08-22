@@ -1459,6 +1459,7 @@ class _ChromecastButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return CastButton(
+      pill: true,
       title: target.name,
       resolve: () async {
         final session = ref.read(sessionControllerProvider).asData?.value;

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../state/cast.dart';
+import 'hover_pill_button.dart';
 
 /// A cast icon that opens a Chromecast device picker and casts the media
 /// resolved by [mediaUrl] (lazily, at tap time, so a live-updating stream URL is
@@ -33,6 +34,11 @@ class CastButton extends ConsumerWidget {
   /// false so audio-only speakers are offered too.
   final bool videoOnly;
 
+  /// Renders as a [HoverPillButton] (an icon that expands to its label on
+  /// hover/press/focus) so it matches the Play/Download pills beside it on the
+  /// detail page, instead of the plain icon used in player chrome.
+  final bool pill;
+
   const CastButton({
     super.key,
     this.resolve,
@@ -44,6 +50,7 @@ class CastButton extends ConsumerWidget {
     this.color,
     this.onStarted,
     this.videoOnly = true,
+    this.pill = false,
   }) : assert(resolve != null || queueResolve != null);
 
   @override
@@ -56,12 +63,21 @@ class CastButton extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     final l = AppLocalizations.of(context);
+    final icon = cast.connected
+        ? Icons.cast_connected_rounded
+        : Icons.cast_rounded;
+    if (pill) {
+      return HoverPillButton(
+        icon: icon,
+        label: l.castTo,
+        color: color,
+        onTap: () => _open(context, ref),
+      );
+    }
     return IconButton(
       tooltip: l.castTo,
       color: color,
-      icon: Icon(cast.connected
-          ? Icons.cast_connected_rounded
-          : Icons.cast_rounded),
+      icon: Icon(icon),
       onPressed: () => _open(context, ref),
     );
   }
