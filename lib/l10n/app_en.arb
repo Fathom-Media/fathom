@@ -6610,6 +6610,10 @@
   "@castTo": {
     "description": "Title of the Chromecast device-picker sheet."
   },
+  "castAction": "Cast",
+  "@castAction": {
+    "description": "Label on the Cast button/pill that opens the device picker."
+  },
   "castSearching": "Searching for devices…",
   "@castSearching": {
     "description": "Shown while scanning for Chromecast devices."

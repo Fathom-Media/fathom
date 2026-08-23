@@ -9280,6 +9280,12 @@ abstract class AppLocalizations {
   /// **'Cast to'**
   String get castTo;
 
+  /// Label on the Cast button/pill that opens the device picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Cast'**
+  String get castAction;
+
   /// Shown while scanning for Chromecast devices.
   ///
   /// In en, this message translates to:

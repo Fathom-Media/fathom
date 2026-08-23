@@ -69,7 +69,7 @@ class CastButton extends ConsumerWidget {
     if (pill) {
       return HoverPillButton(
         icon: icon,
-        label: l.castTo,
+        label: l.castAction,
         color: color,
         onTap: () => _open(context, ref),
       );

@@ -5101,6 +5101,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get castTo => 'Cast to';
 
   @override
+  String get castAction => 'Cast';
+
+  @override
   String get castSearching => 'Searching for devices…';
 
   @override
