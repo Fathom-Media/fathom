@@ -87,9 +87,15 @@ class _SubscriptionsTab extends ConsumerWidget {
   Future<void> _import(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
+    // Android/iOS turn an extension filter into a MIME-type filter, and cloud
+    // providers (Drive, Nextcloud, Proton) report a Takeout CSV / NewPipe JSON
+    // under types that don't match, so those files grey out and can't be picked.
+    // On mobile, accept any file and validate by parsing below; desktop keeps
+    // the tidy csv/json filter.
+    final isMobile = Platform.isAndroid || Platform.isIOS;
     final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['csv', 'json'],
+      type: isMobile ? FileType.any : FileType.custom,
+      allowedExtensions: isMobile ? null : const ['csv', 'json'],
       withData: true,
     );
     final bytes = picked?.files.singleOrNull?.bytes;
