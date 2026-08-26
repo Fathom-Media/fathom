@@ -17,6 +17,7 @@
 - Importing YouTube subscriptions on Android no longer greys out files from cloud storage providers like Drive, Nextcloud, and Proton. (#23)
 - The desktop window buttons (minimize, maximize, close) now hide when the YouTube player goes fullscreen on Windows and Linux.
 - Detail page action buttons expand on touch on Android again.
+- On Linux, settings and your Jellyfin login now persist on minimal desktops where the system keyring starts cold, such as Hyprland sessions. The app no longer returns to the setup screen on every launch. (#25, thanks @joejosephs)
 
 ## 0.11.1
 
