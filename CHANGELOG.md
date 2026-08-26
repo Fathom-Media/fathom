@@ -4,6 +4,7 @@
 
 ### Added
 - Shuffle and repeat for background YouTube audio, plus skip back to the previous track.
+- Nix flake for Linux, so you can build and run Fathom with `nix build` / `nix run`. (thanks @numkem)
 
 ### Changed
 - In a series, tapping an episode row opens its page. Tap the thumbnail or the play icon to play the episode directly. (#20, thanks @numkem)
@@ -13,6 +14,9 @@
 - YouTube playback works again. Audio and video had been blocked by YouTube's "confirm you're not a bot" gate. Fathom now resolves streams through the VISIONOS client, which plays without it.
 - Background YouTube audio no longer freezes on an unplayable track, and recovers from brief network drops instead of stalling on the next song.
 - Saved radio stations are no longer left out of settings backups.
+- Importing YouTube subscriptions on Android no longer greys out files from cloud storage providers like Drive, Nextcloud, and Proton. (#23)
+- The desktop window buttons (minimize, maximize, close) now hide when the YouTube player goes fullscreen on Windows and Linux.
+- Detail page action buttons expand on touch on Android again.
 
 ## 0.11.1
 
