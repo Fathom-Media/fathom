@@ -39,7 +39,15 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
+        // Monotonic, build-time versionCode (Unix seconds). Fathom's Android build
+        // is sideloaded and updates in place from GitHub, so the code only has to
+        // strictly increase for every build to be accepted as an update. Deriving
+        // it here (not from pubspec's +N) keeps it independent of how the APK was
+        // built: earlier dev builds used a timestamp while a plain `flutter build`
+        // fell back to the small +N number, and the drop from ~1.79e9 to 12 made
+        // the installer reject the update as a downgrade. A timestamp can never
+        // regress. (Int-safe until 2038.)
+        versionCode = (System.currentTimeMillis() / 1000).toInt()
         versionName = flutter.versionName
     }
 
