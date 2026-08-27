@@ -60,7 +60,7 @@ class DownloadPill extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    l.downloadingCount(active.length),
+                    l.detailDownloading,
                     style: TextStyle(
                       color: scheme.onPrimaryContainer,
                       fontWeight: FontWeight.w600,

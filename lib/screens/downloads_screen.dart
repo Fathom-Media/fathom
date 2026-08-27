@@ -211,7 +211,85 @@ class _SeriesGroupTile extends ConsumerWidget {
           ? LinearProgressIndicator(value: progress)
           : Text('$done/$total'),
       tilePadding: const EdgeInsets.only(left: 20, right: 4),
-      children: [for (final e in episodes) _DownloadTile(entry: e, indented: true)],
+      children: _seasonRows(l, controller),
+    );
+  }
+
+  /// The expanded body: episodes grouped by season, each under a small season
+  /// header ("Season 1"), so it's clear which season(s) are downloading. A
+  /// single unnamed/unknown season is listed without a header. When a download
+  /// spans more than one season, each header also carries a cancel/remove for
+  /// just that season.
+  List<Widget> _seasonRows(AppLocalizations l, DownloadsController controller) {
+    final bySeason = <int, List<DownloadEntry>>{};
+    for (final e in episodes) {
+      bySeason.putIfAbsent(e.seasonNumber ?? -1, () => []).add(e);
+    }
+    final seasons = bySeason.keys.toList()..sort();
+    final realSeasons = seasons.where((s) => s >= 0).length;
+    final showHeaders =
+        realSeasons > 1 || (realSeasons == 1 && seasons.any((s) => s > 0));
+    final perSeasonCancel = realSeasons > 1;
+    final rows = <Widget>[];
+    for (final s in seasons) {
+      final eps = bySeason[s]!
+        ..sort(
+            (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0));
+      if (showHeaders && s >= 0) {
+        final active = eps.any((e) => e.status == DownloadStatus.downloading);
+        rows.add(_SeasonSubheader(
+          label: s == 0 ? l.detailSpecials : l.detailSeasonNumber(s),
+          active: active,
+          onCancel: perSeasonCancel
+              ? () => controller.deleteSeason(seriesId, s)
+              : null,
+        ));
+      }
+      rows.addAll(eps.map((e) => _DownloadTile(entry: e, indented: true)));
+    }
+    return rows;
+  }
+}
+
+/// A small season label between a series' episode groups on the Downloads
+/// screen, with an optional per-season cancel/remove.
+class _SeasonSubheader extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback? onCancel;
+  const _SeasonSubheader(
+      {required this.label, this.active = false, this.onCancel});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(32, 10, onCancel != null ? 4 : 20, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+                color: scheme.primary,
+              ),
+            ),
+          ),
+          if (onCancel != null)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: active ? l.downloadCancel : l.commonRemove,
+              icon: Icon(
+                  active ? Icons.close_rounded : Icons.delete_outline_rounded,
+                  size: 18),
+              onPressed: onCancel,
+            ),
+        ],
+      ),
     );
   }
 }

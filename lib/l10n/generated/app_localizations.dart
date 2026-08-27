@@ -3136,12 +3136,6 @@ abstract class AppLocalizations {
   /// **'Download All'**
   String get downloadAll;
 
-  /// Label on the floating downloading indicator: how many items are in flight.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{Downloading 1} other{Downloading {count}}}'**
-  String downloadingCount(int count);
-
   /// App bar action on the Downloads screen that cancels or removes every download.
   ///
   /// In en, this message translates to:

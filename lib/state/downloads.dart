@@ -23,11 +23,14 @@ class DownloadEntry {
   final DownloadStatus status;
   final double progress;
 
-  /// When this download is a series episode, the parent series' id and name, so
-  /// the Downloads screen can group a series' episodes under one collapsible
-  /// header (and cancel/remove them as a set). Null for a standalone movie.
+  /// When this download is a series episode, the parent series' id and name plus
+  /// its season and episode numbers, so the Downloads screen can group a series'
+  /// episodes by season under one collapsible header (and cancel/remove them as
+  /// a set). Null for a standalone movie.
   final String? seriesId;
   final String? seriesName;
+  final int? seasonNumber;
+  final int? episodeNumber;
 
   const DownloadEntry({
     required this.itemId,
@@ -37,6 +40,8 @@ class DownloadEntry {
     this.progress = 0,
     this.seriesId,
     this.seriesName,
+    this.seasonNumber,
+    this.episodeNumber,
   });
 
   DownloadEntry copyWith({DownloadStatus? status, double? progress}) =>
@@ -48,6 +53,8 @@ class DownloadEntry {
         progress: progress ?? this.progress,
         seriesId: seriesId,
         seriesName: seriesName,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber,
       );
 
   Map<String, dynamic> toJson() => {
@@ -56,6 +63,8 @@ class DownloadEntry {
         'localPath': localPath,
         if (seriesId != null) 'seriesId': seriesId,
         if (seriesName != null) 'seriesName': seriesName,
+        if (seasonNumber != null) 'seasonNumber': seasonNumber,
+        if (episodeNumber != null) 'episodeNumber': episodeNumber,
       };
 
   factory DownloadEntry.fromJson(Map<String, dynamic> j) => DownloadEntry(
@@ -66,6 +75,8 @@ class DownloadEntry {
         progress: 1,
         seriesId: j['seriesId'] as String?,
         seriesName: j['seriesName'] as String?,
+        seasonNumber: (j['seasonNumber'] as num?)?.toInt(),
+        episodeNumber: (j['episodeNumber'] as num?)?.toInt(),
       );
 }
 
@@ -264,6 +275,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       status: DownloadStatus.downloading,
       seriesId: item.seriesId,
       seriesName: item.seriesName,
+      seasonNumber: item.parentIndexNumber,
+      episodeNumber: item.indexNumber,
     );
     state = AsyncData(map);
 
@@ -298,6 +311,18 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     final ids = [
       for (final e in _map.values)
         if (e.seriesId == seriesId) e.itemId,
+    ];
+    for (final id in ids) {
+      await delete(id);
+    }
+  }
+
+  /// Cancels/removes one season of a series, for the per-season action shown
+  /// when a download spans multiple seasons.
+  Future<void> deleteSeason(String seriesId, int? seasonNumber) async {
+    final ids = [
+      for (final e in _map.values)
+        if (e.seriesId == seriesId && e.seasonNumber == seasonNumber) e.itemId,
     ];
     for (final id in ids) {
       await delete(id);
