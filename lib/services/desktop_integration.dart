@@ -62,9 +62,33 @@ Future<void> integrateAppImageDesktopEntry() async {
         'StartupWMClass=$appId\n';
 
     // Only rewrite when it changed, so caches aren't rebuilt on every launch.
+    var changed = false;
     if (!desktopFile.existsSync() ||
         desktopFile.readAsStringSync() != desktop) {
       desktopFile.writeAsStringSync(desktop);
+      changed = true;
+    }
+
+    // Clear any duplicate launcher an external AppImage integrator
+    // (AppImageLauncher / appimaged) previously created for this app, e.g.
+    // `appimagekit_<hash>-app.fathom.player.desktop`. Two entries both named
+    // "Fathom" is what produced the duplicate launcher icon in issue #28. The
+    // embedded desktop now carries X-AppImage-Integrate=false so integrators
+    // stand down going forward; this clears any straggler from before the fix.
+    for (final e in appsDir.listSync()) {
+      if (e is! File) continue;
+      final base = e.path.split('/').last;
+      if (base != '$appId.desktop' &&
+          base.contains(appId) &&
+          base.toLowerCase().contains('appimagekit')) {
+        try {
+          e.deleteSync();
+          changed = true;
+        } catch (_) {}
+      }
+    }
+
+    if (changed) {
       await Process.run('update-desktop-database', [appsDir.path]);
       if (installedIcon) {
         await Process.run(

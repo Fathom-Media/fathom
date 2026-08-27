@@ -8,3 +8,8 @@ Icon=app.fathom.player
 Terminal=false
 Categories=AudioVideo;Video;Player;
 StartupWMClass=app.fathom.player
+# Fathom installs its own launcher entry on first run (desktop_integration.dart),
+# so tell AppImage integrators (AppImageLauncher, appimaged) to stand down. Two
+# integrators both writing a "Fathom" entry is what caused duplicate launcher
+# icons on GNOME (issue #28).
+X-AppImage-Integrate=false
