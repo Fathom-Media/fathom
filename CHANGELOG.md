@@ -4,6 +4,7 @@
 
 ### Added
 - Shuffle and repeat for background YouTube audio, plus skip back to the previous track.
+- Download a whole series or season in one go (it queues each episode), plus a download option on every episode from its menu. (#27)
 - Nix flake for Linux, so you can build and run Fathom with `nix build` / `nix run`. (thanks @numkem)
 
 ### Changed
@@ -18,6 +19,7 @@
 - The desktop window buttons (minimize, maximize, close) now hide when the YouTube player goes fullscreen on Windows and Linux.
 - Detail page action buttons expand on touch on Android again.
 - On Linux, settings and your Jellyfin login now persist on minimal desktops where the system keyring starts cold, such as Hyprland sessions. The app no longer returns to the setup screen on every launch. (#25, thanks @joejosephs)
+- In-app updates on Android work again. A change in how builds were numbered had Android rejecting a newer build as a downgrade, so the update failed part way through. Builds are now always numbered above the last, so updates install.
 
 ## 0.11.1
 
