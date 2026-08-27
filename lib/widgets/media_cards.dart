@@ -36,6 +36,12 @@ class HoverPosterArt extends ConsumerStatefulWidget {
   /// right-click / hover hamburger). Off for non-item art and library-view
   /// cards, which aren't playable/deletable.
   final bool contextActions;
+
+  /// A custom menu opener that replaces the shared item menu (used by the
+  /// offline Downloads library, whose actions are Play / Remove download rather
+  /// than the server-side ones). When set, the poster shows the menu affordance
+  /// and calls this instead of [showItemActionsMenu].
+  final VoidCallback? onMenu;
   const HoverPosterArt(
       {super.key,
       this.item,
@@ -46,7 +52,8 @@ class HoverPosterArt extends ConsumerStatefulWidget {
       this.borderRadius = 12,
       this.heroTag,
       this.autofocus = false,
-      this.contextActions = true})
+      this.contextActions = true,
+      this.onMenu})
       : assert(item != null || art != null);
 
   @override
@@ -68,18 +75,25 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
   // overflow, so the card's D-pad path is left untouched. Only real media items
   // get it, not library-view tiles or bare artwork.
   bool get _canMenu =>
-      widget.contextActions &&
       !isTvDevice &&
-      widget.item != null &&
-      widget.item!.collectionType == null;
+      (widget.onMenu != null ||
+          (widget.contextActions &&
+              widget.item != null &&
+              widget.item!.collectionType == null));
 
-  void _openMenu() => showItemActionsMenu(
-        context,
-        ref,
-        widget.item!,
-        fromGrid: true,
-        onOpenDetails: widget.onTap,
-      );
+  void _openMenu() {
+    if (widget.onMenu != null) {
+      widget.onMenu!();
+      return;
+    }
+    showItemActionsMenu(
+      context,
+      ref,
+      widget.item!,
+      fromGrid: true,
+      onOpenDetails: widget.onTap,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -399,6 +413,10 @@ class PosterCard extends StatelessWidget {
   /// Whether the poster exposes the shared item context menu. Off for the
   /// Downloads library, whose reconstructed items aren't full detail items.
   final bool contextActions;
+
+  /// A custom menu opener (replaces the shared item menu). The Downloads library
+  /// passes one for its Play / Remove-download actions.
+  final VoidCallback? onMenu;
   static const double width = 176;
 
   const PosterCard({
@@ -408,6 +426,7 @@ class PosterCard extends StatelessWidget {
     this.heroTag,
     this.localPosterPath,
     this.contextActions = true,
+    this.onMenu,
   });
 
   @override
@@ -429,6 +448,7 @@ class PosterCard extends StatelessWidget {
                 onTap: onTap,
                 heroTag: heroTag,
                 contextActions: contextActions,
+                onMenu: onMenu,
                 art: localPosterPath == null
                     ? null
                     : Image.file(
