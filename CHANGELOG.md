@@ -20,6 +20,7 @@
 - Detail page action buttons expand on touch on Android again.
 - On Linux, settings and your Jellyfin login now persist on minimal desktops where the system keyring starts cold, such as Hyprland sessions. The app no longer returns to the setup screen on every launch. (#25, thanks @joejosephs)
 - In-app updates on Android work again. A change in how builds were numbered had Android rejecting a newer build as a downgrade, so the update failed part way through. Builds are now always numbered above the last, so updates install.
+- Duplicate "Fathom" launcher icons on Linux, when running the AppImage on GNOME, no longer appear. Fathom manages its own launcher entry and now tells AppImage integrators to stand down. (#28)
 
 ## 0.11.1
 
