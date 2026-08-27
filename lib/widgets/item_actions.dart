@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
 import '../services/tv_mode.dart';
+import '../state/downloads.dart';
 import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
@@ -18,6 +19,8 @@ enum _ItemAction {
   toggleWatched,
   toggleFavorite,
   addToPlaylist,
+  download,
+  removeDownload,
   refresh,
   delete,
 }
@@ -68,6 +71,10 @@ Future<void> showItemActionsMenu(
     case _ItemAction.addToPlaylist:
       await showAddToPlaylistSheet(context, ref,
           itemIds: [item.id], label: item.name);
+    case _ItemAction.download:
+      await container.read(downloadsProvider.notifier).download(item);
+    case _ItemAction.removeDownload:
+      await container.read(downloadsProvider.notifier).delete(item.id);
     case _ItemAction.toggleWatched:
       await _mutate(messenger, () async {
         final s = container.read(sessionControllerProvider).asData?.value;
@@ -205,6 +212,18 @@ class _ItemActionsSheet extends ConsumerWidget {
       item.type == 'Recording' ||
       item.type == 'TvChannel';
 
+  /// Downloadable for offline: a single video (movie/episode) or a whole
+  /// series/season (which queues its episodes). Live channels and audio use
+  /// their own flows, so they're excluded here.
+  bool get _isDownloadable =>
+      item.isEpisode ||
+      item.type == 'Movie' ||
+      item.type == 'Video' ||
+      item.type == 'MusicVideo' ||
+      item.type == 'Recording' ||
+      item.isSeries ||
+      item.type == 'Season';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
@@ -274,6 +293,27 @@ class _ItemActionsSheet extends ConsumerWidget {
       label: l.detailAddToPlaylist,
       action: _ItemAction.addToPlaylist,
     );
+    if (_isDownloadable) {
+      // A single item shows its own download state; a series/season is a bulk
+      // action (its episodes each track their own state), so it always offers
+      // Download.
+      final entry = ref.watch(downloadsProvider).asData?.value[item.id];
+      final isFolder = item.isSeries || item.type == 'Season';
+      if (!isFolder && entry?.status == DownloadStatus.complete) {
+        add(
+          icon: Icons.download_done_rounded,
+          label: l.detailRemoveDownload,
+          action: _ItemAction.removeDownload,
+        );
+      } else if (isFolder || entry == null ||
+          entry.status == DownloadStatus.failed) {
+        add(
+          icon: Icons.download_rounded,
+          label: l.detailDownload,
+          action: _ItemAction.download,
+        );
+      }
+    }
     if (canRefresh) {
       add(
         icon: Icons.refresh_rounded,

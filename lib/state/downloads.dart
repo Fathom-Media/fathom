@@ -164,16 +164,55 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     return e != null && e.status == DownloadStatus.complete ? e.localPath : null;
   }
 
+  /// Downloads [item]. A Movie/Episode/Video downloads its single file; a Series
+  /// or Season expands into its episodes and enqueues each one (Jellyfin folders
+  /// have no stream of their own), skipping any episode already downloaded or in
+  /// flight so a repeat tap only picks up what's missing.
   Future<void> download(BaseItemDto item) async {
     final session = ref.read(sessionControllerProvider).asData?.value;
     if (session == null) return;
     final client = ref.read(jellyfinClientProvider);
-    final url = client.videoStreamUrl(
-      baseUrl: session.baseUrl,
-      itemId: item.id,
-      token: session.accessToken,
-    );
 
+    if (item.type == 'Series' || item.type == 'Season') {
+      final episodes = await client.getEpisodes(
+        baseUrl: session.baseUrl,
+        userId: session.userId,
+        token: session.accessToken,
+        seriesId: item.type == 'Season' ? (item.seriesId ?? item.id) : item.id,
+        seasonId: item.type == 'Season' ? item.id : null,
+      );
+      for (final ep in episodes) {
+        final existing = _map[ep.id];
+        if (existing != null &&
+            (existing.status == DownloadStatus.complete ||
+                existing.status == DownloadStatus.downloading)) {
+          continue;
+        }
+        await _enqueue(
+          ep,
+          client.videoStreamUrl(
+            baseUrl: session.baseUrl,
+            itemId: ep.id,
+            token: session.accessToken,
+          ),
+        );
+      }
+      return;
+    }
+
+    await _enqueue(
+      item,
+      client.videoStreamUrl(
+        baseUrl: session.baseUrl,
+        itemId: item.id,
+        token: session.accessToken,
+      ),
+    );
+  }
+
+  /// Enqueues a single playable [item] at [url]. Shared by movie/episode
+  /// downloads and by each episode of a series/season download.
+  Future<void> _enqueue(BaseItemDto item, String url) async {
     // taskId = item id so updates map straight back; displayName drives the
     // system notification text; metaData carries the name across an app restart.
     final task = DownloadTask(

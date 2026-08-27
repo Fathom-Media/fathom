@@ -733,6 +733,9 @@ class _DownloadButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    // A series aggregates its episodes' states (there's no single series file):
+    // download queues every episode, and the button shows the set's progress.
+    if (item.isSeries) return _seriesButton(context, ref, l);
     final entry = ref.watch(downloadsProvider).asData?.value[item.id];
     if (entry == null) {
       return _btn(
@@ -796,6 +799,88 @@ class _DownloadButton extends ConsumerWidget {
       ),
     );
     if (ok == true) ref.read(downloadsProvider.notifier).delete(item.id);
+  }
+
+  /// The series-level download button. It has no file of its own, so its state
+  /// is the aggregate of its episodes: download queues the missing episodes, a
+  /// spinner shows the set's combined progress, and once every episode is in it
+  /// offers to remove the whole set.
+  Widget _seriesButton(BuildContext context, WidgetRef ref, AppLocalizations l) {
+    final episodes =
+        ref.watch(episodesProvider(item.id)).asData?.value ?? const [];
+    final map = ref.watch(downloadsProvider).asData?.value ?? const {};
+    Widget downloadBtn() => _btn(
+          icon: Icons.download_rounded,
+          tooltip: l.detailDownload,
+          label: l.detailDownload,
+          onTap: () => ref.read(downloadsProvider.notifier).download(item),
+        );
+    if (episodes.isEmpty) return downloadBtn();
+
+    final entries = [for (final e in episodes) map[e.id]]
+        .whereType<DownloadEntry>()
+        .toList();
+    final done =
+        entries.where((e) => e.status == DownloadStatus.complete).length;
+    final inFlight =
+        entries.where((e) => e.status == DownloadStatus.downloading).toList();
+
+    if (done == episodes.length) {
+      return _btn(
+        icon: Icons.download_done_rounded,
+        tooltip: l.detailDownloadedTooltip,
+        label: l.detailDownloaded,
+        onTap: () => _confirmDeleteSeries(context, ref, episodes),
+      );
+    }
+    if (inFlight.isNotEmpty) {
+      final progress =
+          (done + inFlight.fold<double>(0, (a, e) => a + e.progress)) /
+              episodes.length;
+      return _btn(
+        icon: Icons.download_rounded,
+        tooltip: l.detailDownloadingTooltip,
+        label: l.detailDownloading,
+        onTap: null,
+        iconOverride: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            value: progress > 0 ? progress : null,
+            strokeWidth: 2.5,
+            color: header ? Colors.white : null,
+          ),
+        ),
+      );
+    }
+    return downloadBtn();
+  }
+
+  Future<void> _confirmDeleteSeries(
+      BuildContext context, WidgetRef ref, List<BaseItemDto> episodes) async {
+    final l = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.detailRemoveDownload),
+        content: Text(l.detailRemoveOfflineCopy(item.name)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l.commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l.commonRemove),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final notifier = ref.read(downloadsProvider.notifier);
+    for (final e in episodes) {
+      await notifier.delete(e.id);
+    }
   }
 }
 
@@ -1414,6 +1499,7 @@ class _ActionBar extends ConsumerWidget {
           ),
           if (next != null) _ChromecastButton(target: next),
           if (item.trailerUrl != null) _TrailerButton(item: item),
+          _DownloadButton(item: item),
         ],
       );
     }
