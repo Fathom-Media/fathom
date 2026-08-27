@@ -58,6 +58,9 @@ class UpdateController extends AsyncNotifier<UpdateStatus?> {
       title: tr.updateNotifTitle(version),
       body: tr.updateNotifBody,
       enabled: prefs.notifUpdates,
+      // Also raise an Android system notification so a new build is visible
+      // outside the app (the in-app bell alone is easy to miss on mobile).
+      osNotifyMobile: true,
       route: '/updates',
     );
   }

@@ -531,6 +531,22 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
   GoRouter? _router;
 
   @override
+  void initState() {
+    super.initState();
+    // Run the startup update check here too: on mobile the rail button that
+    // normally triggers it lives in the drawer, which isn't built until opened,
+    // so without this the check (and its notification/banner) would wait for the
+    // user to open the drawer. check() is a no-op if one already ran this launch.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final prefs = ref.read(preferencesProvider).asData?.value;
+      if (prefs?.updateCheckOnStartup ?? true) {
+        ref.read(updateControllerProvider.notifier).check();
+      }
+    });
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Close the drawer on ANY navigation. The router delegate notifies on every

@@ -84,6 +84,7 @@ Future<void> pushAppNotification(
   required String body,
   required bool enabled,
   bool desktopToast = true,
+  bool osNotifyMobile = false,
   String? route,
 }) async {
   if (!enabled) return;
@@ -95,6 +96,12 @@ Future<void> pushAppNotification(
         time: DateTime.now(),
         route: route,
       ));
+  // Opt-in per event: post a real system notification on mobile too (updates
+  // use this), so it stays in the tray and is visible outside the app, rather
+  // than only living in the in-app bell. Desktop's OS toast is handled below.
+  if (osNotifyMobile && (Platform.isAndroid || Platform.isIOS)) {
+    await AppNotifications.show(title, body);
+  }
   if (!desktopToast) return;
   // While Fathom is focused, surface the same in-app snackbar as every other
   // action so notifications look consistent in-app; when it's backgrounded,
