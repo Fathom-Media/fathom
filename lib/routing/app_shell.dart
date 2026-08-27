@@ -26,6 +26,7 @@ import 'nav_destinations.dart';
 import '../widgets/glass.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/download_pill.dart';
+import '../widgets/update_banner.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/mini_video.dart';
 import '../widgets/user_avatar.dart';
@@ -207,6 +208,7 @@ class AppShell extends ConsumerWidget {
         child: Column(
           children: [
             const _OfflineBanner(),
+            const UpdateBanner(),
           Expanded(
             child: Stack(
               children: [
@@ -582,6 +584,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
         child: Column(
           children: [
             const _OfflineBanner(),
+            const UpdateBanner(),
             Expanded(
               child: Stack(
                 children: [

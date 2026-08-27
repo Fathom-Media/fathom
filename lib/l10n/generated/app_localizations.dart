@@ -574,6 +574,18 @@ abstract class AppLocalizations {
   /// **'You\'re on the latest version.'**
   String get updateUpToDate;
 
+  /// Button on the update banner that opens the Updates screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get updateBannerAction;
+
+  /// Tooltip on the update banner's close button.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss update banner'**
+  String get updateBannerDismiss;
+
   /// Headline on the Updates screen when a newer release exists.
   ///
   /// In en, this message translates to:

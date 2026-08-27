@@ -259,6 +259,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateUpToDate => 'You\'re on the latest version.';
 
   @override
+  String get updateBannerAction => 'Update';
+
+  @override
+  String get updateBannerDismiss => 'Dismiss update banner';
+
+  @override
   String updateAvailableHeadline(String version) {
     return 'Version $version is available';
   }

@@ -236,6 +236,14 @@
   "@updateUpToDate": {
     "description": "Shown when no newer release is available."
   },
+  "updateBannerAction": "Update",
+  "@updateBannerAction": {
+    "description": "Button on the update banner that opens the Updates screen."
+  },
+  "updateBannerDismiss": "Dismiss update banner",
+  "@updateBannerDismiss": {
+    "description": "Tooltip on the update banner's close button."
+  },
   "updateAvailableHeadline": "Version {version} is available",
   "@updateAvailableHeadline": {
     "description": "Headline on the Updates screen when a newer release exists.",

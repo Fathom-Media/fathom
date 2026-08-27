@@ -273,6 +273,7 @@ class Prefs {
   final bool updateCheckOnStartup;
   final int updateLastCheck; // epoch ms of the last check, for throttling
   final String updateNotifiedVersion; // version we already posted an update notification for
+  final String updateBannerDismissedVersion; // version whose update banner the user dismissed
 
   const Prefs({
     this.themeMode = 'system',
@@ -389,6 +390,7 @@ class Prefs {
     this.updateCheckOnStartup = true,
     this.updateLastCheck = 0,
     this.updateNotifiedVersion = '',
+    this.updateBannerDismissedVersion = '',
   });
 
   /// Player key bindings with any user overrides applied over the defaults.
@@ -504,6 +506,7 @@ class Prefs {
     bool? updateCheckOnStartup,
     int? updateLastCheck,
     String? updateNotifiedVersion,
+    String? updateBannerDismissedVersion,
   }) =>
       Prefs(
         themeMode: themeMode ?? this.themeMode,
@@ -633,6 +636,8 @@ class Prefs {
         updateLastCheck: updateLastCheck ?? this.updateLastCheck,
         updateNotifiedVersion:
             updateNotifiedVersion ?? this.updateNotifiedVersion,
+        updateBannerDismissedVersion: updateBannerDismissedVersion ??
+            this.updateBannerDismissedVersion,
       );
 
   Map<String, dynamic> toJson() => {
@@ -745,6 +750,7 @@ class Prefs {
         'updateCheckOnStartup': updateCheckOnStartup,
         'updateLastCheck': updateLastCheck,
         'updateNotifiedVersion': updateNotifiedVersion,
+        'updateBannerDismissedVersion': updateBannerDismissedVersion,
       };
 
   factory Prefs.fromJson(Map<String, dynamic> j) => Prefs(
@@ -885,6 +891,8 @@ class Prefs {
         updateCheckOnStartup: j['updateCheckOnStartup'] as bool? ?? true,
         updateLastCheck: (j['updateLastCheck'] as num?)?.toInt() ?? 0,
         updateNotifiedVersion: j['updateNotifiedVersion'] as String? ?? '',
+        updateBannerDismissedVersion:
+            j['updateBannerDismissedVersion'] as String? ?? '',
       );
 }
 
