@@ -2060,6 +2060,10 @@
   "@detailDownload": {
     "description": "Button/tooltip to download an item for offline viewing."
   },
+  "downloadAll": "Download All",
+  "@downloadAll": {
+    "description": "Row in the series download picker that downloads every episode."
+  },
   "detailDownloading": "Downloading",
   "@detailDownloading": {
     "description": "Button label while a download is in progress."

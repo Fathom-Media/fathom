@@ -3118,6 +3118,12 @@ abstract class AppLocalizations {
   /// **'Download'**
   String get detailDownload;
 
+  /// Row in the series download picker that downloads every episode.
+  ///
+  /// In en, this message translates to:
+  /// **'Download All'**
+  String get downloadAll;
+
   /// Button label while a download is in progress.
   ///
   /// In en, this message translates to:

@@ -10,6 +10,7 @@ import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import 'add_to_playlist.dart';
+import 'series_download_sheet.dart';
 import 'tv_focus.dart';
 
 /// The actions the shared context menu can return.
@@ -72,7 +73,13 @@ Future<void> showItemActionsMenu(
       await showAddToPlaylistSheet(context, ref,
           itemIds: [item.id], label: item.name);
     case _ItemAction.download:
-      await container.read(downloadsProvider.notifier).download(item);
+      if (item.isSeries) {
+        // A series offers a scope choice (All / a season); everything else
+        // downloads directly.
+        await showSeriesDownloadSheet(context, item);
+      } else {
+        await container.read(downloadsProvider.notifier).download(item);
+      }
     case _ItemAction.removeDownload:
       await container.read(downloadsProvider.notifier).delete(item.id);
     case _ItemAction.toggleWatched:

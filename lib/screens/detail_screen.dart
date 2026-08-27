@@ -16,6 +16,7 @@ import '../state/session_controller.dart';
 import '../widgets/add_to_playlist.dart';
 import '../widgets/item_actions.dart';
 import '../widgets/score_pills.dart';
+import '../widgets/series_download_sheet.dart';
 import '../widgets/glass.dart';
 import '../widgets/cast_button.dart';
 import '../widgets/hover_pill_button.dart';
@@ -813,7 +814,7 @@ class _DownloadButton extends ConsumerWidget {
           icon: Icons.download_rounded,
           tooltip: l.detailDownload,
           label: l.detailDownload,
-          onTap: () => ref.read(downloadsProvider.notifier).download(item),
+          onTap: () => showSeriesDownloadSheet(context, item),
         );
     if (episodes.isEmpty) return downloadBtn();
 

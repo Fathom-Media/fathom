@@ -1655,6 +1655,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get detailDownload => 'Download';
 
   @override
+  String get downloadAll => 'Download All';
+
+  @override
   String get detailDownloading => 'Downloading';
 
   @override

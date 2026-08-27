@@ -181,22 +181,7 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
         seriesId: item.type == 'Season' ? (item.seriesId ?? item.id) : item.id,
         seasonId: item.type == 'Season' ? item.id : null,
       );
-      for (final ep in episodes) {
-        final existing = _map[ep.id];
-        if (existing != null &&
-            (existing.status == DownloadStatus.complete ||
-                existing.status == DownloadStatus.downloading)) {
-          continue;
-        }
-        await _enqueue(
-          ep,
-          client.videoStreamUrl(
-            baseUrl: session.baseUrl,
-            itemId: ep.id,
-            token: session.accessToken,
-          ),
-        );
-      }
+      await downloadEpisodes(episodes);
       return;
     }
 
@@ -208,6 +193,31 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
         token: session.accessToken,
       ),
     );
+  }
+
+  /// Enqueues each of [episodes] that isn't already downloaded or in flight.
+  /// Lets a caller download a chosen scope (a whole series, or one season) that
+  /// it has already resolved to a concrete episode list.
+  Future<void> downloadEpisodes(List<BaseItemDto> episodes) async {
+    final session = ref.read(sessionControllerProvider).asData?.value;
+    if (session == null) return;
+    final client = ref.read(jellyfinClientProvider);
+    for (final ep in episodes) {
+      final existing = _map[ep.id];
+      if (existing != null &&
+          (existing.status == DownloadStatus.complete ||
+              existing.status == DownloadStatus.downloading)) {
+        continue;
+      }
+      await _enqueue(
+        ep,
+        client.videoStreamUrl(
+          baseUrl: session.baseUrl,
+          itemId: ep.id,
+          token: session.accessToken,
+        ),
+      );
+    }
   }
 
   /// Enqueues a single playable [item] at [url]. Shared by movie/episode
