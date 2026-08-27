@@ -46,64 +46,26 @@ class DownloadsScreen extends ConsumerWidget {
               message: l.ytDownloadsScreenEmptyMessage,
             );
           }
+          // A series' episodes collapse under one header; movies and other
+          // single items stand on their own.
+          final series = <String, List<DownloadEntry>>{};
+          final singles = <DownloadEntry>[];
+          for (final e in entries) {
+            if (e.seriesId != null) {
+              series.putIfAbsent(e.seriesId!, () => []).add(e);
+            } else {
+              singles.add(e);
+            }
+          }
+          final rows = <Widget>[
+            for (final g in series.entries)
+              _SeriesGroupTile(seriesId: g.key, episodes: g.value),
+            for (final e in singles) _DownloadTile(entry: e),
+          ];
           return ListView.separated(
-            itemCount: entries.length,
+            itemCount: rows.length,
             separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              final e = entries[i];
-              final complete = e.status == DownloadStatus.complete;
-              final scheme = Theme.of(context).colorScheme;
-              final statusColor = switch (e.status) {
-                DownloadStatus.complete => scheme.primary,
-                DownloadStatus.downloading => scheme.primary,
-                DownloadStatus.failed => scheme.error,
-              };
-              return ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    switch (e.status) {
-                      DownloadStatus.complete => Icons.download_done_rounded,
-                      DownloadStatus.downloading => Icons.downloading_rounded,
-                      DownloadStatus.failed => Icons.error_outline_rounded,
-                    },
-                    color: statusColor,
-                    size: 22,
-                  ),
-                ),
-                title: Text(e.name,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: switch (e.status) {
-                  DownloadStatus.downloading => LinearProgressIndicator(
-                      value: e.progress > 0 ? e.progress : null),
-                  DownloadStatus.failed => Text(l.ytFailed),
-                  DownloadStatus.complete => Text(l.ytAvailableOffline),
-                },
-                trailing: IconButton(
-                  // For an in-flight download the same delete() cancels the
-                  // native task, so label it Cancel; a finished one is Remove.
-                  tooltip: e.status == DownloadStatus.downloading
-                      ? l.downloadCancel
-                      : l.commonRemove,
-                  icon: Icon(e.status == DownloadStatus.downloading
-                      ? Icons.close_rounded
-                      : Icons.delete_outline_rounded),
-                  onPressed: () => controller.delete(e.itemId),
-                ),
-                onTap: complete
-                    ? () => context.push('/player',
-                        extra: BaseItemDto(id: e.itemId, name: e.name))
-                    : null,
-              );
-            },
+            itemBuilder: (context, i) => rows[i],
           );
         },
       ),
@@ -131,5 +93,125 @@ class DownloadsScreen extends ConsumerWidget {
       ),
     );
     if (ok == true) await controller.cancelActive();
+  }
+}
+
+/// One download row: status glyph, name, progress/status, and a Cancel (while
+/// downloading) / Remove (once done) button. A complete item plays on tap.
+class _DownloadTile extends ConsumerWidget {
+  final DownloadEntry entry;
+  final bool indented;
+  const _DownloadTile({required this.entry, this.indented = false});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final controller = ref.read(downloadsProvider.notifier);
+    final scheme = Theme.of(context).colorScheme;
+    final downloading = entry.status == DownloadStatus.downloading;
+    final complete = entry.status == DownloadStatus.complete;
+    final statusColor =
+        entry.status == DownloadStatus.failed ? scheme.error : scheme.primary;
+    return ListTile(
+      contentPadding: EdgeInsets.only(left: indented ? 32 : 20, right: 12),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: statusColor.withValues(alpha: 0.14),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          switch (entry.status) {
+            DownloadStatus.complete => Icons.download_done_rounded,
+            DownloadStatus.downloading => Icons.downloading_rounded,
+            DownloadStatus.failed => Icons.error_outline_rounded,
+          },
+          color: statusColor,
+          size: 22,
+        ),
+      ),
+      title: Text(entry.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: switch (entry.status) {
+        DownloadStatus.downloading => LinearProgressIndicator(
+            value: entry.progress > 0 ? entry.progress : null),
+        DownloadStatus.failed => Text(l.ytFailed),
+        DownloadStatus.complete => Text(l.ytAvailableOffline),
+      },
+      trailing: IconButton(
+        tooltip: downloading ? l.downloadCancel : l.commonRemove,
+        icon: Icon(
+            downloading ? Icons.close_rounded : Icons.delete_outline_rounded),
+        onPressed: () => controller.delete(entry.itemId),
+      ),
+      onTap: complete
+          ? () => context.push('/player',
+              extra: BaseItemDto(id: entry.itemId, name: entry.name))
+          : null,
+    );
+  }
+}
+
+/// A series' episodes collapsed under one header: aggregate progress, a single
+/// Cancel/Remove for the whole set, and the episodes revealed on expand.
+class _SeriesGroupTile extends ConsumerWidget {
+  final String seriesId;
+  final List<DownloadEntry> episodes;
+  const _SeriesGroupTile({required this.seriesId, required this.episodes});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final controller = ref.read(downloadsProvider.notifier);
+    final scheme = Theme.of(context).colorScheme;
+    final total = episodes.length;
+    final done =
+        episodes.where((e) => e.status == DownloadStatus.complete).length;
+    final active =
+        episodes.where((e) => e.status == DownloadStatus.downloading).toList();
+    final name = episodes.first.seriesName ?? l.detailSeries;
+    final double? progress = active.isEmpty
+        ? null
+        : (done + active.fold<double>(0, (a, e) => a + e.progress)) / total;
+    return ExpansionTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: scheme.primary.withValues(alpha: 0.14),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(
+          active.isNotEmpty
+              ? Icons.downloading_rounded
+              : (done == total
+                  ? Icons.download_done_rounded
+                  : Icons.download_rounded),
+          color: scheme.primary,
+          size: 22,
+        ),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          IconButton(
+            tooltip: active.isNotEmpty ? l.downloadCancel : l.commonRemove,
+            icon: Icon(active.isNotEmpty
+                ? Icons.close_rounded
+                : Icons.delete_outline_rounded),
+            onPressed: () => controller.deleteSeries(seriesId),
+          ),
+        ],
+      ),
+      subtitle: active.isNotEmpty
+          ? LinearProgressIndicator(value: progress)
+          : Text('$done/$total'),
+      tilePadding: const EdgeInsets.only(left: 20, right: 4),
+      children: [for (final e in episodes) _DownloadTile(entry: e, indented: true)],
+    );
   }
 }

@@ -23,12 +23,20 @@ class DownloadEntry {
   final DownloadStatus status;
   final double progress;
 
+  /// When this download is a series episode, the parent series' id and name, so
+  /// the Downloads screen can group a series' episodes under one collapsible
+  /// header (and cancel/remove them as a set). Null for a standalone movie.
+  final String? seriesId;
+  final String? seriesName;
+
   const DownloadEntry({
     required this.itemId,
     required this.name,
     required this.localPath,
     required this.status,
     this.progress = 0,
+    this.seriesId,
+    this.seriesName,
   });
 
   DownloadEntry copyWith({DownloadStatus? status, double? progress}) =>
@@ -38,10 +46,17 @@ class DownloadEntry {
         localPath: localPath,
         status: status ?? this.status,
         progress: progress ?? this.progress,
+        seriesId: seriesId,
+        seriesName: seriesName,
       );
 
-  Map<String, dynamic> toJson() =>
-      {'itemId': itemId, 'name': name, 'localPath': localPath};
+  Map<String, dynamic> toJson() => {
+        'itemId': itemId,
+        'name': name,
+        'localPath': localPath,
+        if (seriesId != null) 'seriesId': seriesId,
+        if (seriesName != null) 'seriesName': seriesName,
+      };
 
   factory DownloadEntry.fromJson(Map<String, dynamic> j) => DownloadEntry(
         itemId: j['itemId'] as String,
@@ -49,6 +64,8 @@ class DownloadEntry {
         localPath: j['localPath'] as String,
         status: DownloadStatus.complete,
         progress: 1,
+        seriesId: j['seriesId'] as String?,
+        seriesName: j['seriesName'] as String?,
       );
 }
 
@@ -245,6 +262,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       name: item.name,
       localPath: path,
       status: DownloadStatus.downloading,
+      seriesId: item.seriesId,
+      seriesName: item.seriesName,
     );
     state = AsyncData(map);
 
@@ -269,6 +288,18 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
         if (e.status == DownloadStatus.downloading) e.itemId,
     ];
     for (final id in active) {
+      await delete(id);
+    }
+  }
+
+  /// Cancels/removes every download belonging to one series at once, backing the
+  /// series group's cancel/remove action on the Downloads screen.
+  Future<void> deleteSeries(String seriesId) async {
+    final ids = [
+      for (final e in _map.values)
+        if (e.seriesId == seriesId) e.itemId,
+    ];
+    for (final id in ids) {
       await delete(id);
     }
   }
