@@ -18,9 +18,22 @@ class DownloadsScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final downloads = ref.watch(downloadsProvider);
     final controller = ref.read(downloadsProvider.notifier);
+    final hasActive = (downloads.asData?.value.values ?? const [])
+        .any((e) => e.status == DownloadStatus.downloading);
 
     return Scaffold(
-      appBar: AppBar(leading: mobileLeading(context), title: Text(l.ytDownloads)),
+      appBar: AppBar(
+        leading: mobileLeading(context),
+        title: Text(l.ytDownloads),
+        actions: [
+          if (hasActive)
+            TextButton.icon(
+              onPressed: () => _confirmCancelAll(context, controller),
+              icon: const Icon(Icons.cancel_outlined, size: 18),
+              label: Text(l.downloadsCancelAll),
+            ),
+        ],
+      ),
       body: downloads.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorView(message: '$e'),
@@ -75,8 +88,14 @@ class DownloadsScreen extends ConsumerWidget {
                   DownloadStatus.complete => Text(l.ytAvailableOffline),
                 },
                 trailing: IconButton(
-                  tooltip: l.commonRemove,
-                  icon: const Icon(Icons.delete_outline_rounded),
+                  // For an in-flight download the same delete() cancels the
+                  // native task, so label it Cancel; a finished one is Remove.
+                  tooltip: e.status == DownloadStatus.downloading
+                      ? l.downloadCancel
+                      : l.commonRemove,
+                  icon: Icon(e.status == DownloadStatus.downloading
+                      ? Icons.close_rounded
+                      : Icons.delete_outline_rounded),
                   onPressed: () => controller.delete(e.itemId),
                 ),
                 onTap: complete
@@ -89,5 +108,28 @@ class DownloadsScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<void> _confirmCancelAll(
+      BuildContext context, DownloadsController controller) async {
+    final l = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.downloadsCancelAll),
+        content: Text(l.downloadsCancelAllConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l.commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l.downloadsCancelAll),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await controller.cancelActive();
   }
 }

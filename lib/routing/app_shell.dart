@@ -25,6 +25,7 @@ import '../widgets/tv_keyboard.dart';
 import 'nav_destinations.dart';
 import '../widgets/glass.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/download_pill.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/mini_video.dart';
 import '../widgets/user_avatar.dart';
@@ -290,6 +291,7 @@ class AppShell extends ConsumerWidget {
                 ),
                 // Floating minimized video (picture-in-picture).
                 const MiniVideo(),
+                const DownloadPill(),
               ],
             ),
           ),
@@ -592,6 +594,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
                     ),
                   ),
                   const MiniVideo(),
+                  const DownloadPill(),
                 ],
               ),
             ),

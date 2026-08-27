@@ -1658,6 +1658,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadAll => 'Download All';
 
   @override
+  String downloadingCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Downloading $count',
+      one: 'Downloading 1',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get downloadsCancelAll => 'Cancel All';
+
+  @override
+  String get downloadsCancelAllConfirm => 'Cancel all downloads in progress?';
+
+  @override
+  String get downloadCancel => 'Cancel';
+
+  @override
   String get detailDownloading => 'Downloading';
 
   @override

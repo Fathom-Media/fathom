@@ -2064,6 +2064,27 @@
   "@downloadAll": {
     "description": "Row in the series download picker that downloads every episode."
   },
+  "downloadingCount": "{count, plural, =1{Downloading 1} other{Downloading {count}}}",
+  "@downloadingCount": {
+    "description": "Label on the floating downloading indicator: how many items are in flight.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadsCancelAll": "Cancel All",
+  "@downloadsCancelAll": {
+    "description": "App bar action on the Downloads screen that cancels or removes every download."
+  },
+  "downloadsCancelAllConfirm": "Cancel all downloads in progress?",
+  "@downloadsCancelAllConfirm": {
+    "description": "Confirmation body when cancelling every in-progress download at once."
+  },
+  "downloadCancel": "Cancel",
+  "@downloadCancel": {
+    "description": "Button to cancel an in-progress download (vs Remove for a finished one)."
+  },
   "detailDownloading": "Downloading",
   "@detailDownloading": {
     "description": "Button label while a download is in progress."

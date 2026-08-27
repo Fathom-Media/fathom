@@ -261,6 +261,18 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     }
   }
 
+  /// Cancels every in-progress download at once (leaving completed ones in
+  /// place). Backs the Downloads screen's "Cancel All".
+  Future<void> cancelActive() async {
+    final active = [
+      for (final e in _map.values)
+        if (e.status == DownloadStatus.downloading) e.itemId,
+    ];
+    for (final id in active) {
+      await delete(id);
+    }
+  }
+
   Future<void> delete(String itemId) async {
     // Cancel first, in case it's still running natively.
     await _downloader.cancelTaskWithId(itemId);

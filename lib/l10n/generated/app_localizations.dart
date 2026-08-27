@@ -3124,6 +3124,30 @@ abstract class AppLocalizations {
   /// **'Download All'**
   String get downloadAll;
 
+  /// Label on the floating downloading indicator: how many items are in flight.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Downloading 1} other{Downloading {count}}}'**
+  String downloadingCount(int count);
+
+  /// App bar action on the Downloads screen that cancels or removes every download.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel All'**
+  String get downloadsCancelAll;
+
+  /// Confirmation body when cancelling every in-progress download at once.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel all downloads in progress?'**
+  String get downloadsCancelAllConfirm;
+
+  /// Button to cancel an in-progress download (vs Remove for a finished one).
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get downloadCancel;
+
   /// Button label while a download is in progress.
   ///
   /// In en, this message translates to:
