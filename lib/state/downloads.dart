@@ -48,6 +48,12 @@ class DownloadEntry {
   final double? communityRating;
   final double? criticRating;
 
+  /// The library card's watched badge: how many episodes are unwatched (a
+  /// series' count, captured at download time) and whether the item is fully
+  /// played. Static for now; a later pass syncs it with the server.
+  final int? unplayedItemCount;
+  final bool? played;
+
   const DownloadEntry({
     required this.itemId,
     required this.name,
@@ -63,6 +69,8 @@ class DownloadEntry {
     this.year,
     this.communityRating,
     this.criticRating,
+    this.unplayedItemCount,
+    this.played,
   });
 
   DownloadEntry copyWith(
@@ -82,6 +90,8 @@ class DownloadEntry {
         year: year,
         communityRating: communityRating,
         criticRating: criticRating,
+        unplayedItemCount: unplayedItemCount,
+        played: played,
       );
 
   Map<String, dynamic> toJson() => {
@@ -97,6 +107,8 @@ class DownloadEntry {
         if (year != null) 'year': year,
         if (communityRating != null) 'communityRating': communityRating,
         if (criticRating != null) 'criticRating': criticRating,
+        if (unplayedItemCount != null) 'unplayedItemCount': unplayedItemCount,
+        if (played != null) 'played': played,
       };
 
   factory DownloadEntry.fromJson(Map<String, dynamic> j) => DownloadEntry(
@@ -114,6 +126,8 @@ class DownloadEntry {
         year: (j['year'] as num?)?.toInt(),
         communityRating: (j['communityRating'] as num?)?.toDouble(),
         criticRating: (j['criticRating'] as num?)?.toDouble(),
+        unplayedItemCount: (j['unplayedItemCount'] as num?)?.toInt(),
+        played: j['played'] as bool?,
       );
 }
 
@@ -272,6 +286,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     int? year;
     double? community;
     double? critic;
+    int? unplayed;
+    bool? played;
     final seriesId = episodes.isNotEmpty ? episodes.first.seriesId : null;
     if (seriesId != null) {
       try {
@@ -284,6 +300,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
         year = series.productionYear;
         community = series.communityRating;
         critic = series.criticRating;
+        unplayed = series.userData.unplayedItemCount;
+        played = series.userData.played;
       } catch (_) {}
     }
     for (final ep in episodes) {
@@ -303,6 +321,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
         year: year,
         community: community,
         critic: critic,
+        unplayed: unplayed,
+        played: played,
       );
     }
   }
@@ -313,7 +333,11 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
   /// values so a show card matches the series' browse card); a movie passes
   /// none and uses its own.
   Future<void> _enqueue(BaseItemDto item, String url,
-      {int? year, double? community, double? critic}) async {
+      {int? year,
+      double? community,
+      double? critic,
+      int? unplayed,
+      bool? played}) async {
     // taskId = item id so updates map straight back; displayName drives the
     // system notification text; metaData carries the name across an app restart.
     final task = DownloadTask(
@@ -344,6 +368,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       year: year ?? item.productionYear,
       communityRating: community ?? item.communityRating,
       criticRating: critic ?? item.criticRating,
+      unplayedItemCount: unplayed ?? item.userData.unplayedItemCount,
+      played: played ?? item.userData.played,
     );
     state = AsyncData(map);
 

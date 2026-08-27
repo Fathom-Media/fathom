@@ -183,9 +183,9 @@ class _DownloadedLibrary extends ConsumerWidget {
                   productionYear: e.year,
                   communityRating: e.communityRating,
                   criticRating: e.criticRating,
+                  userData: UserItemData(played: e.played ?? false),
                 ),
                 localPosterPath: e.posterPath,
-                onMenu: () => _movieMenu(context, ref, e),
                 onTap: () => context.push('/player',
                     extra: BaseItemDto(id: e.itemId, name: e.name)),
               ),
@@ -204,112 +204,17 @@ class _DownloadedLibrary extends ConsumerWidget {
                   productionYear: g.value.first.year,
                   communityRating: g.value.first.communityRating,
                   criticRating: g.value.first.criticRating,
+                  userData: UserItemData(
+                    unplayedItemCount: g.value.first.unplayedItemCount ?? 0,
+                    played: g.value.first.played ?? false,
+                  ),
                 ),
                 localPosterPath: g.value.first.posterPath,
-                onMenu: () => _showMenu(context, ref, g.key, g.value),
                 onTap: () => _openShow(context, g.value),
               ),
           ]),
         ],
       ],
-    );
-  }
-
-  void _movieMenu(BuildContext context, WidgetRef ref, DownloadEntry e) {
-    final l = AppLocalizations.of(context);
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _MenuTitle(e.name),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.play_arrow_rounded),
-              title: Text(l.commonPlay),
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('/player',
-                    extra: BaseItemDto(id: e.itemId, name: e.name));
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Theme.of(ctx).colorScheme.error),
-              title: Text(l.detailRemoveDownload,
-                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-              onTap: () {
-                Navigator.pop(ctx);
-                ref.read(downloadsProvider.notifier).delete(e.itemId);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showMenu(BuildContext context, WidgetRef ref, String seriesId,
-      List<DownloadEntry> episodes) {
-    final l = AppLocalizations.of(context);
-    final name = episodes.first.seriesName ?? l.detailSeries;
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _MenuTitle(name),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.list_rounded),
-              title: Text(l.detailEpisodes),
-              onTap: () {
-                Navigator.pop(ctx);
-                _openShow(context, episodes);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Theme.of(ctx).colorScheme.error),
-              title: Text(l.detailRemoveDownload,
-                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-              onTap: () async {
-                Navigator.pop(ctx);
-                final ok = await showDialog<bool>(
-                  context: context,
-                  builder: (dctx) => AlertDialog(
-                    title: Text(l.detailRemoveDownload),
-                    content: Text(l.detailRemoveOfflineCopy(name)),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dctx, false),
-                        child: Text(l.commonCancel),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(dctx, true),
-                        child: Text(l.commonRemove),
-                      ),
-                    ],
-                  ),
-                );
-                if (ok == true) {
-                  await ref
-                      .read(downloadsProvider.notifier)
-                      .deleteSeries(seriesId);
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
     );
   }
 
@@ -340,25 +245,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// The item-name header at the top of a poster's action sheet.
-class _MenuTitle extends StatelessWidget {
-  final String text;
-  const _MenuTitle(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-      child: Text(text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium),
-    );
-  }
-}
-
-/// Lays out full-size (176-wide) poster cards in a wrap, each height-bounded so
-/// the card's flexible poster resolves. Same card the rest of the app uses, so
 /// the downloaded library looks identical to browsing.
 class _PosterGrid extends StatelessWidget {
   final List<Widget> children;

@@ -81,7 +81,14 @@ Future<void> showItemActionsMenu(
         await container.read(downloadsProvider.notifier).download(item);
       }
     case _ItemAction.removeDownload:
-      await container.read(downloadsProvider.notifier).delete(item.id);
+      final downloads = container.read(downloadsProvider.notifier);
+      if (item.isSeries) {
+        await downloads.deleteSeries(item.id);
+      } else if (item.type == 'Season') {
+        await downloads.deleteSeason(item.seriesId ?? '', item.indexNumber);
+      } else {
+        await downloads.delete(item.id);
+      }
     case _ItemAction.toggleWatched:
       await _mutate(messenger, () async {
         final s = container.read(sessionControllerProvider).asData?.value;
@@ -301,24 +308,45 @@ class _ItemActionsSheet extends ConsumerWidget {
       action: _ItemAction.addToPlaylist,
     );
     if (_isDownloadable) {
-      // A single item shows its own download state; a series/season is a bulk
-      // action (its episodes each track their own state), so it always offers
-      // Download.
-      final entry = ref.watch(downloadsProvider).asData?.value[item.id];
+      final downloads =
+          ref.watch(downloadsProvider).asData?.value ?? const {};
       final isFolder = item.isSeries || item.type == 'Season';
-      if (!isFolder && entry?.status == DownloadStatus.complete) {
-        add(
-          icon: Icons.download_done_rounded,
-          label: l.detailRemoveDownload,
-          action: _ItemAction.removeDownload,
-        );
-      } else if (isFolder || entry == null ||
-          entry.status == DownloadStatus.failed) {
+      if (isFolder) {
+        // A series/season is a bulk action (each episode tracks its own state):
+        // always offer Download (adds/tops up), and offer Remove once any of its
+        // episodes are downloaded so the whole show can be cleared.
         add(
           icon: Icons.download_rounded,
           label: l.detailDownload,
           action: _ItemAction.download,
         );
+        final hasDownloads = item.isSeries
+            ? downloads.values.any((e) => e.seriesId == item.id)
+            : downloads.values.any((e) =>
+                e.seriesId == item.seriesId &&
+                e.seasonNumber == item.indexNumber);
+        if (hasDownloads) {
+          add(
+            icon: Icons.download_done_rounded,
+            label: l.detailRemoveDownload,
+            action: _ItemAction.removeDownload,
+          );
+        }
+      } else {
+        final entry = downloads[item.id];
+        if (entry?.status == DownloadStatus.complete) {
+          add(
+            icon: Icons.download_done_rounded,
+            label: l.detailRemoveDownload,
+            action: _ItemAction.removeDownload,
+          );
+        } else if (entry == null || entry.status == DownloadStatus.failed) {
+          add(
+            icon: Icons.download_rounded,
+            label: l.detailDownload,
+            action: _ItemAction.download,
+          );
+        }
       }
     }
     if (canRefresh) {
