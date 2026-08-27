@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,24 +11,42 @@ import '../widgets/error_view.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
 
-/// Offline downloads: play, see progress, or remove downloaded items.
-class DownloadsScreen extends ConsumerWidget {
+/// Offline downloads. A segmented control switches between the downloaded
+/// library (posters, Movies + TV Shows) and the in-progress queue; the queue
+/// tab only appears while something is downloading or has failed.
+class DownloadsScreen extends ConsumerStatefulWidget {
   const DownloadsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DownloadsScreen> createState() => _DownloadsScreenState();
+}
+
+class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
+  int _seg = 0; // 0 = Downloaded (library), 1 = Downloading (queue)
+
+  @override
+  Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final downloads = ref.watch(downloadsProvider);
     final controller = ref.read(downloadsProvider.notifier);
-    final hasActive = (downloads.asData?.value.values ?? const [])
-        .any((e) => e.status == DownloadStatus.downloading);
+    final all =
+        downloads.asData?.value.values.toList() ?? const <DownloadEntry>[];
+    final active =
+        all.where((e) => e.status != DownloadStatus.complete).toList();
+    final complete =
+        all.where((e) => e.status == DownloadStatus.complete).toList();
+    final showQueue = active.isNotEmpty;
+    // No queue tab when nothing's in flight, so pin the view to the library.
+    final seg = showQueue ? _seg : 0;
+    final hasActiveTransfer =
+        active.any((e) => e.status == DownloadStatus.downloading);
 
     return Scaffold(
       appBar: AppBar(
         leading: mobileLeading(context),
         title: Text(l.ytDownloads),
         actions: [
-          if (hasActive)
+          if (seg == 1 && hasActiveTransfer)
             TextButton.icon(
               onPressed: () => _confirmCancelAll(context, controller),
               icon: const Icon(Icons.cancel_outlined, size: 18),
@@ -38,34 +58,43 @@ class DownloadsScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => ErrorView(message: '$e'),
         data: (map) {
-          final entries = map.values.toList();
-          if (entries.isEmpty) {
+          if (map.isEmpty) {
             return EmptyState(
               icon: Icons.download_rounded,
               title: l.ytNoDownloadsTitle,
               message: l.ytDownloadsScreenEmptyMessage,
             );
           }
-          // A series' episodes collapse under one header; movies and other
-          // single items stand on their own.
-          final series = <String, List<DownloadEntry>>{};
-          final singles = <DownloadEntry>[];
-          for (final e in entries) {
-            if (e.seriesId != null) {
-              series.putIfAbsent(e.seriesId!, () => []).add(e);
-            } else {
-              singles.add(e);
-            }
-          }
-          final rows = <Widget>[
-            for (final g in series.entries)
-              _SeriesGroupTile(seriesId: g.key, episodes: g.value),
-            for (final e in singles) _DownloadTile(entry: e),
-          ];
-          return ListView.separated(
-            itemCount: rows.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, i) => rows[i],
+          return Column(
+            children: [
+              if (showQueue)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: SegmentedButton<int>(
+                    segments: [
+                      ButtonSegment(
+                        value: 0,
+                        icon: const Icon(Icons.download_done_rounded, size: 18),
+                        label: Text(l.detailDownloaded),
+                      ),
+                      ButtonSegment(
+                        value: 1,
+                        icon: const Icon(Icons.downloading_rounded, size: 18),
+                        label:
+                            Text('${l.detailDownloading} (${active.length})'),
+                      ),
+                    ],
+                    selected: {seg},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (s) => setState(() => _seg = s.first),
+                  ),
+                ),
+              Expanded(
+                child: seg == 1
+                    ? _DownloadQueue(items: active)
+                    : _DownloadedLibrary(items: complete),
+              ),
+            ],
           );
         },
       ),
@@ -93,6 +122,249 @@ class DownloadsScreen extends ConsumerWidget {
       ),
     );
     if (ok == true) await controller.cancelActive();
+  }
+}
+
+/// The in-progress/failed queue: a series' episodes grouped under one header,
+/// movies and other single items on their own.
+class _DownloadQueue extends StatelessWidget {
+  final List<DownloadEntry> items;
+  const _DownloadQueue({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final series = <String, List<DownloadEntry>>{};
+    final singles = <DownloadEntry>[];
+    for (final e in items) {
+      if (e.seriesId != null) {
+        series.putIfAbsent(e.seriesId!, () => []).add(e);
+      } else {
+        singles.add(e);
+      }
+    }
+    final rows = <Widget>[
+      for (final g in series.entries)
+        _SeriesGroupTile(seriesId: g.key, episodes: g.value),
+      for (final e in singles) _DownloadTile(entry: e),
+    ];
+    return ListView.separated(
+      itemCount: rows.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (context, i) => rows[i],
+    );
+  }
+}
+
+/// The downloaded-media library: a Movies section and a TV Shows section, each a
+/// wrap of posters. A movie plays on tap; a show opens its episodes.
+class _DownloadedLibrary extends StatelessWidget {
+  final List<DownloadEntry> items;
+  const _DownloadedLibrary({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final movies = items.where((e) => e.seriesId == null).toList();
+    final shows = <String, List<DownloadEntry>>{};
+    for (final e in items.where((e) => e.seriesId != null)) {
+      shows.putIfAbsent(e.seriesId!, () => []).add(e);
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        if (movies.isNotEmpty) ...[
+          _SectionHeader(l.detailMovies),
+          Wrap(
+            spacing: 12,
+            runSpacing: 16,
+            children: [
+              for (final e in movies)
+                _PosterTile(
+                  posterPath: e.posterPath,
+                  title: e.name,
+                  placeholder: Icons.movie_rounded,
+                  onTap: () => context.push('/player',
+                      extra: BaseItemDto(id: e.itemId, name: e.name)),
+                ),
+            ],
+          ),
+        ],
+        if (shows.isNotEmpty) ...[
+          if (movies.isNotEmpty) const SizedBox(height: 20),
+          _SectionHeader(l.downloadsTvShows),
+          Wrap(
+            spacing: 12,
+            runSpacing: 16,
+            children: [
+              for (final g in shows.entries)
+                _PosterTile(
+                  posterPath: g.value.first.posterPath,
+                  title: g.value.first.seriesName ?? l.detailSeries,
+                  subtitle: l.downloadEpisodeCount(g.value.length),
+                  placeholder: Icons.live_tv_rounded,
+                  onTap: () => _openShow(context, g.value),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _openShow(BuildContext context, List<DownloadEntry> episodes) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => _ShowEpisodesSheet(episodes: episodes),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String text;
+  const _SectionHeader(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, top: 4),
+      child: Text(text,
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+/// A poster with a title (and optional subtitle) beneath, for the library. The
+/// cover is the locally-cached file so it shows offline; a themed placeholder
+/// stands in when there's no poster.
+class _PosterTile extends StatelessWidget {
+  final String? posterPath;
+  final String title;
+  final String? subtitle;
+  final IconData placeholder;
+  final VoidCallback onTap;
+  const _PosterTile({
+    required this.posterPath,
+    required this.title,
+    this.subtitle,
+    required this.placeholder,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget cover() {
+      final path = posterPath;
+      if (path != null) {
+        return Image.file(File(path),
+            fit: BoxFit.cover, errorBuilder: (_, _, _) => _ph(scheme));
+      }
+      return _ph(scheme);
+    }
+
+    return SizedBox(
+      width: 112,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: AspectRatio(aspectRatio: 2 / 3, child: cover()),
+            ),
+            const SizedBox(height: 6),
+            Text(title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600)),
+            if (subtitle != null)
+              Text(subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 11, color: scheme.onSurfaceVariant)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _ph(ColorScheme scheme) => Container(
+        color: scheme.surfaceContainerHighest,
+        alignment: Alignment.center,
+        child: Icon(placeholder, color: scheme.onSurfaceVariant, size: 34),
+      );
+}
+
+/// A downloaded show's episodes, grouped by season, each playing on tap.
+class _ShowEpisodesSheet extends StatelessWidget {
+  final List<DownloadEntry> episodes;
+  const _ShowEpisodesSheet({required this.episodes});
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final title = episodes.first.seriesName ?? l.detailSeries;
+    final bySeason = <int, List<DownloadEntry>>{};
+    for (final e in episodes) {
+      bySeason.putIfAbsent(e.seasonNumber ?? -1, () => []).add(e);
+    }
+    final seasons = bySeason.keys.toList()..sort();
+    final rows = <Widget>[];
+    for (final s in seasons) {
+      final eps = bySeason[s]!
+        ..sort(
+            (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0));
+      if (s >= 0 &&
+          (seasons.where((x) => x >= 0).length > 1 || s > 0)) {
+        rows.add(_SeasonSubheader(
+            label: s == 0 ? l.detailSpecials : l.detailSeasonNumber(s)));
+      }
+      for (final e in eps) {
+        rows.add(ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+          leading: Icon(Icons.play_circle_outline_rounded,
+              color: Theme.of(context).colorScheme.primary),
+          title: Text(
+            e.episodeNumber != null ? 'E${e.episodeNumber}  ${e.name}' : e.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onTap: () {
+            Navigator.pop(context);
+            context.push('/player',
+                extra: BaseItemDto(id: e.itemId, name: e.name));
+          },
+        ));
+      }
+    }
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+              child: Text(title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium),
+            ),
+            const Divider(height: 1),
+            ...rows,
+          ],
+        ),
+      ),
+    );
   }
 }
 

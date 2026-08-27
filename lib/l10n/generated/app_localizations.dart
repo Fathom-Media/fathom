@@ -3136,6 +3136,18 @@ abstract class AppLocalizations {
   /// **'Download All'**
   String get downloadAll;
 
+  /// TV Shows section header in the downloaded library.
+  ///
+  /// In en, this message translates to:
+  /// **'TV Shows'**
+  String get downloadsTvShows;
+
+  /// Episode count under a downloaded show's poster.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 episode} other{{count} episodes}}'**
+  String downloadEpisodeCount(int count);
+
   /// App bar action on the Downloads screen that cancels or removes every download.
   ///
   /// In en, this message translates to:

@@ -3,12 +3,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
+import 'package:dio/dio.dart' show Options, ResponseType;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../l10n/l10n.dart';
 import '../models/app_notification.dart';
 import '../models/base_item.dart';
+import '../services/secure_http.dart';
+import 'library_providers.dart';
 import 'notifications_controller.dart';
 import 'preferences.dart';
 import 'providers.dart';
@@ -32,6 +36,12 @@ class DownloadEntry {
   final int? seasonNumber;
   final int? episodeNumber;
 
+  /// The Jellyfin item type ('Movie', 'Episode', …) so the Downloads library can
+  /// split Movies from TV, and a locally-cached poster (a movie's own; a series'
+  /// poster for an episode) so covers show offline.
+  final String? type;
+  final String? posterPath;
+
   const DownloadEntry({
     required this.itemId,
     required this.name,
@@ -42,9 +52,12 @@ class DownloadEntry {
     this.seriesName,
     this.seasonNumber,
     this.episodeNumber,
+    this.type,
+    this.posterPath,
   });
 
-  DownloadEntry copyWith({DownloadStatus? status, double? progress}) =>
+  DownloadEntry copyWith(
+          {DownloadStatus? status, double? progress, String? posterPath}) =>
       DownloadEntry(
         itemId: itemId,
         name: name,
@@ -55,6 +68,8 @@ class DownloadEntry {
         seriesName: seriesName,
         seasonNumber: seasonNumber,
         episodeNumber: episodeNumber,
+        type: type,
+        posterPath: posterPath ?? this.posterPath,
       );
 
   Map<String, dynamic> toJson() => {
@@ -65,6 +80,8 @@ class DownloadEntry {
         if (seriesName != null) 'seriesName': seriesName,
         if (seasonNumber != null) 'seasonNumber': seasonNumber,
         if (episodeNumber != null) 'episodeNumber': episodeNumber,
+        if (type != null) 'type': type,
+        if (posterPath != null) 'posterPath': posterPath,
       };
 
   factory DownloadEntry.fromJson(Map<String, dynamic> j) => DownloadEntry(
@@ -77,6 +94,8 @@ class DownloadEntry {
         seriesName: j['seriesName'] as String?,
         seasonNumber: (j['seasonNumber'] as num?)?.toInt(),
         episodeNumber: (j['episodeNumber'] as num?)?.toInt(),
+        type: j['type'] as String?,
+        posterPath: j['posterPath'] as String?,
       );
 }
 
@@ -277,8 +296,22 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       seriesName: item.seriesName,
       seasonNumber: item.parentIndexNumber,
       episodeNumber: item.indexNumber,
+      type: item.type,
     );
     state = AsyncData(map);
+
+    // Cache the cover alongside the media so the Downloads library shows it
+    // offline. Best-effort and in the background, so it never delays the queue.
+    unawaited(_cachePoster(item).then((p) {
+      if (p == null) return;
+      final m = _map;
+      final e = m[item.id];
+      if (e != null) {
+        m[item.id] = e.copyWith(posterPath: p);
+        state = AsyncData(m);
+        unawaited(_persistComplete());
+      }
+    }));
 
     debugPrint('[download] enqueue ${item.id} "${item.name}" -> $path');
     final ok = await _downloader.enqueue(task);
@@ -303,6 +336,53 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     for (final id in active) {
       await delete(id);
     }
+  }
+
+  /// Downloads the item's cover to a local file so the Downloads library can
+  /// show it offline. A movie caches its own poster; an episode caches its
+  /// series' poster (shared across the series' episodes, so it's fetched once).
+  /// Returns the local path, or null on any failure. Best-effort.
+  Future<String?> _cachePoster(BaseItemDto item) async {
+    final session = ref.read(sessionControllerProvider).asData?.value;
+    if (session == null) return null;
+    final client = ref.read(jellyfinClientProvider);
+    final String key;
+    final String? tag;
+    if (item.isEpisode && item.seriesId != null) {
+      key = item.seriesId!;
+      tag = item.seriesPrimaryImageTag;
+    } else {
+      key = item.id;
+      tag = item.primaryImageTag;
+    }
+    try {
+      final base = await getApplicationSupportDirectory();
+      final dir = Directory('${base.path}/$_dir/posters');
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      final file = File('${dir.path}/$key.jpg');
+      if (file.existsSync() && file.lengthSync() > 0) return file.path;
+      final url = client.imageUrl(
+        baseUrl: session.baseUrl,
+        itemId: key,
+        type: 'Primary',
+        tag: tag,
+        maxWidth: 400,
+      );
+      final dio = await secureDio();
+      final resp = await dio.get<List<int>>(
+        url,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: ref.read(imageHeadersProvider),
+        ),
+      );
+      final data = resp.data;
+      if (data != null && data.isNotEmpty) {
+        file.writeAsBytesSync(data);
+        return file.path;
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Cancels/removes every download belonging to one series at once, backing the

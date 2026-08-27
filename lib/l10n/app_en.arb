@@ -2072,6 +2072,19 @@
   "@downloadAll": {
     "description": "Row in the series download picker that downloads every episode."
   },
+  "downloadsTvShows": "TV Shows",
+  "@downloadsTvShows": {
+    "description": "TV Shows section header in the downloaded library."
+  },
+  "downloadEpisodeCount": "{count, plural, =1{1 episode} other{{count} episodes}}",
+  "@downloadEpisodeCount": {
+    "description": "Episode count under a downloaded show's poster.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "downloadsCancelAll": "Cancel All",
   "@downloadsCancelAll": {
     "description": "App bar action on the Downloads screen that cancels or removes every download."
