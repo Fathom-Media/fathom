@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +6,7 @@ import '../models/base_item.dart';
 import '../state/downloads.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
+import '../widgets/media_cards.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
 
@@ -174,38 +173,43 @@ class _DownloadedLibrary extends StatelessWidget {
       children: [
         if (movies.isNotEmpty) ...[
           _SectionHeader(l.detailMovies),
-          Wrap(
-            spacing: 12,
-            runSpacing: 16,
-            children: [
-              for (final e in movies)
-                _PosterTile(
-                  posterPath: e.posterPath,
-                  title: e.name,
-                  placeholder: Icons.movie_rounded,
-                  onTap: () => context.push('/player',
-                      extra: BaseItemDto(id: e.itemId, name: e.name)),
+          _PosterGrid(children: [
+            for (final e in movies)
+              PosterCard(
+                item: BaseItemDto(
+                  id: e.itemId,
+                  name: e.name,
+                  type: e.type ?? 'Movie',
+                  productionYear: e.year,
+                  communityRating: e.communityRating,
+                  criticRating: e.criticRating,
                 ),
-            ],
-          ),
+                localPosterPath: e.posterPath,
+                contextActions: false,
+                onTap: () => context.push('/player',
+                    extra: BaseItemDto(id: e.itemId, name: e.name)),
+              ),
+          ]),
         ],
         if (shows.isNotEmpty) ...[
           if (movies.isNotEmpty) const SizedBox(height: 20),
           _SectionHeader(l.downloadsTvShows),
-          Wrap(
-            spacing: 12,
-            runSpacing: 16,
-            children: [
-              for (final g in shows.entries)
-                _PosterTile(
-                  posterPath: g.value.first.posterPath,
-                  title: g.value.first.seriesName ?? l.detailSeries,
-                  subtitle: l.downloadEpisodeCount(g.value.length),
-                  placeholder: Icons.live_tv_rounded,
-                  onTap: () => _openShow(context, g.value),
+          _PosterGrid(children: [
+            for (final g in shows.entries)
+              PosterCard(
+                item: BaseItemDto(
+                  id: g.key,
+                  name: g.value.first.seriesName ?? l.detailSeries,
+                  type: 'Series',
+                  productionYear: g.value.first.year,
+                  communityRating: g.value.first.communityRating,
+                  criticRating: g.value.first.criticRating,
                 ),
-            ],
-          ),
+                localPosterPath: g.value.first.posterPath,
+                contextActions: false,
+                onTap: () => _openShow(context, g.value),
+              ),
+          ]),
         ],
       ],
     );
@@ -238,70 +242,23 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// A poster with a title (and optional subtitle) beneath, for the library. The
-/// cover is the locally-cached file so it shows offline; a themed placeholder
-/// stands in when there's no poster.
-class _PosterTile extends StatelessWidget {
-  final String? posterPath;
-  final String title;
-  final String? subtitle;
-  final IconData placeholder;
-  final VoidCallback onTap;
-  const _PosterTile({
-    required this.posterPath,
-    required this.title,
-    this.subtitle,
-    required this.placeholder,
-    required this.onTap,
-  });
+/// Lays out full-size (176-wide) poster cards in a wrap, each height-bounded so
+/// the card's flexible poster resolves. Same card the rest of the app uses, so
+/// the downloaded library looks identical to browsing.
+class _PosterGrid extends StatelessWidget {
+  final List<Widget> children;
+  const _PosterGrid({required this.children});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    Widget cover() {
-      final path = posterPath;
-      if (path != null) {
-        return Image.file(File(path),
-            fit: BoxFit.cover, errorBuilder: (_, _, _) => _ph(scheme));
-      }
-      return _ph(scheme);
-    }
-
-    return SizedBox(
-      width: 112,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: AspectRatio(aspectRatio: 2 / 3, child: cover()),
-            ),
-            const SizedBox(height: 6),
-            Text(title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600)),
-            if (subtitle != null)
-              Text(subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 11, color: scheme.onSurfaceVariant)),
-          ],
-        ),
-      ),
+    return Wrap(
+      spacing: 14,
+      runSpacing: 18,
+      children: [
+        for (final c in children) SizedBox(height: 308, child: c),
+      ],
     );
   }
-
-  Widget _ph(ColorScheme scheme) => Container(
-        color: scheme.surfaceContainerHighest,
-        alignment: Alignment.center,
-        child: Icon(placeholder, color: scheme.onSurfaceVariant, size: 34),
-      );
 }
 
 /// A downloaded show's episodes, grouped by season, each playing on tap.

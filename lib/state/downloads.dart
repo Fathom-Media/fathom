@@ -38,9 +38,15 @@ class DownloadEntry {
 
   /// The Jellyfin item type ('Movie', 'Episode', …) so the Downloads library can
   /// split Movies from TV, and a locally-cached poster (a movie's own; a series'
-  /// poster for an episode) so covers show offline.
+  /// poster for an episode) so covers show offline. [year]/[communityRating]/
+  /// [criticRating] carry the library card's year and rating badge — a movie's
+  /// own, or the series' for an episode — so a downloaded card matches a browse
+  /// card exactly, offline.
   final String? type;
   final String? posterPath;
+  final int? year;
+  final double? communityRating;
+  final double? criticRating;
 
   const DownloadEntry({
     required this.itemId,
@@ -54,6 +60,9 @@ class DownloadEntry {
     this.episodeNumber,
     this.type,
     this.posterPath,
+    this.year,
+    this.communityRating,
+    this.criticRating,
   });
 
   DownloadEntry copyWith(
@@ -70,6 +79,9 @@ class DownloadEntry {
         episodeNumber: episodeNumber,
         type: type,
         posterPath: posterPath ?? this.posterPath,
+        year: year,
+        communityRating: communityRating,
+        criticRating: criticRating,
       );
 
   Map<String, dynamic> toJson() => {
@@ -82,6 +94,9 @@ class DownloadEntry {
         if (episodeNumber != null) 'episodeNumber': episodeNumber,
         if (type != null) 'type': type,
         if (posterPath != null) 'posterPath': posterPath,
+        if (year != null) 'year': year,
+        if (communityRating != null) 'communityRating': communityRating,
+        if (criticRating != null) 'criticRating': criticRating,
       };
 
   factory DownloadEntry.fromJson(Map<String, dynamic> j) => DownloadEntry(
@@ -96,6 +111,9 @@ class DownloadEntry {
         episodeNumber: (j['episodeNumber'] as num?)?.toInt(),
         type: j['type'] as String?,
         posterPath: j['posterPath'] as String?,
+        year: (j['year'] as num?)?.toInt(),
+        communityRating: (j['communityRating'] as num?)?.toDouble(),
+        criticRating: (j['criticRating'] as num?)?.toDouble(),
       );
 }
 
@@ -249,6 +267,25 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     final session = ref.read(sessionControllerProvider).asData?.value;
     if (session == null) return;
     final client = ref.read(jellyfinClientProvider);
+    // Fetch the series once for the library card's year + rating — the show
+    // card shows the SERIES's, not each episode's.
+    int? year;
+    double? community;
+    double? critic;
+    final seriesId = episodes.isNotEmpty ? episodes.first.seriesId : null;
+    if (seriesId != null) {
+      try {
+        final series = await client.getItem(
+          baseUrl: session.baseUrl,
+          userId: session.userId,
+          token: session.accessToken,
+          itemId: seriesId,
+        );
+        year = series.productionYear;
+        community = series.communityRating;
+        critic = series.criticRating;
+      } catch (_) {}
+    }
     for (final ep in episodes) {
       final existing = _map[ep.id];
       if (existing != null &&
@@ -263,13 +300,20 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
           itemId: ep.id,
           token: session.accessToken,
         ),
+        year: year,
+        community: community,
+        critic: critic,
       );
     }
   }
 
   /// Enqueues a single playable [item] at [url]. Shared by movie/episode
-  /// downloads and by each episode of a series/season download.
-  Future<void> _enqueue(BaseItemDto item, String url) async {
+  /// downloads and by each episode of a series/season download. [year]/
+  /// [community]/[critic] override the item's own (episodes pass the series'
+  /// values so a show card matches the series' browse card); a movie passes
+  /// none and uses its own.
+  Future<void> _enqueue(BaseItemDto item, String url,
+      {int? year, double? community, double? critic}) async {
     // taskId = item id so updates map straight back; displayName drives the
     // system notification text; metaData carries the name across an app restart.
     final task = DownloadTask(
@@ -297,6 +341,9 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       seasonNumber: item.parentIndexNumber,
       episodeNumber: item.indexNumber,
       type: item.type,
+      year: year ?? item.productionYear,
+      communityRating: community ?? item.communityRating,
+      criticRating: critic ?? item.criticRating,
     );
     state = AsyncData(map);
 

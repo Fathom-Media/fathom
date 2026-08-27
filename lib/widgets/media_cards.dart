@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -389,9 +391,24 @@ class PosterCard extends StatelessWidget {
   // Row-scoped hero tag; see [HoverPosterArt.heroTag]. Home passes one so an
   // item that appears in several rows doesn't collide on a duplicate tag.
   final String? heroTag;
+
+  /// A locally-cached poster to show instead of the server image (used by the
+  /// offline Downloads library so covers render without the server).
+  final String? localPosterPath;
+
+  /// Whether the poster exposes the shared item context menu. Off for the
+  /// Downloads library, whose reconstructed items aren't full detail items.
+  final bool contextActions;
   static const double width = 176;
 
-  const PosterCard({super.key, required this.item, this.onTap, this.heroTag});
+  const PosterCard({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.heroTag,
+    this.localPosterPath,
+    this.contextActions = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -407,7 +424,25 @@ class PosterCard extends StatelessWidget {
           Flexible(
             child: AspectRatio(
               aspectRatio: 2 / 3,
-              child: HoverPosterArt(item: item, onTap: onTap, heroTag: heroTag),
+              child: HoverPosterArt(
+                item: item,
+                onTap: onTap,
+                heroTag: heroTag,
+                contextActions: contextActions,
+                art: localPosterPath == null
+                    ? null
+                    : Image.file(
+                        File(localPosterPath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, _, _) => Container(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          alignment: Alignment.center,
+                          child: Icon(Icons.movie_rounded,
+                              color: theme.colorScheme.onSurfaceVariant,
+                              size: 32),
+                        ),
+                      ),
+              ),
             ),
           ),
           const SizedBox(height: 8),
