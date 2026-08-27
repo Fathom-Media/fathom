@@ -293,7 +293,7 @@ class AppShell extends ConsumerWidget {
                 ),
                 // Floating minimized video (picture-in-picture).
                 const MiniVideo(),
-                const DownloadPill(),
+                const Positioned.fill(child: DownloadPill()),
               ],
             ),
           ),
@@ -613,7 +613,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
                     ),
                   ),
                   const MiniVideo(),
-                  const DownloadPill(),
+                  const Positioned.fill(child: DownloadPill()),
                 ],
               ),
             ),
