@@ -786,6 +786,26 @@ class JellyfinClient {
     }
   }
 
+  /// The raw item JSON (full detail: overview, people, genres, images), so a
+  /// downloaded item's detail can be stored and rebuilt offline. Returns null on
+  /// failure; best-effort.
+  Future<Map<String, dynamic>?> getItemJson({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+  }) async {
+    try {
+      final res = await _dio.get(
+        '$baseUrl/Users/$userId/Items/$itemId',
+        options: _authed(token),
+      );
+      return Map<String, dynamic>.from(res.data as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Titles similar to [itemId] ("More Like This").
   Future<List<BaseItemDto>> getSimilar({
     required String baseUrl,

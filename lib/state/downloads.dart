@@ -385,6 +385,9 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
         unawaited(_persistComplete());
       }
     }));
+    // Cache the full detail (overview, cast, genres, ratings) so the download
+    // detail page has the familiar server-style info offline.
+    unawaited(_cacheDetail(item));
 
     debugPrint('[download] enqueue ${item.id} "${item.name}" -> $path');
     final ok = await _downloader.enqueue(task);
@@ -456,6 +459,45 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       }
     } catch (_) {}
     return null;
+  }
+
+  /// Caches an item's full detail JSON (the series' for an episode) under
+  /// `<downloads>/meta/<key>.json`, so the download detail page can render the
+  /// familiar overview/cast/ratings offline. Fetched once per movie/series.
+  Future<void> _cacheDetail(BaseItemDto item) async {
+    final session = ref.read(sessionControllerProvider).asData?.value;
+    if (session == null) return;
+    final client = ref.read(jellyfinClientProvider);
+    final key =
+        (item.isEpisode && item.seriesId != null) ? item.seriesId! : item.id;
+    try {
+      final base = await getApplicationSupportDirectory();
+      final dir = Directory('${base.path}/$_dir/meta');
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      final file = File('${dir.path}/$key.json');
+      if (file.existsSync() && file.lengthSync() > 0) return;
+      final json = await client.getItemJson(
+        baseUrl: session.baseUrl,
+        userId: session.userId,
+        token: session.accessToken,
+        itemId: key,
+      );
+      if (json != null) file.writeAsStringSync(jsonEncode(json));
+    } catch (_) {}
+  }
+
+  /// Loads a downloaded item's cached full detail (movie or series), for the
+  /// download detail page. Null if it wasn't cached.
+  Future<BaseItemDto?> loadDetail(String key) async {
+    try {
+      final base = await getApplicationSupportDirectory();
+      final file = File('${base.path}/$_dir/meta/$key.json');
+      if (!file.existsSync()) return null;
+      return BaseItemDto.fromJson(
+          jsonDecode(file.readAsStringSync()) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Cancels/removes every download belonging to one series at once, backing the
