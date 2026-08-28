@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -186,9 +188,8 @@ class _DownloadedLibrary extends ConsumerWidget {
                   userData: UserItemData(played: e.played ?? false),
                 ),
                 localPosterPath: e.posterPath,
-                onOpenDetails: () => context.push('/item',
-                    extra: BaseItemDto(
-                        id: e.itemId, name: e.name, type: e.type ?? 'Movie')),
+                contextActions: false,
+                onMenu: () => _movieMenu(context, ref, e),
                 onTap: () => context.push('/player',
                     extra: BaseItemDto(id: e.itemId, name: e.name)),
               ),
@@ -213,12 +214,10 @@ class _DownloadedLibrary extends ConsumerWidget {
                   ),
                 ),
                 localPosterPath: g.value.first.posterPath,
-                onOpenDetails: () => context.push('/item',
-                    extra: BaseItemDto(
-                        id: g.key,
-                        name: g.value.first.seriesName ?? l.detailSeries,
-                        type: 'Series')),
-                onTap: () => _openShow(context, g.value),
+                contextActions: false,
+                onMenu: () => _showMenu(context, ref, g.key,
+                    g.value.first.seriesName ?? l.detailSeries),
+                onTap: () => context.push('/downloads/show', extra: g.key),
               ),
           ]),
         ],
@@ -226,12 +225,100 @@ class _DownloadedLibrary extends ConsumerWidget {
     );
   }
 
-  void _openShow(BuildContext context, List<DownloadEntry> episodes) {
+  void _movieMenu(BuildContext context, WidgetRef ref, DownloadEntry e) {
+    final l = AppLocalizations.of(context);
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) => _ShowEpisodesSheet(episodes: episodes),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MenuTitle(e.name),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.play_arrow_rounded),
+              title: Text(l.commonPlay),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/player',
+                    extra: BaseItemDto(id: e.itemId, name: e.name));
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded,
+                  color: Theme.of(ctx).colorScheme.error),
+              title: Text(l.detailRemoveDownload,
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+              onTap: () {
+                Navigator.pop(ctx);
+                ref.read(downloadsProvider.notifier).delete(e.itemId);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMenu(
+      BuildContext context, WidgetRef ref, String seriesId, String name) {
+    final l = AppLocalizations.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MenuTitle(name),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.list_rounded),
+              title: Text(l.detailEpisodes),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/downloads/show', extra: seriesId);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded,
+                  color: Theme.of(ctx).colorScheme.error),
+              title: Text(l.detailRemoveDownload,
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final ok = await showDialog<bool>(
+                  context: context,
+                  builder: (dctx) => AlertDialog(
+                    title: Text(l.detailRemoveDownload),
+                    content: Text(l.detailRemoveOfflineCopy(name)),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dctx, false),
+                        child: Text(l.commonCancel),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(dctx, true),
+                        child: Text(l.commonRemove),
+                      ),
+                    ],
+                  ),
+                );
+                if (ok == true) {
+                  await ref
+                      .read(downloadsProvider.notifier)
+                      .deleteSeries(seriesId);
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -271,66 +358,150 @@ class _PosterGrid extends StatelessWidget {
 }
 
 /// A downloaded show's episodes, grouped by season, each playing on tap.
-class _ShowEpisodesSheet extends StatelessWidget {
-  final List<DownloadEntry> episodes;
-  const _ShowEpisodesSheet({required this.episodes});
+/// The item-name header at the top of a poster's action sheet.
+class _MenuTitle extends StatelessWidget {
+  final String text;
+  const _MenuTitle(this.text);
 
   @override
   Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+      child: Text(text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium),
+    );
+  }
+}
+
+/// Download-scoped show detail: ONLY the episodes you've downloaded, grouped by
+/// season and playable offline. Every action here removes the download only —
+/// it never touches the show, season, or episode on the server. Reads live from
+/// [downloadsProvider], so removing the last episode pops the page.
+class DownloadShowScreen extends ConsumerWidget {
+  final String seriesId;
+  const DownloadShowScreen({super.key, required this.seriesId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final title = episodes.first.seriesName ?? l.detailSeries;
+    final scheme = Theme.of(context).colorScheme;
+    final controller = ref.read(downloadsProvider.notifier);
+    final map = ref.watch(downloadsProvider).asData?.value ??
+        const <String, DownloadEntry>{};
+    final eps = map.values
+        .where((e) =>
+            e.seriesId == seriesId && e.status == DownloadStatus.complete)
+        .toList();
+    if (eps.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+      return const Scaffold(body: SizedBox.shrink());
+    }
+    final first = eps.first;
+    final name = first.seriesName ?? l.detailSeries;
     final bySeason = <int, List<DownloadEntry>>{};
-    for (final e in episodes) {
+    for (final e in eps) {
       bySeason.putIfAbsent(e.seasonNumber ?? -1, () => []).add(e);
     }
     final seasons = bySeason.keys.toList()..sort();
-    final rows = <Widget>[];
+    final realSeasons = seasons.where((s) => s >= 0).length;
+
+    final rows = <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                  width: 104, height: 156, child: _poster(context, first)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                  if (first.year != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text('${first.year}',
+                          style: TextStyle(color: scheme.onSurfaceVariant)),
+                    ),
+                  const SizedBox(height: 8),
+                  Text(l.downloadEpisodeCount(eps.length),
+                      style: TextStyle(color: scheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const Divider(height: 1),
+    ];
     for (final s in seasons) {
-      final eps = bySeason[s]!
+      final seasonEps = bySeason[s]!
         ..sort(
             (a, b) => (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0));
-      if (s >= 0 &&
-          (seasons.where((x) => x >= 0).length > 1 || s > 0)) {
+      if (s >= 0 && (realSeasons > 1 || s > 0)) {
         rows.add(_SeasonSubheader(
-            label: s == 0 ? l.detailSpecials : l.detailSeasonNumber(s)));
+          label: s == 0 ? l.detailSpecials : l.detailSeasonNumber(s),
+          onCancel: realSeasons > 1
+              ? () => controller.deleteSeason(seriesId, s)
+              : null,
+        ));
       }
-      for (final e in eps) {
+      for (final e in seasonEps) {
         rows.add(ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+          contentPadding: const EdgeInsets.only(left: 20, right: 8),
           leading: Icon(Icons.play_circle_outline_rounded,
-              color: Theme.of(context).colorScheme.primary),
+              color: scheme.primary),
           title: Text(
             e.episodeNumber != null ? 'E${e.episodeNumber}  ${e.name}' : e.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          onTap: () {
-            Navigator.pop(context);
-            context.push('/player',
-                extra: BaseItemDto(id: e.itemId, name: e.name));
-          },
+          trailing: IconButton(
+            tooltip: l.commonRemove,
+            icon: const Icon(Icons.delete_outline_rounded),
+            onPressed: () => controller.delete(e.itemId),
+          ),
+          onTap: () => context.push('/player',
+              extra: BaseItemDto(id: e.itemId, name: e.name)),
         ));
       }
     }
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-              child: Text(title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium),
-            ),
-            const Divider(height: 1),
-            ...rows,
-          ],
-        ),
-      ),
+    return Scaffold(
+      appBar: AppBar(leading: mobileLeading(context), title: Text(name)),
+      body: ListView(children: rows),
     );
+  }
+
+  Widget _poster(BuildContext context, DownloadEntry e) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget ph() => Container(
+          color: scheme.surfaceContainerHighest,
+          alignment: Alignment.center,
+          child: Icon(Icons.live_tv_rounded, color: scheme.onSurfaceVariant),
+        );
+    final path = e.posterPath;
+    if (path != null) {
+      return Image.file(File(path),
+          fit: BoxFit.cover, errorBuilder: (context, _, _) => ph());
+    }
+    return ph();
   }
 }
 
