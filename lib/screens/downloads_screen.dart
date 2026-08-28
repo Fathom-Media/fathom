@@ -186,6 +186,9 @@ class _DownloadedLibrary extends ConsumerWidget {
                   userData: UserItemData(played: e.played ?? false),
                 ),
                 localPosterPath: e.posterPath,
+                onOpenDetails: () => context.push('/item',
+                    extra: BaseItemDto(
+                        id: e.itemId, name: e.name, type: e.type ?? 'Movie')),
                 onTap: () => context.push('/player',
                     extra: BaseItemDto(id: e.itemId, name: e.name)),
               ),
@@ -210,6 +213,11 @@ class _DownloadedLibrary extends ConsumerWidget {
                   ),
                 ),
                 localPosterPath: g.value.first.posterPath,
+                onOpenDetails: () => context.push('/item',
+                    extra: BaseItemDto(
+                        id: g.key,
+                        name: g.value.first.seriesName ?? l.detailSeries,
+                        type: 'Series')),
                 onTap: () => _openShow(context, g.value),
               ),
           ]),

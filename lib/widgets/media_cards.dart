@@ -42,6 +42,10 @@ class HoverPosterArt extends ConsumerStatefulWidget {
   /// than the server-side ones). When set, the poster shows the menu affordance
   /// and calls this instead of [showItemActionsMenu].
   final VoidCallback? onMenu;
+
+  /// What the menu's "Show Details" runs. Defaults to [onTap]; the Downloads
+  /// library sets it to open the detail page while [onTap] plays/drills in.
+  final VoidCallback? onOpenDetails;
   const HoverPosterArt(
       {super.key,
       this.item,
@@ -53,7 +57,8 @@ class HoverPosterArt extends ConsumerStatefulWidget {
       this.heroTag,
       this.autofocus = false,
       this.contextActions = true,
-      this.onMenu})
+      this.onMenu,
+      this.onOpenDetails})
       : assert(item != null || art != null);
 
   @override
@@ -91,7 +96,7 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
       ref,
       widget.item!,
       fromGrid: true,
-      onOpenDetails: widget.onTap,
+      onOpenDetails: widget.onOpenDetails ?? widget.onTap,
     );
   }
 
@@ -417,6 +422,9 @@ class PosterCard extends StatelessWidget {
   /// A custom menu opener (replaces the shared item menu). The Downloads library
   /// passes one for its Play / Remove-download actions.
   final VoidCallback? onMenu;
+
+  /// What the menu's "Show Details" runs; defaults to [onTap].
+  final VoidCallback? onOpenDetails;
   static const double width = 176;
 
   const PosterCard({
@@ -427,6 +435,7 @@ class PosterCard extends StatelessWidget {
     this.localPosterPath,
     this.contextActions = true,
     this.onMenu,
+    this.onOpenDetails,
   });
 
   @override
@@ -449,6 +458,7 @@ class PosterCard extends StatelessWidget {
                 heroTag: heroTag,
                 contextActions: contextActions,
                 onMenu: onMenu,
+                onOpenDetails: onOpenDetails,
                 art: localPosterPath == null
                     ? null
                     : Image.file(
