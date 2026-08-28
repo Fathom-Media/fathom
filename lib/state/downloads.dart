@@ -54,6 +54,11 @@ class DownloadEntry {
   final int? unplayedItemCount;
   final bool? played;
 
+  /// Local watched state, toggled from the download detail page. Download-only —
+  /// never synced to the server. Null falls back to the server's [played] at
+  /// download time.
+  final bool? watchedLocal;
+
   const DownloadEntry({
     required this.itemId,
     required this.name,
@@ -71,10 +76,14 @@ class DownloadEntry {
     this.criticRating,
     this.unplayedItemCount,
     this.played,
+    this.watchedLocal,
   });
 
   DownloadEntry copyWith(
-          {DownloadStatus? status, double? progress, String? posterPath}) =>
+          {DownloadStatus? status,
+          double? progress,
+          String? posterPath,
+          bool? watchedLocal}) =>
       DownloadEntry(
         itemId: itemId,
         name: name,
@@ -92,6 +101,7 @@ class DownloadEntry {
         criticRating: criticRating,
         unplayedItemCount: unplayedItemCount,
         played: played,
+        watchedLocal: watchedLocal ?? this.watchedLocal,
       );
 
   Map<String, dynamic> toJson() => {
@@ -109,6 +119,7 @@ class DownloadEntry {
         if (criticRating != null) 'criticRating': criticRating,
         if (unplayedItemCount != null) 'unplayedItemCount': unplayedItemCount,
         if (played != null) 'played': played,
+        if (watchedLocal != null) 'watchedLocal': watchedLocal,
       };
 
   factory DownloadEntry.fromJson(Map<String, dynamic> j) => DownloadEntry(
@@ -128,6 +139,7 @@ class DownloadEntry {
         criticRating: (j['criticRating'] as num?)?.toDouble(),
         unplayedItemCount: (j['unplayedItemCount'] as num?)?.toInt(),
         played: j['played'] as bool?,
+        watchedLocal: j['watchedLocal'] as bool?,
       );
 }
 
@@ -510,6 +522,20 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     for (final id in ids) {
       await delete(id);
     }
+  }
+
+  /// Local watched state for a downloaded item: the download detail page toggles
+  /// it, but it's never sent to the server. Falls back to the server's played
+  /// state captured at download time.
+  bool isWatched(DownloadEntry e) => e.watchedLocal ?? e.played ?? false;
+
+  Future<void> setWatched(String itemId, bool watched) async {
+    final m = _map;
+    final e = m[itemId];
+    if (e == null) return;
+    m[itemId] = e.copyWith(watchedLocal: watched);
+    state = AsyncData(m);
+    await _persistComplete();
   }
 
   /// Cancels/removes one season of a series, for the per-season action shown

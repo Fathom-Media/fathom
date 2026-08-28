@@ -443,6 +443,7 @@ class DownloadDetailScreen extends ConsumerWidget {
           criticRating: first.criticRating,
         );
 
+    final allWatched = entries.every(controller.isWatched);
     final ratingPills = scorePills(
       rtCritic: item.criticRating?.round(),
       community: item.communityRating,
@@ -563,6 +564,26 @@ class DownloadDetailScreen extends ConsumerWidget {
                           extra: BaseItemDto(id: play.itemId, name: play.name));
                     },
                   ),
+                  if (item.trailerUrl != null)
+                    HoverPillButton(
+                      icon: Icons.movie_outlined,
+                      label: l.detailTrailer,
+                      onTap: () => context.push('/trailer',
+                          extra: (url: item.trailerUrl!, title: item.name)),
+                    ),
+                  HoverPillButton(
+                    icon: allWatched
+                        ? Icons.check_circle_rounded
+                        : Icons.check_circle_outline_rounded,
+                    label: allWatched
+                        ? l.detailMarkUnwatched
+                        : l.detailMarkWatched,
+                    onTap: () async {
+                      for (final e in entries) {
+                        await controller.setWatched(e.itemId, !allWatched);
+                      }
+                    },
+                  ),
                   HoverPillButton(
                     icon: Icons.download_done_rounded,
                     label: l.detailRemoveDownload,
@@ -619,9 +640,13 @@ class DownloadDetailScreen extends ConsumerWidget {
           ));
         }
         for (final e in seasonEps) {
+          final watched = controller.isWatched(e);
           epRows.add(ListTile(
-            contentPadding: const EdgeInsets.only(left: 20, right: 8),
-            leading: Icon(Icons.play_circle_outline_rounded,
+            contentPadding: const EdgeInsets.only(left: 20, right: 4),
+            leading: Icon(
+                watched
+                    ? Icons.check_circle_rounded
+                    : Icons.play_circle_outline_rounded,
                 color: scheme.primary),
             title: Text(
               e.episodeNumber != null
@@ -631,9 +656,8 @@ class DownloadDetailScreen extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
             ),
             trailing: IconButton(
-              tooltip: l.commonRemove,
-              icon: const Icon(Icons.delete_outline_rounded),
-              onPressed: () => controller.delete(e.itemId),
+              icon: const Icon(Icons.more_vert_rounded),
+              onPressed: () => _episodeMenu(context, ref, e, watched),
             ),
             onTap: () => context.push('/player',
                 extra: BaseItemDto(id: e.itemId, name: e.name)),
@@ -644,6 +668,59 @@ class DownloadDetailScreen extends ConsumerWidget {
     }
 
     return Scaffold(body: CustomScrollView(slivers: slivers));
+  }
+
+  void _episodeMenu(
+      BuildContext context, WidgetRef ref, DownloadEntry e, bool watched) {
+    final l = AppLocalizations.of(context);
+    final controller = ref.read(downloadsProvider.notifier);
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _MenuTitle(e.episodeNumber != null
+                ? 'E${e.episodeNumber}  ${e.name}'
+                : e.name),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.play_arrow_rounded),
+              title: Text(l.commonPlay),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.push('/player',
+                    extra: BaseItemDto(id: e.itemId, name: e.name));
+              },
+            ),
+            ListTile(
+              leading: Icon(watched
+                  ? Icons.check_circle_rounded
+                  : Icons.check_circle_outline_rounded),
+              title:
+                  Text(watched ? l.detailMarkUnwatched : l.detailMarkWatched),
+              onTap: () {
+                Navigator.pop(ctx);
+                controller.setWatched(e.itemId, !watched);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded,
+                  color: Theme.of(ctx).colorScheme.error),
+              title: Text(l.detailRemoveDownload,
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+              onTap: () {
+                Navigator.pop(ctx);
+                controller.delete(e.itemId);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }
 
