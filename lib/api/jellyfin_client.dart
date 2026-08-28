@@ -370,6 +370,7 @@ class JellyfinClient {
     String url,
     String token, {
     Map<String, dynamic>? query,
+    String? typeOverride,
   }) async {
     try {
       final res = await _dio.get(
@@ -381,10 +382,13 @@ class JellyfinClient {
       final rawList = data is List
           ? data
           : (data is Map ? (data['Items'] as List? ?? const []) : const []);
-      return rawList
-          .whereType<Map>()
-          .map((e) => BaseItemDto.fromJson(Map<String, dynamic>.from(e)))
-          .toList();
+      return rawList.whereType<Map>().map((e) {
+        final m = Map<String, dynamic>.from(e);
+        // Recordings come back typed as their content (Movie/Video/Episode);
+        // stamp the kind so the app can treat them uniformly as recordings.
+        if (typeOverride != null) m['Type'] = typeOverride;
+        return BaseItemDto.fromJson(m);
+      }).toList();
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -655,6 +659,9 @@ class JellyfinClient {
         'EnableImages': 'true',
         'Fields': 'Overview,PrimaryImageAspectRatio',
       },
+      // Some servers return recordings typed as their content (Movie/Video), so
+      // force 'Recording' — the app keys the Recordings section/actions off it.
+      typeOverride: 'Recording',
     );
   }
 
@@ -2210,7 +2217,9 @@ class JellyfinClient {
       query: {
         'UserId': userId,
         'SeasonId': ?seasonId,
-        'Fields': 'Overview,PrimaryImageAspectRatio',
+        // ChannelId is retained on recorded episodes (a DVR marker a normal
+        // library episode never has), so downloads can classify recordings.
+        'Fields': 'Overview,PrimaryImageAspectRatio,ChannelId',
       },
     );
   }

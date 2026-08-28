@@ -13,7 +13,7 @@ import '../state/library_providers.dart';
 /// button and the item context menu, so the same choice appears wherever a
 /// series is downloaded.
 Future<void> showSeriesDownloadSheet(
-    BuildContext context, BaseItemDto series) async {
+    BuildContext context, BaseItemDto series, {String? asType}) async {
   // Read through the app-wide container, not a caller's ref, so the fetch and
   // the single-season download survive the caller (a grid card, a menu)
   // unmounting mid-request.
@@ -32,7 +32,9 @@ Future<void> showSeriesDownloadSheet(
   }
   // Nothing to pick from with a single season: download it all.
   if (seasons.length <= 1) {
-    await container.read(downloadsProvider.notifier).downloadEpisodes(episodes);
+    await container
+        .read(downloadsProvider.notifier)
+        .downloadEpisodes(episodes, asType: asType);
     return;
   }
   final ordered = {
@@ -47,6 +49,7 @@ Future<void> showSeriesDownloadSheet(
       title: series.name,
       allEpisodes: episodes,
       seasons: ordered,
+      asType: asType,
     ),
   );
 }
@@ -55,11 +58,13 @@ class _SeriesDownloadSheet extends ConsumerWidget {
   final String title;
   final List<BaseItemDto> allEpisodes;
   final Map<int, List<BaseItemDto>> seasons;
+  final String? asType;
 
   const _SeriesDownloadSheet({
     required this.title,
     required this.allEpisodes,
     required this.seasons,
+    this.asType,
   });
 
   @override
@@ -101,7 +106,9 @@ class _SeriesDownloadSheet extends ConsumerWidget {
         // scope is a harmless no-op; tapping a partial one grabs the rest.
         onTap: all
             ? null
-            : () => ref.read(downloadsProvider.notifier).downloadEpisodes(eps),
+            : () => ref
+                .read(downloadsProvider.notifier)
+                .downloadEpisodes(eps, asType: asType),
       );
     }
 

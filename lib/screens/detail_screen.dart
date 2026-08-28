@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,10 +36,26 @@ import 'collection_view.dart';
 /// series — an episode list. Tapping Play opens the media_kit player.
 class DetailScreen extends ConsumerWidget {
   final BaseItemDto item;
-  const DetailScreen({super.key, required this.item});
+
+  /// Download-local mode: the page renders from the passed (downloaded) item
+  /// without hitting the server, shows ONLY downloaded episodes, and every
+  /// action is download-only (Play offline, Mark Watched local, Remove
+  /// download). Guards keep the normal (server) path completely unchanged.
+  final bool downloadScoped;
+  const DetailScreen(
+      {super.key, required this.item, this.downloadScoped = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (downloadScoped) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: BackdropBackground(
+          item: item,
+          child: _DetailBody(item: item, downloadScoped: true),
+        ),
+      );
+    }
     final detail = ref.watch(itemDetailProvider(item.id));
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -50,7 +68,9 @@ class DetailScreen extends ConsumerWidget {
               ? CollectionView(collection: full)
               : full.isAlbum
               ? AlbumView(album: full)
-              : _DetailBody(item: full),
+              // Preserve the opening item's kind (e.g. a recording) so a
+              // download stores it, not the fetched content type.
+              : _DetailBody(item: full, sourceType: item.type),
         ),
       ),
     );
@@ -59,7 +79,12 @@ class DetailScreen extends ConsumerWidget {
 
 class _DetailBody extends ConsumerStatefulWidget {
   final BaseItemDto item;
-  const _DetailBody({required this.item});
+  final bool downloadScoped;
+  // The kind of the item that opened this page (e.g. 'Recording'), preserved
+  // for downloads because the fetched full item can report a plain video type.
+  final String? sourceType;
+  const _DetailBody(
+      {required this.item, this.downloadScoped = false, this.sourceType});
 
   @override
   ConsumerState<_DetailBody> createState() => _DetailBodyState();
@@ -67,9 +92,22 @@ class _DetailBody extends ConsumerStatefulWidget {
 
 class _DetailBodyState extends ConsumerState<_DetailBody> {
   BaseItemDto get item => widget.item;
+  bool get downloadScoped => widget.downloadScoped;
+  String? get sourceType => widget.sourceType;
   // The remote lands back here (the header Play) on UP from the top of the body.
   final FocusNode _playNode = FocusNode(debugLabel: 'detailPlay');
   final ScrollController _sc = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Opened from Downloads while online: refresh the cached extra ratings so
+    // the offline copy stays current (a no-op offline).
+    if (downloadScoped) {
+      Future.microtask(
+          () => ref.read(downloadsProvider.notifier).refreshRatings(item));
+    }
+  }
 
   @override
   void dispose() {
@@ -150,7 +188,36 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     }
   }
 
+  // A grouped download parent: a series (episodes) or a music album (tracks).
+  // Only ever a music album in download mode (albums route to AlbumView online).
+  bool get _grouped => item.isSeries || item.type == 'MusicAlbum';
+
+  // The downloaded children of this item (a series' episodes, an album's tracks)
+  // or the single item, for download-local play/watched/remove actions.
+  List<DownloadEntry> _downloadTargets(WidgetRef ref) {
+    final map = ref.read(downloadsProvider).asData?.value ?? const {};
+    final children = map.values.where((e) => e.seriesId == item.id).toList();
+    if (children.isNotEmpty) return children;
+    final e = map[item.id];
+    return e != null ? [e] : const [];
+  }
+
+  bool _localWatched(WidgetRef ref) {
+    final ctrl = ref.read(downloadsProvider.notifier);
+    final targets = _downloadTargets(ref);
+    return targets.isNotEmpty && targets.every(ctrl.isWatched);
+  }
+
   Future<void> _togglePlayed(WidgetRef ref) async {
+    if (downloadScoped) {
+      final ctrl = ref.read(downloadsProvider.notifier);
+      final targets = _downloadTargets(ref);
+      final allWatched = targets.isNotEmpty && targets.every(ctrl.isWatched);
+      for (final e in targets) {
+        await ctrl.setWatched(e.itemId, !allWatched);
+      }
+      return;
+    }
     final session = ref.read(sessionControllerProvider).asData?.value;
     if (session == null) return;
     await ref
@@ -187,6 +254,14 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    // Download-local watched drives the header check when scoped; watch the
+    // provider so the icon flips when it toggles.
+    if (downloadScoped) ref.watch(downloadsProvider);
+    final watched = downloadScoped ? _localWatched(ref) : item.userData.played;
+    // Cast / Play-on stream from the server, so in download mode they only make
+    // sense online. Normal mode is always "online" here (no behaviour change).
+    final online = !downloadScoped ||
+        ref.watch(sessionControllerProvider).asData?.value != null;
     // Scale the backdrop band with width so it keeps a consistent aspect and
     // isn't cropped into a thin sliver on wide windows. A taller band (closer
     // to the art's 16:9 shape) means less of the backdrop is cropped away.
@@ -219,19 +294,32 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               .asData
               ?.value
         : null;
+    // In download mode the live providers are empty offline, so fall back to the
+    // ratings cached at download time (online, the live values win and refresh
+    // the cache via initState).
+    final cached = downloadScoped
+        ? ref.watch(downloadRatingsProvider(item.id)).asData?.value
+        : null;
     final ratingPills = scorePills(
-      // Native first, then MDBList as gap-fill (never overwrites a real value).
-      rtCritic: ext?.rtCritic ?? item.criticRating?.round() ?? mdb?.rtCritic,
-      rtAudience: ext?.rtAudience ?? mdb?.rtAudience,
-      imdb: ext?.imdb ?? (mdb?.imdb != null ? mdb!.imdb! / 10 : null),
-      community:
-          item.communityRating ?? (mdb?.tmdb != null ? mdb!.tmdb! / 10 : null),
-      letterboxd: mdb?.letterboxd,
-      metacritic: mdb?.metacritic,
-      metacriticUser: mdb?.metacriticUser,
-      trakt: mdb?.trakt,
-      rogerEbert: mdb?.rogerEbert,
-      myAnimeList: mdb?.myAnimeList,
+      // Native first, then MDBList as gap-fill (never overwrites a real value),
+      // then the offline cache.
+      rtCritic: ext?.rtCritic ??
+          item.criticRating?.round() ??
+          mdb?.rtCritic ??
+          cached?.rtCritic,
+      rtAudience: ext?.rtAudience ?? mdb?.rtAudience ?? cached?.rtAudience,
+      imdb: ext?.imdb ??
+          (mdb?.imdb != null ? mdb!.imdb! / 10 : null) ??
+          cached?.imdb,
+      community: item.communityRating ??
+          (mdb?.tmdb != null ? mdb!.tmdb! / 10 : null) ??
+          cached?.community,
+      letterboxd: mdb?.letterboxd ?? cached?.letterboxd,
+      metacritic: mdb?.metacritic ?? cached?.metacritic,
+      metacriticUser: mdb?.metacriticUser ?? cached?.metacriticUser,
+      trakt: mdb?.trakt ?? cached?.trakt,
+      rogerEbert: mdb?.rogerEbert ?? cached?.rogerEbert,
+      myAnimeList: mdb?.myAnimeList ?? cached?.myAnimeList,
       prefs: prefs,
     );
     final metaLine = item.isEpisode
@@ -256,9 +344,29 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
         ? (ref.watch(episodesProvider(item.id)).asData?.value ??
               const <BaseItemDto>[])
         : const <BaseItemDto>[];
-    final playTarget = item.isSeries
-        ? (nextUp ?? (seriesEpisodes.isEmpty ? null : seriesEpisodes.first))
-        : item;
+    // In download mode Play targets the first downloaded episode (a series) or
+    // the downloaded item itself (a movie); the server next-up/episodes lists
+    // aren't reachable offline.
+    final downloadEps = downloadScoped
+        ? (_downloadTargets(ref).toList()
+          ..sort((a, b) {
+            final s = (a.seasonNumber ?? 0).compareTo(b.seasonNumber ?? 0);
+            return s != 0
+                ? s
+                : (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0);
+          }))
+        : const <DownloadEntry>[];
+    final playTarget = downloadScoped
+        ? (_grouped
+              ? (downloadEps.isEmpty
+                    ? null
+                    : _downloadEpisodeItem(downloadEps.first,
+                        ref.read(downloadsProvider.notifier)
+                            .isWatched(downloadEps.first)))
+              : item)
+        : (item.isSeries
+              ? (nextUp ?? (seriesEpisodes.isEmpty ? null : seriesEpisodes.first))
+              : item);
     final headerActionIcons = <Widget>[
       HeaderActionButton(
         icon: Icons.play_arrow_rounded,
@@ -280,8 +388,12 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
         ),
       if (item.trailerUrl != null) _TrailerButton(item: item, header: true),
       if (!item.isAlbum) ...[
-        _RemoteButton(item: item, header: true),
-        _DownloadButton(item: item, header: true),
+        // Play-on streams from the server, so in download mode it shows only
+        // when online. The download button is dropped entirely here (the item
+        // is already downloaded; removal lives in the overflow / episode menus).
+        if (online) _RemoteButton(item: item, header: true),
+        if (!downloadScoped)
+          _DownloadButton(item: item, header: true, asType: sourceType),
       ],
     ];
     final headerActions = Row(
@@ -308,29 +420,30 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
             backgroundColor: Colors.transparent,
             actions: [
               IconButton(
-                tooltip: item.userData.played
-                    ? l.detailMarkUnwatched
-                    : l.detailMarkWatched,
+                tooltip: watched ? l.detailMarkUnwatched : l.detailMarkWatched,
                 icon: _PopIcon(
-                  selected: item.userData.played,
+                  selected: watched,
                   icon: Icons.check_circle_rounded,
                   iconOff: Icons.check_circle_outline_rounded,
                 ),
                 onPressed: () => _togglePlayed(ref),
               ),
-              IconButton(
-                tooltip: item.userData.isFavorite
-                    ? l.detailRemoveFavorite
-                    : l.detailAddFavorite,
-                icon: _PopIcon(
-                  selected: item.userData.isFavorite,
-                  icon: Icons.favorite_rounded,
-                  iconOff: Icons.favorite_border_rounded,
-                  selectedColor: Colors.redAccent,
+              // Favourite is a server write, so it's hidden in download-local
+              // mode (nothing here touches the server).
+              if (!downloadScoped)
+                IconButton(
+                  tooltip: item.userData.isFavorite
+                      ? l.detailRemoveFavorite
+                      : l.detailAddFavorite,
+                  icon: _PopIcon(
+                    selected: item.userData.isFavorite,
+                    icon: Icons.favorite_rounded,
+                    iconOff: Icons.favorite_border_rounded,
+                    selectedColor: Colors.redAccent,
+                  ),
+                  onPressed: () => _toggleFavorite(ref),
                 ),
-                onPressed: () => _toggleFavorite(ref),
-              ),
-              _ItemMenu(item: item),
+              _ItemMenu(item: item, downloadScoped: downloadScoped),
             ],
             flexibleSpace: FlexibleSpaceBar(
               stretchModes: const [
@@ -387,6 +500,8 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   if (!wideHeader) ...[
                     _ActionBar(
                       item: item,
+                      downloadScoped: downloadScoped,
+                      sourceType: sourceType,
                       onPlay: (playItem, {bool resume = true}) =>
                           _play(context, ref, playItem, resume: resume),
                     ),
@@ -424,9 +539,19 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               ),
             ),
           ),
-          if (item.isSeries) _NextUpSection(seriesId: item.id),
-          if (item.isSeries) _EpisodeList(seriesId: item.id),
-          if (!item.isEpisode) _MoreLikeThis(itemId: item.id),
+          // Next-up and More-Like-This are server-driven, so they're dropped in
+          // download mode (only the episodes you've downloaded are shown).
+          if (item.isSeries && !downloadScoped) _NextUpSection(seriesId: item.id),
+          // A series' episodes, or (in download mode) an album's tracks.
+          if (_grouped)
+            _EpisodeList(
+              seriesId: item.id,
+              downloadScoped: downloadScoped,
+              headerLabel: item.type == 'MusicAlbum' ? l.downloadsTracks : null,
+              // A recorded series' episodes download as recordings.
+              downloadAsType: sourceType == 'Recording' ? 'Recording' : null,
+            ),
+          if (!item.isEpisode && !downloadScoped) _MoreLikeThis(itemId: item.id),
         ],
       ),
     );
@@ -441,7 +566,18 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
 
 class _EpisodeList extends ConsumerStatefulWidget {
   final String seriesId;
-  const _EpisodeList({required this.seriesId});
+  // Download mode: show only the downloaded episodes; every row action is local.
+  final bool downloadScoped;
+  // Overrides the "Episodes" list header (e.g. "Tracks" for a music album).
+  final String? headerLabel;
+  // The kind to store when an episode is downloaded (e.g. 'Recording' when this
+  // series was opened from the recordings context).
+  final String? downloadAsType;
+  const _EpisodeList(
+      {required this.seriesId,
+      this.downloadScoped = false,
+      this.headerLabel,
+      this.downloadAsType});
 
   @override
   ConsumerState<_EpisodeList> createState() => _EpisodeListState();
@@ -457,20 +593,46 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
 
   @override
   Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
+    if (widget.downloadScoped) {
+      final map = ref.watch(downloadsProvider).asData?.value ??
+          const <String, DownloadEntry>{};
+      final ctrl = ref.read(downloadsProvider.notifier);
+      final entries = map.values
+          .where((e) =>
+              e.status == DownloadStatus.complete &&
+              e.seriesId == widget.seriesId)
+          .toList();
+      if (entries.isEmpty) return const SliverToBoxAdapter();
+      final eps = entries
+          .map((e) => _downloadEpisodeItem(e, ctrl.isWatched(e)))
+          .toList()
+        ..sort((a, b) {
+          final s =
+              (a.parentIndexNumber ?? 0).compareTo(b.parentIndexNumber ?? 0);
+          return s != 0
+              ? s
+              : (a.indexNumber ?? 0).compareTo(b.indexNumber ?? 0);
+        });
+      return _buildList(eps);
+    }
     final episodes = ref.watch(episodesProvider(widget.seriesId));
     return episodes.when(
       loading: () => const SliverToBoxAdapter(child: EpisodeListSkeleton()),
       error: (e, _) => SliverToBoxAdapter(child: _ErrorState(message: '$e')),
-      data: (items) {
-        if (items.isEmpty) return const SliverToBoxAdapter();
-        final seasons =
-            items.map((e) => e.parentIndexNumber ?? 0).toSet().toList()..sort();
-        final current = seasons.contains(_season) ? _season! : seasons.first;
-        final shown = seasons.length > 1
-            ? items.where((e) => (e.parentIndexNumber ?? 0) == current).toList()
-            : items;
-        return SliverList.builder(
+      data: (items) =>
+          items.isEmpty ? const SliverToBoxAdapter() : _buildList(items),
+    );
+  }
+
+  Widget _buildList(List<BaseItemDto> items) {
+    final l = AppLocalizations.of(context);
+    final seasons =
+        items.map((e) => e.parentIndexNumber ?? 0).toSet().toList()..sort();
+    final current = seasons.contains(_season) ? _season! : seasons.first;
+    final shown = seasons.length > 1
+        ? items.where((e) => (e.parentIndexNumber ?? 0) == current).toList()
+        : items;
+    return SliverList.builder(
           itemCount: shown.length + 1,
           itemBuilder: (context, i) {
             if (i == 0) {
@@ -479,7 +641,7 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
                 child: Row(
                   children: [
                     Text(
-                      l.detailEpisodes,
+                      widget.headerLabel ?? l.detailEpisodes,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -507,6 +669,32 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
               );
             }
             final ep = shown[i - 1];
+            if (widget.downloadScoped) {
+              // Download-local row: tap or thumbnail plays the local file; the
+              // menu offers Play / Mark Watched (local) / Remove download.
+              final tile = HoverHighlight(
+                child: _EpisodeTile(
+                  episode: ep,
+                  onPlay: () => context.push('/player', extra: ep),
+                  onOpen: () => context.push('/player', extra: ep),
+                ),
+              );
+              return Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.deferToChild,
+                      onLongPress: isTvDevice
+                          ? null
+                          : () => _openDownloadEpisodeMenu(ep),
+                      child: tile,
+                    ),
+                  ),
+                  _EpisodeMenuButton(
+                      onTap: () => _openDownloadEpisodeMenu(ep)),
+                ],
+              );
+            }
             // Played/resume/next-up state can change whether we played the
             // episode or opened its page (and played from there), so refresh on
             // return from either.
@@ -549,16 +737,80 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
             );
           },
         );
-      },
-    );
   }
 
   void _openEpisodeMenu(BaseItemDto ep) {
     // The deleted/played/favorite refresh rides on provider invalidation inside
     // the shared menu (episodesProvider + nextUp keyed off ep.seriesId).
-    showItemActionsMenu(context, ref, ep);
+    showItemActionsMenu(context, ref, ep, downloadAsType: widget.downloadAsType);
+  }
+
+  // Download-local episode menu: Play, Mark Watched (local), Remove download.
+  // Nothing here touches the server copy.
+  void _openDownloadEpisodeMenu(BaseItemDto ep) {
+    final l = AppLocalizations.of(context);
+    final ctrl = ref.read(downloadsProvider.notifier);
+    final watched = ep.userData.played;
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.play_arrow_rounded),
+              title: Text(l.commonPlay),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                context.push('/player', extra: ep);
+              },
+            ),
+            ListTile(
+              leading: Icon(watched
+                  ? Icons.check_circle_rounded
+                  : Icons.check_circle_outline_rounded),
+              title:
+                  Text(watched ? l.detailMarkUnwatched : l.detailMarkWatched),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                ctrl.setWatched(ep.id, !watched);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded,
+                  color: Theme.of(sheetCtx).colorScheme.error),
+              title: Text(l.detailRemoveDownload,
+                  style: TextStyle(color: Theme.of(sheetCtx).colorScheme.error)),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                ctrl.delete(ep.id);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }
+
+/// Builds a lightweight episode item from a download entry for the download
+/// detail's episode list (played reflects the local watched flag).
+BaseItemDto _downloadEpisodeItem(DownloadEntry e, bool watched) => BaseItemDto(
+      id: e.itemId,
+      name: e.name,
+      type: 'Episode',
+      seriesId: e.seriesId,
+      seriesName: e.seriesName,
+      indexNumber: e.episodeNumber,
+      parentIndexNumber: e.seasonNumber,
+      // Carries the episode still: loads from the server online, and matches the
+      // cached copy offline (MediaImage falls back to episodes/<id>.jpg).
+      primaryImageTag: e.imageTag,
+      userData: UserItemData(played: watched),
+    );
 
 /// Per-episode three-dot: a D-pad focus stop on TV, an icon button off it.
 class _EpisodeMenuButton extends StatelessWidget {
@@ -708,7 +960,10 @@ class _EpisodeTile extends StatelessWidget {
 class _DownloadButton extends ConsumerWidget {
   final BaseItemDto item;
   final bool header;
-  const _DownloadButton({required this.item, this.header = false});
+  // Preserves the source item's kind (e.g. 'Recording') for the stored download,
+  // since the fetched full item can report a plain content type instead.
+  final String? asType;
+  const _DownloadButton({required this.item, this.header = false, this.asType});
 
   Widget _btn({
     required IconData icon,
@@ -743,7 +998,7 @@ class _DownloadButton extends ConsumerWidget {
         icon: Icons.download_rounded,
         tooltip: l.detailDownload,
         label: l.detailDownload,
-        onTap: () => ref.read(downloadsProvider.notifier).download(item),
+        onTap: () => ref.read(downloadsProvider.notifier).download(item, asType: asType),
       );
     }
     switch (entry.status) {
@@ -775,7 +1030,7 @@ class _DownloadButton extends ConsumerWidget {
           icon: Icons.error_outline_rounded,
           tooltip: l.detailDownloadFailedTooltip,
           label: l.commonRetry,
-          onTap: () => ref.read(downloadsProvider.notifier).download(item),
+          onTap: () => ref.read(downloadsProvider.notifier).download(item, asType: asType),
         );
     }
   }
@@ -814,7 +1069,7 @@ class _DownloadButton extends ConsumerWidget {
           icon: Icons.download_rounded,
           tooltip: l.detailDownload,
           label: l.detailDownload,
-          onTap: () => showSeriesDownloadSheet(context, item),
+          onTap: () => showSeriesDownloadSheet(context, item, asType: asType),
         );
     if (episodes.isEmpty) return downloadBtn();
 
@@ -1009,11 +1264,31 @@ class _RemoteButton extends ConsumerWidget {
 /// policy permits (delete / metadata refresh).
 class _ItemMenu extends ConsumerWidget {
   final BaseItemDto item;
-  const _ItemMenu({required this.item});
+  // Download mode: the only action is removing the offline copy.
+  final bool downloadScoped;
+  const _ItemMenu({required this.item, this.downloadScoped = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    if (downloadScoped) {
+      return PopupMenuButton<String>(
+        icon: const Icon(Icons.more_vert_rounded),
+        onSelected: (_) => _removeDownload(context, ref),
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            value: 'remove',
+            child: ListTile(
+              leading: Icon(Icons.download_done_rounded,
+                  color: Theme.of(context).colorScheme.error),
+              title: Text(l.detailRemoveDownload,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      );
+    }
     final session = ref.watch(sessionControllerProvider).asData?.value;
     if (session == null) return const SizedBox.shrink();
     final user = ref.watch(currentUserProvider).asData?.value;
@@ -1062,6 +1337,36 @@ class _ItemMenu extends ConsumerWidget {
           ),
       ],
     );
+  }
+
+  Future<void> _removeDownload(BuildContext context, WidgetRef ref) async {
+    final l = AppLocalizations.of(context);
+    final ctrl = ref.read(downloadsProvider.notifier);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.detailRemoveDownload),
+        content: Text(l.detailRemoveOfflineCopy(item.name)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.commonCancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.commonRemove)),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (item.isSeries) {
+      await ctrl.deleteSeries(item.id);
+    } else {
+      await ctrl.delete(item.id);
+    }
+    // Nothing left to show once the download's gone.
+    if (context.mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _onSelected(
@@ -1311,6 +1616,9 @@ class _PersonAvatar extends ConsumerWidget {
     final session = ref.watch(sessionControllerProvider).asData?.value;
     final client = ref.watch(jellyfinClientProvider);
     final headers = ref.watch(imageHeadersProvider);
+    final cache = ref.watch(downloadImageCacheProvider);
+    final File? local =
+        person.id.isEmpty ? null : cache?.file('people/${person.id}.jpg');
 
     Widget placeholder() => Container(
       color: scheme.surfaceContainerHighest,
@@ -1322,11 +1630,17 @@ class _PersonAvatar extends ConsumerWidget {
       ),
     );
 
+    Widget fileOrPlaceholder() => local != null
+        ? Image.file(local,
+            fit: BoxFit.cover, errorBuilder: (_, _, _) => placeholder())
+        : placeholder();
+
     Widget inner;
     if (session == null ||
         person.primaryImageTag == null ||
         person.id.isEmpty) {
-      inner = placeholder();
+      // Offline (or no server photo): use the cached cast photo if we have one.
+      inner = fileOrPlaceholder();
     } else {
       final url = client.imageUrl(
         baseUrl: session.baseUrl,
@@ -1339,7 +1653,7 @@ class _PersonAvatar extends ConsumerWidget {
         url,
         fit: BoxFit.cover,
         headers: headers,
-        errorBuilder: (_, _, _) => placeholder(),
+        errorBuilder: (_, _, _) => fileOrPlaceholder(),
       );
     }
 
@@ -1467,15 +1781,61 @@ class _NextUpSection extends ConsumerWidget {
 /// wrapping onto multiple lines when the column is narrow.
 class _ActionBar extends ConsumerWidget {
   final BaseItemDto item;
+  final bool downloadScoped;
+  final String? sourceType;
   final void Function(BaseItemDto playItem, {bool resume}) onPlay;
-  const _ActionBar({required this.item, required this.onPlay});
+  const _ActionBar(
+      {required this.item,
+      required this.onPlay,
+      this.downloadScoped = false,
+      this.sourceType});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
+    // In download mode Cast/Play-on need the server, so they only appear online.
+    final online = !downloadScoped ||
+        ref.watch(sessionControllerProvider).asData?.value != null;
 
-    // For a series, the primary Play targets the next-up episode.
-    if (item.isSeries) {
+    // A series (episodes) or, in download mode, a music album (tracks): Play
+    // targets the first child.
+    final grouped = item.isSeries || (downloadScoped && item.type == 'MusicAlbum');
+    if (grouped) {
+      if (downloadScoped) {
+        // Play the first downloaded child. Cast targets it too, and only when
+        // online (it streams from the server); no download button.
+        final map = ref.watch(downloadsProvider).asData?.value ??
+            const <String, DownloadEntry>{};
+        final ctrl = ref.read(downloadsProvider.notifier);
+        final eps = map.values
+            .where((e) =>
+                e.status == DownloadStatus.complete && e.seriesId == item.id)
+            .toList()
+          ..sort((a, b) {
+            final s = (a.seasonNumber ?? 0).compareTo(b.seasonNumber ?? 0);
+            return s != 0
+                ? s
+                : (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0);
+          });
+        final first = eps.isEmpty ? null : eps.first;
+        final firstItem =
+            first == null ? null : _downloadEpisodeItem(first, ctrl.isWatched(first));
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            HoverPillButton(
+              primary: true,
+              icon: Icons.play_arrow_rounded,
+              label: l.commonPlay,
+              onTap: firstItem == null ? null : () => onPlay(firstItem),
+            ),
+            if (online && firstItem != null) _ChromecastButton(target: firstItem),
+            if (item.trailerUrl != null) _TrailerButton(item: item),
+          ],
+        );
+      }
       final next = ref.watch(nextUpProvider(item.id)).asData?.value;
       final code =
           (next?.parentIndexNumber != null && next?.indexNumber != null)
@@ -1500,7 +1860,7 @@ class _ActionBar extends ConsumerWidget {
           ),
           if (next != null) _ChromecastButton(target: next),
           if (item.trailerUrl != null) _TrailerButton(item: item),
-          _DownloadButton(item: item),
+          _DownloadButton(item: item, asType: sourceType),
         ],
       );
     }
@@ -1526,9 +1886,12 @@ class _ActionBar extends ConsumerWidget {
           ),
         if (item.trailerUrl != null) _TrailerButton(item: item),
         if (!item.isAlbum) ...[
-          _ChromecastButton(target: item),
-          _RemoteButton(item: item),
-          _DownloadButton(item: item),
+          // Cast self-hides without a route; Play-on needs a session. In
+          // download mode both are gated on being online. Download button is
+          // dropped there (already downloaded; remove via the overflow menu).
+          if (online) _ChromecastButton(target: item),
+          if (online) _RemoteButton(item: item),
+          if (!downloadScoped) _DownloadButton(item: item, asType: sourceType),
         ],
       ],
     );

@@ -3142,6 +3142,12 @@ abstract class AppLocalizations {
   /// **'TV Shows'**
   String get downloadsTvShows;
 
+  /// Header above a downloaded music album's track list.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracks'**
+  String get downloadsTracks;
+
   /// Episode count under a downloaded show's poster.
   ///
   /// In en, this message translates to:

@@ -2076,6 +2076,10 @@
   "@downloadsTvShows": {
     "description": "TV Shows section header in the downloaded library."
   },
+  "downloadsTracks": "Tracks",
+  "@downloadsTracks": {
+    "description": "Header above a downloaded music album's track list."
+  },
   "downloadEpisodeCount": "{count, plural, =1{1 episode} other{{count} episodes}}",
   "@downloadEpisodeCount": {
     "description": "Episode count under a downloaded show's poster.",

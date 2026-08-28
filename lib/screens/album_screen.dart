@@ -5,27 +5,44 @@ import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
 import '../services/tv_mode.dart';
 import '../state/audio_player.dart';
+import '../state/downloads.dart';
 import '../state/library_providers.dart';
+import '../widgets/equalizer_bars.dart';
 import '../widgets/media_image.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/hover_pill_button.dart';
 
 /// Album detail: cover, artist, a play button, and the track list. Rendered by
-/// DetailScreen when the item is a MusicAlbum.
+/// DetailScreen when the item is a MusicAlbum online; in [downloadScoped] mode
+/// it's the download folder's copy — only downloaded tracks, playing locally,
+/// with Remove instead of Download.
 class AlbumView extends ConsumerWidget {
   final BaseItemDto album;
-  const AlbumView({super.key, required this.album});
+  final bool downloadScoped;
+  const AlbumView({super.key, required this.album, this.downloadScoped = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final tracksAsync = ref.watch(albumTracksProvider(album.id));
     final theme = Theme.of(context);
     final playing = ref.watch(audioControllerProvider).current;
     final shuffleOn =
         ref.watch(audioControllerProvider.select((s) => s.shuffle));
-    final tracks = tracksAsync.asData?.value ?? const [];
+    // Online: the server's track list. Download mode: the downloaded tracks.
+    final tracksAsync =
+        downloadScoped ? null : ref.watch(albumTracksProvider(album.id));
+    final tracks =
+        downloadScoped ? _downloadedTracks(ref) : (tracksAsync!.asData?.value ?? const []);
     final controller = ref.read(audioControllerProvider.notifier);
+
+    // Nothing left after a remove: leave the page.
+    if (downloadScoped && tracks.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
+    }
 
     Future<void> shufflePlay() async {
       if (tracks.isEmpty) return;
@@ -115,6 +132,8 @@ class AlbumView extends ConsumerWidget {
                             tinted: shuffleOn,
                             onTap: tracks.isEmpty ? null : shufflePlay,
                           ),
+                          if (tracks.isNotEmpty)
+                            _albumDownloadButton(context, ref, l, tracks.length),
                         ],
                       ),
                     ],
@@ -124,82 +143,198 @@ class AlbumView extends ConsumerWidget {
             ),
           ),
         ),
-        tracksAsync.when(
-          loading: () => const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          ),
-          error: (e, _) => SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text('$e',
-                  style: TextStyle(color: theme.colorScheme.error)),
-            ),
-          ),
-          data: (tracks) => SliverList.builder(
-            itemCount: tracks.length,
-            itemBuilder: (context, i) {
-              final track = tracks[i];
-              final isCurrent = playing?.id == track.id;
-              return TvFocusRing(
-                borderRadius: BorderRadius.circular(8),
-                child: ListTile(
-                dense: true,
-                leading: SizedBox(
-                  width: 28,
-                  child: Center(
-                    child: isCurrent
-                        ? Icon(Icons.equalizer_rounded,
-                            color: theme.colorScheme.primary, size: 20)
-                        : Text('${track.indexNumber ?? i + 1}',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant)),
-                  ),
-                ),
-                title: Text(track.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: isCurrent
-                        ? TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w600)
-                        : null),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (track.runTimeTicks != null)
-                      Text(_fmtDuration(track.runTimeTicks!),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant)),
-                    PopupMenuButton<String>(
-                      tooltip: l.browseMore,
-                      icon: const Icon(Icons.more_vert_rounded, size: 20),
-                      onSelected: (v) {
-                        final c = ref.read(audioControllerProvider.notifier);
-                        if (v == 'next') c.playNext(track);
-                        if (v == 'queue') c.addToQueue(track);
-                      },
-                      itemBuilder: (_) => [
-                        PopupMenuItem(
-                            value: 'next', child: Text(l.browsePlayNext)),
-                        PopupMenuItem(
-                            value: 'queue', child: Text(l.browseAddToQueue)),
-                      ],
-                    ),
-                  ],
-                ),
-                onTap: () => ref
-                    .read(audioControllerProvider.notifier)
-                    .playQueue(tracks, i),
+        if (downloadScoped)
+          _trackList(context, ref, tracks, playing, l, theme)
+        else
+          tracksAsync!.when(
+            loading: () => const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
               ),
-              );
-            },
+            ),
+            error: (e, _) => SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text('$e',
+                    style: TextStyle(color: theme.colorScheme.error)),
+              ),
+            ),
+            data: (t) => _trackList(context, ref, t, playing, l, theme),
           ),
-        ),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
+    );
+  }
+
+  /// The album's downloaded tracks as playable items (local files), sorted by
+  /// disc then track. Used in download mode instead of the server track list.
+  List<BaseItemDto> _downloadedTracks(WidgetRef ref) {
+    final map = ref.watch(downloadsProvider).asData?.value ??
+        const <String, DownloadEntry>{};
+    final entries = map.values
+        .where((e) =>
+            e.status == DownloadStatus.complete && e.seriesId == album.id)
+        .toList()
+      ..sort((a, b) {
+        final s = (a.seasonNumber ?? 0).compareTo(b.seasonNumber ?? 0);
+        return s != 0
+            ? s
+            : (a.episodeNumber ?? 0).compareTo(b.episodeNumber ?? 0);
+      });
+    return [
+      for (final e in entries)
+        BaseItemDto(
+          id: e.itemId,
+          name: e.name,
+          type: 'Audio',
+          albumId: e.seriesId,
+          album: e.seriesName,
+          indexNumber: e.episodeNumber,
+          parentIndexNumber: e.seasonNumber,
+          runTimeTicks: e.runTimeTicks,
+        ),
+    ];
+  }
+
+  /// The shared track list. Tapping a track plays the whole album queue from
+  /// there (local files in download mode); the overflow menu adds Play Next /
+  /// Add to Queue, plus Remove download when scoped to downloads.
+  Widget _trackList(BuildContext context, WidgetRef ref,
+      List<BaseItemDto> tracks, BaseItemDto? playing, AppLocalizations l,
+      ThemeData theme) {
+    return SliverList.builder(
+      itemCount: tracks.length,
+      itemBuilder: (context, i) {
+        final track = tracks[i];
+        final isCurrent = playing?.id == track.id;
+        return TvFocusRing(
+          borderRadius: BorderRadius.circular(8),
+          child: ListTile(
+            dense: true,
+            leading: SizedBox(
+              width: 28,
+              child: Center(
+                child: isCurrent
+                    ? StreamBuilder<bool>(
+                        stream: ref.read(audioPlayerProvider).stream.playing,
+                        initialData: ref.read(audioPlayerProvider).state.playing,
+                        builder: (_, snap) => EqualizerBars(
+                          playing: snap.data ?? false,
+                          color: theme.colorScheme.primary,
+                          size: 18,
+                        ),
+                      )
+                    : Text('${track.indexNumber ?? i + 1}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant)),
+              ),
+            ),
+            title: Text(track.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: isCurrent
+                    ? TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600)
+                    : null),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (track.runTimeTicks != null)
+                  Text(_fmtDuration(track.runTimeTicks!),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                PopupMenuButton<String>(
+                  tooltip: l.browseMore,
+                  icon: const Icon(Icons.more_vert_rounded, size: 20),
+                  onSelected: (v) {
+                    final c = ref.read(audioControllerProvider.notifier);
+                    if (v == 'next') c.playNext(track);
+                    if (v == 'queue') c.addToQueue(track);
+                    if (v == 'remove') {
+                      ref.read(downloadsProvider.notifier).delete(track.id);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                        value: 'next', child: Text(l.browsePlayNext)),
+                    PopupMenuItem(
+                        value: 'queue', child: Text(l.browseAddToQueue)),
+                    if (downloadScoped)
+                      PopupMenuItem(
+                          value: 'remove',
+                          child: Text(l.detailRemoveDownload)),
+                  ],
+                ),
+              ],
+            ),
+            onTap: () => ref
+                .read(audioControllerProvider.notifier)
+                .playQueue(tracks, i),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Download / progress / remove pill for the whole album, reflecting how many
+  /// of its [trackCount] tracks are already downloaded.
+  Widget _albumDownloadButton(
+      BuildContext context, WidgetRef ref, AppLocalizations l, int trackCount) {
+    final map =
+        ref.watch(downloadsProvider).asData?.value ?? const <String, DownloadEntry>{};
+    final entries = map.values.where((e) => e.seriesId == album.id).toList();
+    final done =
+        entries.where((e) => e.status == DownloadStatus.complete).length;
+    final active =
+        entries.where((e) => e.status == DownloadStatus.downloading).toList();
+
+    if (active.isNotEmpty) {
+      final progress =
+          (done + active.fold<double>(0, (a, e) => a + e.progress)) / trackCount;
+      return HoverPillButton(
+        icon: Icons.download_rounded,
+        label: l.detailDownloading,
+        onTap: null,
+        iconWidget: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+              value: progress > 0 ? progress : null, strokeWidth: 2.5),
+        ),
+      );
+    }
+    if (done >= trackCount && trackCount > 0) {
+      return HoverPillButton(
+        icon: Icons.download_done_rounded,
+        label: l.detailDownloaded,
+        onTap: () async {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(l.detailRemoveDownload),
+              content: Text(l.detailRemoveOfflineCopy(album.name)),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(l.commonCancel)),
+                FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(l.commonRemove)),
+              ],
+            ),
+          );
+          if (ok == true) {
+            await ref.read(downloadsProvider.notifier).deleteSeries(album.id);
+          }
+        },
+      );
+    }
+    return HoverPillButton(
+      icon: Icons.download_rounded,
+      label: l.detailDownload,
+      onTap: () => ref.read(downloadsProvider.notifier).download(album),
     );
   }
 }

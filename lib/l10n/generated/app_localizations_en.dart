@@ -1667,6 +1667,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsTvShows => 'TV Shows';
 
   @override
+  String get downloadsTracks => 'Tracks';
+
+  @override
   String downloadEpisodeCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

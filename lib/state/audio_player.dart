@@ -19,6 +19,7 @@ import 'radio.dart';
 
 import 'audio_handler.dart';
 import 'cast.dart';
+import 'downloads.dart';
 import '../api/jellyfin_client.dart';
 import '../models/base_item.dart';
 import '../models/radio_station.dart';
@@ -615,20 +616,40 @@ class AudioController extends Notifier<AudioState> {
     return (session: session, client: ref.read(jellyfinClientProvider));
   }
 
+  /// A media source for a track: its downloaded local file if present (so it
+  /// plays offline, in the music player), otherwise the server audio stream.
+  /// Null when neither is available (offline and not downloaded).
+  Media? _mediaFor(BaseItemDto track) {
+    final local = ref.read(downloadsProvider.notifier).localPathFor(track.id);
+    if (local != null) return Media(local);
+    final c = _ctx();
+    if (c == null) return null;
+    return Media(c.client.audioStreamUrl(
+      baseUrl: c.session.baseUrl,
+      itemId: track.id,
+      token: c.session.accessToken,
+    ));
+  }
+
   Future<void> playQueue(List<BaseItemDto> tracks, int startIndex,
       {bool shuffle = false}) async {
     if (tracks.isEmpty) return;
-    final c = _ctx();
-    if (c == null) return;
     _radioIcyTimer?.cancel(); // leaving radio for the music queue
     _radioTick?.cancel();
-    final medias = tracks
-        .map((t) => Media(c.client.audioStreamUrl(
-              baseUrl: c.session.baseUrl,
-              itemId: t.id,
-              token: c.session.accessToken,
-            )))
-        .toList();
+    // Prefer a downloaded track's local file (works offline); otherwise stream
+    // from the server. A track that's neither is dropped so the index stays valid.
+    final wantId = tracks[startIndex].id;
+    final playable = <BaseItemDto>[];
+    final medias = <Media>[];
+    for (final t in tracks) {
+      final m = _mediaFor(t);
+      if (m != null) {
+        playable.add(t);
+        medias.add(m);
+      }
+    }
+    if (medias.isEmpty) return;
+    tracks = playable;
     _reportStopped();
     _byId
       ..clear()
@@ -636,8 +657,10 @@ class AudioController extends Notifier<AudioState> {
     // Shuffle: start on a RANDOM track (not always the first) and turn the
     // player's shuffle mode on. A normal play starts at [startIndex] in order,
     // and explicitly turns shuffle off so the two buttons are true opposites.
+    var startAt = tracks.indexWhere((t) => t.id == wantId);
+    if (startAt < 0) startAt = 0;
     final index =
-        (shuffle && tracks.length > 1) ? _random.nextInt(tracks.length) : startIndex;
+        (shuffle && tracks.length > 1) ? _random.nextInt(tracks.length) : startAt;
     state = state.copyWith(
         queue: tracks,
         current: tracks[index],
@@ -1541,14 +1564,10 @@ class AudioController extends Notifier<AudioState> {
       await playQueue([track], 0);
       return;
     }
-    final c = _ctx();
-    if (c == null) return;
+    final media = _mediaFor(track);
+    if (media == null) return;
     _byId[track.id] = track;
-    await _player.add(Media(c.client.audioStreamUrl(
-      baseUrl: c.session.baseUrl,
-      itemId: track.id,
-      token: c.session.accessToken,
-    )));
+    await _player.add(media);
   }
 
   /// Queue a track to play right after the current one.
@@ -1557,18 +1576,14 @@ class AudioController extends Notifier<AudioState> {
       await playQueue([track], 0);
       return;
     }
-    final c = _ctx();
-    if (c == null) return;
+    final media = _mediaFor(track);
+    if (media == null) return;
     _byId[track.id] = track;
     // Capture positions before the add so a concurrent playlist event can't
     // shift them: the appended track lands at the old length.
     final insertIndex = state.queue.length;
     final target = currentIndex + 1;
-    await _player.add(Media(c.client.audioStreamUrl(
-      baseUrl: c.session.baseUrl,
-      itemId: track.id,
-      token: c.session.accessToken,
-    )));
+    await _player.add(media);
     if (target < insertIndex) await _player.move(insertIndex, target);
   }
 

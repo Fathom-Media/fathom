@@ -49,6 +49,9 @@ Future<void> showItemActionsMenu(
   bool fromGrid = false,
   VoidCallback? onOpenDetails,
   VoidCallback? onDeleted,
+  // Overrides the stored kind for a download (e.g. 'Recording' when the item is
+  // reached from the recordings context), so it classifies correctly.
+  String? downloadAsType,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   final container = ProviderScope.containerOf(context, listen: false);
@@ -76,9 +79,11 @@ Future<void> showItemActionsMenu(
       if (item.isSeries) {
         // A series offers a scope choice (All / a season); everything else
         // downloads directly.
-        await showSeriesDownloadSheet(context, item);
+        await showSeriesDownloadSheet(context, item, asType: downloadAsType);
       } else {
-        await container.read(downloadsProvider.notifier).download(item);
+        await container
+            .read(downloadsProvider.notifier)
+            .download(item, asType: downloadAsType);
       }
     case _ItemAction.removeDownload:
       final downloads = container.read(downloadsProvider.notifier);
@@ -226,15 +231,18 @@ class _ItemActionsSheet extends ConsumerWidget {
       item.type == 'Recording' ||
       item.type == 'TvChannel';
 
-  /// Downloadable for offline: a single video (movie/episode) or a whole
-  /// series/season (which queues its episodes). Live channels and audio use
-  /// their own flows, so they're excluded here.
+  /// Downloadable for offline: a single video (movie/episode/recording), a whole
+  /// series/season (which queues its episodes), or music — a track, or an
+  /// album/artist (which queues its tracks). Live channels use their own flow.
   bool get _isDownloadable =>
       item.isEpisode ||
       item.type == 'Movie' ||
       item.type == 'Video' ||
       item.type == 'MusicVideo' ||
       item.type == 'Recording' ||
+      item.type == 'Audio' ||
+      item.type == 'MusicAlbum' ||
+      item.type == 'MusicArtist' ||
       item.isSeries ||
       item.type == 'Season';
 
