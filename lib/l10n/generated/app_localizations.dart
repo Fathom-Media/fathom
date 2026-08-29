@@ -550,11 +550,35 @@ abstract class AppLocalizations {
   /// **'Dev includes the latest pre-release test builds.'**
   String get updateChannelHelp;
 
-  /// Toggle: automatically check for updates when the app starts.
+  /// Master toggle: automatically check for app updates.
   ///
   /// In en, this message translates to:
-  /// **'Check on Startup'**
+  /// **'Automatic Update Checks'**
   String get updateAutoCheckLabel;
+
+  /// Label above the update-check frequency picker.
+  ///
+  /// In en, this message translates to:
+  /// **'How Often'**
+  String get updateFrequencyLabel;
+
+  /// Update-check frequency: check each time the app starts.
+  ///
+  /// In en, this message translates to:
+  /// **'Every Launch'**
+  String get updateFrequencyLaunch;
+
+  /// Update-check frequency: at most once a day.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily'**
+  String get updateFrequencyDaily;
+
+  /// Update-check frequency: at most once a week.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly'**
+  String get updateFrequencyWeekly;
 
   /// Button that checks for updates immediately.
   ///
@@ -577,8 +601,14 @@ abstract class AppLocalizations {
   /// Button on the update banner that opens the Updates screen.
   ///
   /// In en, this message translates to:
-  /// **'Update'**
+  /// **'View'**
   String get updateBannerAction;
+
+  /// Subtitle line on the update banner, below the headline.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to view what\'s new and install.'**
+  String get updateBannerCta;
 
   /// Tooltip on the update banner's close button.
   ///

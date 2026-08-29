@@ -69,6 +69,26 @@ class UpdatesScreen extends ConsumerWidget {
                 .read(preferencesProvider.notifier)
                 .edit((x) => x.copyWith(updateCheckOnStartup: v)),
           ),
+          if (prefs.updateCheckOnStartup) ...[
+            const SizedBox(height: 8),
+            Text(l.updateFrequencyLabel,
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: [
+                ButtonSegment(
+                    value: 'launch', label: Text(l.updateFrequencyLaunch)),
+                ButtonSegment(
+                    value: 'daily', label: Text(l.updateFrequencyDaily)),
+                ButtonSegment(
+                    value: 'weekly', label: Text(l.updateFrequencyWeekly)),
+              ],
+              selected: {prefs.updateCheckFrequency},
+              onSelectionChanged: (s) => ref
+                  .read(preferencesProvider.notifier)
+                  .edit((x) => x.copyWith(updateCheckFrequency: s.first)),
+            ),
+          ],
           const SizedBox(height: 8),
           FilledButton.icon(
             onPressed: async.isLoading ? null : () => ctrl.check(force: true),

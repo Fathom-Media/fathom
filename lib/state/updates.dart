@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -23,7 +25,15 @@ class UpdateStatus {
 /// well within GitHub's unauthenticated rate limit for a desktop app.
 class UpdateController extends AsyncNotifier<UpdateStatus?> {
   @override
-  Future<UpdateStatus?> build() async => null;
+  Future<UpdateStatus?> build() async {
+    // While the app stays open, re-check periodically so Daily/Weekly still
+    // picks up a build without a relaunch. Each tick is gated by the chosen
+    // interval, so this only actually hits GitHub when a check is due.
+    final timer =
+        Timer.periodic(const Duration(minutes: 30), (_) => maybeAutoCheck());
+    ref.onDispose(timer.cancel);
+    return null;
+  }
 
   Future<void> check({bool force = false}) async {
     final prefs = ref.read(preferencesProvider).asData?.value;
@@ -37,9 +47,32 @@ class UpdateController extends AsyncNotifier<UpdateStatus?> {
       final latest = await fetchLatestRelease(
           includePrereleases: prefs.updateChannel == 'beta');
       final status = UpdateStatus(currentVersion: current, latest: latest);
+      await ref.read(preferencesProvider.notifier).edit(
+          (x) => x.copyWith(updateLastCheck: DateTime.now().millisecondsSinceEpoch));
       await _notifyOnce(prefs, status);
       return status;
     });
+  }
+
+  /// The automatic check, honoring the master toggle and the frequency setting.
+  /// 'launch' checks once at startup; 'daily'/'weekly' check only when the
+  /// interval has elapsed since the last check (so it's safe to call often).
+  Future<void> maybeAutoCheck({bool startup = false}) async {
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    if (prefs == null || !prefs.updateCheckOnStartup) return; // master off
+    switch (prefs.updateCheckFrequency) {
+      case 'launch':
+        if (startup) await check();
+      case 'weekly':
+      case 'daily':
+        final intervalMs = (prefs.updateCheckFrequency == 'weekly'
+                ? const Duration(days: 7)
+                : const Duration(days: 1))
+            .inMilliseconds;
+        final elapsed =
+            DateTime.now().millisecondsSinceEpoch - prefs.updateLastCheck;
+        if (elapsed >= intervalMs) await check();
+    }
   }
 
   /// Posts a single in-app notification the first time a given newer version is
@@ -58,9 +91,10 @@ class UpdateController extends AsyncNotifier<UpdateStatus?> {
       title: tr.updateNotifTitle(version),
       body: tr.updateNotifBody,
       enabled: prefs.notifUpdates,
-      // Also raise an Android system notification so a new build is visible
-      // outside the app (the in-app bell alone is easy to miss on mobile).
-      osNotifyMobile: true,
+      // A real native system notification on every platform (Linux + Android),
+      // not a fleeting in-app toast: a new build stays in the tray, alongside
+      // the persistent banner and the in-app bell.
+      osNotify: true,
       route: '/updates',
     );
   }

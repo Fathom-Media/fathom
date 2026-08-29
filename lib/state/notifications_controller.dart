@@ -85,6 +85,10 @@ Future<void> pushAppNotification(
   required bool enabled,
   bool desktopToast = true,
   bool osNotifyMobile = false,
+  // Post a real system notification on every supported platform (Linux +
+  // Android), regardless of focus, and skip the in-app toast. Updates use this
+  // so a new build is a proper native notification, not a fleeting snackbar.
+  bool osNotify = false,
   String? route,
 }) async {
   if (!enabled) return;
@@ -96,6 +100,10 @@ Future<void> pushAppNotification(
         time: DateTime.now(),
         route: route,
       ));
+  if (osNotify) {
+    await AppNotifications.show(title, body);
+    return;
+  }
   // Opt-in per event: post a real system notification on mobile too (updates
   // use this), so it stays in the tray and is visible outside the app, rather
   // than only living in the in-app bell. Desktop's OS toast is handled below.

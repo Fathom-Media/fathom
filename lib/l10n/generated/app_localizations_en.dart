@@ -247,7 +247,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'Dev includes the latest pre-release test builds.';
 
   @override
-  String get updateAutoCheckLabel => 'Check on Startup';
+  String get updateAutoCheckLabel => 'Automatic Update Checks';
+
+  @override
+  String get updateFrequencyLabel => 'How Often';
+
+  @override
+  String get updateFrequencyLaunch => 'Every Launch';
+
+  @override
+  String get updateFrequencyDaily => 'Daily';
+
+  @override
+  String get updateFrequencyWeekly => 'Weekly';
 
   @override
   String get updateCheckNow => 'Check for Updates';
@@ -259,7 +271,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateUpToDate => 'You\'re on the latest version.';
 
   @override
-  String get updateBannerAction => 'Update';
+  String get updateBannerAction => 'View';
+
+  @override
+  String get updateBannerCta => 'Tap to view what\'s new and install.';
 
   @override
   String get updateBannerDismiss => 'Dismiss update banner';

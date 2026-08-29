@@ -220,9 +220,25 @@
   "@updateChannelHelp": {
     "description": "Helper text under the update channel selector."
   },
-  "updateAutoCheckLabel": "Check on Startup",
+  "updateAutoCheckLabel": "Automatic Update Checks",
   "@updateAutoCheckLabel": {
-    "description": "Toggle: automatically check for updates when the app starts."
+    "description": "Master toggle: automatically check for app updates."
+  },
+  "updateFrequencyLabel": "How Often",
+  "@updateFrequencyLabel": {
+    "description": "Label above the update-check frequency picker."
+  },
+  "updateFrequencyLaunch": "Every Launch",
+  "@updateFrequencyLaunch": {
+    "description": "Update-check frequency: check each time the app starts."
+  },
+  "updateFrequencyDaily": "Daily",
+  "@updateFrequencyDaily": {
+    "description": "Update-check frequency: at most once a day."
+  },
+  "updateFrequencyWeekly": "Weekly",
+  "@updateFrequencyWeekly": {
+    "description": "Update-check frequency: at most once a week."
   },
   "updateCheckNow": "Check for Updates",
   "@updateCheckNow": {
@@ -236,9 +252,13 @@
   "@updateUpToDate": {
     "description": "Shown when no newer release is available."
   },
-  "updateBannerAction": "Update",
+  "updateBannerAction": "View",
   "@updateBannerAction": {
     "description": "Button on the update banner that opens the Updates screen."
+  },
+  "updateBannerCta": "Tap to view what's new and install.",
+  "@updateBannerCta": {
+    "description": "Subtitle line on the update banner, below the headline."
   },
   "updateBannerDismiss": "Dismiss update banner",
   "@updateBannerDismiss": {

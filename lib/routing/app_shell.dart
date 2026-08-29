@@ -208,7 +208,6 @@ class AppShell extends ConsumerWidget {
         child: Column(
           children: [
             const _OfflineBanner(),
-            const UpdateBanner(),
           Expanded(
             child: Stack(
               children: [
@@ -294,6 +293,7 @@ class AppShell extends ConsumerWidget {
                 // Floating minimized video (picture-in-picture).
                 const MiniVideo(),
                 const Positioned.fill(child: DownloadPill()),
+                const Positioned.fill(child: UpdateBanner()),
               ],
             ),
           ),
@@ -539,10 +539,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
     // user to open the drawer. check() is a no-op if one already ran this launch.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final prefs = ref.read(preferencesProvider).asData?.value;
-      if (prefs?.updateCheckOnStartup ?? true) {
-        ref.read(updateControllerProvider.notifier).check();
-      }
+      ref.read(updateControllerProvider.notifier).maybeAutoCheck(startup: true);
     });
   }
 
@@ -600,7 +597,6 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
         child: Column(
           children: [
             const _OfflineBanner(),
-            const UpdateBanner(),
             Expanded(
               child: Stack(
                 children: [
@@ -614,6 +610,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
                   ),
                   const MiniVideo(),
                   const Positioned.fill(child: DownloadPill()),
+                const Positioned.fill(child: UpdateBanner()),
                 ],
               ),
             ),
@@ -685,10 +682,7 @@ class _UpdateRailButtonState extends ConsumerState<_UpdateRailButton> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final prefs = ref.read(preferencesProvider).asData?.value;
-      if (prefs?.updateCheckOnStartup ?? true) {
-        ref.read(updateControllerProvider.notifier).check();
-      }
+      ref.read(updateControllerProvider.notifier).maybeAutoCheck(startup: true);
     });
   }
 
