@@ -85,6 +85,138 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  /// Self-service password change for the signed-in user. Sends the current
+  /// password (CurrentPw) so the server can verify it; it rejects a wrong
+  /// current password or an account where self-service changes are disabled,
+  /// and the error is surfaced in the dialog.
+  Future<void> _changePassword() async {
+    final session = ref.read(sessionControllerProvider).asData?.value;
+    final user = ref.read(currentUserProvider).asData?.value;
+    if (session == null || user == null) return;
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        String? error;
+        var submitting = false;
+        return StatefulBuilder(
+          builder: (ctx, setSt) {
+            Widget field(String label, TextEditingController c) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: TextField(
+                    controller: c,
+                    obscureText: true,
+                    autofillHints: const [],
+                    decoration: InputDecoration(
+                        labelText: label, border: const OutlineInputBorder()),
+                  ),
+                );
+            Future<void> submit() async {
+              if (newCtrl.text != confirmCtrl.text) {
+                setSt(() => error = l.profilePasswordMismatch);
+                return;
+              }
+              // An empty new password is allowed (the same "remove password"
+              // the official Jellyfin clients offer) for a regular user, but
+              // Jellyfin's server flatly refuses it for an administrator
+              // account, so catch that here instead of a round-trip 400.
+              if (newCtrl.text.isEmpty && user.isAdministrator) {
+                setSt(() => error = l.profileAdminNeedsPassword);
+                return;
+              }
+              if (newCtrl.text.isEmpty) {
+                final confirmed = await showDialog<bool>(
+                  context: ctx,
+                  builder: (wctx) => AlertDialog(
+                    title: Text(l.profileNoPasswordTitle),
+                    content: Text(l.profileNoPasswordBody),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(wctx, false),
+                        child: Text(l.commonCancel),
+                      ),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                            backgroundColor:
+                                Theme.of(wctx).colorScheme.error),
+                        onPressed: () => Navigator.pop(wctx, true),
+                        child: Text(l.profileNoPasswordConfirm),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed != true) return;
+              }
+              setSt(() {
+                submitting = true;
+                error = null;
+              });
+              try {
+                await ref.read(jellyfinClientProvider).setUserPassword(
+                      baseUrl: session.baseUrl,
+                      token: session.accessToken,
+                      userId: user.id,
+                      currentPassword: currentCtrl.text,
+                      newPassword: newCtrl.text,
+                    );
+                if (ctx.mounted) Navigator.pop(ctx, true);
+              } catch (e) {
+                setSt(() {
+                  submitting = false;
+                  error = '$e';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Text(l.profileChangePassword),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  field(l.profileCurrentPassword, currentCtrl),
+                  field(l.profileNewPassword, newCtrl),
+                  field(l.profileConfirmPassword, confirmCtrl),
+                  if (error != null)
+                    Text(error!,
+                        style: TextStyle(
+                            color: Theme.of(ctx).colorScheme.error)),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      submitting ? null : () => Navigator.pop(ctx, false),
+                  child: Text(l.commonCancel),
+                ),
+                FilledButton(
+                  onPressed: submitting ? null : submit,
+                  child: submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Text(l.commonSave),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    currentCtrl.dispose();
+    newCtrl.dispose();
+    confirmCtrl.dispose();
+    if (ok == true) {
+      messenger.showSnackBar(SnackBar(content: Text(l.profilePasswordChanged)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionControllerProvider).asData?.value;
@@ -179,6 +311,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           color: Theme.of(context).colorScheme.error)),
                 ),
             ],
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : _changePassword,
+              icon: const Icon(Icons.password_rounded),
+              label: Text(l.profileChangePassword),
+            ),
           ],
         ),
           ),

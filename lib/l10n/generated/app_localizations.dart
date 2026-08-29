@@ -2206,6 +2206,66 @@ abstract class AppLocalizations {
   /// **'Remove Photo'**
   String get profileRemovePhoto;
 
+  /// Button and dialog title for the user changing their own password.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Password'**
+  String get profileChangePassword;
+
+  /// Field label for the user's existing password.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Password'**
+  String get profileCurrentPassword;
+
+  /// Field label for the new password.
+  ///
+  /// In en, this message translates to:
+  /// **'New Password'**
+  String get profileNewPassword;
+
+  /// Field label to re-enter the new password.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm New Password'**
+  String get profileConfirmPassword;
+
+  /// Error shown when the new password and its confirmation differ.
+  ///
+  /// In en, this message translates to:
+  /// **'The new passwords don\'t match.'**
+  String get profilePasswordMismatch;
+
+  /// Error shown when an administrator tries to set a blank password; the server does not allow this.
+  ///
+  /// In en, this message translates to:
+  /// **'Administrator accounts must have a password and can\'t be left blank.'**
+  String get profileAdminNeedsPassword;
+
+  /// Title of the confirmation dialog when the new password field is left blank.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Your Password?'**
+  String get profileNoPasswordTitle;
+
+  /// Body of the confirmation dialog when the new password field is left blank.
+  ///
+  /// In en, this message translates to:
+  /// **'Leaving the new password blank removes your password. Anyone with access to your account will be able to sign in without one.'**
+  String get profileNoPasswordBody;
+
+  /// Confirm button on the blank-password warning dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Password'**
+  String get profileNoPasswordConfirm;
+
+  /// Confirmation after the password is changed.
+  ///
+  /// In en, this message translates to:
+  /// **'Password changed.'**
+  String get profilePasswordChanged;
+
   /// AppBar title for the accounts (server/user switcher) screen.
   ///
   /// In en, this message translates to:

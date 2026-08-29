@@ -1157,6 +1157,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileRemovePhoto => 'Remove Photo';
 
   @override
+  String get profileChangePassword => 'Change Password';
+
+  @override
+  String get profileCurrentPassword => 'Current Password';
+
+  @override
+  String get profileNewPassword => 'New Password';
+
+  @override
+  String get profileConfirmPassword => 'Confirm New Password';
+
+  @override
+  String get profilePasswordMismatch => 'The new passwords don\'t match.';
+
+  @override
+  String get profileAdminNeedsPassword =>
+      'Administrator accounts must have a password and can\'t be left blank.';
+
+  @override
+  String get profileNoPasswordTitle => 'Remove Your Password?';
+
+  @override
+  String get profileNoPasswordBody =>
+      'Leaving the new password blank removes your password. Anyone with access to your account will be able to sign in without one.';
+
+  @override
+  String get profileNoPasswordConfirm => 'Remove Password';
+
+  @override
+  String get profilePasswordChanged => 'Password changed.';
+
+  @override
   String get accountTitle => 'Accounts';
 
   @override

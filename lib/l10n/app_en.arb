@@ -1374,6 +1374,46 @@
   "@profileRemovePhoto": {
     "description": "Button to delete the current profile photo."
   },
+  "profileChangePassword": "Change Password",
+  "@profileChangePassword": {
+    "description": "Button and dialog title for the user changing their own password."
+  },
+  "profileCurrentPassword": "Current Password",
+  "@profileCurrentPassword": {
+    "description": "Field label for the user's existing password."
+  },
+  "profileNewPassword": "New Password",
+  "@profileNewPassword": {
+    "description": "Field label for the new password."
+  },
+  "profileConfirmPassword": "Confirm New Password",
+  "@profileConfirmPassword": {
+    "description": "Field label to re-enter the new password."
+  },
+  "profilePasswordMismatch": "The new passwords don't match.",
+  "@profilePasswordMismatch": {
+    "description": "Error shown when the new password and its confirmation differ."
+  },
+  "profileAdminNeedsPassword": "Administrator accounts must have a password and can't be left blank.",
+  "@profileAdminNeedsPassword": {
+    "description": "Error shown when an administrator tries to set a blank password; the server does not allow this."
+  },
+  "profileNoPasswordTitle": "Remove Your Password?",
+  "@profileNoPasswordTitle": {
+    "description": "Title of the confirmation dialog when the new password field is left blank."
+  },
+  "profileNoPasswordBody": "Leaving the new password blank removes your password. Anyone with access to your account will be able to sign in without one.",
+  "@profileNoPasswordBody": {
+    "description": "Body of the confirmation dialog when the new password field is left blank."
+  },
+  "profileNoPasswordConfirm": "Remove Password",
+  "@profileNoPasswordConfirm": {
+    "description": "Confirm button on the blank-password warning dialog."
+  },
+  "profilePasswordChanged": "Password changed.",
+  "@profilePasswordChanged": {
+    "description": "Confirmation after the password is changed."
+  },
   "accountTitle": "Accounts",
   "@accountTitle": {
     "description": "AppBar title for the accounts (server/user switcher) screen."

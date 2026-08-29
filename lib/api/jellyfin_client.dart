@@ -1150,21 +1150,43 @@ class JellyfinClient {
     }
   }
 
+  /// Sets a user's password. An admin resetting someone else passes null for
+  /// [newPassword] (clears it, no verification needed). A user changing their
+  /// OWN password passes [newPassword] (an empty string sets no password at
+  /// all — the same "remove password" the official clients allow) plus
+  /// [currentPassword] ([CurrentPw]); the server verifies it and rejects the
+  /// change if it's wrong or self-service is disabled for the account.
   Future<void> setUserPassword({
     required String baseUrl,
     required String token,
     required String userId,
+    String? currentPassword,
     String? newPassword,
   }) async {
     try {
       await _dio.post(
         '$baseUrl/Users/$userId/Password',
-        data: newPassword == null || newPassword.isEmpty
+        data: newPassword == null
             ? {'ResetPassword': true}
-            : {'NewPw': newPassword},
+            : {
+                'CurrentPw': ?currentPassword,
+                'NewPw': newPassword,
+              },
         options: _authed(token),
       );
     } on DioException catch (e) {
+      // A 400 here almost always means the server's password validation
+      // rejected the request rather than a network/transport problem, so give
+      // a specific reason instead of the generic "error (400)".
+      if (e.response?.statusCode == 400) {
+        if (newPassword != null && newPassword.isEmpty) {
+          throw JellyfinException('Administrator accounts must have a '
+              'password and can\'t be left blank.');
+        }
+        throw JellyfinException(
+            'Couldn\'t change the password. Check that your current '
+            'password is correct.');
+      }
       throw JellyfinException(_friendlyDioError(e));
     }
   }
