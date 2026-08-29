@@ -218,8 +218,29 @@ YtStreams? _buildStreamsFromJson(Map<String, dynamic> sd) {
 
   String? audioUrl;
   if (audios.isNotEmpty) {
-    final mp4 = audios.where((f) => mimeOf(f).contains('mp4')).toList();
-    final pick = (mp4.isNotEmpty ? mp4 : audios)
+    // Multi-language videos expose every dub as a separate audio track. Pick the
+    // DEFAULT track (the one YouTube marks for our requested locale, hl=en), else
+    // an English-labelled track, so playback doesn't default to a Hindi/Tamil dub
+    // (issue #30). Falls back to all audios for single-track videos.
+    Map<String, dynamic>? trackOf(dynamic f) =>
+        (f is Map && f['audioTrack'] is Map)
+            ? (f['audioTrack'] as Map).cast<String, dynamic>()
+            : null;
+    final tracked = audios.where((f) => trackOf(f) != null).toList();
+    List<dynamic> pool = audios;
+    if (tracked.isNotEmpty) {
+      final def =
+          tracked.where((f) => trackOf(f)!['audioIsDefault'] == true).toList();
+      final english = tracked.where((f) {
+        final t = trackOf(f)!;
+        final id = (t['id'] as String?)?.toLowerCase() ?? '';
+        final name = (t['displayName'] as String?)?.toLowerCase() ?? '';
+        return id.startsWith('en') || name.contains('english');
+      }).toList();
+      pool = def.isNotEmpty ? def : (english.isNotEmpty ? english : audios);
+    }
+    final mp4 = pool.where((f) => mimeOf(f).contains('mp4')).toList();
+    final pick = (mp4.isNotEmpty ? mp4 : pool)
       ..sort((a, b) => bitrateOf(b).compareTo(bitrateOf(a)));
     audioUrl = pick.first['url'] as String;
   }
@@ -466,10 +487,23 @@ YtStreams _buildStreams(StreamManifest manifest) {
     );
   }
 
-  // Best audio: prefer mp4/AAC, else the highest bitrate available.
+  // Best audio: prefer the DEFAULT (locale-matched) track, else an English one,
+  // so multi-language videos don't default to a Hindi/Tamil dub (issue #30);
+  // then prefer mp4/AAC and the highest bitrate available.
   final audios = manifest.audioOnly.toList();
-  final mp4Audio = audios.where((s) => s.container.name == 'mp4').toList();
-  final audioPick = (mp4Audio.isNotEmpty ? mp4Audio : audios)
+  final tracked = audios.where((s) => s.audioTrack != null).toList();
+  var audioPool = audios;
+  if (tracked.isNotEmpty) {
+    final def = tracked.where((s) => s.audioTrack!.audioIsDefault).toList();
+    final english = tracked.where((s) {
+      final id = s.audioTrack!.id.toLowerCase();
+      final name = s.audioTrack!.displayName.toLowerCase();
+      return id.startsWith('en') || name.contains('english');
+    }).toList();
+    audioPool = def.isNotEmpty ? def : (english.isNotEmpty ? english : audios);
+  }
+  final mp4Audio = audioPool.where((s) => s.container.name == 'mp4').toList();
+  final audioPick = (mp4Audio.isNotEmpty ? mp4Audio : audioPool)
     ..sort((a, b) => b.bitrate.bitsPerSecond.compareTo(a.bitrate.bitsPerSecond));
 
   // One entry per resolution, choosing the codec that decodes cheapest in
