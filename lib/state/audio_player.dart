@@ -19,6 +19,7 @@ import 'radio.dart';
 
 import 'audio_handler.dart';
 import 'cast.dart';
+import 'downloads.dart';
 import '../api/jellyfin_client.dart';
 import '../models/base_item.dart';
 import '../models/radio_station.dart';
@@ -177,6 +178,12 @@ class AudioController extends Notifier<AudioState> {
   // the next track's stream URL is still resolving.
   bool _ytAutoplay = true;
   bool _ytAdvancing = false;
+  // Consecutive resolve failures (YouTube bot wall / rate limit). A failed track
+  // auto-advances rather than dead-ending, but a fully blocked playlist must not
+  // blast through every track in a couple seconds — stop after this many in a
+  // row. Reset on any successful open or user-initiated skip.
+  int _ytResolveFailStreak = 0;
+  static const _ytMaxResolveFailStreak = 4;
   // Bumped on every YouTube-audio open, so a load-watchdog from a track we've
   // already moved past can't skip the current one.
   int _ytLoadToken = 0;
@@ -187,6 +194,9 @@ class AudioController extends Notifier<AudioState> {
   // Videos played this background session, so continuation never loops back onto
   // one you just heard.
   final Set<String> _ytPlayed = {};
+  // Ordered history of YouTube-audio items played, so Previous can step back a
+  // song (the shared queue is forward-only and discards played tracks).
+  final List<YoutubeAudioItem> _ytHistory = [];
   final Map<String, BaseItemDto> _byId = {};
   final _random = Random();
   // The OS media session (mobile only); null on desktop or if init failed.
@@ -257,7 +267,7 @@ class AudioController extends Notifier<AudioState> {
       h.onPause = _player.pause;
       // Skip routes by mode: the YouTube queue advances itself (one track at a
       // time), the music queue uses the player's own playlist.
-      h.onNext = () => state.isYoutubeAudio ? _ytNext() : _player.next();
+      h.onNext = () => state.isYoutubeAudio ? _ytNext(user: true) : _player.next();
       h.onPrevious =
           () => state.isYoutubeAudio ? _ytPrevious() : _player.previous();
       h.onSeek = _player.seek;
@@ -376,6 +386,13 @@ class AudioController extends Notifier<AudioState> {
       // that actually played out — should advance, otherwise a bad/expired URL
       // cascades "completed -> next -> completed" through the whole queue.
       if (_player.state.duration <= Duration.zero) return;
+      // Repeat-one: replay the current track instead of advancing. The Next
+      // button still skips, because it calls _ytNext directly.
+      if (state.repeat == PlaylistMode.single) {
+        unawaited(_player.seek(Duration.zero));
+        unawaited(_player.play());
+        return;
+      }
       _ytNext();
     });
     // Mirror transport state to the media session. Position is extrapolated by
@@ -599,20 +616,40 @@ class AudioController extends Notifier<AudioState> {
     return (session: session, client: ref.read(jellyfinClientProvider));
   }
 
+  /// A media source for a track: its downloaded local file if present (so it
+  /// plays offline, in the music player), otherwise the server audio stream.
+  /// Null when neither is available (offline and not downloaded).
+  Media? _mediaFor(BaseItemDto track) {
+    final local = ref.read(downloadsProvider.notifier).localPathFor(track.id);
+    if (local != null) return Media(local);
+    final c = _ctx();
+    if (c == null) return null;
+    return Media(c.client.audioStreamUrl(
+      baseUrl: c.session.baseUrl,
+      itemId: track.id,
+      token: c.session.accessToken,
+    ));
+  }
+
   Future<void> playQueue(List<BaseItemDto> tracks, int startIndex,
       {bool shuffle = false}) async {
     if (tracks.isEmpty) return;
-    final c = _ctx();
-    if (c == null) return;
     _radioIcyTimer?.cancel(); // leaving radio for the music queue
     _radioTick?.cancel();
-    final medias = tracks
-        .map((t) => Media(c.client.audioStreamUrl(
-              baseUrl: c.session.baseUrl,
-              itemId: t.id,
-              token: c.session.accessToken,
-            )))
-        .toList();
+    // Prefer a downloaded track's local file (works offline); otherwise stream
+    // from the server. A track that's neither is dropped so the index stays valid.
+    final wantId = tracks[startIndex].id;
+    final playable = <BaseItemDto>[];
+    final medias = <Media>[];
+    for (final t in tracks) {
+      final m = _mediaFor(t);
+      if (m != null) {
+        playable.add(t);
+        medias.add(m);
+      }
+    }
+    if (medias.isEmpty) return;
+    tracks = playable;
     _reportStopped();
     _byId
       ..clear()
@@ -620,8 +657,10 @@ class AudioController extends Notifier<AudioState> {
     // Shuffle: start on a RANDOM track (not always the first) and turn the
     // player's shuffle mode on. A normal play starts at [startIndex] in order,
     // and explicitly turns shuffle off so the two buttons are true opposites.
+    var startAt = tracks.indexWhere((t) => t.id == wantId);
+    if (startAt < 0) startAt = 0;
     final index =
-        (shuffle && tracks.length > 1) ? _random.nextInt(tracks.length) : startIndex;
+        (shuffle && tracks.length > 1) ? _random.nextInt(tracks.length) : startAt;
     state = state.copyWith(
         queue: tracks,
         current: tracks[index],
@@ -750,16 +789,34 @@ class AudioController extends Notifier<AudioState> {
   /// item so the hand-over when this one ends is near-seamless.
   Future<void> _playYtItem(YoutubeAudioItem item,
       {Duration startAt = Duration.zero, bool retried = false}) async {
+    // Claim this load up front so a newer skip (Next/Previous pressed while this
+    // slow resolve is still running) supersedes it — otherwise the stale resolve
+    // opens over the track the user actually skipped to.
+    final token = ++_ytLoadToken;
     final url = await _resolveYtUrl(item.videoId);
+    if (token != _ytLoadToken) return; // superseded by a newer skip
     if (url == null) {
-      await _ytNext(); // couldn't resolve this one; move on rather than dead-end
+      // Couldn't resolve (YouTube bot wall / rate limit). Advance to the next
+      // track rather than dead-ending on this one — but bypass the advance guard
+      // (we're likely inside an in-flight _ytNext, whose _ytAdvancing=true would
+      // otherwise swallow this) and cap consecutive failures so a fully blocked
+      // playlist doesn't race through every track in seconds. Don't retry: it
+      // only adds requests and deepens any rate-limit throttle.
+      if (token != _ytLoadToken) return; // superseded by a newer skip
+      if (++_ytResolveFailStreak >= _ytMaxResolveFailStreak) {
+        _ytResolveFailStreak = 0;
+        _ytAdvancing = false; // release so the user can start playback again
+        return; // give up quietly instead of blasting through the whole queue
+      }
+      await _ytNext(onFailure: true);
       return;
     }
     if (!state.isYoutubeAudio) return; // left YouTube mode while resolving
+    _ytResolveFailStreak = 0; // resolved OK — clear the failure guard
     _ytPlayed.add(item.videoId);
     state = state.copyWith(ytCurrent: item);
-    final token = ++_ytLoadToken;
     await _activateAudioSession();
+    if (token != _ytLoadToken) return; // superseded during session activation
     await _player.open(Media(url));
     _applyVolume();
     if (startAt > Duration.zero) unawaited(_seekWhenReady(startAt));
@@ -844,11 +901,31 @@ class AudioController extends Notifier<AudioState> {
 
   /// Advance: the shared queue wins (an explicit instruction), then autoplay a
   /// related track once the queue is empty. Same precedence as the video player.
-  Future<void> _ytNext() async {
-    if (!state.isYoutubeAudio || _ytAdvancing) return;
+  Future<void> _ytNext({bool user = false, bool onFailure = false}) async {
+    if (!state.isYoutubeAudio) return;
+    // A user skip resets the failure guard — they're actively navigating, so
+    // don't let an earlier auto-fail streak cut them off.
+    if (user) _ytResolveFailStreak = 0;
+    // Auto-advance (completion) is guarded so it can't double-fire. A user skip
+    // interrupts an in-flight resolve instead — the load token in _playYtItem
+    // supersedes the stale one — so Next stays responsive during a slow resolve.
+    // onFailure advances past an unresolvable track and must bypass the guard
+    // (it's called from inside an in-flight _ytNext).
+    if (!user && !onFailure && _ytAdvancing) return;
     _ytAdvancing = true;
     try {
-      final next = ref.read(youtubeQueueProvider.notifier).takeNext();
+      // Remember the outgoing track so Previous can step back to it.
+      final cur = state.ytCurrent;
+      if (cur != null) {
+        _ytHistory.add(cur);
+        if (_ytHistory.length > 100) _ytHistory.removeAt(0);
+      }
+      var next = ref.read(youtubeQueueProvider.notifier).takeNext();
+      // Repeat-all: when the queue runs out, reload the playlist and continue.
+      if (next == null && state.repeat == PlaylistMode.loop) {
+        ref.read(youtubeQueueProvider.notifier).reloadSource();
+        next = ref.read(youtubeQueueProvider.notifier).takeNext();
+      }
       if (next != null) {
         await _playYtItem(_toAudioItem(next));
       } else if (_ytAutoplay) {
@@ -860,11 +937,18 @@ class AudioController extends Notifier<AudioState> {
     }
   }
 
-  /// The shared queue is forward-only (like the video player's up-next), so
-  /// "previous" restarts the current track rather than keeping a back-history.
+  /// Step back a song using [_ytHistory]. More than a few seconds into the
+  /// current track (or with no history), restart it instead, like every music
+  /// player.
   Future<void> _ytPrevious() async {
     if (!state.isYoutubeAudio) return;
-    await _player.seek(Duration.zero);
+    if (_player.state.position > const Duration(seconds: 3) ||
+        _ytHistory.isEmpty) {
+      await _player.seek(Duration.zero);
+      return;
+    }
+    final prev = _ytHistory.removeLast();
+    await _playYtItem(prev);
   }
 
   /// One related track to continue with, deduped against what's queued, played
@@ -1418,7 +1502,7 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       return ref.read(castControllerProvider.notifier).queueNext();
     }
-    if (state.isYoutubeAudio) return _ytNext();
+    if (state.isYoutubeAudio) return _ytNext(user: true);
     return _player.next();
   }
 
@@ -1480,14 +1564,10 @@ class AudioController extends Notifier<AudioState> {
       await playQueue([track], 0);
       return;
     }
-    final c = _ctx();
-    if (c == null) return;
+    final media = _mediaFor(track);
+    if (media == null) return;
     _byId[track.id] = track;
-    await _player.add(Media(c.client.audioStreamUrl(
-      baseUrl: c.session.baseUrl,
-      itemId: track.id,
-      token: c.session.accessToken,
-    )));
+    await _player.add(media);
   }
 
   /// Queue a track to play right after the current one.
@@ -1496,24 +1576,26 @@ class AudioController extends Notifier<AudioState> {
       await playQueue([track], 0);
       return;
     }
-    final c = _ctx();
-    if (c == null) return;
+    final media = _mediaFor(track);
+    if (media == null) return;
     _byId[track.id] = track;
     // Capture positions before the add so a concurrent playlist event can't
     // shift them: the appended track lands at the old length.
     final insertIndex = state.queue.length;
     final target = currentIndex + 1;
-    await _player.add(Media(c.client.audioStreamUrl(
-      baseUrl: c.session.baseUrl,
-      itemId: track.id,
-      token: c.session.accessToken,
-    )));
+    await _player.add(media);
     if (target < insertIndex) await _player.move(insertIndex, target);
   }
 
   Future<void> toggleShuffle() async {
     final value = !state.shuffle;
-    await _player.setShuffle(value);
+    if (state.isYoutubeAudio) {
+      // YouTube audio has no player playlist; shuffle the shared up-next.
+      final qn = ref.read(youtubeQueueProvider.notifier);
+      value ? qn.shuffleRemaining() : qn.restoreOrder();
+    } else {
+      await _player.setShuffle(value);
+    }
     state = state.copyWith(shuffle: value);
     _pushPlaybackState(); // refresh the car's Shuffle button state
   }
@@ -1524,7 +1606,12 @@ class AudioController extends Notifier<AudioState> {
       PlaylistMode.loop => PlaylistMode.single,
       PlaylistMode.single => PlaylistMode.none,
     };
-    await _player.setPlaylistMode(next);
+    // YouTube audio is a single Media, so its repeat is handled manually (the
+    // completion handler + _ytNext). Driving the player's playlist mode would
+    // loop the one track and suppress the `completed` event we advance on.
+    if (!state.isYoutubeAudio) {
+      await _player.setPlaylistMode(next);
+    }
     state = state.copyWith(repeat: next);
     _pushPlaybackState(); // refresh the car's Repeat button state
   }

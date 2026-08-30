@@ -25,6 +25,8 @@ import '../widgets/tv_keyboard.dart';
 import 'nav_destinations.dart';
 import '../widgets/glass.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/download_pill.dart';
+import '../widgets/update_banner.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/mini_video.dart';
 import '../widgets/user_avatar.dart';
@@ -290,6 +292,8 @@ class AppShell extends ConsumerWidget {
                 ),
                 // Floating minimized video (picture-in-picture).
                 const MiniVideo(),
+                const Positioned.fill(child: DownloadPill()),
+                const Positioned.fill(child: UpdateBanner()),
               ],
             ),
           ),
@@ -527,6 +531,19 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
   GoRouter? _router;
 
   @override
+  void initState() {
+    super.initState();
+    // Run the startup update check here too: on mobile the rail button that
+    // normally triggers it lives in the drawer, which isn't built until opened,
+    // so without this the check (and its notification/banner) would wait for the
+    // user to open the drawer. check() is a no-op if one already ran this launch.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(updateControllerProvider.notifier).maybeAutoCheck(startup: true);
+    });
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Close the drawer on ANY navigation. The router delegate notifies on every
@@ -592,6 +609,8 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
                     ),
                   ),
                   const MiniVideo(),
+                  const Positioned.fill(child: DownloadPill()),
+                const Positioned.fill(child: UpdateBanner()),
                 ],
               ),
             ),
@@ -663,10 +682,7 @@ class _UpdateRailButtonState extends ConsumerState<_UpdateRailButton> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final prefs = ref.read(preferencesProvider).asData?.value;
-      if (prefs?.updateCheckOnStartup ?? true) {
-        ref.read(updateControllerProvider.notifier).check();
-      }
+      ref.read(updateControllerProvider.notifier).maybeAutoCheck(startup: true);
     });
   }
 

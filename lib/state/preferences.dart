@@ -270,9 +270,11 @@ class Prefs {
 
   // In-app update checking (GitHub Releases).
   final String updateChannel; // 'stable' or 'beta' (include pre-releases)
-  final bool updateCheckOnStartup;
+  final bool updateCheckOnStartup; // master on/off for automatic checks
+  final String updateCheckFrequency; // 'launch' | 'daily' | 'weekly'
   final int updateLastCheck; // epoch ms of the last check, for throttling
   final String updateNotifiedVersion; // version we already posted an update notification for
+  final String updateBannerDismissedVersion; // version whose update banner the user dismissed
 
   const Prefs({
     this.themeMode = 'system',
@@ -387,8 +389,10 @@ class Prefs {
     this.seerrCustomSliders = const [],
     this.updateChannel = 'stable',
     this.updateCheckOnStartup = true,
+    this.updateCheckFrequency = 'launch',
     this.updateLastCheck = 0,
     this.updateNotifiedVersion = '',
+    this.updateBannerDismissedVersion = '',
   });
 
   /// Player key bindings with any user overrides applied over the defaults.
@@ -502,8 +506,10 @@ class Prefs {
     List<Map<String, dynamic>>? seerrCustomSliders,
     String? updateChannel,
     bool? updateCheckOnStartup,
+    String? updateCheckFrequency,
     int? updateLastCheck,
     String? updateNotifiedVersion,
+    String? updateBannerDismissedVersion,
   }) =>
       Prefs(
         themeMode: themeMode ?? this.themeMode,
@@ -630,9 +636,13 @@ class Prefs {
         seerrCustomSliders: seerrCustomSliders ?? this.seerrCustomSliders,
         updateChannel: updateChannel ?? this.updateChannel,
         updateCheckOnStartup: updateCheckOnStartup ?? this.updateCheckOnStartup,
+        updateCheckFrequency:
+            updateCheckFrequency ?? this.updateCheckFrequency,
         updateLastCheck: updateLastCheck ?? this.updateLastCheck,
         updateNotifiedVersion:
             updateNotifiedVersion ?? this.updateNotifiedVersion,
+        updateBannerDismissedVersion: updateBannerDismissedVersion ??
+            this.updateBannerDismissedVersion,
       );
 
   Map<String, dynamic> toJson() => {
@@ -743,8 +753,10 @@ class Prefs {
         'seerrCustomSliders': seerrCustomSliders,
         'updateChannel': updateChannel,
         'updateCheckOnStartup': updateCheckOnStartup,
+        'updateCheckFrequency': updateCheckFrequency,
         'updateLastCheck': updateLastCheck,
         'updateNotifiedVersion': updateNotifiedVersion,
+        'updateBannerDismissedVersion': updateBannerDismissedVersion,
       };
 
   factory Prefs.fromJson(Map<String, dynamic> j) => Prefs(
@@ -883,8 +895,12 @@ class Prefs {
         ],
         updateChannel: j['updateChannel'] as String? ?? 'stable',
         updateCheckOnStartup: j['updateCheckOnStartup'] as bool? ?? true,
+        updateCheckFrequency:
+            j['updateCheckFrequency'] as String? ?? 'launch',
         updateLastCheck: (j['updateLastCheck'] as num?)?.toInt() ?? 0,
         updateNotifiedVersion: j['updateNotifiedVersion'] as String? ?? '',
+        updateBannerDismissedVersion:
+            j['updateBannerDismissedVersion'] as String? ?? '',
       );
 }
 

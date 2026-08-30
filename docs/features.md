@@ -43,6 +43,8 @@ Fathom casts to Chromecast and Google TV devices (on Android). Video direct-play
 
 On Android, Fathom offers an audio-only Android Auto experience: browse your Jellyfin music, internet radio, and YouTube in tabs, search (including by voice) to play a song or playlist, and control playback, shuffle, repeat, favorites, and the up-next queue from the car's screen.
 
+Because Fathom is sideloaded rather than installed from the Play Store, the first time you use it you need to allow apps from unknown sources in Android Auto's developer settings. See [Fathom does not appear in Android Auto](troubleshooting.md#fathom-does-not-appear-in-android-auto) if it is not listed.
+
 ## Requests, ratings, and watch together
 
 - **Seerr (optional)**: browse and request titles, then approve, decline, or manage requests without leaving the page, with download progress shown right on the detail view. Set it up in [First-run setup](setup.md#seerr-requests).

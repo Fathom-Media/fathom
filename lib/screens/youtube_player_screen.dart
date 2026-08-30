@@ -19,6 +19,7 @@ import '../state/preferences.dart';
 import '../state/youtube_providers.dart';
 import '../state/volume_sync.dart';
 import '../widgets/player_controls.dart';
+import '../widgets/window_frame.dart';
 import '../services/live_players.dart';
 import '../services/sponsorblock.dart';
 import '../services/tv_mode.dart';
@@ -410,6 +411,11 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         final mpv = _player.platform as dynamic;
         await mpv.setProperty('cache-on-disk', 'no');
         await mpv.setProperty('network-timeout', '30');
+        if (s.isLive) {
+          // Start live HLS at the newest segment (lower latency, faster first
+          // frame) rather than buffering from the start of the DVR window.
+          await mpv.setProperty('demuxer-lavf-o', 'live_start_index=-1');
+        }
       } catch (_) {}
       // One-shot: log when the first video frame actually lands, so start-up
       // cost is visible end to end (resolution + mpv buffering to first frame).
@@ -1065,6 +1071,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
                     DeviceOrientation.landscapeRight,
                   ]);
           } else {
+            // Desktop: drop the custom window title bar (min/max/close) while
+            // the video is edge-to-edge, matching the Jellyfin player.
+            if (isDesktopWindowFrame) desktopFullscreen.value = true;
             await const MethodChannel('com.alexmercerind/media_kit_video')
                 .invokeMethod('Utils.EnterNativeFullscreen');
           }
@@ -1080,6 +1089,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
                 overlays: SystemUiOverlay.values);
             await SystemChrome.setPreferredOrientations(const []);
           } else {
+            if (isDesktopWindowFrame) desktopFullscreen.value = false;
             await const MethodChannel('com.alexmercerind/media_kit_video')
                 .invokeMethod('Utils.ExitNativeFullscreen');
           }

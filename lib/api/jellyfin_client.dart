@@ -370,6 +370,7 @@ class JellyfinClient {
     String url,
     String token, {
     Map<String, dynamic>? query,
+    String? typeOverride,
   }) async {
     try {
       final res = await _dio.get(
@@ -381,10 +382,13 @@ class JellyfinClient {
       final rawList = data is List
           ? data
           : (data is Map ? (data['Items'] as List? ?? const []) : const []);
-      return rawList
-          .whereType<Map>()
-          .map((e) => BaseItemDto.fromJson(Map<String, dynamic>.from(e)))
-          .toList();
+      return rawList.whereType<Map>().map((e) {
+        final m = Map<String, dynamic>.from(e);
+        // Recordings come back typed as their content (Movie/Video/Episode);
+        // stamp the kind so the app can treat them uniformly as recordings.
+        if (typeOverride != null) m['Type'] = typeOverride;
+        return BaseItemDto.fromJson(m);
+      }).toList();
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -655,6 +659,9 @@ class JellyfinClient {
         'EnableImages': 'true',
         'Fields': 'Overview,PrimaryImageAspectRatio',
       },
+      // Some servers return recordings typed as their content (Movie/Video), so
+      // force 'Recording' — the app keys the Recordings section/actions off it.
+      typeOverride: 'Recording',
     );
   }
 
@@ -783,6 +790,26 @@ class JellyfinClient {
       return BaseItemDto.fromJson(Map<String, dynamic>.from(res.data as Map));
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+  /// The raw item JSON (full detail: overview, people, genres, images), so a
+  /// downloaded item's detail can be stored and rebuilt offline. Returns null on
+  /// failure; best-effort.
+  Future<Map<String, dynamic>?> getItemJson({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+  }) async {
+    try {
+      final res = await _dio.get(
+        '$baseUrl/Users/$userId/Items/$itemId',
+        options: _authed(token),
+      );
+      return Map<String, dynamic>.from(res.data as Map);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -1123,21 +1150,43 @@ class JellyfinClient {
     }
   }
 
+  /// Sets a user's password. An admin resetting someone else passes null for
+  /// [newPassword] (clears it, no verification needed). A user changing their
+  /// OWN password passes [newPassword] (an empty string sets no password at
+  /// all — the same "remove password" the official clients allow) plus
+  /// [currentPassword] ([CurrentPw]); the server verifies it and rejects the
+  /// change if it's wrong or self-service is disabled for the account.
   Future<void> setUserPassword({
     required String baseUrl,
     required String token,
     required String userId,
+    String? currentPassword,
     String? newPassword,
   }) async {
     try {
       await _dio.post(
         '$baseUrl/Users/$userId/Password',
-        data: newPassword == null || newPassword.isEmpty
+        data: newPassword == null
             ? {'ResetPassword': true}
-            : {'NewPw': newPassword},
+            : {
+                'CurrentPw': ?currentPassword,
+                'NewPw': newPassword,
+              },
         options: _authed(token),
       );
     } on DioException catch (e) {
+      // A 400 here almost always means the server's password validation
+      // rejected the request rather than a network/transport problem, so give
+      // a specific reason instead of the generic "error (400)".
+      if (e.response?.statusCode == 400) {
+        if (newPassword != null && newPassword.isEmpty) {
+          throw JellyfinException('Administrator accounts must have a '
+              'password and can\'t be left blank.');
+        }
+        throw JellyfinException(
+            'Couldn\'t change the password. Check that your current '
+            'password is correct.');
+      }
       throw JellyfinException(_friendlyDioError(e));
     }
   }
@@ -2190,7 +2239,9 @@ class JellyfinClient {
       query: {
         'UserId': userId,
         'SeasonId': ?seasonId,
-        'Fields': 'Overview,PrimaryImageAspectRatio',
+        // ChannelId is retained on recorded episodes (a DVR marker a normal
+        // library episode never has), so downloads can classify recordings.
+        'Fields': 'Overview,PrimaryImageAspectRatio,ChannelId',
       },
     );
   }

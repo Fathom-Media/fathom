@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,6 +36,16 @@ class HoverPosterArt extends ConsumerStatefulWidget {
   /// right-click / hover hamburger). Off for non-item art and library-view
   /// cards, which aren't playable/deletable.
   final bool contextActions;
+
+  /// A custom menu opener that replaces the shared item menu (used by the
+  /// offline Downloads library, whose actions are Play / Remove download rather
+  /// than the server-side ones). When set, the poster shows the menu affordance
+  /// and calls this instead of [showItemActionsMenu].
+  final VoidCallback? onMenu;
+
+  /// What the menu's "Show Details" runs. Defaults to [onTap]; the Downloads
+  /// library sets it to open the detail page while [onTap] plays/drills in.
+  final VoidCallback? onOpenDetails;
   const HoverPosterArt(
       {super.key,
       this.item,
@@ -44,7 +56,9 @@ class HoverPosterArt extends ConsumerStatefulWidget {
       this.borderRadius = 12,
       this.heroTag,
       this.autofocus = false,
-      this.contextActions = true})
+      this.contextActions = true,
+      this.onMenu,
+      this.onOpenDetails})
       : assert(item != null || art != null);
 
   @override
@@ -66,18 +80,25 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
   // overflow, so the card's D-pad path is left untouched. Only real media items
   // get it, not library-view tiles or bare artwork.
   bool get _canMenu =>
-      widget.contextActions &&
       !isTvDevice &&
-      widget.item != null &&
-      widget.item!.collectionType == null;
+      (widget.onMenu != null ||
+          (widget.contextActions &&
+              widget.item != null &&
+              widget.item!.collectionType == null));
 
-  void _openMenu() => showItemActionsMenu(
-        context,
-        ref,
-        widget.item!,
-        fromGrid: true,
-        onOpenDetails: widget.onTap,
-      );
+  void _openMenu() {
+    if (widget.onMenu != null) {
+      widget.onMenu!();
+      return;
+    }
+    showItemActionsMenu(
+      context,
+      ref,
+      widget.item!,
+      fromGrid: true,
+      onOpenDetails: widget.onOpenDetails ?? widget.onTap,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -389,9 +410,33 @@ class PosterCard extends StatelessWidget {
   // Row-scoped hero tag; see [HoverPosterArt.heroTag]. Home passes one so an
   // item that appears in several rows doesn't collide on a duplicate tag.
   final String? heroTag;
+
+  /// A locally-cached poster to show instead of the server image (used by the
+  /// offline Downloads library so covers render without the server).
+  final String? localPosterPath;
+
+  /// Whether the poster exposes the shared item context menu. Off for the
+  /// Downloads library, whose reconstructed items aren't full detail items.
+  final bool contextActions;
+
+  /// A custom menu opener (replaces the shared item menu). The Downloads library
+  /// passes one for its Play / Remove-download actions.
+  final VoidCallback? onMenu;
+
+  /// What the menu's "Show Details" runs; defaults to [onTap].
+  final VoidCallback? onOpenDetails;
   static const double width = 176;
 
-  const PosterCard({super.key, required this.item, this.onTap, this.heroTag});
+  const PosterCard({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.heroTag,
+    this.localPosterPath,
+    this.contextActions = true,
+    this.onMenu,
+    this.onOpenDetails,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -407,7 +452,27 @@ class PosterCard extends StatelessWidget {
           Flexible(
             child: AspectRatio(
               aspectRatio: 2 / 3,
-              child: HoverPosterArt(item: item, onTap: onTap, heroTag: heroTag),
+              child: HoverPosterArt(
+                item: item,
+                onTap: onTap,
+                heroTag: heroTag,
+                contextActions: contextActions,
+                onMenu: onMenu,
+                onOpenDetails: onOpenDetails,
+                art: localPosterPath == null
+                    ? null
+                    : Image.file(
+                        File(localPosterPath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, _, _) => Container(
+                          color: theme.colorScheme.surfaceContainerHighest,
+                          alignment: Alignment.center,
+                          child: Icon(Icons.movie_rounded,
+                              color: theme.colorScheme.onSurfaceVariant,
+                              size: 32),
+                        ),
+                      ),
+              ),
             ),
           ),
           const SizedBox(height: 8),

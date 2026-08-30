@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../services/settings_backup.dart';
+import '../state/radio.dart';
 
 /// Export/import of Fathom's own settings as a portable JSON file, selectable by
 /// group (everything checked by default). No passwords or API keys are included.
@@ -25,6 +26,7 @@ class BackupScreen extends ConsumerStatefulWidget {
 class _BackupScreenState extends ConsumerState<BackupScreen> {
   bool _busy = false;
   Set<String>? _exportGroups; // null until initialised from what's available
+  final Set<String> _everAvailable = {}; // groups seen available across rebuilds
 
   bool get _mobile => Platform.isAndroid || Platform.isIOS;
 
@@ -178,8 +180,18 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    // Radio (and server) groups load asynchronously from secure storage, so
+    // rebuild when they arrive and fold any newly-available group into the
+    // default selection. Otherwise a slow radio load silently drops saved
+    // stations from the export.
+    ref.watch(radioControllerProvider);
     final available = availableExportGroups(ref);
-    _exportGroups ??= {...available};
+    if (_exportGroups == null) {
+      _exportGroups = {...available};
+    } else {
+      _exportGroups!.addAll(available.difference(_everAvailable));
+    }
+    _everAvailable.addAll(available);
     final exportGroups = _exportGroups!;
     final orderedExport = backupGroups.where(available.contains).toList();
 

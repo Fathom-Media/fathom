@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
 import '../services/tv_mode.dart';
+import '../state/downloads.dart';
 import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import 'add_to_playlist.dart';
+import 'series_download_sheet.dart';
 import 'tv_focus.dart';
 
 /// The actions the shared context menu can return.
@@ -18,6 +20,8 @@ enum _ItemAction {
   toggleWatched,
   toggleFavorite,
   addToPlaylist,
+  download,
+  removeDownload,
   refresh,
   delete,
 }
@@ -45,6 +49,9 @@ Future<void> showItemActionsMenu(
   bool fromGrid = false,
   VoidCallback? onOpenDetails,
   VoidCallback? onDeleted,
+  // Overrides the stored kind for a download (e.g. 'Recording' when the item is
+  // reached from the recordings context), so it classifies correctly.
+  String? downloadAsType,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   final container = ProviderScope.containerOf(context, listen: false);
@@ -68,6 +75,25 @@ Future<void> showItemActionsMenu(
     case _ItemAction.addToPlaylist:
       await showAddToPlaylistSheet(context, ref,
           itemIds: [item.id], label: item.name);
+    case _ItemAction.download:
+      if (item.isSeries) {
+        // A series offers a scope choice (All / a season); everything else
+        // downloads directly.
+        await showSeriesDownloadSheet(context, item, asType: downloadAsType);
+      } else {
+        await container
+            .read(downloadsProvider.notifier)
+            .download(item, asType: downloadAsType);
+      }
+    case _ItemAction.removeDownload:
+      final downloads = container.read(downloadsProvider.notifier);
+      if (item.isSeries) {
+        await downloads.deleteSeries(item.id);
+      } else if (item.type == 'Season') {
+        await downloads.deleteSeason(item.seriesId ?? '', item.indexNumber);
+      } else {
+        await downloads.delete(item.id);
+      }
     case _ItemAction.toggleWatched:
       await _mutate(messenger, () async {
         final s = container.read(sessionControllerProvider).asData?.value;
@@ -205,6 +231,21 @@ class _ItemActionsSheet extends ConsumerWidget {
       item.type == 'Recording' ||
       item.type == 'TvChannel';
 
+  /// Downloadable for offline: a single video (movie/episode/recording), a whole
+  /// series/season (which queues its episodes), or music — a track, or an
+  /// album/artist (which queues its tracks). Live channels use their own flow.
+  bool get _isDownloadable =>
+      item.isEpisode ||
+      item.type == 'Movie' ||
+      item.type == 'Video' ||
+      item.type == 'MusicVideo' ||
+      item.type == 'Recording' ||
+      item.type == 'Audio' ||
+      item.type == 'MusicAlbum' ||
+      item.type == 'MusicArtist' ||
+      item.isSeries ||
+      item.type == 'Season';
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
@@ -274,6 +315,48 @@ class _ItemActionsSheet extends ConsumerWidget {
       label: l.detailAddToPlaylist,
       action: _ItemAction.addToPlaylist,
     );
+    if (_isDownloadable) {
+      final downloads =
+          ref.watch(downloadsProvider).asData?.value ?? const {};
+      final isFolder = item.isSeries || item.type == 'Season';
+      if (isFolder) {
+        // A series/season is a bulk action (each episode tracks its own state):
+        // always offer Download (adds/tops up), and offer Remove once any of its
+        // episodes are downloaded so the whole show can be cleared.
+        add(
+          icon: Icons.download_rounded,
+          label: l.detailDownload,
+          action: _ItemAction.download,
+        );
+        final hasDownloads = item.isSeries
+            ? downloads.values.any((e) => e.seriesId == item.id)
+            : downloads.values.any((e) =>
+                e.seriesId == item.seriesId &&
+                e.seasonNumber == item.indexNumber);
+        if (hasDownloads) {
+          add(
+            icon: Icons.download_done_rounded,
+            label: l.detailRemoveDownload,
+            action: _ItemAction.removeDownload,
+          );
+        }
+      } else {
+        final entry = downloads[item.id];
+        if (entry?.status == DownloadStatus.complete) {
+          add(
+            icon: Icons.download_done_rounded,
+            label: l.detailRemoveDownload,
+            action: _ItemAction.removeDownload,
+          );
+        } else if (entry == null || entry.status == DownloadStatus.failed) {
+          add(
+            icon: Icons.download_rounded,
+            label: l.detailDownload,
+            action: _ItemAction.download,
+          );
+        }
+      }
+    }
     if (canRefresh) {
       add(
         icon: Icons.refresh_rounded,

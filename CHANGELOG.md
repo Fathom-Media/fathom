@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.12.0
+
+### Added
+- Downloads is now a full offline library, organized into Movies, TV Shows, Recordings, and Music sections with the same poster covers and rating badges as your regular library. (#29)
+- Opening a downloaded title shows the same detail page as its library page (backdrop, cast, ratings, overview), scoped to what's downloaded: only the episodes you have, with local-only Play, Mark Watched, and Remove that never touch your Jellyfin server.
+- Download a whole series or season in one go, picking a scope (all episodes or a single season); every episode also has its own download option in its menu, and a floating pill shows progress with a Cancel All action. (#27)
+- Download music, a single track or a whole album/artist; it plays in the music player with the familiar album view, and works fully offline.
+- Download Live TV recordings; they land in their own Recordings section.
+- Change your own password from the Profile screen (current password, new password, confirm). Leaving the new password blank removes it, the same "no password" option the official Jellyfin clients offer.
+- Update checks now have a frequency setting (on/off, plus Every Launch, Daily, or Weekly) on the Updates screen.
+- Shuffle and repeat for background YouTube audio, plus skip back to the previous track.
+- Nix flake for Linux, so you can build and run Fathom with `nix build` / `nix run`. (thanks @numkem)
+
+### Changed
+- In a series, tapping an episode row opens its page. Tap the thumbnail or the play icon to play the episode directly. (#20, thanks @numkem)
+- YouTube live streams start in a couple of seconds instead of tens of seconds.
+- The Cast button reads "Cast" instead of "Cast to."
+- A new build is now announced with a redesigned floating banner and a native system notification on Linux and Android, instead of a passing in-app message.
+
+### Fixed
+- YouTube playback works again. Audio and video had been blocked by YouTube's "confirm you're not a bot" gate. Fathom now resolves streams through the VISIONOS client, which plays without it.
+- YouTube videos with multiple audio languages no longer default to a dubbed track. Fathom now picks the default (English) audio track instead of whichever has the highest bitrate. (#30, thanks @shiftyfox380)
+- Background YouTube audio no longer freezes on an unplayable track, and recovers from brief network drops instead of stalling on the next song.
+- Saved radio stations are no longer left out of settings backups.
+- Importing YouTube subscriptions on Android no longer greys out files from cloud storage providers like Drive, Nextcloud, and Proton. (#23)
+- The desktop window buttons (minimize, maximize, close) now hide when the YouTube player goes fullscreen on Windows and Linux.
+- Detail page action buttons expand on touch on Android again.
+- On Linux, settings and your Jellyfin login now persist on minimal desktops where the system keyring starts cold, such as Hyprland sessions. The app no longer returns to the setup screen on every launch. (#25, thanks @joejosephs)
+- In-app updates on Android work again. A change in how builds were numbered had Android rejecting a newer build as a downgrade, so the update failed part way through. Builds are now always numbered above the last, so updates install.
+- Duplicate "Fathom" launcher icons on Linux, when running the AppImage on GNOME, no longer appear. Fathom manages its own launcher entry and now tells AppImage integrators to stand down. (#28)
+
 ## 0.11.1
 
 ### Added
