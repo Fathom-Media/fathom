@@ -247,7 +247,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'Dev includes the latest pre-release test builds.';
 
   @override
-  String get updateAutoCheckLabel => 'Check on Startup';
+  String get updateAutoCheckLabel => 'Automatic Update Checks';
+
+  @override
+  String get updateFrequencyLabel => 'How Often';
+
+  @override
+  String get updateFrequencyLaunch => 'Every Launch';
+
+  @override
+  String get updateFrequencyDaily => 'Daily';
+
+  @override
+  String get updateFrequencyWeekly => 'Weekly';
 
   @override
   String get updateCheckNow => 'Check for Updates';
@@ -257,6 +269,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateUpToDate => 'You\'re on the latest version.';
+
+  @override
+  String get updateBannerAction => 'View';
+
+  @override
+  String get updateBannerCta => 'Tap to view what\'s new and install.';
+
+  @override
+  String get updateBannerDismiss => 'Dismiss update banner';
 
   @override
   String updateAvailableHeadline(String version) {
@@ -1136,6 +1157,38 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileRemovePhoto => 'Remove Photo';
 
   @override
+  String get profileChangePassword => 'Change Password';
+
+  @override
+  String get profileCurrentPassword => 'Current Password';
+
+  @override
+  String get profileNewPassword => 'New Password';
+
+  @override
+  String get profileConfirmPassword => 'Confirm New Password';
+
+  @override
+  String get profilePasswordMismatch => 'The new passwords don\'t match.';
+
+  @override
+  String get profileAdminNeedsPassword =>
+      'Administrator accounts must have a password and can\'t be left blank.';
+
+  @override
+  String get profileNoPasswordTitle => 'Remove Your Password?';
+
+  @override
+  String get profileNoPasswordBody =>
+      'Leaving the new password blank removes your password. Anyone with access to your account will be able to sign in without one.';
+
+  @override
+  String get profileNoPasswordConfirm => 'Remove Password';
+
+  @override
+  String get profilePasswordChanged => 'Password changed.';
+
+  @override
   String get accountTitle => 'Accounts';
 
   @override
@@ -1653,6 +1706,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get detailDownload => 'Download';
+
+  @override
+  String get downloadAll => 'Download All';
+
+  @override
+  String get downloadsTvShows => 'TV Shows';
+
+  @override
+  String get downloadsTracks => 'Tracks';
+
+  @override
+  String downloadEpisodeCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count episodes',
+      one: '1 episode',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get downloadsCancelAll => 'Cancel All';
+
+  @override
+  String get downloadsCancelAllConfirm => 'Cancel all downloads in progress?';
+
+  @override
+  String get downloadCancel => 'Cancel';
 
   @override
   String get detailDownloading => 'Downloading';
@@ -5101,6 +5183,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get castTo => 'Cast to';
 
   @override
+  String get castAction => 'Cast';
+
+  @override
   String get castSearching => 'Searching for devices…';
 
   @override
@@ -5173,7 +5258,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Move your app settings and server addresses between devices. Passwords and API keys are never exported, so you\'ll sign in again after importing.';
 
   @override
-  String get backupExportTitle => 'Export settings';
+  String get backupExportTitle => 'Export Settings';
 
   @override
   String get backupExportSub => 'Save your settings to a file.';
@@ -5190,7 +5275,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get backupImportTitle => 'Import settings';
+  String get backupImportTitle => 'Import Settings';
 
   @override
   String get backupImportSub =>
@@ -5239,7 +5324,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backupGroupGeneral => 'General';
 
   @override
-  String get backupGroupRadio => 'Internet radio';
+  String get backupGroupRadio => 'Internet Radio';
 
   @override
   String get backupGroupServers => 'Servers';

@@ -550,11 +550,35 @@ abstract class AppLocalizations {
   /// **'Dev includes the latest pre-release test builds.'**
   String get updateChannelHelp;
 
-  /// Toggle: automatically check for updates when the app starts.
+  /// Master toggle: automatically check for app updates.
   ///
   /// In en, this message translates to:
-  /// **'Check on Startup'**
+  /// **'Automatic Update Checks'**
   String get updateAutoCheckLabel;
+
+  /// Label above the update-check frequency picker.
+  ///
+  /// In en, this message translates to:
+  /// **'How Often'**
+  String get updateFrequencyLabel;
+
+  /// Update-check frequency: check each time the app starts.
+  ///
+  /// In en, this message translates to:
+  /// **'Every Launch'**
+  String get updateFrequencyLaunch;
+
+  /// Update-check frequency: at most once a day.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily'**
+  String get updateFrequencyDaily;
+
+  /// Update-check frequency: at most once a week.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly'**
+  String get updateFrequencyWeekly;
 
   /// Button that checks for updates immediately.
   ///
@@ -573,6 +597,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You\'re on the latest version.'**
   String get updateUpToDate;
+
+  /// Button on the update banner that opens the Updates screen.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get updateBannerAction;
+
+  /// Subtitle line on the update banner, below the headline.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to view what\'s new and install.'**
+  String get updateBannerCta;
+
+  /// Tooltip on the update banner's close button.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss update banner'**
+  String get updateBannerDismiss;
 
   /// Headline on the Updates screen when a newer release exists.
   ///
@@ -2164,6 +2206,66 @@ abstract class AppLocalizations {
   /// **'Remove Photo'**
   String get profileRemovePhoto;
 
+  /// Button and dialog title for the user changing their own password.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Password'**
+  String get profileChangePassword;
+
+  /// Field label for the user's existing password.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Password'**
+  String get profileCurrentPassword;
+
+  /// Field label for the new password.
+  ///
+  /// In en, this message translates to:
+  /// **'New Password'**
+  String get profileNewPassword;
+
+  /// Field label to re-enter the new password.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm New Password'**
+  String get profileConfirmPassword;
+
+  /// Error shown when the new password and its confirmation differ.
+  ///
+  /// In en, this message translates to:
+  /// **'The new passwords don\'t match.'**
+  String get profilePasswordMismatch;
+
+  /// Error shown when an administrator tries to set a blank password; the server does not allow this.
+  ///
+  /// In en, this message translates to:
+  /// **'Administrator accounts must have a password and can\'t be left blank.'**
+  String get profileAdminNeedsPassword;
+
+  /// Title of the confirmation dialog when the new password field is left blank.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Your Password?'**
+  String get profileNoPasswordTitle;
+
+  /// Body of the confirmation dialog when the new password field is left blank.
+  ///
+  /// In en, this message translates to:
+  /// **'Leaving the new password blank removes your password. Anyone with access to your account will be able to sign in without one.'**
+  String get profileNoPasswordBody;
+
+  /// Confirm button on the blank-password warning dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Password'**
+  String get profileNoPasswordConfirm;
+
+  /// Confirmation after the password is changed.
+  ///
+  /// In en, this message translates to:
+  /// **'Password changed.'**
+  String get profilePasswordChanged;
+
   /// AppBar title for the accounts (server/user switcher) screen.
   ///
   /// In en, this message translates to:
@@ -3117,6 +3219,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download'**
   String get detailDownload;
+
+  /// Row in the series download picker that downloads every episode.
+  ///
+  /// In en, this message translates to:
+  /// **'Download All'**
+  String get downloadAll;
+
+  /// TV Shows section header in the downloaded library.
+  ///
+  /// In en, this message translates to:
+  /// **'TV Shows'**
+  String get downloadsTvShows;
+
+  /// Header above a downloaded music album's track list.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracks'**
+  String get downloadsTracks;
+
+  /// Episode count under a downloaded show's poster.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 episode} other{{count} episodes}}'**
+  String downloadEpisodeCount(int count);
+
+  /// App bar action on the Downloads screen that cancels or removes every download.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel All'**
+  String get downloadsCancelAll;
+
+  /// Confirmation body when cancelling every in-progress download at once.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel all downloads in progress?'**
+  String get downloadsCancelAllConfirm;
+
+  /// Button to cancel an in-progress download (vs Remove for a finished one).
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get downloadCancel;
 
   /// Button label while a download is in progress.
   ///
@@ -9280,6 +9424,12 @@ abstract class AppLocalizations {
   /// **'Cast to'**
   String get castTo;
 
+  /// Label on the Cast button/pill that opens the device picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Cast'**
+  String get castAction;
+
   /// Shown while scanning for Chromecast devices.
   ///
   /// In en, this message translates to:
@@ -9409,7 +9559,7 @@ abstract class AppLocalizations {
   /// Action to export settings to a file.
   ///
   /// In en, this message translates to:
-  /// **'Export settings'**
+  /// **'Export Settings'**
   String get backupExportTitle;
 
   /// Export subtitle on desktop (save to a file).
@@ -9439,7 +9589,7 @@ abstract class AppLocalizations {
   /// Action to import settings from a file.
   ///
   /// In en, this message translates to:
-  /// **'Import settings'**
+  /// **'Import Settings'**
   String get backupImportTitle;
 
   /// Import subtitle.
@@ -9523,7 +9673,7 @@ abstract class AppLocalizations {
   /// Backup group: saved radio stations, groups, favorites.
   ///
   /// In en, this message translates to:
-  /// **'Internet radio'**
+  /// **'Internet Radio'**
   String get backupGroupRadio;
 
   /// Backup group: server addresses and username.

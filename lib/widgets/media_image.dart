@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/base_item.dart';
+import '../state/downloads.dart';
 import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
@@ -42,8 +45,11 @@ class MediaImage extends ConsumerWidget {
   ({String itemId, String type, String? tag})? _pick() {
     if (landscape) {
       // Episode "Primary" is a landscape still — ideal for Continue Watching.
-      if (item.isEpisode && item.primaryImageTag != null) {
-        return (itemId: item.id, type: 'Primary', tag: item.primaryImageTag!);
+      // The tag is optional: Jellyfin serves the still by id, so a downloaded
+      // episode whose tag we didn't capture still loads it online (a missing
+      // image just 404s to the placeholder).
+      if (item.isEpisode) {
+        return (itemId: item.id, type: 'Primary', tag: item.primaryImageTag);
       }
       if (item.backdropImageTags.isNotEmpty) {
         return (
@@ -81,14 +87,47 @@ class MediaImage extends ConsumerWidget {
     return null;
   }
 
+  /// The relative path of a locally cached copy of this art, when the item is
+  /// downloaded (poster / backdrop / episode still). Consulted offline and as a
+  /// fallback when the network image fails.
+  String? _localRel() {
+    if (landscape) {
+      if (item.isEpisode) return 'episodes/${item.id}.jpg';
+      return 'backdrops/${item.id}.jpg';
+    }
+    // A track's cover is its album art, cached under the album id.
+    if ((item.type == 'Audio' || item.type == 'MusicVideo') &&
+        item.albumId != null) {
+      return 'posters/${item.albumId}.jpg';
+    }
+    final key =
+        (item.isEpisode && item.seriesId != null) ? item.seriesId! : item.id;
+    return 'posters/$key.jpg';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionControllerProvider).asData?.value;
     final client = ref.watch(jellyfinClientProvider);
     final headers = ref.watch(imageHeadersProvider);
+    final cache = ref.watch(downloadImageCacheProvider);
+    final rel = _localRel();
+    final File? local = rel == null ? null : cache?.file(rel);
+
+    Widget fileOrPlaceholder(BuildContext context) => local != null
+        ? Image.file(
+            local,
+            fit: BoxFit.cover,
+            alignment: alignment,
+            filterQuality: filterQuality,
+            errorBuilder: (context, _, _) => _placeholder(context),
+          )
+        : _placeholder(context);
 
     final pick = _pick();
-    if (session == null || pick == null) return _placeholder(context);
+    // Offline (or no server-side image known): use the downloaded copy if we
+    // cached one, else the placeholder.
+    if (session == null || pick == null) return fileOrPlaceholder(context);
 
     final url = client.imageUrl(
       baseUrl: session.baseUrl,
@@ -105,7 +144,7 @@ class MediaImage extends ConsumerWidget {
       alignment: alignment,
       headers: headers,
       filterQuality: filterQuality,
-      errorBuilder: (context) => _placeholder(context),
+      errorBuilder: fileOrPlaceholder,
     );
   }
 

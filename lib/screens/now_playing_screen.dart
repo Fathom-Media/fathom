@@ -1552,11 +1552,17 @@ class _YoutubeNowPlaying extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        icon: const Icon(Icons.shuffle_rounded),
+                        isSelected: audio.shuffle,
+                        color: audio.shuffle ? scheme.primary : null,
+                        onPressed: controller.toggleShuffle,
+                      ),
+                      IconButton(
                         iconSize: 36,
                         icon: const Icon(Icons.skip_previous_rounded),
                         onPressed: controller.previous,
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       StreamBuilder<bool>(
                         stream: player.stream.playing,
                         initialData: player.state.playing,
@@ -1571,11 +1577,21 @@ class _YoutubeNowPlaying extends ConsumerWidget {
                           );
                         },
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       IconButton(
                         iconSize: 36,
                         icon: const Icon(Icons.skip_next_rounded),
                         onPressed: controller.next,
+                      ),
+                      IconButton(
+                        icon: Icon(audio.repeat == PlaylistMode.single
+                            ? Icons.repeat_one_rounded
+                            : Icons.repeat_rounded),
+                        isSelected: audio.repeat != PlaylistMode.none,
+                        color: audio.repeat != PlaylistMode.none
+                            ? scheme.primary
+                            : null,
+                        onPressed: controller.cycleRepeat,
                       ),
                     ],
                   ),

@@ -476,6 +476,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: '/downloads',
               pageBuilder: (_, _) => _fadePage(const DownloadsScreen())),
           GoRoute(
+              path: '/downloads/detail',
+              pageBuilder: (context, state) => _fadePage(
+                  DownloadDetailScreen(itemKey: state.extra as String))),
+          GoRoute(
               path: '/notifications',
               pageBuilder: (_, _) => _fadePage(const NotificationsScreen())),
           GoRoute(
