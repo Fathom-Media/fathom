@@ -6,6 +6,11 @@
 
 **Dive into your media.**
 
+[![Latest release](https://img.shields.io/github/v/release/Fathom-Media/fathom)](https://github.com/Fathom-Media/fathom/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Fathom-Media/fathom/total)](https://github.com/Fathom-Media/fathom/releases)
+[![Stars](https://img.shields.io/github/stars/Fathom-Media/fathom)](https://github.com/Fathom-Media/fathom/stargazers)
+[![License](https://img.shields.io/github/license/Fathom-Media/fathom?color=blue)](https://github.com/Fathom-Media/fathom/blob/main/LICENSE)
+
 Fathom is an all-in-one client for [Jellyfin](https://jellyfin.org), on desktop and Android. It brings your whole setup into one window: movies, shows, music, and Live TV, plus most of Jellyfin's server-side management, so you rarely need the web dashboard. Two optional integrations, [Seerr](features.md#requests-ratings-and-watch-together) requests and a full [YouTube](youtube.md) client, live right inside the app.
 
 Everything plays through mpv (via [media_kit](https://github.com/media-kit/media-kit) / libmpv), so you get direct play, hardware decoding, and real subtitle and audio track control.
