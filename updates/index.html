@@ -848,7 +848,7 @@
 
 <h1 id="updates-and-channels">Updates and channels<a class="headerlink" href="#updates-and-channels" title="Permanent link">&para;</a></h1>
 <p>Fathom updates itself. On Linux it swaps the AppImage in place and relaunches; on Windows it replaces the portable build and relaunches; on Android it downloads the APK and hands it to the system installer (you confirm the prompt, granting "install unknown apps" the first time). You can also just download a newer build from <a href="https://github.com/Fathom-Media/fathom/releases">Releases</a> at any time.</p>
-<p>Open <strong>Settings → Updates</strong> to check manually, choose a channel, and toggle checking on startup.</p>
+<p>Open <strong>Settings → Updates</strong> to check manually, choose a channel, and turn automatic checking on or off. When it is on, pick how often it checks: every launch, daily, or weekly (a daily or weekly check also runs in the background while the app stays open, so you do not have to relaunch to pick it up).</p>
 <h2 id="channels">Channels<a class="headerlink" href="#channels" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -860,7 +860,7 @@
 <tbody>
 <tr>
 <td><strong>Stable</strong></td>
-<td>Only full releases (for example <code>0.10.0</code>). The default.</td>
+<td>Only full releases (for example <code>0.12.0</code>). The default.</td>
 </tr>
 <tr>
 <td><strong>Dev</strong></td>
@@ -868,11 +868,11 @@
 </tr>
 </tbody>
 </table>
-<p>The updater always offers the newest version for your channel and downloads the build that matches your platform and CPU architecture automatically (x86_64 vs aarch64 on Linux; a universal APK on Android).</p>
+<p>The updater always offers the newest version for your channel and downloads the build that matches your platform and CPU architecture automatically (x86_64 vs aarch64 on Linux; a universal APK on Android). When a new build is found, Fathom shows a dismissible banner and, on Linux and Android, a native system notification.</p>
 <h2 id="how-versions-work">How versions work<a class="headerlink" href="#how-versions-work" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Stable releases</strong> are plain versions like <code>0.10.0</code>.</li>
-<li><strong>Dev builds</strong> are pre-releases named <code>0.11.0-dev01</code>, <code>0.11.0-dev02</code>, and so on. The Dev channel tracks these in order and rolls you onto the next stable release when it lands.</li>
+<li><strong>Stable releases</strong> are plain versions like <code>0.12.0</code>.</li>
+<li><strong>Dev builds</strong> are pre-releases named <code>0.12.0-dev01</code>, <code>0.12.0-dev02</code>, and so on. The Dev channel tracks these in order and rolls you onto the next stable release when it lands.</li>
 <li>A floating <strong><code>dev-latest</code></strong> pre-release always points at the newest dev build, as a stable download link. The in-app updater tracks the numbered builds, not this alias.</li>
 </ul>
 <div class="admonition note">
@@ -901,7 +901,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 31, 2026 02:52:46 UTC">August 31, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="August 31, 2026 02:57:33 UTC">August 31, 2026</span>
   </span>
 
     
