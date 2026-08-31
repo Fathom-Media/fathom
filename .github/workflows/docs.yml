@@ -38,4 +38,10 @@ jobs:
           git config user.name "thebigjoe1"
           git config user.email "26659217+thebigjoe1@users.noreply.github.com"
       - name: Build and publish to gh-pages
+        # GITHUB_TOKEN lets mkdocs-material authenticate its repo stats (stars/
+        # forks) fetch; without it the unauthenticated call hits GitHub's low
+        # per-IP rate limit on shared Actions runners and silently degrades to
+        # showing the repo name with no counts.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mkdocs gh-deploy --force --strict
