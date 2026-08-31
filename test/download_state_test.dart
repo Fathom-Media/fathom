@@ -3,31 +3,29 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fathom/models/youtube_video.dart';
-import 'package:fathom/services/resilient_secure_storage.dart';
 import 'package:fathom/services/youtube_download.dart';
 import 'package:fathom/state/providers.dart';
 import 'package:fathom/state/youtube_providers.dart';
 
-class _FakeStorage implements ResilientSecureStorage {
+class _FakeStorage implements FlutterSecureStorage {
   final Map<String, String> store = {};
   @override
-  Future<String?> read({required String key}) async {
+  Future<String?> read({required String key, dynamic iOptions, dynamic aOptions, dynamic lOptions, dynamic webOptions, dynamic mOptions, dynamic wOptions}) async {
     // Storage is slow in reality (a keyring round-trip). The delay is the
     // point: it makes build() finish after start() has already set state.
     await Future<void>.delayed(const Duration(milliseconds: 50));
     return store[key];
   }
   @override
-  Future<void> write({required String key, required String value}) async {
-    store[key] = value;
+  Future<void> write({required String key, required String? value, dynamic iOptions, dynamic aOptions, dynamic lOptions, dynamic webOptions, dynamic mOptions, dynamic wOptions}) async {
+    if (value != null) store[key] = value;
   }
   @override
-  Future<void> delete({required String key}) async {
-    store.remove(key);
-  }
+  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
 /// Never finishes, so the download stays "in progress" like a real one.

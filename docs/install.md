@@ -39,7 +39,7 @@ Download **`Fathom-windows-x64.zip`**, extract it, and run `fathom.exe`. It is s
 
 ## Android
 
-Download the APK from [Releases](https://github.com/Fathom-Media/fathom/releases) (named like `Fathom-0.12.0.apk`) and open it. Android asks you to allow installing unknown apps the first time; grant it and confirm. Fathom runs on phones and tablets, and on Android TV, where the interface is D-pad friendly. Android TV support is experimental for now and still being refined.
+Download the APK from [Releases](https://github.com/Fathom-Media/fathom/releases) (named like `Fathom-0.11.0.apk`) and open it. Android asks you to allow installing unknown apps the first time; grant it and confirm. Fathom runs on phones and tablets, and on Android TV, where the interface is D-pad friendly. Android TV support is experimental for now and still being refined.
 
 After that, Fathom keeps itself up to date from **Settings → Updates**: it downloads the new APK and hands it to the system installer for you to confirm. Pick the **Dev** channel there if you want the pre-release test builds.
 
