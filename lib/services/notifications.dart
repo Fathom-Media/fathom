@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Thin wrapper over flutter_local_notifications for system notifications
@@ -12,32 +10,16 @@ class AppNotifications {
   static int _id = 100;
 
   static Future<void> init() async {
-    // On Linux, the plugin subscribes to a D-Bus signal stream as part of
-    // initialize(); when there's no session bus reachable at all (Steam Big
-    // Picture / gamescope, some minimal window managers — the same class of
-    // environment as issue #32), that subscription throws from inside a
-    // broadcast stream controller's listen callback, which escapes a normal
-    // try/catch around the await entirely. runZonedGuarded is the only way to
-    // catch that and keep notification init the best-effort it's meant to be.
-    final completer = Completer<void>();
-    runZonedGuarded(() async {
-      try {
-        const settings = InitializationSettings(
-          linux: LinuxInitializationSettings(defaultActionName: 'Open'),
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-        );
-        await _plugin.initialize(settings);
-        _ready = true;
-      } catch (_) {
-        _ready = false;
-      } finally {
-        if (!completer.isCompleted) completer.complete();
-      }
-    }, (error, stack) {
+    try {
+      const settings = InitializationSettings(
+        linux: LinuxInitializationSettings(defaultActionName: 'Open'),
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      );
+      await _plugin.initialize(settings);
+      _ready = true;
+    } catch (_) {
       _ready = false;
-      if (!completer.isCompleted) completer.complete();
-    });
-    return completer.future;
+    }
   }
 
   /// Ask for the Android 13+ runtime notification permission. Without it, every
