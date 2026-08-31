@@ -59,6 +59,11 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
   final Set<int> _selectedSeasons = {};
   String? _backdropUrl;
 
+  // A per-user (Jellyfin/local) sign-in: the "request as" admin override
+  // doesn't apply and must never be sent (see the note in _load).
+  bool get _isCookieMode =>
+      ref.read(preferencesProvider).asData?.value.seerrAuthMode == 'cookie';
+
   bool get _isTv => widget.result.mediaType == 'tv';
   List<SeerrSeason> get _requestable =>
       _seasons.where((s) => !s.isAvailable && !s.isRequested).toList();
@@ -82,8 +87,15 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
       return;
     }
     try {
+      // "Request as another user" is an admin-only Jellyseerr feature: the
+      // /user list endpoint needs admin permissions, and the request endpoint
+      // rejects a userId field from a plain per-user session even when it
+      // matches the caller's own id ("needs an api key"). So a signed-in
+      // (cookie) user never sees or sends this — the server already attributes
+      // the request to them from the session. Only the admin API key mode
+      // fetches the user list and offers the picker.
       final results = await Future.wait([
-        client.requestUsers(),
+        _isCookieMode ? Future.value(<SeerrUser>[]) : client.requestUsers(),
         client.servers(widget.result.mediaType),
         if (_isTv)
           client
@@ -103,7 +115,7 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
       setState(() {
         _users = users;
         _servers = servers;
-        _userId = users.isNotEmpty ? users.first.id : null;
+        _userId = (!_isCookieMode && users.isNotEmpty) ? users.first.id : null;
         _serverId = server?.id;
         _opts = opts;
         _applyDefaults();
@@ -185,7 +197,11 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
         profileId: _profileId,
         rootFolder: rootFolder,
         languageProfileId: _isTv ? _languageProfileId : null,
-        userId: _userId,
+        // Never sent for a signed-in (cookie) user: Jellyseerr treats userId as
+        // an admin override and rejects it from a per-user session even when
+        // it's their own id, so the server attributes the request to them
+        // from the session instead.
+        userId: _isCookieMode ? null : _userId,
         tags: _selectedTags.toList(),
       );
       if (mounted) Navigator.pop(context, true);
@@ -290,9 +306,7 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
     final scheme = theme.colorScheme;
     final serverOptions = _serversForMode;
     // The admin API key auto-approves; a signed-in user follows their perms.
-    final autoApproves = ref.read(preferencesProvider).asData?.value
-            .seerrAuthMode !=
-        'cookie';
+    final autoApproves = !_isCookieMode;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
