@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:uuid/uuid.dart';
 import 'package:window_manager/window_manager.dart';
@@ -18,6 +17,7 @@ import 'services/app_installer.dart';
 import 'services/desktop_integration.dart';
 import 'services/diagnostics.dart';
 import 'services/notifications.dart';
+import 'services/resilient_secure_storage.dart';
 import 'state/audio_handler.dart';
 import 'state/providers.dart';
 
@@ -100,7 +100,7 @@ Future<void> main() async {
   // sit in storage. Fire-and-forget — never blocks launch.
   unawaited(cleanUpdateArtifacts());
 
-  const storage = FlutterSecureStorage();
+  const storage = ResilientSecureStorage();
   final deviceId = await _getOrCreateDeviceId(storage);
 
   // Mobile-only: bring up the OS media session for background music + a
@@ -153,7 +153,7 @@ Future<void> main() async {
   );
 }
 
-Future<String> _getOrCreateDeviceId(FlutterSecureStorage storage) async {
+Future<String> _getOrCreateDeviceId(ResilientSecureStorage storage) async {
   const key = 'fathom_device_id';
   var id = await storage.read(key: key);
   if (id == null || id.isEmpty) {
