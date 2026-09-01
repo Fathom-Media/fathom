@@ -5,9 +5,7 @@ import 'package:dio/dio.dart';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart' hide Video;
-import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yte
-    show Video;
+import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import '../l10n/l10n.dart';
 import '../models/youtube_channel.dart';
@@ -32,24 +30,14 @@ import 'providers.dart';
 final youtubeEnabledProvider = Provider<bool>((ref) =>
     ref.watch(preferencesProvider).asData?.value.youtubeEnabled ?? false);
 
-/// A shared extractor client, closed with the provider.
+/// A shared extractor client, closed with the provider. Used only for
+/// search-suggestion lookups now; the What's New feed and channel listings go
+/// through InnerTube directly (see [YoutubeInnerTube]).
 final youtubeClientProvider = Provider<YoutubeExplode>((ref) {
   final yt = YoutubeExplode();
   ref.onDispose(yt.close);
   return yt;
 });
-
-YoutubeVideo _toVideo(yte.Video v) => YoutubeVideo(
-      id: v.id.value,
-      title: v.title,
-      author: v.author,
-      channelId: v.channelId.value,
-      url: v.url,
-      thumbnailUrl: v.thumbnails.mediumResUrl,
-      duration: v.duration,
-      viewCount: v.engagement.viewCount,
-      uploadDate: v.uploadDate ?? v.publishDate,
-    );
 
 /// Search and the watch page go through InnerTube directly (see
 /// [YoutubeInnerTube]); the library's own search parser crashes on any result
@@ -416,64 +404,6 @@ final youtubeQueryProvider =
     NotifierProvider<YoutubeQuery, String>(YoutubeQuery.new);
 
 
-/// Hydrated video metadata, kept by id so the What's New feed doesn't refetch a
-/// video it has already filled in. Module-level on purpose: the feed provider is
-/// autoDispose and is thrown away every time you leave the tab, so an instance
-/// cache would buy nothing. A video's title/duration/views/date barely move, so
-/// entries stay usable for [_feedVideoTtl]; the uploads list is still fetched
-/// fresh every build, so new uploads always appear and a refresh still refreshes.
-final Map<String, ({YoutubeVideo video, DateTime at})> _feedVideoCache = {};
-const Duration _feedVideoTtl = Duration(hours: 6);
-
-/// Channel upload listings come back with valid video ids but no metadata
-/// (no title, duration, views or date), so each missing one is fetched in
-/// parallel to fill it in. Anything already hydrated within the TTL is served
-/// from [_feedVideoCache], which is what makes reopening the tab fast while
-/// keeping the full detail. Failures are dropped rather than sinking the list.
-Future<List<YoutubeVideo>> _hydrate(
-    YoutubeExplode yt, Iterable<String> ids) async {
-  final now = DateTime.now();
-  final have = <String, YoutubeVideo>{};
-  final missing = <String>[];
-  for (final id in ids) {
-    final cached = _feedVideoCache[id];
-    if (cached != null && now.difference(cached.at) < _feedVideoTtl) {
-      have[id] = cached.video;
-    } else {
-      missing.add(id);
-    }
-  }
-  if (missing.isNotEmpty) {
-    // Drop stale entries before growing, so a long session can't leak memory.
-    if (_feedVideoCache.length > 1000) {
-      _feedVideoCache
-          .removeWhere((_, e) => now.difference(e.at) >= _feedVideoTtl);
-    }
-    // Fetch in bounded batches. Firing every request at once trips YouTube's
-    // rate limiter, which leaves the calls stuck with no reply — that's what
-    // pinned the feed on skeletons. A per-request deadline means one stuck fetch
-    // is dropped instead of stalling the whole feed.
-    const batchSize = 10;
-    for (var i = 0; i < missing.length; i += batchSize) {
-      final fetched = await Future.wait([
-        for (final id in missing.skip(i).take(batchSize))
-          yt.videos
-              .get(VideoId(id))
-              .then<yte.Video?>((v) => v)
-              .timeout(const Duration(seconds: 10), onTimeout: () => null)
-              .catchError((_) => null),
-      ]);
-      for (final v in fetched.whereType<yte.Video>()) {
-        final yv = _toVideo(v);
-        _feedVideoCache[yv.id] = (video: yv, at: now);
-        have[yv.id] = yv;
-      }
-    }
-  }
-  // Preserve the caller's id order; drop ids whose fetch failed.
-  return [for (final id in ids) if (have[id] != null) have[id]!];
-}
-
 /// A paged list of videos (channel uploads), with more available on demand.
 class YoutubeUploads {
   final List<YoutubeVideo> videos;
@@ -807,7 +737,6 @@ class YoutubeFeed extends AsyncNotifier<YoutubeFeedState> {
 
     _pages.clear();
     if (subs.isEmpty) return const YoutubeFeedState();
-    final yt = ref.watch(youtubeClientProvider);
     final inner = ref.watch(youtubeInnerTubeProvider);
 
     // Each channel's recent uploads via one small InnerTube browse request (the
@@ -821,20 +750,52 @@ class YoutubeFeed extends AsyncNotifier<YoutubeFeedState> {
             .then<(String, YtChannelTab?)>((t) => (c.id, t))
             .catchError((_) => (c.id, null)),
     ]);
-    final ids = <String>[];
+    final videos = <YoutubeVideo>[];
     for (final (channelId, tab) in results) {
       if (tab == null) continue;
       final token = tab.continuation;
       if (token != null) _pages[channelId] = token;
-      ids.addAll(tab.videos.take(_perChannel).map((v) => v.id));
+      videos.addAll(tab.videos.take(_perChannel));
     }
-    // Hydrate for exact upload dates (cached) so the merged order stays precise:
-    // the InnerTube list carries only relative "2 days ago" labels.
+    // The merged order needs a real date to sort by, but the listing only
+    // carries a relative label ("2 days ago"); previously that meant fetching
+    // every single video individually (yt.videos.get) just for its exact
+    // timestamp. With enough subscriptions that was hundreds of requests,
+    // which is what made the feed take minutes and sometimes return empty
+    // when YouTube's rate limiter stalled them (issue #38). Approximating the
+    // date from the label itself, with no network call, is the fix: sort
+    // order is close enough for a merged feed, and the feed now loads exactly
+    // as fast as the channel listing calls above.
     return YoutubeFeedState(
-      videos: _sorted(await _hydrate(yt, ids)),
+      videos: _sorted(_withApproximateDates(videos)),
       hasMore: _pages.isNotEmpty,
     );
   }
+
+  List<YoutubeVideo> _withApproximateDates(List<YoutubeVideo> videos) {
+    final now = DateTime.now();
+    return [
+      for (final v in videos)
+        v.uploadDate != null
+            ? v
+            : _copyWithDate(
+                v, YoutubeVideo.approximateUploadDate(v.uploadedLabel, now)),
+    ];
+  }
+
+  YoutubeVideo _copyWithDate(YoutubeVideo v, DateTime? date) => YoutubeVideo(
+        id: v.id,
+        title: v.title,
+        author: v.author,
+        channelId: v.channelId,
+        url: v.url,
+        thumbnailUrl: v.thumbnailUrl,
+        duration: v.duration,
+        viewCount: v.viewCount,
+        uploadDate: date,
+        uploadedLabel: v.uploadedLabel,
+        isShort: v.isShort,
+      );
 
   /// Newest first; undated uploads (live streams, mostly) sink to the bottom
   /// rather than claiming the top.
@@ -854,7 +815,6 @@ class YoutubeFeed extends AsyncNotifier<YoutubeFeedState> {
     final current = state.asData?.value;
     if (current == null || current.loadingMore || !current.hasMore) return;
     state = AsyncData(current.copyWith(loadingMore: true));
-    final yt = ref.read(youtubeClientProvider);
     final inner = ref.read(youtubeInnerTubeProvider);
     try {
       // Advance every channel that still has a continuation. Uploads come back
@@ -867,7 +827,7 @@ class YoutubeFeed extends AsyncNotifier<YoutubeFeedState> {
               .then<(String, YtChannelTab?)>((t) => (entry.key, t))
               .catchError((_) => (entry.key, null)),
       ]);
-      final ids = <String>[];
+      final videos = <YoutubeVideo>[];
       for (final (channelId, tab) in next) {
         if (tab == null || tab.videos.isEmpty) {
           _pages.remove(channelId);
@@ -879,9 +839,9 @@ class YoutubeFeed extends AsyncNotifier<YoutubeFeedState> {
         } else {
           _pages.remove(channelId);
         }
-        ids.addAll(tab.videos.take(_perChannel).map((v) => v.id));
+        videos.addAll(tab.videos.take(_perChannel));
       }
-      final more = await _hydrate(yt, ids);
+      final more = _withApproximateDates(videos);
       // Guard against a channel handing back a page it already gave us.
       final seen = {for (final v in current.videos) v.id};
       state = AsyncData(YoutubeFeedState(

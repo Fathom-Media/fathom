@@ -68,6 +68,39 @@ class YoutubeVideo {
     return l.miscJustNow;
   }
 
+  /// Approximates [uploadDate] from an English `uploadedLabel` like "2 days
+  /// ago" or "Streamed 3 weeks ago", with no network call. Used to sort a
+  /// merged multi-channel feed without paying for a per-video fetch just to
+  /// get an exact timestamp (issue #38: with many subscriptions, hydrating
+  /// every video individually took minutes and sometimes timed out to an
+  /// empty feed). Null if the label doesn't match (a non-English YouTube
+  /// content language, or an unrecognized format) — callers already treat a
+  /// null upload date as "sink to the bottom", the same as today.
+  static DateTime? approximateUploadDate(String? label, DateTime now) {
+    if (label == null || label.isEmpty) return null;
+    final match = RegExp(
+      r'(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago',
+      caseSensitive: false,
+    ).firstMatch(label);
+    if (match == null) return null;
+    final n = int.tryParse(match.group(1)!);
+    if (n == null) return null;
+    final unit = match.group(2)!.toLowerCase();
+    final duration = switch (unit) {
+      'second' => Duration(seconds: n),
+      'minute' => Duration(minutes: n),
+      'hour' => Duration(hours: n),
+      'day' => Duration(days: n),
+      'week' => Duration(days: n * 7),
+      // Approximate; good enough for cross-channel sort order, not meant to
+      // be an authoritative timestamp.
+      'month' => Duration(days: n * 30),
+      'year' => Duration(days: n * 365),
+      _ => null,
+    };
+    return duration == null ? null : now.subtract(duration);
+  }
+
   String viewsLabel(AppLocalizations l) {
     final v = viewCount;
     if (v == null || v <= 0) return '';
