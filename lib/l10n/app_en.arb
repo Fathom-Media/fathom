@@ -1309,6 +1309,14 @@
   "@prefsDefault": {
     "description": "Shown when a download folder uses the default location."
   },
+  "prefsDownloadLocation": "Download Location",
+  "@prefsDownloadLocation": {
+    "description": "List tile title: where downloaded Jellyfin media (movies, shows, music, recordings) is saved."
+  },
+  "prefsDownloadLocationPick": "Choose Download Location",
+  "@prefsDownloadLocationPick": {
+    "description": "Directory-picker dialog title for the Jellyfin download location."
+  },
   "prefsSbSkip": "Skip Sponsor Segments",
   "@prefsSbSkip": {
     "description": "SponsorBlock toggle title: skip sponsor segments."
@@ -2090,6 +2098,14 @@
   "@detailRemoveFavorite": {
     "description": "Tooltip: remove this item from favorites."
   },
+  "detailAddToWatchlist": "Add to Watchlist",
+  "@detailAddToWatchlist": {
+    "description": "Tooltip/menu row: add this item to the Watchlist."
+  },
+  "detailRemoveFromWatchlist": "Remove from Watchlist",
+  "@detailRemoveFromWatchlist": {
+    "description": "Tooltip/menu row: remove this item from the Watchlist."
+  },
   "detailSeries": "Series",
   "@detailSeries": {
     "description": "Media type label for a TV series."
@@ -2795,6 +2811,10 @@
   "@browseFavorites": {
     "description": "Favorites screen title, browse-bar link, and library filter chip."
   },
+  "browseWatchlist": "Watchlist",
+  "@browseWatchlist": {
+    "description": "Watchlist screen title and nav destination label."
+  },
   "browsePlaylists": "Playlists",
   "@browsePlaylists": {
     "description": "Browse-bar link to playlists."
@@ -2944,6 +2964,10 @@
   "browseNoFavorites": "No favorites yet",
   "@browseNoFavorites": {
     "description": "Empty state: the user has no favorites."
+  },
+  "browseNoWatchlist": "Your watchlist is empty",
+  "@browseNoWatchlist": {
+    "description": "Empty state: the user's Watchlist has nothing in it yet."
   },
   "browseLibraryEmpty": "This library is empty",
   "@browseLibraryEmpty": {
@@ -4300,6 +4324,10 @@
   "appNavFavorites": "Favorites",
   "@appNavFavorites": {
     "description": "Navigation rail label for the Favorites section."
+  },
+  "appNavWatchlist": "Watchlist",
+  "@appNavWatchlist": {
+    "description": "Navigation rail label for the Watchlist section."
   },
   "appNavLiveTv": "Live TV",
   "@appNavLiveTv": {
@@ -6234,6 +6262,10 @@
   "searchImageCache": "Image Cache",
   "@searchImageCache": {
     "description": "Settings search result title: image cache storage / clear cache."
+  },
+  "searchDownloadLocation": "Download Location",
+  "@searchDownloadLocation": {
+    "description": "Settings search result title: where downloaded Jellyfin media is saved."
   },
   "searchTheme": "Theme",
   "@searchTheme": {

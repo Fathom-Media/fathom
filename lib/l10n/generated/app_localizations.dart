@@ -2116,6 +2116,18 @@ abstract class AppLocalizations {
   /// **'Default'**
   String get prefsDefault;
 
+  /// List tile title: where downloaded Jellyfin media (movies, shows, music, recordings) is saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Download Location'**
+  String get prefsDownloadLocation;
+
+  /// Directory-picker dialog title for the Jellyfin download location.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Download Location'**
+  String get prefsDownloadLocationPick;
+
   /// SponsorBlock toggle title: skip sponsor segments.
   ///
   /// In en, this message translates to:
@@ -3178,6 +3190,18 @@ abstract class AppLocalizations {
   /// **'Remove Favorite'**
   String get detailRemoveFavorite;
 
+  /// Tooltip/menu row: add this item to the Watchlist.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to Watchlist'**
+  String get detailAddToWatchlist;
+
+  /// Tooltip/menu row: remove this item from the Watchlist.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Watchlist'**
+  String get detailRemoveFromWatchlist;
+
   /// Media type label for a TV series.
   ///
   /// In en, this message translates to:
@@ -4018,6 +4042,12 @@ abstract class AppLocalizations {
   /// **'Favorites'**
   String get browseFavorites;
 
+  /// Watchlist screen title and nav destination label.
+  ///
+  /// In en, this message translates to:
+  /// **'Watchlist'**
+  String get browseWatchlist;
+
   /// Browse-bar link to playlists.
   ///
   /// In en, this message translates to:
@@ -4227,6 +4257,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No favorites yet'**
   String get browseNoFavorites;
+
+  /// Empty state: the user's Watchlist has nothing in it yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Your watchlist is empty'**
+  String get browseNoWatchlist;
 
   /// Empty state: the library has no items.
   ///
@@ -5973,6 +6009,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Favorites'**
   String get appNavFavorites;
+
+  /// Navigation rail label for the Watchlist section.
+  ///
+  /// In en, this message translates to:
+  /// **'Watchlist'**
+  String get appNavWatchlist;
 
   /// Navigation rail label for the Live TV section.
   ///
@@ -8709,6 +8751,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Image Cache'**
   String get searchImageCache;
+
+  /// Settings search result title: where downloaded Jellyfin media is saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Download Location'**
+  String get searchDownloadLocation;
 
   /// Settings search result title: app theme (dark/light/system).
   ///

@@ -1108,6 +1108,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsDefault => 'Default';
 
   @override
+  String get prefsDownloadLocation => 'Download Location';
+
+  @override
+  String get prefsDownloadLocationPick => 'Choose Download Location';
+
+  @override
   String get prefsSbSkip => 'Skip Sponsor Segments';
 
   @override
@@ -1683,6 +1689,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get detailRemoveFavorite => 'Remove Favorite';
 
   @override
+  String get detailAddToWatchlist => 'Add to Watchlist';
+
+  @override
+  String get detailRemoveFromWatchlist => 'Remove from Watchlist';
+
+  @override
   String get detailSeries => 'Series';
 
   @override
@@ -2176,6 +2188,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get browseFavorites => 'Favorites';
 
   @override
+  String get browseWatchlist => 'Watchlist';
+
+  @override
   String get browsePlaylists => 'Playlists';
 
   @override
@@ -2283,6 +2298,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get browseNoFavorites => 'No favorites yet';
+
+  @override
+  String get browseNoWatchlist => 'Your watchlist is empty';
 
   @override
   String get browseLibraryEmpty => 'This library is empty';
@@ -3316,6 +3334,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appNavFavorites => 'Favorites';
+
+  @override
+  String get appNavWatchlist => 'Watchlist';
 
   @override
   String get appNavLiveTv => 'Live TV';
@@ -4822,6 +4843,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchImageCache => 'Image Cache';
+
+  @override
+  String get searchDownloadLocation => 'Download Location';
 
   @override
   String get searchTheme => 'Theme';

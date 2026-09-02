@@ -205,6 +205,7 @@ class Prefs {
   /// music, and music belongs with music rather than mixed in with videos.
   final String youtubeVideoDownloadPath;
   final String youtubeAudioDownloadPath;
+  final String jellyfinDownloadPath;
 
   /// Quality offered first in the download sheet.
   final String youtubeDownloadQuality; // 'ask' | '2160'..'360' | 'audio' | 'mp3-320'..
@@ -361,6 +362,7 @@ class Prefs {
     this.youtubeRestrictedMode = false,
     this.youtubeVideoDownloadPath = '',
     this.youtubeAudioDownloadPath = '',
+    this.jellyfinDownloadPath = '',
     this.youtubeDownloadQuality = 'ask',
     this.youtubeVideoContainer = 'mp4',
     this.youtubeDownloadRetries = 3,
@@ -478,6 +480,7 @@ class Prefs {
     bool? youtubeRestrictedMode,
     String? youtubeVideoDownloadPath,
     String? youtubeAudioDownloadPath,
+    String? jellyfinDownloadPath,
     String? youtubeDownloadQuality,
     String? youtubeVideoContainer,
     int? youtubeDownloadRetries,
@@ -602,6 +605,7 @@ class Prefs {
             youtubeVideoDownloadPath ?? this.youtubeVideoDownloadPath,
         youtubeAudioDownloadPath:
             youtubeAudioDownloadPath ?? this.youtubeAudioDownloadPath,
+        jellyfinDownloadPath: jellyfinDownloadPath ?? this.jellyfinDownloadPath,
         youtubeDownloadQuality:
             youtubeDownloadQuality ?? this.youtubeDownloadQuality,
         youtubeVideoContainer:
@@ -725,6 +729,7 @@ class Prefs {
         'youtubeRestrictedMode': youtubeRestrictedMode,
         'youtubeVideoDownloadPath': youtubeVideoDownloadPath,
         'youtubeAudioDownloadPath': youtubeAudioDownloadPath,
+        'jellyfinDownloadPath': jellyfinDownloadPath,
         'youtubeDownloadQuality': youtubeDownloadQuality,
         'youtubeVideoContainer': youtubeVideoContainer,
         'youtubeDownloadRetries': youtubeDownloadRetries,
@@ -853,6 +858,7 @@ class Prefs {
             j['youtubeVideoDownloadPath'] as String? ?? '',
         youtubeAudioDownloadPath:
             j['youtubeAudioDownloadPath'] as String? ?? '',
+        jellyfinDownloadPath: j['jellyfinDownloadPath'] as String? ?? '',
         youtubeDownloadQuality: j['youtubeDownloadQuality'] as String? ?? 'ask',
         youtubeVideoContainer:
             j['youtubeVideoContainer'] as String? ?? 'mp4',

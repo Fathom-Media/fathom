@@ -166,13 +166,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => context.push('/preferences', extra: 'ratings'),
       ),
-      ListTile(
-        leading: _leading(context, Icons.keyboard_rounded),
-        title: Text(l.settingsShortcuts),
-        subtitle: Text(l.settingsShortcutsSubtitle),
-        trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: () => context.push('/shortcuts'),
-      ),
+      // Desktop only: a phone/tablet has no hardware keyboard to bind, and a
+      // TV remote's few buttons aren't rebindable keys either.
+      if (!Platform.isAndroid && !Platform.isIOS)
+        ListTile(
+          leading: _leading(context, Icons.keyboard_rounded),
+          title: Text(l.settingsShortcuts),
+          subtitle: Text(l.settingsShortcutsSubtitle),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => context.push('/shortcuts'),
+        ),
       const Divider(height: 24),
       _sectionLabel(context, l.settingsSectionIntegrations),
       ListTile(

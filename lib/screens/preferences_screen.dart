@@ -620,6 +620,7 @@ class PreferencesScreen extends ConsumerWidget {
         onChanged: (v) => c.edit((x) => x.copyWith(notifUpdates: v)),
       ),
       SettingsSectionHeader(l.prefsHeaderStorage),
+      const _JellyfinDownloadFolder(),
       const _StorageTile(),
     ];
   }
@@ -1392,6 +1393,51 @@ class _YoutubeDownloadFolders extends ConsumerWidget {
       row(l.prefsVideoFolder, p.youtubeVideoDownloadPath, false),
       row(l.prefsAudioFolder, p.youtubeAudioDownloadPath, true),
     ]);
+  }
+}
+
+/// Where downloaded Jellyfin media (movies, shows, music, recordings) is
+/// saved. Separate from the YouTube video/audio folders above: Jellyfin
+/// downloads are an offline library Fathom manages as a unit (art, ratings,
+/// and metadata cache all live alongside the media), so one location covers
+/// all of it, organized into Movies/TV Shows/Music/Recordings subfolders.
+/// Defaults to app-private storage, matching Netflix/Plex-style apps rather
+/// than the YouTube folders' real-Downloads-folder default.
+class _JellyfinDownloadFolder extends ConsumerWidget {
+  const _JellyfinDownloadFolder();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final p = ref.watch(preferencesProvider).asData?.value ?? const Prefs();
+    final c = ref.read(preferencesProvider.notifier);
+    final path = p.jellyfinDownloadPath;
+
+    Future<void> pick() async {
+      final dir = await FilePicker.platform
+          .getDirectoryPath(dialogTitle: l.prefsDownloadLocationPick);
+      if (dir == null) return;
+      c.edit((x) => x.copyWith(jellyfinDownloadPath: dir));
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.folder_rounded),
+      title: Text(l.prefsDownloadLocation),
+      subtitle: Text(
+        path.isEmpty ? l.prefsDefault : path,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: path.isEmpty
+          ? null
+          : IconButton(
+              tooltip: l.commonReset,
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () =>
+                  c.edit((x) => x.copyWith(jellyfinDownloadPath: '')),
+            ),
+      onTap: pick,
+    );
   }
 }
 

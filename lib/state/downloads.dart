@@ -542,6 +542,39 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       _recordingKeys.contains(item.id) ||
       (item.seriesId != null && _recordingKeys.contains(item.seriesId));
 
+  /// The on-disk subfolder a download's media file lands in, mirroring the
+  /// Movies/TV Shows/Music/Recordings sections of the Downloads screen so a
+  /// user pointed at a custom [Prefs.jellyfinDownloadPath] sees the same
+  /// organization in a file manager.
+  String _typeFolder(String? type) => switch (type) {
+        'Recording' => 'Recordings',
+        'Audio' || 'MusicAlbum' || 'MusicVideo' => 'Music',
+        'Series' || 'Episode' => 'TV Shows',
+        _ => 'Movies',
+      };
+
+  /// Where a download task should write, honoring a custom
+  /// [Prefs.jellyfinDownloadPath] if set, else the app-private default.
+  ({BaseDirectory base, String dir}) _taskLocation(String folder) {
+    final custom =
+        ref.read(preferencesProvider).asData?.value.jellyfinDownloadPath ?? '';
+    if (custom.isNotEmpty) {
+      return (base: BaseDirectory.root, dir: '$custom/$folder');
+    }
+    return (base: BaseDirectory.applicationSupport, dir: '$_dir/$folder');
+  }
+
+  /// The root directory for cached art/ratings/metadata (not split by media
+  /// type — those already have their own posters/backdrops/ratings/meta
+  /// subfolders). Honors a custom [Prefs.jellyfinDownloadPath] if set.
+  Future<String> _rootPath() async {
+    final custom =
+        ref.read(preferencesProvider).asData?.value.jellyfinDownloadPath ?? '';
+    if (custom.isNotEmpty) return custom;
+    final base = await getApplicationSupportDirectory();
+    return '${base.path}/$_dir';
+  }
+
   Future<void> _enqueue(BaseItemDto item, String url,
       {int? year,
       double? community,
@@ -551,14 +584,19 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       String? groupId,
       String? groupName,
       String? asType}) async {
+    // A DVR recording either came in via the recordings context (asType) or
+    // carries a source ChannelId a normal library item never has. Either way
+    // it's stored as 'Recording' so it lands in the Recordings section.
+    final type = _recordingKind(item, asType) ? 'Recording' : (asType ?? item.type);
+    final loc = _taskLocation(_typeFolder(type));
     // taskId = item id so updates map straight back; displayName drives the
     // system notification text; metaData carries the name across an app restart.
     final task = DownloadTask(
       taskId: item.id,
       url: url,
       filename: item.id,
-      directory: _dir,
-      baseDirectory: BaseDirectory.applicationSupport,
+      directory: loc.dir,
+      baseDirectory: loc.base,
       updates: Updates.statusAndProgress,
       retries: 2,
       allowPause: true,
@@ -579,10 +617,7 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
       seriesName: groupName ?? item.seriesName,
       seasonNumber: item.parentIndexNumber,
       episodeNumber: item.indexNumber,
-      // A DVR recording either came in via the recordings context (asType) or
-      // carries a source ChannelId a normal library item never has. Either way
-      // it's stored as 'Recording' so it lands in the Recordings section.
-      type: _recordingKind(item, asType) ? 'Recording' : (asType ?? item.type),
+      type: type,
       imageTag: item.isEpisode ? item.primaryImageTag : null,
       runTimeTicks: item.runTimeTicks,
       year: year ?? item.productionYear,
@@ -674,8 +709,7 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
   /// offline. Cheap: a few directory listings, done off the critical path.
   Future<void> _initImageCache() async {
     try {
-      final base = await getApplicationSupportDirectory();
-      final root = '${base.path}/$_dir';
+      final root = await _rootPath();
       final names = <String>{};
       for (final sub in const ['posters', 'backdrops', 'people', 'episodes']) {
         final d = Directory('$root/$sub');
@@ -705,8 +739,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     final client = ref.read(jellyfinClientProvider);
     final rel = '$sub/$name.jpg';
     try {
-      final base = await getApplicationSupportDirectory();
-      final dir = Directory('${base.path}/$_dir/$sub');
+      final root = await _rootPath();
+      final dir = Directory('$root/$sub');
       if (!dir.existsSync()) dir.createSync(recursive: true);
       final file = File('${dir.path}/$name.jpg');
       if (file.existsSync() && file.lengthSync() > 0) {
@@ -790,8 +824,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
         ext: ext,
         mdb: mdb,
       );
-      final base = await getApplicationSupportDirectory();
-      final dir = Directory('${base.path}/$_dir/ratings');
+      final root = await _rootPath();
+      final dir = Directory('$root/ratings');
       if (!dir.existsSync()) dir.createSync(recursive: true);
       File('${dir.path}/${detail.id}.json')
           .writeAsStringSync(jsonEncode(_scoresToJson(scores)));
@@ -808,8 +842,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
   /// Loads the cached extra ratings for a downloaded movie/series, or null.
   Future<CachedScores?> loadRatings(String key) async {
     try {
-      final base = await getApplicationSupportDirectory();
-      final file = File('${base.path}/$_dir/ratings/$key.json');
+      final root = await _rootPath();
+      final file = File('$root/ratings/$key.json');
       if (!file.existsSync()) return null;
       return _scoresFromJson(
           jsonDecode(file.readAsStringSync()) as Map<String, dynamic>);
@@ -828,8 +862,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     final key =
         (item.isEpisode && item.seriesId != null) ? item.seriesId! : item.id;
     try {
-      final base = await getApplicationSupportDirectory();
-      final dir = Directory('${base.path}/$_dir/meta');
+      final root = await _rootPath();
+      final dir = Directory('$root/meta');
       if (!dir.existsSync()) dir.createSync(recursive: true);
       final file = File('${dir.path}/$key.json');
       if (file.existsSync() && file.lengthSync() > 0) return;
@@ -855,8 +889,8 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
   /// download detail page. Null if it wasn't cached.
   Future<BaseItemDto?> loadDetail(String key) async {
     try {
-      final base = await getApplicationSupportDirectory();
-      final file = File('${base.path}/$_dir/meta/$key.json');
+      final root = await _rootPath();
+      final file = File('$root/meta/$key.json');
       if (!file.existsSync()) return null;
       return BaseItemDto.fromJson(
           jsonDecode(file.readAsStringSync()) as Map<String, dynamic>);

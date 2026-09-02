@@ -70,13 +70,14 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // Integrations — Seerr connection / sign-in
   SettingResult(title: l.searchSeerrConnection, section: l.settingsSectionIntegrations, icon: _integrations, route: '/seerr-settings', keywords: ['seerr', 'jellyseerr', 'overseerr', 'connect', 'connection', 'login', 'log in', 'sign in', 'signin', 'account', 'jellyfin', 'local', 'api key', 'apikey', 'token', 'email', 'password', 'url', 'server', 'requests']),
   // System — updates, backup, diagnostics
-  SettingResult(title: l.settingsUpdates, section: l.settingsSectionSystem, icon: Icons.system_update_alt_rounded, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'dev', 'beta', 'stable', 'latest']),
+  SettingResult(title: l.settingsUpdates, section: l.settingsSectionSystem, icon: Icons.system_update_alt_rounded, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'dev', 'beta', 'stable', 'latest', 'frequency', 'daily', 'weekly', 'launch', 'how often']),
   SettingResult(title: l.settingsBackup, section: l.settingsSectionSystem, icon: Icons.settings_backup_restore_rounded, route: '/backup', keywords: ['backup', 'restore', 'export', 'import', 'settings', 'save settings', 'transfer', 'migrate', 'move', 'sync', 'json', 'share', 'download settings']),
   SettingResult(title: l.diagnosticsTitle, section: l.settingsSectionSystem, icon: Icons.bug_report_rounded, route: '/diagnostics', keywords: ['diagnostic', 'diagnostics', 'log', 'logging', 'verbose', 'debug', 'troubleshoot', 'troubleshooting', 'bug report', 'mpv log', 'copy log', 'crash', 'issue']),
   SettingResult(title: l.profileChangePassword, section: l.settingsSectionSystem, icon: Icons.password_rounded, route: '/profile', keywords: ['password', 'change password', 'reset password', 'passcode', 'credentials', 'account', 'profile', 'security', 'login', 'sign in']),
   SettingResult(title: l.searchDownloadComplete, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'download', 'complete', 'finished', 'youtube']),
   // General — Storage
   SettingResult(title: l.searchImageCache, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['cache', 'storage', 'clear cache', 'disk', 'data', 'space', 'thumbnails', 'posters']),
+  SettingResult(title: l.searchDownloadLocation, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['download', 'location', 'folder', 'path', 'directory', 'storage', 'movies', 'tv', 'music', 'recordings', 'jellyfin']),
 
   // Appearance
   SettingResult(title: l.searchTheme, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['dark', 'light', 'mode', 'system', 'appearance', 'color scheme']),
