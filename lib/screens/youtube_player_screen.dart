@@ -25,6 +25,7 @@ import '../services/sponsorblock.dart';
 import '../services/tv_mode.dart';
 import '../models/youtube_caption.dart';
 import '../models/youtube_chapter.dart';
+import '../models/youtube_download.dart';
 
 /// Plays a YouTube video (or any direct URL) with the shared Fathom controls.
 ///
@@ -97,6 +98,22 @@ class YoutubeVideoPlayer extends ConsumerStatefulWidget {
   final String? channel;
   final String? artUrl;
 
+  /// Enables the minimize/PiP button outside the usual `embedded` case (a
+  /// downloaded file plays full-screen — no surrounding watch page owns the
+  /// top bar — but should still be mini-player-able like watching online).
+  final bool allowMinimize;
+
+  /// The id the PiP dock reclaims by, and what it hands to [reopenRoute] on
+  /// reopen. Null derives it from [url] the way YouTube URLs always have
+  /// (`youtubeVideoId`), which doesn't work for a local file path — a
+  /// downloaded video passes its own id explicitly.
+  final String? matchId;
+
+  /// Where tapping the dock reopens to, and with what `extra`. Null keeps
+  /// today's default: `/youtube/watch` with `(videoId, title)`.
+  final String? reopenRoute;
+  final Object? reopenExtra;
+
   const YoutubeVideoPlayer({
     super.key,
     required this.url,
@@ -116,6 +133,10 @@ class YoutubeVideoPlayer extends ConsumerStatefulWidget {
     this.onNext,
     this.channel,
     this.artUrl,
+    this.allowMinimize = false,
+    this.matchId,
+    this.reopenRoute,
+    this.reopenExtra,
   });
 
   @override
@@ -217,7 +238,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     final pipNotifier = ref.read(pipProvider.notifier);
     final dockedPlayer = pipNotifier.player;
     final dockedController = pipNotifier.controller;
-    final reclaimId = widget.embedded ? youtubeVideoId(widget.url) : null;
+    final reclaimId = (widget.embedded || widget.allowMinimize)
+        ? (widget.matchId ?? youtubeVideoId(widget.url))
+        : null;
     final canReclaim = reclaimId != null &&
         dockedPlayer != null &&
         dockedController != null &&
@@ -396,6 +419,16 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     try {
       if (!isYoutubeUrl(widget.url)) {
         await _player.open(Media(widget.url));
+        // A local file (a download): the video itself needs no network, but
+        // captions and SponsorBlock are separate resources keyed by video id
+        // — if a downloaded video knows its real YouTube id (widget.matchId)
+        // and happens to be online, there's no reason to withhold them just
+        // because playback itself came from disk. Both degrade to nothing on
+        // any failure (offline included), so this never risks playback.
+        if (widget.matchId != null) {
+          unawaited(_loadCaptions());
+          unawaited(_loadSponsors());
+        }
         return;
       }
       final s = await resolveYoutubeStreams(widget.url);
@@ -492,7 +525,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   }
 
   Future<void> _loadCaptions() async {
-    final id = youtubeVideoId(widget.url);
+    final id = widget.matchId ?? youtubeVideoId(widget.url);
     if (id == null) return;
     final caps = await resolveYoutubeCaptions(id);
     if (!mounted || caps.isEmpty) return;
@@ -500,7 +533,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   }
 
   Future<void> _loadSponsors() async {
-    final id = youtubeVideoId(widget.url);
+    final id = widget.matchId ?? youtubeVideoId(widget.url);
     if (id == null || !mounted) return;
     final segments =
         await ref.read(youtubeSponsorSegmentsProvider(id).future);
@@ -754,14 +787,15 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     _progressTimer?.cancel();
     _reportProgress();
     _volume.dispose();
-    final vid = youtubeVideoId(widget.url) ?? '';
+    final vid = widget.matchId ?? youtubeVideoId(widget.url) ?? '';
     ref.read(pipProvider.notifier).adopt(
           player: _player,
           controller: _controller,
           title: widget.title ?? '',
           matchId: vid,
-          route: '/youtube/watch',
-          routeExtra: (videoId: vid, title: widget.title),
+          route: widget.reopenRoute ?? '/youtube/watch',
+          routeExtra:
+              widget.reopenExtra ?? (videoId: vid, title: widget.title),
         );
     if (mounted) Navigator.of(context).maybePop();
   }
@@ -1028,7 +1062,8 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         onSeekBy: _seekBy,
         onJumpToLive: _isLive ? _jumpToLive : null,
         onToggleMute: _toggleMute,
-        onMinimize: widget.embedded ? _minimize : null,
+        onMinimize:
+            (widget.embedded || widget.allowMinimize) ? _minimize : null,
         onToggleTheater: widget.onToggleTheater,
         theaterActive: widget.theaterActive,
         onNext: widget.onNext,
@@ -1195,7 +1230,17 @@ class YoutubeDownloadPlayerScreen extends ConsumerStatefulWidget {
 class _YoutubeDownloadPlayerScreenState
     extends ConsumerState<YoutubeDownloadPlayerScreen> {
   late final _downloads = ref.read(youtubeDownloadsProvider.notifier);
-  late final Future<Duration?> _resumeAt = _resolveResume();
+
+  // The video on screen. Owned here, not read from the widget, so Next swaps
+  // it in place instead of navigating — mirrors the online watch page, which
+  // deliberately avoids repeated pushReplacement on the same path (it mints
+  // colliding go_router page keys; see _YoutubeWatchScreenState._open).
+  late String _path = widget.path;
+  late String _videoId = widget.videoId;
+  late String? _title = widget.title;
+  late String? _author = widget.author;
+  late String? _thumbnailUrl = widget.thumbnailUrl;
+  late Future<Duration?> _resumeAt = _resolveResume();
 
   /// Where to pick this video up, or null to start from the beginning — the
   /// same rule the online watch page uses, against the download's own local
@@ -1204,30 +1249,77 @@ class _YoutubeDownloadPlayerScreenState
     await ref.read(youtubeDownloadsProvider.future);
     final prefs = ref.read(preferencesProvider).asData?.value;
     if (prefs != null && !prefs.youtubeResumePlayback) return null;
-    final d = _downloads.entryFor(widget.videoId);
+    final d = _downloads.entryFor(_videoId);
     if (d == null || d.watchFinished || d.watchPositionSeconds <= 0) {
       return null;
     }
     return d.watchPosition;
   }
 
+  void _open(YoutubeDownload d) {
+    if (d.id == _videoId || d.filePath == null) return;
+    setState(() {
+      _path = d.filePath!;
+      _videoId = d.id;
+      _title = d.title;
+      _author = d.author;
+      _thumbnailUrl = d.thumbnailUrl;
+      _resumeAt = _resolveResume();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final prefs = ref.watch(preferencesProvider).asData?.value;
+    // Same list, same order as the Downloads tab, so Next matches what
+    // "next in the list" visually means there — completed downloads only,
+    // since a queued/failed entry has no file to play.
+    final done = [
+      for (final d in ref.watch(youtubeDownloadsProvider).asData?.value ??
+          const <YoutubeDownload>[])
+        if (d.status == YtDownloadStatus.done && d.filePath != null) d,
+    ];
+    final idx = done.indexWhere((d) => d.id == _videoId);
+    final next = (idx >= 0 && idx + 1 < done.length) ? done[idx + 1] : null;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: YoutubeVideoPlayer(
-        url: widget.path,
-        title: widget.title,
-        channel: widget.author,
-        artUrl: widget.thumbnailUrl,
+        // A fresh player per video, matching the online watch page: without a
+        // new key, State.initState (which does the actual mpv open()) never
+        // reruns just because the constructor args changed.
+        key: ValueKey(_videoId),
+        url: _path,
+        title: _title,
+        channel: _author,
+        artUrl: _thumbnailUrl,
         resumeAt: _resumeAt,
         seekBackSeconds: prefs?.youtubeSeekBackSeconds ?? 10,
         seekForwardSeconds: prefs?.youtubeSeekForwardSeconds ?? 30,
         // No ref in here: fires from a timer and from the player's dispose(),
         // and touching ref once the widget is gone throws.
         onProgress: (position, duration) => unawaited(
-            _downloads.updateProgress(widget.videoId, position, duration)),
+            _downloads.updateProgress(_videoId, position, duration)),
+        onNext: next != null ? () => _open(next) : null,
+        onEnded: () {
+          if (!mounted || next == null) return;
+          final autoplay =
+              ref.read(preferencesProvider).asData?.value.youtubeAutoplay ??
+                  true;
+          if (autoplay) _open(next);
+        },
+        // Minimize/PiP, like watching online — reclaimed and reopened by this
+        // download's own id/route rather than the online watch page's.
+        allowMinimize: true,
+        matchId: _videoId,
+        reopenRoute: '/youtube/file',
+        reopenExtra: (
+          path: _path,
+          videoId: _videoId,
+          title: _title,
+          author: _author,
+          thumbnailUrl: _thumbnailUrl,
+        ),
       ),
     );
   }

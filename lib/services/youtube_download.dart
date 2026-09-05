@@ -242,13 +242,26 @@ class YoutubeDownloader {
         }
 
         var chunkBytes = 0;
+        // Throttled: an unthrottled callback fires on every raw stream chunk
+        // (dozens of times a second on a fast connection), and each one
+        // rebuilds every widget watching the downloads list — fine for one
+        // download, but with several running at once it was enough to make
+        // the whole app janky, not just the downloads UI. Still reports the
+        // final byte count below so the bar doesn't stall between ticks.
+        var lastReport = DateTime.now();
         await for (final bytes in res.data!.stream) {
           sink.add(bytes);
           chunkBytes += bytes.length;
           received += bytes.length;
-          onProgress(YtDownloadProgress(
-              received: received, total: total, stage: stage));
+          final now = DateTime.now();
+          if (now.difference(lastReport) >= const Duration(milliseconds: 150)) {
+            lastReport = now;
+            onProgress(YtDownloadProgress(
+                received: received, total: total, stage: stage));
+          }
         }
+        onProgress(
+            YtDownloadProgress(received: received, total: total, stage: stage));
 
         // The server ignored the Range header and sent the lot: done already.
         if (res.statusCode == 200) break;
