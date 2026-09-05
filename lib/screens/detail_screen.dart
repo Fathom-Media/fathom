@@ -16,6 +16,7 @@ import '../state/providers.dart';
 import '../state/seerr_providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/add_to_playlist.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/item_actions.dart';
 import '../widgets/score_pills.dart';
 import '../widgets/series_download_sheet.dart';
@@ -684,14 +685,19 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
                   Expanded(
                     child: GestureDetector(
                       behavior: HitTestBehavior.deferToChild,
-                      onLongPress: isTvDevice
+                      onLongPressStart: isTvDevice
                           ? null
-                          : () => _openDownloadEpisodeMenu(ep),
+                          : (d) =>
+                              _openDownloadEpisodeMenu(ep, d.globalPosition),
+                      onSecondaryTapUp: isTvDevice
+                          ? null
+                          : (d) =>
+                              _openDownloadEpisodeMenu(ep, d.globalPosition),
                       child: tile,
                     ),
                   ),
                   _EpisodeMenuButton(
-                      onTap: () => _openDownloadEpisodeMenu(ep)),
+                      onTap: (at) => _openDownloadEpisodeMenu(ep, at)),
                 ],
               );
             }
@@ -728,71 +734,56 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.deferToChild,
-                    onLongPress: isTvDevice ? null : () => _openEpisodeMenu(ep),
+                    onLongPressStart: isTvDevice
+                        ? null
+                        : (d) => _openEpisodeMenu(ep, d.globalPosition),
+                    onSecondaryTapUp: isTvDevice
+                        ? null
+                        : (d) => _openEpisodeMenu(ep, d.globalPosition),
                     child: tile,
                   ),
                 ),
-                _EpisodeMenuButton(onTap: () => _openEpisodeMenu(ep)),
+                _EpisodeMenuButton(onTap: (at) => _openEpisodeMenu(ep, at)),
               ],
             );
           },
         );
   }
 
-  void _openEpisodeMenu(BaseItemDto ep) {
+  void _openEpisodeMenu(BaseItemDto ep, Offset at) {
     // The deleted/played/favorite refresh rides on provider invalidation inside
     // the shared menu (episodesProvider + nextUp keyed off ep.seriesId).
-    showItemActionsMenu(context, ref, ep, downloadAsType: widget.downloadAsType);
+    showItemActionsMenu(context, ref, ep,
+        at: at, downloadAsType: widget.downloadAsType);
   }
 
   // Download-local episode menu: Play, Mark Watched (local), Remove download.
   // Nothing here touches the server copy.
-  void _openDownloadEpisodeMenu(BaseItemDto ep) {
+  void _openDownloadEpisodeMenu(BaseItemDto ep, Offset at) {
     final l = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     final ctrl = ref.read(downloadsProvider.notifier);
     final watched = ep.userData.played;
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.play_arrow_rounded),
-              title: Text(l.commonPlay),
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                context.push('/player', extra: ep);
-              },
-            ),
-            ListTile(
-              leading: Icon(watched
-                  ? Icons.check_circle_rounded
-                  : Icons.check_circle_outline_rounded),
-              title:
-                  Text(watched ? l.detailMarkUnwatched : l.detailMarkWatched),
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                ctrl.setWatched(ep.id, !watched);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Theme.of(sheetCtx).colorScheme.error),
-              title: Text(l.detailRemoveDownload,
-                  style: TextStyle(color: Theme.of(sheetCtx).colorScheme.error)),
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                ctrl.delete(ep.id);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+    showContextMenu(context, at: at, actions: [
+      ContextMenuAction(
+        icon: Icons.play_arrow_rounded,
+        label: l.commonPlay,
+        onTap: () => context.push('/player', extra: ep),
       ),
-    );
+      ContextMenuAction(
+        icon: watched
+            ? Icons.check_circle_rounded
+            : Icons.check_circle_outline_rounded,
+        label: watched ? l.detailMarkUnwatched : l.detailMarkWatched,
+        onTap: () => ctrl.setWatched(ep.id, !watched),
+      ),
+      ContextMenuAction(
+        icon: Icons.delete_outline_rounded,
+        label: l.detailRemoveDownload,
+        color: cs.error,
+        onTap: () => ctrl.delete(ep.id),
+      ),
+    ]);
   }
 }
 
@@ -814,14 +805,14 @@ BaseItemDto _downloadEpisodeItem(DownloadEntry e, bool watched) => BaseItemDto(
 
 /// Per-episode three-dot: a D-pad focus stop on TV, an icon button off it.
 class _EpisodeMenuButton extends StatelessWidget {
-  final VoidCallback onTap;
+  final void Function(Offset at) onTap;
   const _EpisodeMenuButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     if (isTvDevice) {
       return TvFocusable(
-        onTap: onTap,
+        onTap: () => onTap(Offset.zero), // ignored on the TV sheet path
         scale: 1.1,
         borderRadius: const BorderRadius.all(Radius.circular(24)),
         child: const Padding(
@@ -833,7 +824,12 @@ class _EpisodeMenuButton extends StatelessWidget {
     return IconButton(
       icon: const Icon(Icons.more_vert_rounded),
       tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
-      onPressed: onTap,
+      onPressed: () {
+        final box = context.findRenderObject() as RenderBox?;
+        onTap(box == null
+            ? Offset.zero
+            : box.localToGlobal(box.size.center(Offset.zero)));
+      },
     );
   }
 }

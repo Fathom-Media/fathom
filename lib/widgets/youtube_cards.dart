@@ -8,6 +8,7 @@ import '../models/youtube_video.dart';
 import '../services/youtube_thumbnails.dart';
 import '../services/tv_mode.dart';
 import '../state/preferences.dart';
+import 'context_menu.dart';
 import 'tv_focus.dart';
 import 'youtube_actions.dart';
 
@@ -90,7 +91,7 @@ class YoutubeVideoRow extends ConsumerStatefulWidget {
   final bool showMenu;
 
   /// Extra entries for the overflow menu, e.g. Remove from this playlist.
-  final List<PopupMenuEntry<VoidCallback>> extraMenuItems;
+  final List<ContextMenuAction> extraMenuItems;
 
   /// A one-tap remove action (e.g. History). When set, an X sits inline to the
   /// left of the overflow menu, not overlaid on top of it. [removeTooltip]
@@ -121,26 +122,17 @@ class _YoutubeVideoRowState extends ConsumerState<YoutubeVideoRow> {
   bool _hover = false;
 
   /// Opens the item menu where the pointer is.
-  Future<void> _showContextMenu(Offset at) async {
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
-    final chosen = await showMenu<VoidCallback>(
-      context: context,
-      position: RelativeRect.fromRect(
-        at & const Size(1, 1),
-        Offset.zero & overlay.size,
-      ),
-      items: YoutubeActions.menuItems(
+  Future<void> _showContextMenu(Offset at) => showContextMenu(
         context,
-        ref,
-        widget.video,
-        includePlaylist: widget.showMenu,
-        extra: widget.extraMenuItems,
-      ),
-    );
-    chosen?.call();
-  }
+        at: at,
+        actions: YoutubeActions.menuItems(
+          context,
+          ref,
+          widget.video,
+          includePlaylist: widget.showMenu,
+          extra: widget.extraMenuItems,
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -304,22 +296,25 @@ class _YoutubeVideoRowState extends ConsumerState<YoutubeVideoRow> {
                 ),
               // The inline 3-dot is unreachable on TV (the whole card is one
               // D-pad target), so hide it there; its actions live in the sheet
-              // that selecting the card opens instead.
+              // that selecting the card opens instead. Same menu as a
+              // right-click/long-press on the row (_showContextMenu), just
+              // anchored to the button's own position rather than the pointer.
               if ((widget.showMenu || widget.extraMenuItems.isNotEmpty) &&
                   !isTvDevice)
-                PopupMenuButton<VoidCallback>(
-                  tooltip: l.extraMore,
-                  icon: Icon(Icons.more_vert_rounded,
-                      size: 18, color: scheme.onSurfaceVariant),
-                  onSelected: (fn) => fn(),
-                  itemBuilder: (_) => YoutubeActions.menuItems(
-                    context,
-                    ref,
-                    v,
-                    includePlaylist: widget.showMenu,
-                    extra: widget.extraMenuItems,
-                  ),
-                ),
+                Builder(builder: (btnContext) {
+                  return IconButton(
+                    tooltip: l.extraMore,
+                    icon: Icon(Icons.more_vert_rounded,
+                        size: 18, color: scheme.onSurfaceVariant),
+                    onPressed: () {
+                      final box =
+                          btnContext.findRenderObject() as RenderBox?;
+                      _showContextMenu(box == null
+                          ? Offset.zero
+                          : box.localToGlobal(box.size.center(Offset.zero)));
+                    },
+                  );
+                }),
             ],
           ),
         ),

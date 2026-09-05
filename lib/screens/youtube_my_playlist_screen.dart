@@ -6,6 +6,7 @@ import '../models/youtube_local_playlist.dart';
 import '../state/youtube_providers.dart';
 import '../theme/app_theme.dart';
 import '../widgets/reorder.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/youtube_cards.dart';
@@ -98,16 +99,11 @@ class YoutubeMyPlaylistScreen extends ConsumerWidget {
                                   // Already in a playlist: Remove is useful.
                                   showMenu: false,
                                   extraMenuItems: [
-                                    PopupMenuItem(
-                                      value: () => notifier.removeVideo(
+                                    ContextMenuAction(
+                                      icon: Icons.playlist_remove_rounded,
+                                      label: l.ytRemoveFromPlaylist,
+                                      onTap: () => notifier.removeVideo(
                                           playlist.id, v.id),
-                                      child: Row(children: [
-                                        const Icon(
-                                            Icons.playlist_remove_rounded,
-                                            size: 18),
-                                        const SizedBox(width: 12),
-                                        Text(l.ytRemoveFromPlaylist),
-                                      ]),
                                     ),
                                   ],
                                 ),

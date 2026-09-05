@@ -86,7 +86,7 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
               widget.item != null &&
               widget.item!.collectionType == null));
 
-  void _openMenu() {
+  void _openMenu(Offset at) {
     if (widget.onMenu != null) {
       widget.onMenu!();
       return;
@@ -95,6 +95,7 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
       context,
       ref,
       widget.item!,
+      at: at,
       fromGrid: true,
       onOpenDetails: widget.onOpenDetails ?? widget.onTap,
     );
@@ -136,8 +137,10 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
           },
           child: GestureDetector(
           onTap: widget.onTap,
-          onLongPress: _canMenu ? _openMenu : null,
-          onSecondaryTapDown: _canMenu ? (_) => _openMenu() : null,
+          onLongPressStart:
+              _canMenu ? (d) => _openMenu(d.globalPosition) : null,
+          onSecondaryTapDown:
+              _canMenu ? (d) => _openMenu(d.globalPosition) : null,
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -384,7 +387,7 @@ class _WatchedBadge extends StatelessWidget {
 /// Small circular hamburger drawn on a poster on hover (desktop). Opens the
 /// shared item context menu.
 class _CardMenuButton extends StatelessWidget {
-  final VoidCallback onTap;
+  final void Function(Offset at) onTap;
   const _CardMenuButton({required this.onTap});
 
   @override
@@ -394,7 +397,12 @@ class _CardMenuButton extends StatelessWidget {
       shape: const CircleBorder(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          final box = context.findRenderObject() as RenderBox?;
+          onTap(box == null
+              ? Offset.zero
+              : box.localToGlobal(box.size.center(Offset.zero)));
+        },
         child: const Padding(
           padding: EdgeInsets.all(4),
           child: Icon(Icons.more_vert_rounded, size: 20, color: Colors.white),

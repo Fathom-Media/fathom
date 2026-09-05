@@ -4,27 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
-import '../services/tv_mode.dart';
 import '../state/downloads.dart';
 import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import 'add_to_playlist.dart';
+import 'context_menu.dart';
 import 'series_download_sheet.dart';
-import 'tv_focus.dart';
-
-/// The actions the shared context menu can return.
-enum _ItemAction {
-  play,
-  showDetails,
-  toggleWatched,
-  toggleFavorite,
-  addToPlaylist,
-  download,
-  removeDownload,
-  refresh,
-  delete,
-}
 
 /// Shared per-item context menu (the "hamburger"), the same surface Jellyfin and
 /// Fladder expose on a poster, in a detail page, and on an individual episode.
@@ -32,12 +18,11 @@ enum _ItemAction {
 /// the episode row's visible three-dot stop (grids on TV use the detail
 /// overflow instead, keeping the card's D-pad path untouched).
 ///
-/// The bottom sheet only PICKS an action and pops with it; the work runs here,
-/// after the sheet closes. Data reads/invalidations go through the app-wide
-/// [ProviderContainer], not the caller's `ref`, so they survive the caller
-/// unmounting mid-request (a grid card recycled by a scroll, a route pop) — and
-/// they never touch the sheet's own `ref`, which is gone once it pops.
+/// Presented via [showContextMenu] (a dropdown on a mouse-driven desktop, a
+/// bottom sheet on touch/TV), so it always matches every other item menu in
+/// the app instead of rolling its own look.
 ///
+/// [at] anchors the desktop dropdown to where the click/tap happened.
 /// [fromGrid] adds a "Show Details" row (pointless on a page that already shows
 /// them). [onOpenDetails] performs that navigation (usually the card's own tap).
 /// [onDeleted] runs after a successful delete (e.g. pop the detail route); when
@@ -46,6 +31,7 @@ Future<void> showItemActionsMenu(
   BuildContext context,
   WidgetRef ref,
   BaseItemDto item, {
+  required Offset at,
   bool fromGrid = false,
   VoidCallback? onOpenDetails,
   VoidCallback? onDeleted,
@@ -53,88 +39,198 @@ Future<void> showItemActionsMenu(
   // reached from the recordings context), so it classifies correctly.
   String? downloadAsType,
 }) async {
+  final l = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
+  // The app-wide container, not the caller's `ref`: actions run after the menu
+  // closes, and a grid card can be recycled by a scroll (or the route popped)
+  // in the meantime, which would make the caller's `ref` throw.
   final container = ProviderScope.containerOf(context, listen: false);
-  final action = await showModalBottomSheet<_ItemAction>(
-    context: context,
-    useRootNavigator: true,
-    showDragHandle: !isTvDevice,
-    isScrollControlled: true,
-    builder: (ctx) => _ItemActionsSheet(
-      item: item,
-      showDetailsRow: fromGrid && onOpenDetails != null,
-    ),
-  );
-  if (action == null || !context.mounted) return;
+  final cs = Theme.of(context).colorScheme;
+  final user = container.read(currentUserProvider).asData?.value;
+  final session = container.read(sessionControllerProvider).asData?.value;
+  // Mirror the detail overflow's gate exactly (session fallback included) so
+  // the same admin sees the same rows from a poster, an episode, or detail.
+  final canDelete = (user?.enableContentDeletion ?? false) ||
+      (user?.isAdministrator ?? false) ||
+      (session?.canDelete ?? false);
+  final canRefresh =
+      (user?.isAdministrator ?? false) || (session?.isAdmin ?? false);
 
-  switch (action) {
-    case _ItemAction.play:
-      context.push('/player', extra: item);
-    case _ItemAction.showDetails:
-      onOpenDetails?.call();
-    case _ItemAction.addToPlaylist:
-      await showAddToPlaylistSheet(context, ref,
-          itemIds: [item.id], label: item.name);
-    case _ItemAction.download:
-      if (item.isSeries) {
-        // A series offers a scope choice (All / a season); everything else
-        // downloads directly.
-        await showSeriesDownloadSheet(context, item, asType: downloadAsType);
-      } else {
-        await container
-            .read(downloadsProvider.notifier)
-            .download(item, asType: downloadAsType);
-      }
-    case _ItemAction.removeDownload:
-      final downloads = container.read(downloadsProvider.notifier);
-      if (item.isSeries) {
-        await downloads.deleteSeries(item.id);
-      } else if (item.type == 'Season') {
-        await downloads.deleteSeason(item.seriesId ?? '', item.indexNumber);
-      } else {
-        await downloads.delete(item.id);
-      }
-    case _ItemAction.toggleWatched:
-      await _mutate(messenger, () async {
-        final s = container.read(sessionControllerProvider).asData?.value;
-        if (s == null) return;
-        await container.read(jellyfinClientProvider).setPlayed(
-              baseUrl: s.baseUrl,
-              userId: s.userId,
-              token: s.accessToken,
-              itemId: item.id,
-              played: !item.userData.played,
-            );
-        _invalidateLists(container, item);
-      });
-    case _ItemAction.toggleFavorite:
-      await _mutate(messenger, () async {
-        final s = container.read(sessionControllerProvider).asData?.value;
-        if (s == null) return;
-        await container.read(jellyfinClientProvider).setFavorite(
-              baseUrl: s.baseUrl,
-              userId: s.userId,
-              token: s.accessToken,
-              itemId: item.id,
-              favorite: !item.userData.isFavorite,
-            );
-        _invalidateLists(container, item);
-      });
-    case _ItemAction.refresh:
-      final started = AppLocalizations.of(context).detailMetadataRefreshStarted;
-      await _mutate(messenger, () async {
-        final s = container.read(sessionControllerProvider).asData?.value;
-        if (s == null) return;
-        await container.read(jellyfinClientProvider).refreshItem(
-              baseUrl: s.baseUrl,
-              token: s.accessToken,
-              itemId: item.id,
-            );
-        messenger.showSnackBar(SnackBar(content: Text(started)));
-      });
-    case _ItemAction.delete:
-      await _confirmAndDelete(context, container, messenger, item, onDeleted);
+  final isPlayable = item.isEpisode ||
+      item.type == 'Movie' ||
+      item.type == 'Video' ||
+      item.type == 'MusicVideo' ||
+      item.type == 'Audio' ||
+      item.type == 'Recording' ||
+      item.type == 'TvChannel';
+  // Downloadable for offline: a single video (movie/episode/recording), a
+  // whole series/season (which queues its episodes), or music: a track, or an
+  // album/artist (which queues its tracks). Live channels use their own flow.
+  final isDownloadable = item.isEpisode ||
+      item.type == 'Movie' ||
+      item.type == 'Video' ||
+      item.type == 'MusicVideo' ||
+      item.type == 'Recording' ||
+      item.type == 'Audio' ||
+      item.type == 'MusicAlbum' ||
+      item.type == 'MusicArtist' ||
+      item.isSeries ||
+      item.type == 'Season';
+
+  String deleteLabel() {
+    if (item.isSeries) return l.actionDeleteSeries;
+    if (item.isEpisode) return l.actionDeleteEpisode;
+    if (item.type == 'Season') return l.actionDeleteSeason;
+    if (item.type == 'Movie') return l.actionDeleteMovie;
+    return l.commonDelete;
   }
+
+  final actions = <ContextMenuAction>[];
+  if (isPlayable) {
+    actions.add(ContextMenuAction(
+      icon: item.canResume
+          ? Icons.play_circle_outline_rounded
+          : Icons.play_arrow_rounded,
+      label: item.canResume ? l.detailResume : l.commonPlay,
+      onTap: () => context.push('/player', extra: item),
+    ));
+  }
+  if (fromGrid && onOpenDetails != null) {
+    actions.add(ContextMenuAction(
+      icon: Icons.info_outline_rounded,
+      label: l.actionShowDetails,
+      onTap: onOpenDetails,
+    ));
+  }
+  actions.add(ContextMenuAction(
+    icon: item.userData.played
+        ? Icons.check_circle_rounded
+        : Icons.check_circle_outline_rounded,
+    label: item.userData.played ? l.detailMarkUnwatched : l.detailMarkWatched,
+    onTap: () => _mutate(messenger, () async {
+      final s = container.read(sessionControllerProvider).asData?.value;
+      if (s == null) return;
+      await container.read(jellyfinClientProvider).setPlayed(
+            baseUrl: s.baseUrl,
+            userId: s.userId,
+            token: s.accessToken,
+            itemId: item.id,
+            played: !item.userData.played,
+          );
+      _invalidateLists(container, item);
+    }),
+  ));
+  actions.add(ContextMenuAction(
+    icon: item.userData.isFavorite
+        ? Icons.favorite_rounded
+        : Icons.favorite_border_rounded,
+    label:
+        item.userData.isFavorite ? l.detailRemoveFavorite : l.detailAddFavorite,
+    color: item.userData.isFavorite ? Colors.redAccent : null,
+    onTap: () => _mutate(messenger, () async {
+      final s = container.read(sessionControllerProvider).asData?.value;
+      if (s == null) return;
+      await container.read(jellyfinClientProvider).setFavorite(
+            baseUrl: s.baseUrl,
+            userId: s.userId,
+            token: s.accessToken,
+            itemId: item.id,
+            favorite: !item.userData.isFavorite,
+          );
+      _invalidateLists(container, item);
+    }),
+  ));
+  actions.add(ContextMenuAction(
+    icon: Icons.playlist_add_rounded,
+    label: l.detailAddToPlaylist,
+    onTap: () => showAddToPlaylistSheet(context, ref,
+        itemIds: [item.id], label: item.name),
+  ));
+  if (isDownloadable) {
+    final downloads =
+        container.read(downloadsProvider).asData?.value ?? const {};
+    final isFolder = item.isSeries || item.type == 'Season';
+    if (isFolder) {
+      // A series offers a scope choice (All / a season); a season is already
+      // one scope, so it downloads directly.
+      actions.add(ContextMenuAction(
+        icon: Icons.download_rounded,
+        label: l.detailDownload,
+        onTap: () => item.isSeries
+            ? showSeriesDownloadSheet(context, item, asType: downloadAsType)
+            : container
+                .read(downloadsProvider.notifier)
+                .download(item, asType: downloadAsType),
+      ));
+      final hasDownloads = item.isSeries
+          ? downloads.values.any((e) => e.seriesId == item.id)
+          : downloads.values.any((e) =>
+              e.seriesId == item.seriesId &&
+              e.seasonNumber == item.indexNumber);
+      if (hasDownloads) {
+        actions.add(ContextMenuAction(
+          icon: Icons.download_done_rounded,
+          label: l.detailRemoveDownload,
+          onTap: () async {
+            final d = container.read(downloadsProvider.notifier);
+            if (item.isSeries) {
+              await d.deleteSeries(item.id);
+            } else {
+              await d.deleteSeason(item.seriesId ?? '', item.indexNumber);
+            }
+          },
+        ));
+      }
+    } else {
+      final entry = downloads[item.id];
+      if (entry?.status == DownloadStatus.complete) {
+        actions.add(ContextMenuAction(
+          icon: Icons.download_done_rounded,
+          label: l.detailRemoveDownload,
+          onTap: () =>
+              container.read(downloadsProvider.notifier).delete(item.id),
+        ));
+      } else if (entry == null || entry.status == DownloadStatus.failed) {
+        actions.add(ContextMenuAction(
+          icon: Icons.download_rounded,
+          label: l.detailDownload,
+          onTap: () => container
+              .read(downloadsProvider.notifier)
+              .download(item, asType: downloadAsType),
+        ));
+      }
+    }
+  }
+  if (canRefresh) {
+    actions.add(ContextMenuAction(
+      icon: Icons.refresh_rounded,
+      label: l.detailRefreshMetadata,
+      onTap: () async {
+        final started = l.detailMetadataRefreshStarted;
+        await _mutate(messenger, () async {
+          final s = container.read(sessionControllerProvider).asData?.value;
+          if (s == null) return;
+          await container.read(jellyfinClientProvider).refreshItem(
+                baseUrl: s.baseUrl,
+                token: s.accessToken,
+                itemId: item.id,
+              );
+          messenger.showSnackBar(SnackBar(content: Text(started)));
+        });
+      },
+    ));
+  }
+  if (canDelete) {
+    actions.add(ContextMenuAction(
+      icon: Icons.delete_outline_rounded,
+      label: deleteLabel(),
+      color: cs.error,
+      onTap: () =>
+          _confirmAndDelete(context, container, messenger, item, onDeleted),
+    ));
+  }
+
+  await showContextMenu(context, at: at, actions: actions, title: item.name);
 }
 
 Future<void> _mutate(
@@ -206,239 +302,4 @@ void _invalidateLists(ProviderContainer container, BaseItemDto item) {
   container.invalidate(resumeItemsProvider);
   container.invalidate(latestItemsProvider);
   container.invalidate(favoriteItemsProvider);
-}
-
-class _ItemActionsSheet extends ConsumerWidget {
-  final BaseItemDto item;
-  final bool showDetailsRow;
-
-  const _ItemActionsSheet({required this.item, required this.showDetailsRow});
-
-  String _deleteLabel(AppLocalizations l) {
-    if (item.isSeries) return l.actionDeleteSeries;
-    if (item.isEpisode) return l.actionDeleteEpisode;
-    if (item.type == 'Season') return l.actionDeleteSeason;
-    if (item.type == 'Movie') return l.actionDeleteMovie;
-    return l.commonDelete;
-  }
-
-  bool get _isPlayable =>
-      item.isEpisode ||
-      item.type == 'Movie' ||
-      item.type == 'Video' ||
-      item.type == 'MusicVideo' ||
-      item.type == 'Audio' ||
-      item.type == 'Recording' ||
-      item.type == 'TvChannel';
-
-  /// Downloadable for offline: a single video (movie/episode/recording), a whole
-  /// series/season (which queues its episodes), or music — a track, or an
-  /// album/artist (which queues its tracks). Live channels use their own flow.
-  bool get _isDownloadable =>
-      item.isEpisode ||
-      item.type == 'Movie' ||
-      item.type == 'Video' ||
-      item.type == 'MusicVideo' ||
-      item.type == 'Recording' ||
-      item.type == 'Audio' ||
-      item.type == 'MusicAlbum' ||
-      item.type == 'MusicArtist' ||
-      item.isSeries ||
-      item.type == 'Season';
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
-    final user = ref.watch(currentUserProvider).asData?.value;
-    final session = ref.watch(sessionControllerProvider).asData?.value;
-    // Mirror the detail overflow's gate exactly (session fallback included) so
-    // the same admin sees the same rows from a poster, an episode, or detail.
-    final canDelete = (user?.enableContentDeletion ?? false) ||
-        (user?.isAdministrator ?? false) ||
-        (session?.canDelete ?? false);
-    final canRefresh =
-        (user?.isAdministrator ?? false) || (session?.isAdmin ?? false);
-
-    final rows = <Widget>[];
-    var first = true;
-    void add({
-      required IconData icon,
-      required String label,
-      required _ItemAction action,
-      Color? color,
-    }) {
-      rows.add(_ActionRow(
-        icon: icon,
-        label: label,
-        color: color,
-        autofocus: first,
-        onTap: () => Navigator.pop(context, action),
-      ));
-      first = false;
-    }
-
-    if (_isPlayable) {
-      add(
-        icon: item.canResume
-            ? Icons.play_circle_outline_rounded
-            : Icons.play_arrow_rounded,
-        label: item.canResume ? l.detailResume : l.commonPlay,
-        action: _ItemAction.play,
-      );
-    }
-    if (showDetailsRow) {
-      add(
-        icon: Icons.info_outline_rounded,
-        label: l.actionShowDetails,
-        action: _ItemAction.showDetails,
-      );
-    }
-    add(
-      icon: item.userData.played
-          ? Icons.check_circle_rounded
-          : Icons.check_circle_outline_rounded,
-      label: item.userData.played ? l.detailMarkUnwatched : l.detailMarkWatched,
-      action: _ItemAction.toggleWatched,
-    );
-    add(
-      icon: item.userData.isFavorite
-          ? Icons.favorite_rounded
-          : Icons.favorite_border_rounded,
-      label:
-          item.userData.isFavorite ? l.detailRemoveFavorite : l.detailAddFavorite,
-      color: item.userData.isFavorite ? Colors.redAccent : null,
-      action: _ItemAction.toggleFavorite,
-    );
-    add(
-      icon: Icons.playlist_add_rounded,
-      label: l.detailAddToPlaylist,
-      action: _ItemAction.addToPlaylist,
-    );
-    if (_isDownloadable) {
-      final downloads =
-          ref.watch(downloadsProvider).asData?.value ?? const {};
-      final isFolder = item.isSeries || item.type == 'Season';
-      if (isFolder) {
-        // A series/season is a bulk action (each episode tracks its own state):
-        // always offer Download (adds/tops up), and offer Remove once any of its
-        // episodes are downloaded so the whole show can be cleared.
-        add(
-          icon: Icons.download_rounded,
-          label: l.detailDownload,
-          action: _ItemAction.download,
-        );
-        final hasDownloads = item.isSeries
-            ? downloads.values.any((e) => e.seriesId == item.id)
-            : downloads.values.any((e) =>
-                e.seriesId == item.seriesId &&
-                e.seasonNumber == item.indexNumber);
-        if (hasDownloads) {
-          add(
-            icon: Icons.download_done_rounded,
-            label: l.detailRemoveDownload,
-            action: _ItemAction.removeDownload,
-          );
-        }
-      } else {
-        final entry = downloads[item.id];
-        if (entry?.status == DownloadStatus.complete) {
-          add(
-            icon: Icons.download_done_rounded,
-            label: l.detailRemoveDownload,
-            action: _ItemAction.removeDownload,
-          );
-        } else if (entry == null || entry.status == DownloadStatus.failed) {
-          add(
-            icon: Icons.download_rounded,
-            label: l.detailDownload,
-            action: _ItemAction.download,
-          );
-        }
-      }
-    }
-    if (canRefresh) {
-      add(
-        icon: Icons.refresh_rounded,
-        label: l.detailRefreshMetadata,
-        action: _ItemAction.refresh,
-      );
-    }
-    if (canDelete) {
-      add(
-        icon: Icons.delete_outline_rounded,
-        label: _deleteLabel(l),
-        color: cs.error,
-        action: _ItemAction.delete,
-      );
-    }
-
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isTvDevice) const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      item.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            ...rows,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A single menu row. Off TV it's a normal tappable ListTile; on TV it's a
-/// [TvFocusable] driving a non-interactive ListTile, so there's exactly one
-/// D-pad stop per row and Select fires reliably (the proven activation path).
-class _ActionRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color? color;
-  final bool autofocus;
-  final VoidCallback onTap;
-
-  const _ActionRow({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color,
-    this.autofocus = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (!isTvDevice) {
-      return ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(label, style: color != null ? TextStyle(color: color) : null),
-        onTap: onTap,
-      );
-    }
-    return TvFocusable(
-      onTap: onTap,
-      autofocus: autofocus,
-      scale: 1.0,
-      borderRadius: BorderRadius.zero,
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(label, style: color != null ? TextStyle(color: color) : null),
-      ),
-    );
-  }
 }

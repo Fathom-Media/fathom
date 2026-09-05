@@ -88,9 +88,8 @@ void main() {
                 a.label,
             ];
             menuLabels = [
-              for (final e in YoutubeActions.menuItems(context, ref, video))
-                if (e is PopupMenuItem<VoidCallback>)
-                  ((e.child as dynamic).label as String? ?? ''),
+              for (final a in YoutubeActions.menuItems(context, ref, video))
+                a.label,
             ];
             return const SizedBox();
           }),

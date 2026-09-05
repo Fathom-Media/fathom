@@ -13,6 +13,7 @@ import '../models/youtube_watch.dart';
 import '../services/tv_mode.dart';
 import '../state/preferences.dart';
 import '../state/youtube_providers.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/error_view.dart';
 import '../widgets/subscribe_button.dart';
 import '../widgets/tv_focus.dart';
@@ -960,16 +961,11 @@ class _QueueSheet extends ConsumerWidget {
                                           ));
                                     },
                                     extraMenuItems: [
-                                      PopupMenuItem(
-                                        value: () => notifier.remove(v.id),
-                                        child: Row(children: [
-                                          const Icon(
-                                              Icons
-                                                  .remove_circle_outline_rounded,
-                                              size: 18),
-                                          const SizedBox(width: 12),
-                                          Text(l.ytRemoveFromQueue),
-                                        ]),
+                                      ContextMenuAction(
+                                        icon: Icons
+                                            .remove_circle_outline_rounded,
+                                        label: l.ytRemoveFromQueue,
+                                        onTap: () => notifier.remove(v.id),
                                       ),
                                     ],
                                   ),

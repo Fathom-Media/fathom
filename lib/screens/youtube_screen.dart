@@ -13,6 +13,7 @@ import '../models/youtube_history.dart';
 import '../models/youtube_video.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/cached_image.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/search_field.dart';
@@ -896,7 +897,7 @@ class _DownloadsTabState extends ConsumerState<_DownloadsTab> {
                 download: d,
                 selecting: _selectionMode,
                 selected: _selected.contains(d.id),
-                onLongPress:
+                onEnterSelection:
                     selectable ? () => _enterSelection(d.id) : null,
                 onToggle: selectable ? () => _toggle(d.id) : null,
               );
@@ -913,15 +914,67 @@ class _DownloadRow extends ConsumerWidget {
   final YoutubeDownload download;
   final bool selecting;
   final bool selected;
-  final VoidCallback? onLongPress;
+  final VoidCallback? onEnterSelection;
   final VoidCallback? onToggle;
   const _DownloadRow({
     required this.download,
     this.selecting = false,
     this.selected = false,
-    this.onLongPress,
+    this.onEnterSelection,
     this.onToggle,
   });
+
+  /// The same menu whichever of the three-dot button, right-click, or
+  /// long-press opened it. "Select" (when this download has finished) is
+  /// just one more entry in it, not a separate gesture of its own.
+  Future<void> _openMenu(BuildContext context, WidgetRef ref, Offset at) {
+    final l = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final d = download;
+    final n = ref.read(youtubeDownloadsProvider.notifier);
+    final playable = d.status == YtDownloadStatus.done && d.filePath != null;
+    void play() => context.push('/youtube/file', extra: (
+          path: d.filePath!,
+          videoId: d.id,
+          title: d.title,
+          author: d.author,
+          thumbnailUrl: d.thumbnailUrl,
+        ));
+    return showContextMenu(context, at: at, actions: [
+      if (playable)
+        ContextMenuAction(
+            icon: Icons.play_arrow_rounded, label: l.commonPlay, onTap: play),
+      if (d.filePath != null)
+        ContextMenuAction(
+          icon: Icons.folder_open_rounded,
+          label: l.ytShowInFolder,
+          onTap: () => launchUrl(Uri.file(File(d.filePath!).parent.path)),
+        ),
+      // Bulk delete starts from any one item's own menu, not a standing
+      // button, this is a rare action, not one that deserves permanent
+      // real estate.
+      if (onEnterSelection != null)
+        ContextMenuAction(
+          icon: Icons.checklist_rounded,
+          label: l.ytSelectDownloads,
+          onTap: onEnterSelection!,
+        ),
+      // Two verbs, because they're different intentions: clearing the list
+      // is not the same as deleting the video.
+      ContextMenuAction(
+        icon: Icons.remove_circle_outline_rounded,
+        label: l.ytRemoveFromList,
+        onTap: () => n.remove(d.id),
+      ),
+      if (d.filePath != null)
+        ContextMenuAction(
+          icon: Icons.delete_outline_rounded,
+          label: l.ytDeleteFile,
+          color: cs.error,
+          onTap: () => n.remove(d.id, deleteFile: true),
+        ),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -951,15 +1004,24 @@ class _DownloadRow extends ConsumerWidget {
           thumbnailUrl: d.thumbnailUrl,
         ));
 
-    return TvFocusRing(
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      // InkWell has no position-aware long-press/right-click variants, so
+      // those two gestures are handled up here instead, around it.
+      onLongPressStart: selecting
+          ? null
+          : (d) => _openMenu(context, ref, d.globalPosition),
+      onSecondaryTapUp: selecting
+          ? null
+          : (d) => _openMenu(context, ref, d.globalPosition),
+      child: TvFocusRing(
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         // The whole point of downloading is watching it later, offline. Tapping
-        // the row plays the file from disk rather than re-streaming it — unless
+        // the row plays the file from disk rather than re-streaming it, unless
         // a bulk selection is in progress, where a tap toggles instead.
         onTap: selecting ? onToggle : (playable ? play : null),
-        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Row(
@@ -1039,45 +1101,27 @@ class _DownloadRow extends ConsumerWidget {
                   onPressed: () => n.cancel(d.id),
                 )
               else
-                PopupMenuButton<String>(
-                  tooltip: l.ytOptions,
-                  onSelected: (v) async {
-                    if (v == 'play') {
-                      play();
-                    } else if (v == 'select') {
-                      onLongPress?.call();
-                    } else if (v == 'remove') {
-                      await n.remove(d.id);
-                    } else if (v == 'delete') {
-                      await n.remove(d.id, deleteFile: true);
-                    } else if (v == 'folder' && d.filePath != null) {
-                      await launchUrl(Uri.file(File(d.filePath!).parent.path));
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    if (playable)
-                      PopupMenuItem(value: 'play', child: Text(l.commonPlay)),
-                    if (d.filePath != null)
-                      PopupMenuItem(
-                          value: 'folder', child: Text(l.ytShowInFolder)),
-                    // Bulk delete starts from any one item's own menu, not a
-                    // standing button — this is a rare action, not one that
-                    // deserves permanent real estate.
-                    if (onLongPress != null)
-                      PopupMenuItem(
-                          value: 'select', child: Text(l.ytSelectDownloads)),
-                    // Two verbs, because they're different intentions: clearing
-                    // the list is not the same as deleting the video.
-                    PopupMenuItem(
-                        value: 'remove', child: Text(l.ytRemoveFromList)),
-                    if (d.filePath != null)
-                      PopupMenuItem(
-                          value: 'delete', child: Text(l.ytDeleteFile)),
-                  ],
-                ),
+                Builder(builder: (btnContext) {
+                  return IconButton(
+                    tooltip: l.ytOptions,
+                    icon: const Icon(Icons.more_vert_rounded),
+                    onPressed: () {
+                      final box =
+                          btnContext.findRenderObject() as RenderBox?;
+                      _openMenu(
+                          context,
+                          ref,
+                          box == null
+                              ? Offset.zero
+                              : box.localToGlobal(
+                                  box.size.center(Offset.zero)));
+                    },
+                  );
+                }),
             ],
           ),
         ),
+      ),
       ),
     );
   }

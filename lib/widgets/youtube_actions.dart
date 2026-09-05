@@ -10,6 +10,7 @@ import '../services/tv_mode.dart';
 import '../state/audio_player.dart';
 import '../state/youtube_providers.dart';
 import 'add_to_youtube_playlist.dart';
+import 'context_menu.dart';
 import 'hover_pill_button.dart';
 import 'youtube_download_sheet.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -132,18 +133,22 @@ class YoutubeActions {
     ];
   }
 
-  /// The menu shown from a video's overflow button and from a right-click.
+  /// The menu shown from a video's overflow button, right-click, and
+  /// long-press: one list, presented by [showContextMenu] as a dropdown on a
+  /// mouse-driven desktop or a bottom sheet on touch, so it's never a
+  /// different shape depending on which of those opened it.
   ///
   /// [includePlaylist] swaps Add to Playlist for the caller's own Remove
   /// action, which is the useful verb once a video is already in one.
-  static List<PopupMenuEntry<VoidCallback>> menuItems(
+  static List<ContextMenuAction> menuItems(
     BuildContext context,
     WidgetRef ref,
     YoutubeVideo video, {
     bool includePlaylist = true,
-    List<PopupMenuEntry<VoidCallback>> extra = const [],
+    List<ContextMenuAction> extra = const [],
   }) {
     final l = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
     final saved = ref
             .read(youtubeLocalPlaylistsProvider)
             .asData
@@ -152,36 +157,36 @@ class YoutubeActions {
         false;
     final actions = actionsFor(context, ref, video);
 
-    PopupMenuItem<VoidCallback> item(YtAction a) => PopupMenuItem(
-          value: a.onTap,
-          child: _MenuRow(icon: a.icon, label: a.label, tint: a.tinted),
+    ContextMenuAction item(YtAction a) => ContextMenuAction(
+          icon: a.icon,
+          label: a.label,
+          color: a.tinted ? scheme.primary : null,
+          onTap: a.onTap,
         );
 
     return [
       // Start background audio straight from the row (no video screen). Up-next
       // then flows from the same shared queue as "Add to queue" below. Off TV.
       if (!isTvDevice)
-        PopupMenuItem(
-          value: () => ref
+        ContextMenuAction(
+          icon: Icons.headset_rounded,
+          label: l.ytPlayAudio,
+          onTap: () => ref
               .read(audioControllerProvider.notifier)
               .playYoutubeAudio(youtubeAudioItemOf(video)),
-          child: _MenuRow(icon: Icons.headset_rounded, label: l.ytPlayAudio),
         ),
-      // Queue actions, then the playlist entry, then the rest below a divider.
+      // Queue actions, then the playlist entry, then the rest.
       for (final a in actions.take(2)) item(a),
       if (includePlaylist)
-        PopupMenuItem(
-          value: () => showAddToYoutubePlaylist(context, video),
-          child: _MenuRow(
-            icon: saved
-                ? Icons.playlist_add_check_rounded
-                : Icons.playlist_add_rounded,
-            label: saved ? l.ytSavedToPlaylist : l.ytAddToPlaylist,
-            tint: saved,
-          ),
+        ContextMenuAction(
+          icon: saved
+              ? Icons.playlist_add_check_rounded
+              : Icons.playlist_add_rounded,
+          label: saved ? l.ytSavedToPlaylist : l.ytAddToPlaylist,
+          color: saved ? scheme.primary : null,
+          onTap: () => showAddToYoutubePlaylist(context, video),
         ),
       ...extra,
-      const PopupMenuDivider(),
       for (final a in actions.skip(2)) item(a),
     ];
   }
@@ -259,22 +264,6 @@ class YoutubeActions {
   }
 }
 
-class _MenuRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool tint;
-  const _MenuRow({required this.icon, required this.label, this.tint = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = tint ? Theme.of(context).colorScheme.primary : null;
-    return Row(children: [
-      Icon(icon, size: 18, color: color),
-      const SizedBox(width: 12),
-      Text(label, style: TextStyle(color: color)),
-    ]);
-  }
-}
 
 /// The video's actions, as a bar under the channel row.
 ///
