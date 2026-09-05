@@ -1,6 +1,30 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:fathom/state/volume_sync.dart';
+
+/// Waits for the player's native volume to actually reach [predicate], rather
+/// than a fixed delay and a bet that mpv's async setVolume() round-trip
+/// finished in time — that bet occasionally lost on a loaded CI runner
+/// (200ms wasn't always enough), failing a test that had nothing wrong.
+Future<void> _waitForVolume(
+  Player player,
+  bool Function(double) predicate, {
+  Duration timeout = const Duration(seconds: 3),
+}) async {
+  if (predicate(player.state.volume)) return;
+  final completer = Completer<void>();
+  late final StreamSubscription<double> sub;
+  sub = player.stream.volume.listen((v) {
+    if (predicate(v) && !completer.isCompleted) completer.complete();
+  });
+  try {
+    await completer.future.timeout(timeout);
+  } finally {
+    await sub.cancel();
+  }
+}
 
 void main() {
   setUpAll(MediaKit.ensureInitialized);
@@ -32,7 +56,7 @@ void main() {
   test('applies the remembered volume on attach', () async {
     stored = 35;
     sync.attach();
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await _waitForVolume(player, (v) => (v - 35).abs() < 0.6);
     expect(player.state.volume, closeTo(35, 0.6));
   });
 
