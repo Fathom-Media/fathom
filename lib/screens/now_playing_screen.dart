@@ -629,6 +629,14 @@ class _RadioNowPlaying extends ConsumerWidget {
     // reaches back to that same right edge.
     return Row(
       children: [
+        // Previous/next STATION (distinct from the rewind/skip pair below,
+        // which seek within this station's own live buffer).
+        IconButton(
+          iconSize: 38,
+          tooltip: l.radioPreviousStation,
+          icon: const Icon(Icons.skip_previous_rounded),
+          onPressed: controller.previous,
+        ),
         if (showSeek) ...[
           ControlButton(
             icon: Icons.fast_rewind_rounded,
@@ -672,6 +680,12 @@ class _RadioNowPlaying extends ConsumerWidget {
             onTap: () => controller.radioSeekBy(const Duration(seconds: 15)),
           ),
         ],
+        IconButton(
+          iconSize: 38,
+          tooltip: l.radioNextStation,
+          icon: const Icon(Icons.skip_next_rounded),
+          onPressed: controller.next,
+        ),
         const Spacer(),
         // No volume on TV — the remote owns it.
         if (!isTvDevice) InlineVolume(player: player, expandLeft: true),

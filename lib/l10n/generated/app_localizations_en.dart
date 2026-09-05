@@ -3410,6 +3410,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get radioSkip => 'Skip 15 seconds';
 
   @override
+  String get radioPreviousStation => 'Previous Station';
+
+  @override
+  String get radioNextStation => 'Next Station';
+
+  @override
   String get radioGroupOptions => 'Group Options';
 
   @override

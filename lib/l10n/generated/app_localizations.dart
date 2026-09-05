@@ -6124,6 +6124,18 @@ abstract class AppLocalizations {
   /// **'Skip 15 seconds'**
   String get radioSkip;
 
+  /// Tooltip for the previous-station button on the radio Now Playing screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous Station'**
+  String get radioPreviousStation;
+
+  /// Tooltip for the next-station button on the radio Now Playing screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Next Station'**
+  String get radioNextStation;
+
   /// Tooltip for the group header overflow menu.
   ///
   /// In en, this message translates to:
