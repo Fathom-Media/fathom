@@ -34,6 +34,7 @@ import '../services/tv_mode.dart';
 import '../screens/youtube_channel_screen.dart';
 import '../screens/youtube_player_screen.dart';
 import '../screens/radio_screen.dart';
+import '../screens/watchlist_screen.dart';
 import '../screens/youtube_screen.dart';
 import '../screens/youtube_watch_screen.dart';
 import '../screens/youtube_shorts_screen.dart';
@@ -359,6 +360,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/favorites',
               pageBuilder: (_, _) => _fadePage(const FavoritesScreen())),
+          GoRoute(
+              path: '/watchlist',
+              pageBuilder: (_, _) => _fadePage(const WatchlistScreen())),
           GoRoute(
               path: '/home-layout',
               pageBuilder: (_, _) => _fadePage(const HomeLayoutScreen())),

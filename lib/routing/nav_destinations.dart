@@ -42,6 +42,12 @@ List<NavDest> availableNavDestinations(WidgetRef ref, AppLocalizations l) {
       label: l.appNavFavorites,
       fixed: false
     ),
+    (
+      route: '/watchlist',
+      icon: Icons.bookmark_rounded,
+      label: l.appNavWatchlist,
+      fixed: false
+    ),
     if (hasLiveTv)
       (
         route: '/livetv',

@@ -15,6 +15,7 @@ import '../state/preferences.dart';
 import '../state/providers.dart';
 import '../state/seerr_providers.dart';
 import '../state/session_controller.dart';
+import '../state/watchlist.dart';
 import '../widgets/add_to_playlist.dart';
 import '../widgets/context_menu.dart';
 import '../widgets/item_actions.dart';
@@ -250,6 +251,15 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     ref.invalidate(itemDetailProvider(item.id));
   }
 
+  Future<void> _toggleWatchlist(WidgetRef ref, bool inWatchlist) async {
+    final watchlist = ref.read(watchlistProvider.notifier);
+    if (inWatchlist) {
+      await watchlist.remove(item.id);
+    } else {
+      await watchlist.add(item);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -259,6 +269,10 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     // provider so the icon flips when it toggles.
     if (downloadScoped) ref.watch(downloadsProvider);
     final watched = downloadScoped ? _localWatched(ref) : item.userData.played;
+    // Not meaningful in download-scoped mode (guarded below), but computing it
+    // unconditionally keeps this a plain top-of-build value like the others.
+    final inWatchlist = (ref.watch(watchlistProvider).asData?.value ?? const [])
+        .any((e) => e.id == item.id);
     // Cast / Play-on stream from the server, so in download mode they only make
     // sense online. Normal mode is always "online" here (no behaviour change).
     final online = !downloadScoped ||
@@ -429,9 +443,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                 ),
                 onPressed: () => _togglePlayed(ref),
               ),
-              // Favourite is a server write, so it's hidden in download-local
-              // mode (nothing here touches the server).
-              if (!downloadScoped)
+              // Favourite and Watchlist are both server writes (Watchlist via a
+              // hidden playlist), so both are hidden in download-local mode.
+              if (!downloadScoped) ...[
                 IconButton(
                   tooltip: item.userData.isFavorite
                       ? l.detailRemoveFavorite
@@ -444,6 +458,19 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   ),
                   onPressed: () => _toggleFavorite(ref),
                 ),
+                IconButton(
+                  tooltip: inWatchlist
+                      ? l.detailRemoveFromWatchlist
+                      : l.detailAddToWatchlist,
+                  icon: _PopIcon(
+                    selected: inWatchlist,
+                    icon: Icons.bookmark_rounded,
+                    iconOff: Icons.bookmark_border_rounded,
+                    selectedColor: scheme.primary,
+                  ),
+                  onPressed: () => _toggleWatchlist(ref, inWatchlist),
+                ),
+              ],
               _ItemMenu(item: item, downloadScoped: downloadScoped),
             ],
             flexibleSpace: FlexibleSpaceBar(

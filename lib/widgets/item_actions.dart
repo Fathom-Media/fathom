@@ -8,6 +8,7 @@ import '../state/downloads.dart';
 import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
+import '../state/watchlist.dart';
 import 'add_to_playlist.dart';
 import 'context_menu.dart';
 import 'series_download_sheet.dart';
@@ -138,6 +139,22 @@ Future<void> showItemActionsMenu(
             favorite: !item.userData.isFavorite,
           );
       _invalidateLists(container, item);
+    }),
+  ));
+  final inWatchlist =
+      container.read(watchlistProvider.notifier).isInWatchlist(item.id);
+  actions.add(ContextMenuAction(
+    icon: inWatchlist ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+    label:
+        inWatchlist ? l.detailRemoveFromWatchlist : l.detailAddToWatchlist,
+    color: inWatchlist ? cs.primary : null,
+    onTap: () => _mutate(messenger, () async {
+      final watchlist = container.read(watchlistProvider.notifier);
+      if (watchlist.isInWatchlist(item.id)) {
+        await watchlist.remove(item.id);
+      } else {
+        await watchlist.add(item);
+      }
     }),
   ));
   actions.add(ContextMenuAction(
