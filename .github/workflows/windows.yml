@@ -111,6 +111,8 @@ jobs:
           if ($v -ne '') {
             Write-Host "Stamping pubspec version: $v+$env:GITHUB_RUN_NUMBER"
             (Get-Content pubspec.yaml) -replace '^version: .*', "version: $v+$env:GITHUB_RUN_NUMBER" | Set-Content pubspec.yaml
+            # For the installer step further down (Inno Setup's AppVersion).
+            Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$v"
           }
           flutter build windows --release
 
@@ -154,11 +156,32 @@ jobs:
           Copy-Item build\windows\x64\runner\Release\* staging\Fathom\ -Recurse -Force
           Compress-Archive -Path staging\Fathom -DestinationPath Fathom-windows-x64.zip -Force
 
+      # A real installer alongside the zip, for testers who want a Start Menu
+      # entry and uninstaller instead of a folder they manage themselves. Not
+      # the in-app update payload (app_updates.dart only ever picks the
+      # *.zip asset), just an alternate first-install option; installs
+      # per-user so it stays fully compatible with that same updater, which
+      # overwrites its own install folder with no elevation (see fathom.iss).
+      - name: Install Inno Setup
+        if: github.ref_type == 'tag'
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $v = $env:APP_VERSION
+          if ([string]::IsNullOrEmpty($v)) { $v = '0.0.0-dev' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$v" windows\installer\fathom.iss
+          Copy-Item windows\installer\Output\Fathom-Setup-x64.exe Fathom-Setup-x64.exe
+
       - name: Attach to release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: Fathom-windows-x64.zip
+          files: |
+            Fathom-windows-x64.zip
+            Fathom-Setup-x64.exe
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
 
@@ -171,6 +194,8 @@ jobs:
         with:
           tag_name: dev-latest
           name: Dev Build (latest)
-          files: Fathom-windows-x64.zip
+          files: |
+            Fathom-windows-x64.zip
+            Fathom-Setup-x64.exe
           prerelease: true
           make_latest: false
