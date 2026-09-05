@@ -8,11 +8,6 @@ import '../services/tv_mode.dart';
 import '../state/downloads.dart';
 import '../state/youtube_providers.dart';
 
-/// The Downloads tab's index in [YoutubeScreen]'s TabBar (Search,
-/// Subscriptions, What's New, Playlists, Downloads, History) — kept in one
-/// place since the pill below needs to deep-link straight to it.
-const _kYoutubeDownloadsTab = 4;
-
 /// Floating pills for downloads in flight: one for Jellyfin media, one for
 /// YouTube, stacked bottom-center so both can show at once without
 /// overlapping. Each renders nothing when its own system is idle. Hidden on
@@ -77,7 +72,7 @@ class DownloadPills extends ConsumerWidget {
                 progress: youtubeProgress,
                 scheme: scheme,
                 onTap: () =>
-                    context.push('/youtube', extra: _kYoutubeDownloadsTab),
+                    context.push('/youtube', extra: kYoutubeDownloadsTabIndex),
               ),
           ],
         ),

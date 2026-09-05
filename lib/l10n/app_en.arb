@@ -3563,14 +3563,6 @@
   "@ytDownloadPill": {
     "description": "Floating pill label while a YouTube download is in progress. Distinct from the Jellyfin download pill's plain \"Downloading\" since both can show at once."
   },
-  "ytSectionDownloading": "Downloading",
-  "@ytSectionDownloading": {
-    "description": "Section header over in-progress/queued/failed downloads."
-  },
-  "ytSectionDownloaded": "Downloaded",
-  "@ytSectionDownloaded": {
-    "description": "Section header over finished downloads."
-  },
   "ytDownloads": "Downloads",
   "@ytDownloads": {
     "description": "Tab / screen title: downloaded items."

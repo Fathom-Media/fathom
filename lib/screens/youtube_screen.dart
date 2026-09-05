@@ -854,105 +854,59 @@ class _DownloadsTabState extends ConsumerState<_DownloadsTab> {
 
     return Column(
       children: [
-        if (doneIds.isNotEmpty)
+        // Only shown while actually selecting — there's no standing "Select"
+        // button; that action lives in each finished download's own menu
+        // instead (see _DownloadRow), alongside its other actions rather than
+        // as its own prominent affordance for something done rarely.
+        if (_selectionMode)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: _selectionMode
-                ? Row(
-                    children: [
-                      Text(l.ytNSelected(_selected.length),
-                          style: theme.textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w600)),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () => _selectAll(doneIds),
-                        child: Text(l.ytSelectAll),
-                      ),
-                      IconButton(
-                        tooltip: l.commonCancel,
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: _exitSelection,
-                      ),
-                      IconButton(
-                        tooltip: l.commonDelete,
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        onPressed:
-                            _selected.isEmpty ? null : _deleteSelected,
-                      ),
-                    ],
-                  )
-                : Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton.icon(
-                      onPressed: () => _enterSelection(),
-                      icon: const Icon(Icons.checklist_rounded),
-                      label: Text(l.ytSelectDownloads),
-                    ),
-                  ),
+            child: Row(
+              children: [
+                Text(l.ytNSelected(_selected.length),
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => _selectAll(doneIds),
+                  child: Text(l.ytSelectAll),
+                ),
+                IconButton(
+                  tooltip: l.commonCancel,
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: _exitSelection,
+                ),
+                IconButton(
+                  tooltip: l.commonDelete,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  onPressed: _selected.isEmpty ? null : _deleteSelected,
+                ),
+              ],
+            ),
           ),
-        Expanded(child: _sectionedList(l, downloads)),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            itemCount: downloads.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final d = downloads[i];
+              final selectable = d.status == YtDownloadStatus.done;
+              return _DownloadRow(
+                download: d,
+                selecting: _selectionMode,
+                selected: _selected.contains(d.id),
+                onLongPress:
+                    selectable ? () => _enterSelection(d.id) : null,
+                onToggle: selectable ? () => _toggle(d.id) : null,
+              );
+            },
+          ),
+        ),
       ],
     );
   }
 
-  // Two sections rather than one mixed list: an in-progress item sitting
-  // next to a finished one (one selectable, one not) reads as clutter,
-  // especially now that only finished rows can be picked for bulk delete. A
-  // full separate screen (like the Jellyfin downloads library's
-  // Downloaded/Downloading toggle) would be more than this tab's usual
-  // handful of items need.
-  Widget _sectionedList(AppLocalizations l, List<YoutubeDownload> downloads) {
-    final active = [
-      for (final d in downloads)
-        if (d.status != YtDownloadStatus.done) d,
-    ];
-    final done = [
-      for (final d in downloads)
-        if (d.status == YtDownloadStatus.done) d,
-    ];
-    Widget row(YoutubeDownload d) {
-      final selectable = d.status == YtDownloadStatus.done;
-      return _DownloadRow(
-        download: d,
-        selecting: _selectionMode,
-        selected: _selected.contains(d.id),
-        onLongPress: selectable ? () => _enterSelection(d.id) : null,
-        onToggle: selectable ? () => _toggle(d.id) : null,
-      );
-    }
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      children: [
-        if (active.isNotEmpty) ...[
-          _DownloadSectionHeader(l.ytSectionDownloading),
-          for (final d in active) ...[row(d), const SizedBox(height: 10)],
-        ],
-        if (done.isNotEmpty) ...[
-          if (active.isNotEmpty) const SizedBox(height: 8),
-          _DownloadSectionHeader(l.ytSectionDownloaded),
-          for (final d in done) ...[row(d), const SizedBox(height: 10)],
-        ],
-      ],
-    );
-  }
-}
-
-class _DownloadSectionHeader extends StatelessWidget {
-  final String text;
-  const _DownloadSectionHeader(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(text,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w700)),
-    );
-  }
 }
 
 class _DownloadRow extends ConsumerWidget {
@@ -1090,6 +1044,8 @@ class _DownloadRow extends ConsumerWidget {
                   onSelected: (v) async {
                     if (v == 'play') {
                       play();
+                    } else if (v == 'select') {
+                      onLongPress?.call();
                     } else if (v == 'remove') {
                       await n.remove(d.id);
                     } else if (v == 'delete') {
@@ -1104,6 +1060,12 @@ class _DownloadRow extends ConsumerWidget {
                     if (d.filePath != null)
                       PopupMenuItem(
                           value: 'folder', child: Text(l.ytShowInFolder)),
+                    // Bulk delete starts from any one item's own menu, not a
+                    // standing button — this is a rare action, not one that
+                    // deserves permanent real estate.
+                    if (onLongPress != null)
+                      PopupMenuItem(
+                          value: 'select', child: Text(l.ytSelectDownloads)),
                     // Two verbs, because they're different intentions: clearing
                     // the list is not the same as deleting the video.
                     PopupMenuItem(

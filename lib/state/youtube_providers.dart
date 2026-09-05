@@ -30,6 +30,11 @@ import 'providers.dart';
 final youtubeEnabledProvider = Provider<bool>((ref) =>
     ref.watch(preferencesProvider).asData?.value.youtubeEnabled ?? false);
 
+/// [YoutubeScreen]'s Downloads tab index (Search, Subscriptions, What's New,
+/// Playlists, Downloads, History) — the one place anything deep-linking to it
+/// (the floating pill, the download-complete notification) needs to agree on.
+const kYoutubeDownloadsTabIndex = 4;
+
 /// A shared extractor client, closed with the provider. Used only for
 /// search-suggestion lookups now; the What's New feed and channel listings go
 /// through InnerTube directly (see [YoutubeInnerTube]).
@@ -1498,7 +1503,10 @@ class YoutubeDownloads extends AsyncNotifier<List<YoutubeDownload>> {
           body: video.title,
           enabled:
               ref.read(preferencesProvider).asData?.value.notifDownloads ?? true,
-          route: '/downloads');
+          // '/downloads' is the Jellyfin library — this download is a YouTube
+          // one, so the tap belongs on its own Downloads tab instead.
+          route: '/youtube',
+          routeExtra: kYoutubeDownloadsTabIndex);
     } on DioException catch (e) {
       _update(
           video.id,

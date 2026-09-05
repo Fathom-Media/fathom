@@ -5008,18 +5008,6 @@ abstract class AppLocalizations {
   /// **'YouTube Download'**
   String get ytDownloadPill;
 
-  /// Section header over in-progress/queued/failed downloads.
-  ///
-  /// In en, this message translates to:
-  /// **'Downloading'**
-  String get ytSectionDownloading;
-
-  /// Section header over finished downloads.
-  ///
-  /// In en, this message translates to:
-  /// **'Downloaded'**
-  String get ytSectionDownloaded;
-
   /// Tab / screen title: downloaded items.
   ///
   /// In en, this message translates to:

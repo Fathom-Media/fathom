@@ -89,7 +89,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     ),
                     onTap: n.route == null
                         ? null
-                        : () => context.push(n.route!),
+                        : () => context.push(n.route!, extra: n.routeExtra),
                   ),
                 );
               },
