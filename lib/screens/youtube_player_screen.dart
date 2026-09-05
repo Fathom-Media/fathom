@@ -1161,3 +1161,74 @@ class YoutubePlayerScreen extends StatelessWidget {
         body: YoutubeVideoPlayer(url: url, title: title, isTrailer: isTrailer),
       );
 }
+
+/// A downloaded YouTube video, played with the same resume-and-remember
+/// parity as watching online. The video id survives the download (it's the
+/// entry's own key), so there's no reason offline playback should forget
+/// where you left off or lose the channel name from the lock screen just
+/// because it's a local file instead of a stream.
+///
+/// Deliberately its own screen rather than reusing [YoutubePlayerScreen]:
+/// that class is shared with trailers, where resume/watch-position tracking
+/// makes no sense (a trailer isn't a video you pick back up mid-way).
+class YoutubeDownloadPlayerScreen extends ConsumerStatefulWidget {
+  final String path;
+  final String videoId;
+  final String? title;
+  final String? author;
+  final String? thumbnailUrl;
+
+  const YoutubeDownloadPlayerScreen({
+    super.key,
+    required this.path,
+    required this.videoId,
+    this.title,
+    this.author,
+    this.thumbnailUrl,
+  });
+
+  @override
+  ConsumerState<YoutubeDownloadPlayerScreen> createState() =>
+      _YoutubeDownloadPlayerScreenState();
+}
+
+class _YoutubeDownloadPlayerScreenState
+    extends ConsumerState<YoutubeDownloadPlayerScreen> {
+  late final _downloads = ref.read(youtubeDownloadsProvider.notifier);
+  late final Future<Duration?> _resumeAt = _resolveResume();
+
+  /// Where to pick this video up, or null to start from the beginning — the
+  /// same rule the online watch page uses, against the download's own local
+  /// watch position instead of the shared online history.
+  Future<Duration?> _resolveResume() async {
+    await ref.read(youtubeDownloadsProvider.future);
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    if (prefs != null && !prefs.youtubeResumePlayback) return null;
+    final d = _downloads.entryFor(widget.videoId);
+    if (d == null || d.watchFinished || d.watchPositionSeconds <= 0) {
+      return null;
+    }
+    return d.watchPosition;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prefs = ref.watch(preferencesProvider).asData?.value;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: YoutubeVideoPlayer(
+        url: widget.path,
+        title: widget.title,
+        channel: widget.author,
+        artUrl: widget.thumbnailUrl,
+        resumeAt: _resumeAt,
+        seekBackSeconds: prefs?.youtubeSeekBackSeconds ?? 10,
+        seekForwardSeconds: prefs?.youtubeSeekForwardSeconds ?? 30,
+        // No ref in here: fires from a timer and from the player's dispose(),
+        // and touching ref once the widget is gone throws.
+        onProgress: (position, duration) => unawaited(
+            _downloads.updateProgress(widget.videoId, position, duration)),
+      ),
+    );
+  }
+}

@@ -823,8 +823,13 @@ class _DownloadRow extends ConsumerWidget {
     };
 
     final playable = d.status == YtDownloadStatus.done && d.filePath != null;
-    void play() => context.push('/youtube/file',
-        extra: (path: d.filePath!, title: d.title));
+    void play() => context.push('/youtube/file', extra: (
+          path: d.filePath!,
+          videoId: d.id,
+          title: d.title,
+          author: d.author,
+          thumbnailUrl: d.thumbnailUrl,
+        ));
 
     return TvFocusRing(
       borderRadius: BorderRadius.circular(12),

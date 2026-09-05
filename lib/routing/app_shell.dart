@@ -1115,7 +1115,6 @@ class _BrowseNav extends ConsumerWidget {
         mobile ? context.push(route) : context.go(route);
     final items = <(String, String, IconData)>[
       (l.miscNavPlaylists, '/playlists', Icons.playlist_play_rounded),
-      (l.browseWatchlist, '/watchlist', Icons.bookmark_rounded),
       (l.miscNavGenres, '/genres', Icons.category_rounded),
       (l.miscNavStudios, '/studios', Icons.business_rounded),
       (l.miscNavArtists, '/artists', Icons.groups_rounded),

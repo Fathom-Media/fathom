@@ -16,7 +16,6 @@ import '../screens/discover_screen.dart';
 import '../screens/downloads_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/favorites_screen.dart';
-import '../screens/watchlist_screen.dart';
 import '../screens/artists_screen.dart';
 import '../screens/genres_screen.dart';
 import '../screens/home_layout_screen.dart';
@@ -279,12 +278,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Your own playlists, as opposed to /youtube/playlist which shows
       // someone else's fetched from YouTube.
       // A downloaded file. The player opens anything that isn't a YouTube URL
-      // straight from disk, so this needs no special plumbing — just a route.
+      // straight from disk, so this needs no special plumbing beyond the
+      // route; YoutubeDownloadPlayerScreen adds resume + channel/art parity
+      // with the online watch page, scoped to the download's own local state.
       GoRoute(
         path: '/youtube/file',
         pageBuilder: (context, state) {
-          final r = state.extra as ({String path, String? title});
-          return _fadePage(YoutubePlayerScreen(url: r.path, title: r.title));
+          final r = state.extra as ({
+            String path,
+            String videoId,
+            String? title,
+            String? author,
+            String? thumbnailUrl,
+          });
+          return _fadePage(YoutubeDownloadPlayerScreen(
+            path: r.path,
+            videoId: r.videoId,
+            title: r.title,
+            author: r.author,
+            thumbnailUrl: r.thumbnailUrl,
+          ));
         },
       ),
       GoRoute(
@@ -346,9 +359,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/favorites',
               pageBuilder: (_, _) => _fadePage(const FavoritesScreen())),
-          GoRoute(
-              path: '/watchlist',
-              pageBuilder: (_, _) => _fadePage(const WatchlistScreen())),
           GoRoute(
               path: '/home-layout',
               pageBuilder: (_, _) => _fadePage(const HomeLayoutScreen())),

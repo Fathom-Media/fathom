@@ -1546,6 +1546,23 @@ class YoutubeDownloads extends AsyncNotifier<List<YoutubeDownload>> {
         if (d.id != videoId) d,
     ]);
   }
+
+  /// Records how far into a downloaded video playback got, so reopening it
+  /// resumes there. Local only — never touches the online watch-history
+  /// system, which points at a streaming URL a downloaded file has no use for.
+  Future<void> updateProgress(
+      String videoId, Duration position, Duration duration) async {
+    await future;
+    if (position <= Duration.zero || duration <= Duration.zero) return;
+    if (entryFor(videoId) == null) return;
+    _update(
+      videoId,
+      (d) => d.copyWith(
+        watchPositionSeconds: position.inSeconds,
+        watchDurationSeconds: duration.inSeconds,
+      ),
+    );
+  }
 }
 
 final youtubeDownloadsProvider =
