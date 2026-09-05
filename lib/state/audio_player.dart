@@ -265,11 +265,19 @@ class AudioController extends Notifier<AudioState> {
     if (h != null) {
       h.onPlay = _player.play;
       h.onPause = _player.pause;
-      // Skip routes by mode: the YouTube queue advances itself (one track at a
-      // time), the music queue uses the player's own playlist.
-      h.onNext = () => state.isYoutubeAudio ? _ytNext(user: true) : _player.next();
-      h.onPrevious =
-          () => state.isYoutubeAudio ? _ytPrevious() : _player.previous();
+      // Skip routes by mode: radio has no track queue, so skip means switch
+      // station; the YouTube queue advances itself (one track at a time); the
+      // music queue uses the player's own playlist.
+      h.onNext = () => state.isRadio
+          ? _radioSkip(1)
+          : state.isYoutubeAudio
+              ? _ytNext(user: true)
+              : _player.next();
+      h.onPrevious = () => state.isRadio
+          ? _radioSkip(-1)
+          : state.isYoutubeAudio
+              ? _ytPrevious()
+              : _player.previous();
       h.onSeek = _player.seek;
       // Stop from the notification: leave radio / YouTube-audio mode entirely,
       // else just stop the music queue.
@@ -717,6 +725,28 @@ class AudioController extends Notifier<AudioState> {
     _pushQueue(); // radio has no queue — clears any leftover music queue
     _startIcyPolling();
     _startRadioTick();
+  }
+
+  /// Switches to the next ([step] 1) or previous ([step] -1) station, for the
+  /// media notification / Android Auto / car skip buttons. Walks
+  /// [RadioController.skipOrder] (Favorites, then each group, then
+  /// Ungrouped, the same order the Radio screen shows), wrapping at either
+  /// end. If the current station isn't in that list at all (a Browse/search
+  /// preview that was never saved), next lands on the first saved station and
+  /// previous on the last, rather than doing nothing.
+  Future<void> _radioSkip(int step) async {
+    final order = ref.read(radioControllerProvider.notifier).skipOrder;
+    if (order.isEmpty) return;
+    final current = state.radioStation;
+    final i = current == null
+        ? -1
+        : order.indexWhere((s) => s.id == current.id);
+    if (i < 0) {
+      await playStation(step > 0 ? order.first : order.last);
+      return;
+    }
+    final wrapped = (i + step) % order.length;
+    await playStation(order[wrapped < 0 ? wrapped + order.length : wrapped]);
   }
 
   /// Enable a back-buffer + forced seeking so we can pause (and keep buffering)

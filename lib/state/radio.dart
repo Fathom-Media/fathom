@@ -39,6 +39,38 @@ class RadioController extends AsyncNotifier<List<RadioStation>> {
   /// Replace the entire saved library (used by settings import).
   Future<void> importAll(List<RadioStation> stations) => _persist(stations);
 
+  /// The order the next/previous-station media controls step through: the
+  /// exact order the Radio screen displays stations in (Favorites, then each
+  /// group alphabetically, then Ungrouped), but with a station that's both
+  /// favorited and grouped counted once, at its Favorites position, so a
+  /// hands-off skip button never lands on the same station twice per lap.
+  List<RadioStation> get skipOrder {
+    final list = _list;
+    final seen = <String>{};
+    final out = <RadioStation>[];
+    void addAll(Iterable<RadioStation> src) {
+      for (final s in src) {
+        if (seen.add(s.id)) out.add(s);
+      }
+    }
+
+    addAll(list.where((s) => s.favorite));
+    final byGroup = <String, List<RadioStation>>{};
+    final ungrouped = <RadioStation>[];
+    for (final s in list) {
+      if (s.group != null && s.group!.isNotEmpty) {
+        byGroup.putIfAbsent(s.group!, () => []).add(s);
+      } else {
+        ungrouped.add(s);
+      }
+    }
+    for (final g in byGroup.keys.toList()..sort()) {
+      addAll(byGroup[g]!);
+    }
+    addAll(ungrouped);
+    return out;
+  }
+
   /// Group names in use, sorted; ungrouped stations live under a null group.
   List<String> get groups {
     final set = <String>{};
