@@ -49,6 +49,26 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # ffmpeg_kit_flutter_new_audio is only ever used on Android (Dart code
+      # gates every call behind Platform.isAndroid); its Windows CMakeLists.txt
+      # still unconditionally downloads a real ffmpeg DLL set and patches them
+      # (ASLR/rebase) regardless. The plugin LoadLibrary()s that DLL lazily at
+      # runtime rather than linking it, so the glue library builds fine without
+      # it — strip the download/patch section so Windows doesn't pay for a
+      # dependency it never calls.
+      - name: Neuter ffmpeg_kit_flutter's native bundle (Windows doesn't use it)
+        shell: pwsh
+        run: |
+          $pkg = Get-ChildItem "$env:PUB_CACHE\hosted\pub.dev" -Directory -Filter "ffmpeg_kit_flutter_new_audio-*" | Select-Object -First 1
+          if (-not $pkg) { throw "ffmpeg_kit_flutter_new_audio not found under $env:PUB_CACHE" }
+          $path = Join-Path $pkg.FullName "windows\CMakeLists.txt"
+          $content = Get-Content $path -Raw
+          $marker = 'if(CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")'
+          $idx = $content.IndexOf($marker)
+          if ($idx -lt 0) { throw "Expected architecture-detection block not found in $path" }
+          $content = $content.Substring(0, $idx) + "set(ffmpeg_kit_flutter_new_audio_bundled_libraries `"`" PARENT_SCOPE)`n"
+          Set-Content $path $content -NoNewline
+
       # smtc_windows 1.1.0's Dart bindings are generated with flutter_rust_bridge
       # 2.11.1 and its Cargo.toml exact-pins the main frb crate, but NOT the
       # companion flutter_rust_bridge_macros crate — so cargo lets it drift to a
