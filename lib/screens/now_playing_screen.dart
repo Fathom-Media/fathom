@@ -63,6 +63,11 @@ class NowPlayingScreen extends ConsumerWidget {
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
+      // No text field on this screen, so it has no business reacting to a
+      // keyboard inset. Left at the default, a stuck/late-clearing inset
+      // (#40: "looks like the keyboard isn't removed") shrinks the body and
+      // leaves the transport row and Up Next rendered off the visible screen.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(l.playerNowPlaying),
         centerTitle: true,
@@ -215,7 +220,15 @@ class NowPlayingScreen extends ConsumerWidget {
                             : null,
                       ),
                       const SizedBox(height: 4),
-                      Stack(
+                      // scaleDown, not a bare Stack: the reserved volume slot
+                      // below adds real width, and on a narrow phone that can
+                      // be more than the available width has room for. This
+                      // shrinks the whole control cluster uniformly instead of
+                      // overflowing, rather than assuming every device has
+                      // enough slack (#40).
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Stack(
                         alignment: Alignment.center,
                         children: [
                           // Transport clusters in the true center; volume floats
@@ -279,6 +292,11 @@ class NowPlayingScreen extends ConsumerWidget {
                                 : null,
                             onPressed: controller.cycleRepeat,
                           ),
+                          // Reserves the collapsed volume icon's own footprint
+                          // so it lands in empty space instead of on top of
+                          // repeat (#40) — the centered row needs to actually
+                          // be wider than its buttons for that space to exist.
+                          if (!isTvDevice) const SizedBox(width: 48),
                             ],
                           ),
                           // No volume on TV — the remote owns it.
@@ -289,6 +307,7 @@ class NowPlayingScreen extends ConsumerWidget {
                                   player: player, expandLeft: true),
                             ),
                         ],
+                        ),
                       ),
                       const SizedBox(height: 12),
                       _UpNextPeek(
@@ -365,6 +384,9 @@ class _RadioNowPlaying extends ConsumerWidget {
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: scheme.surface,
+      // No text field on this screen; see the music Now Playing screen for why
+      // this matters (#40).
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(l.radioNowPlaying),
         centerTitle: true,
@@ -1425,6 +1447,9 @@ class _YoutubeNowPlaying extends ConsumerWidget {
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
+      // No text field on this screen; see the music Now Playing screen for why
+      // this matters (#40).
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(l.playerNowPlaying),
         centerTitle: true,
@@ -1543,7 +1568,11 @@ class _YoutubeNowPlaying extends ConsumerWidget {
               const SizedBox(height: 20),
               _YtScrub(player: player),
               const SizedBox(height: 8),
-              Stack(
+              // scaleDown so the reserved volume slot below never overflows on
+              // a narrow phone, matching the music layout (#40).
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Stack(
                 alignment: Alignment.center,
                 children: [
                   // Transport clusters in the center; volume floats at the right
@@ -1593,6 +1622,10 @@ class _YoutubeNowPlaying extends ConsumerWidget {
                             : null,
                         onPressed: controller.cycleRepeat,
                       ),
+                      // Reserves the collapsed volume icon's own footprint so
+                      // it lands in empty space instead of on top of repeat
+                      // (#40), matching the music layout.
+                      if (!isTvDevice) const SizedBox(width: 48),
                     ],
                   ),
                   // No volume on TV — the remote owns it.
@@ -1602,6 +1635,7 @@ class _YoutubeNowPlaying extends ConsumerWidget {
                       child: InlineVolume(player: player, expandLeft: true),
                     ),
                 ],
+                ),
               ),
             ],
           );
