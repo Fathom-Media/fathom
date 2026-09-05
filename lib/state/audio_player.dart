@@ -1532,6 +1532,7 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       return ref.read(castControllerProvider.notifier).queueNext();
     }
+    if (state.isRadio) return _radioSkip(1);
     if (state.isYoutubeAudio) return _ytNext(user: true);
     return _player.next();
   }
@@ -1541,6 +1542,7 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       return ref.read(castControllerProvider.notifier).queuePrev();
     }
+    if (state.isRadio) return _radioSkip(-1);
     if (state.isYoutubeAudio) return _ytPrevious();
     return _player.previous();
   }
