@@ -40,8 +40,9 @@ class HoverPosterArt extends ConsumerStatefulWidget {
   /// A custom menu opener that replaces the shared item menu (used by the
   /// offline Downloads library, whose actions are Play / Remove download rather
   /// than the server-side ones). When set, the poster shows the menu affordance
-  /// and calls this instead of [showItemActionsMenu].
-  final VoidCallback? onMenu;
+  /// and calls this instead of [showItemActionsMenu]. Receives the tap/click's
+  /// global position, to anchor a desktop dropdown the same way the shared menu does.
+  final void Function(Offset at)? onMenu;
 
   /// What the menu's "Show Details" runs. Defaults to [onTap]; the Downloads
   /// library sets it to open the detail page while [onTap] plays/drills in.
@@ -88,7 +89,7 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
 
   void _openMenu(Offset at) {
     if (widget.onMenu != null) {
-      widget.onMenu!();
+      widget.onMenu!(at);
       return;
     }
     showItemActionsMenu(
@@ -429,7 +430,7 @@ class PosterCard extends StatelessWidget {
 
   /// A custom menu opener (replaces the shared item menu). The Downloads library
   /// passes one for its Play / Remove-download actions.
-  final VoidCallback? onMenu;
+  final void Function(Offset at)? onMenu;
 
   /// What the menu's "Show Details" runs; defaults to [onTap].
   final VoidCallback? onOpenDetails;

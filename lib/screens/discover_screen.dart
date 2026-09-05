@@ -18,6 +18,7 @@ import '../widgets/reorder.dart';
 import '../widgets/app_dropdown.dart';
 import '../widgets/app_snack.dart';
 import '../widgets/cached_image.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/search_field.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
@@ -1936,34 +1937,55 @@ class _RequestTile extends ConsumerWidget {
                       ),
                     ),
                   ] else
-                    PopupMenuButton<String>(
-                      onSelected: (v) => _act(context, ref, v),
-                      itemBuilder: (_) => [
-                        if (r.isPending && canManage) ...[
-                          _menuItem('edit', Icons.tune_rounded, l.browseEditRequest),
-                          _menuItem('approve',
-                              Icons.check_circle_outline_rounded, l.browseApprove),
-                          _menuItem(
-                              'decline', Icons.cancel_outlined, l.browseDecline),
-                        ],
-                        if (r.isFailed && canManage)
-                          _menuItem(
-                              'retry', Icons.refresh_rounded, l.commonRetry),
-                        if (canManage || r.isPending)
-                          _menuItem('delete', Icons.delete_outline_rounded,
-                              l.browseDeleteRequest,
-                              color: scheme.error),
-                        if (isAdmin &&
-                            r.mediaId != null &&
-                            (r.mediaStatus ?? 0) >= 3)
-                          _menuItem(
-                              'remove',
-                              Icons.delete_sweep_outlined,
-                              l.browseRemoveFromService(
-                                  r.mediaType == 'tv' ? 'Sonarr' : 'Radarr'),
-                              color: scheme.error),
-                      ],
-                    ),
+                    Builder(builder: (btnContext) {
+                      return IconButton(
+                        icon: const Icon(Icons.more_vert_rounded),
+                        onPressed: () {
+                          final box =
+                              btnContext.findRenderObject() as RenderBox?;
+                          final at = box == null
+                              ? Offset.zero
+                              : box.localToGlobal(
+                                  box.size.center(Offset.zero));
+                          showContextMenu(context, at: at, title: title, actions: [
+                            if (r.isPending && canManage) ...[
+                              ContextMenuAction(
+                                  icon: Icons.tune_rounded,
+                                  label: l.browseEditRequest,
+                                  onTap: () => _act(context, ref, 'edit')),
+                              ContextMenuAction(
+                                  icon: Icons.check_circle_outline_rounded,
+                                  label: l.browseApprove,
+                                  onTap: () => _act(context, ref, 'approve')),
+                              ContextMenuAction(
+                                  icon: Icons.cancel_outlined,
+                                  label: l.browseDecline,
+                                  onTap: () => _act(context, ref, 'decline')),
+                            ],
+                            if (r.isFailed && canManage)
+                              ContextMenuAction(
+                                  icon: Icons.refresh_rounded,
+                                  label: l.commonRetry,
+                                  onTap: () => _act(context, ref, 'retry')),
+                            if (canManage || r.isPending)
+                              ContextMenuAction(
+                                  icon: Icons.delete_outline_rounded,
+                                  label: l.browseDeleteRequest,
+                                  color: scheme.error,
+                                  onTap: () => _act(context, ref, 'delete')),
+                            if (isAdmin &&
+                                r.mediaId != null &&
+                                (r.mediaStatus ?? 0) >= 3)
+                              ContextMenuAction(
+                                  icon: Icons.delete_sweep_outlined,
+                                  label: l.browseRemoveFromService(
+                                      r.mediaType == 'tv' ? 'Sonarr' : 'Radarr'),
+                                  color: scheme.error,
+                                  onTap: () => _act(context, ref, 'remove')),
+                          ]);
+                        },
+                      );
+                    }),
                 ],
               ),
             ),
@@ -1975,17 +1997,6 @@ class _RequestTile extends ConsumerWidget {
 
   String? _avatarUrl(WidgetRef ref, String? raw) =>
       seerrAvatarUrl(ref.read(seerrClientProvider)?.baseUrl ?? '', raw);
-
-  PopupMenuItem<String> _menuItem(String value, IconData icon, String label,
-          {Color? color}) =>
-      PopupMenuItem(
-        value: value,
-        child: ListTile(
-          leading: Icon(icon, color: color),
-          title: Text(label),
-          contentPadding: EdgeInsets.zero,
-        ),
-      );
 
   Widget _pill(String label, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),

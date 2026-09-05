@@ -7,6 +7,7 @@ import '../services/tv_mode.dart';
 import '../state/audio_player.dart';
 import '../state/downloads.dart';
 import '../state/library_providers.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/equalizer_bars.dart';
 import '../widgets/media_image.dart';
 import '../widgets/tv_focus.dart';
@@ -208,7 +209,8 @@ class AlbumView extends ConsumerWidget {
       itemBuilder: (context, i) {
         final track = tracks[i];
         final isCurrent = playing?.id == track.id;
-        return TvFocusRing(
+        void openMenu(Offset at) => _trackMenu(context, ref, l, track, at);
+        final tile = TvFocusRing(
           borderRadius: BorderRadius.circular(8),
           child: ListTile(
             dense: true,
@@ -245,28 +247,18 @@ class AlbumView extends ConsumerWidget {
                   Text(_fmtDuration(track.runTimeTicks!),
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant)),
-                PopupMenuButton<String>(
-                  tooltip: l.browseMore,
-                  icon: const Icon(Icons.more_vert_rounded, size: 20),
-                  onSelected: (v) {
-                    final c = ref.read(audioControllerProvider.notifier);
-                    if (v == 'next') c.playNext(track);
-                    if (v == 'queue') c.addToQueue(track);
-                    if (v == 'remove') {
-                      ref.read(downloadsProvider.notifier).delete(track.id);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                        value: 'next', child: Text(l.browsePlayNext)),
-                    PopupMenuItem(
-                        value: 'queue', child: Text(l.browseAddToQueue)),
-                    if (downloadScoped)
-                      PopupMenuItem(
-                          value: 'remove',
-                          child: Text(l.detailRemoveDownload)),
-                  ],
-                ),
+                Builder(builder: (btnContext) {
+                  return IconButton(
+                    tooltip: l.browseMore,
+                    icon: const Icon(Icons.more_vert_rounded, size: 20),
+                    onPressed: () {
+                      final box = btnContext.findRenderObject() as RenderBox?;
+                      openMenu(box == null
+                          ? Offset.zero
+                          : box.localToGlobal(box.size.center(Offset.zero)));
+                    },
+                  );
+                }),
               ],
             ),
             onTap: () => ref
@@ -274,8 +266,39 @@ class AlbumView extends ConsumerWidget {
                 .playQueue(tracks, i),
           ),
         );
+        if (isTvDevice) return tile;
+        return GestureDetector(
+          behavior: HitTestBehavior.deferToChild,
+          onLongPressStart: (d) => openMenu(d.globalPosition),
+          onSecondaryTapUp: (d) => openMenu(d.globalPosition),
+          child: tile,
+        );
       },
     );
+  }
+
+  void _trackMenu(BuildContext context, WidgetRef ref, AppLocalizations l,
+      BaseItemDto track, Offset at) {
+    final c = ref.read(audioControllerProvider.notifier);
+    showContextMenu(context, at: at, title: track.name, actions: [
+      ContextMenuAction(
+        icon: Icons.playlist_play_rounded,
+        label: l.browsePlayNext,
+        onTap: () => c.playNext(track),
+      ),
+      ContextMenuAction(
+        icon: Icons.queue_music_rounded,
+        label: l.browseAddToQueue,
+        onTap: () => c.addToQueue(track),
+      ),
+      if (downloadScoped)
+        ContextMenuAction(
+          icon: Icons.delete_outline_rounded,
+          label: l.detailRemoveDownload,
+          color: Theme.of(context).colorScheme.error,
+          onTap: () => ref.read(downloadsProvider.notifier).delete(track.id),
+        ),
+    ]);
   }
 
   /// Download / progress / remove pill for the whole album, reflecting how many

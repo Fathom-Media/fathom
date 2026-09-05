@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/base_item.dart';
 import '../state/audio_player.dart';
 import '../state/downloads.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/glass.dart';
@@ -248,7 +249,7 @@ class _DownloadedLibrary extends ConsumerWidget {
         ),
         localPosterPath: e.posterPath,
         contextActions: false,
-        onMenu: () => _musicSingleMenu(context, ref, e),
+        onMenu: (at) => _musicSingleMenu(context, ref, e, at),
         onTap: () => ref.read(audioControllerProvider.notifier).playQueue([
           BaseItemDto(
             id: e.itemId,
@@ -259,47 +260,29 @@ class _DownloadedLibrary extends ConsumerWidget {
         ], 0),
       );
 
-  void _musicSingleMenu(BuildContext context, WidgetRef ref, DownloadEntry e) {
+  void _musicSingleMenu(
+      BuildContext context, WidgetRef ref, DownloadEntry e, Offset at) {
     final l = AppLocalizations.of(context);
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _MenuTitle(e.name),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.play_arrow_rounded),
-              title: Text(l.commonPlay),
-              onTap: () {
-                Navigator.pop(ctx);
-                ref.read(audioControllerProvider.notifier).playQueue([
-                  BaseItemDto(
-                      id: e.itemId,
-                      name: e.name,
-                      type: 'Audio',
-                      runTimeTicks: e.runTimeTicks),
-                ], 0);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Theme.of(ctx).colorScheme.error),
-              title: Text(l.detailRemoveDownload,
-                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-              onTap: () {
-                Navigator.pop(ctx);
-                ref.read(downloadsProvider.notifier).delete(e.itemId);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+    final cs = Theme.of(context).colorScheme;
+    showContextMenu(context, at: at, title: e.name, actions: [
+      ContextMenuAction(
+        icon: Icons.play_arrow_rounded,
+        label: l.commonPlay,
+        onTap: () => ref.read(audioControllerProvider.notifier).playQueue([
+          BaseItemDto(
+              id: e.itemId,
+              name: e.name,
+              type: 'Audio',
+              runTimeTicks: e.runTimeTicks),
+        ], 0),
       ),
-    );
+      ContextMenuAction(
+        icon: Icons.delete_outline_rounded,
+        label: l.detailRemoveDownload,
+        color: cs.error,
+        onTap: () => ref.read(downloadsProvider.notifier).delete(e.itemId),
+      ),
+    ]);
   }
 
   /// A poster for one standalone download (movie, recording, or music item).
@@ -316,7 +299,7 @@ class _DownloadedLibrary extends ConsumerWidget {
         ),
         localPosterPath: e.posterPath,
         contextActions: false,
-        onMenu: () => _movieMenu(context, ref, e),
+        onMenu: (at) => _movieMenu(context, ref, e, at),
         onTap: () => context.push('/downloads/detail', extra: e.itemId),
       );
 
@@ -341,114 +324,74 @@ class _DownloadedLibrary extends ConsumerWidget {
       ),
       localPosterPath: first.posterPath,
       contextActions: false,
-      onMenu: () => _showMenu(context, ref, g.key, name),
+      onMenu: (at) => _showMenu(context, ref, g.key, name, at),
       onTap: () => context.push('/downloads/detail', extra: g.key),
     );
   }
 
-  void _movieMenu(BuildContext context, WidgetRef ref, DownloadEntry e) {
+  void _movieMenu(
+      BuildContext context, WidgetRef ref, DownloadEntry e, Offset at) {
     final l = AppLocalizations.of(context);
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _MenuTitle(e.name),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.info_outline_rounded),
-              title: Text(l.actionShowDetails),
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('/downloads/detail', extra: e.itemId);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.play_arrow_rounded),
-              title: Text(l.commonPlay),
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('/player',
-                    extra: BaseItemDto(id: e.itemId, name: e.name));
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Theme.of(ctx).colorScheme.error),
-              title: Text(l.detailRemoveDownload,
-                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-              onTap: () {
-                Navigator.pop(ctx);
-                ref.read(downloadsProvider.notifier).delete(e.itemId);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+    final cs = Theme.of(context).colorScheme;
+    showContextMenu(context, at: at, title: e.name, actions: [
+      ContextMenuAction(
+        icon: Icons.info_outline_rounded,
+        label: l.actionShowDetails,
+        onTap: () => context.push('/downloads/detail', extra: e.itemId),
       ),
-    );
+      ContextMenuAction(
+        icon: Icons.play_arrow_rounded,
+        label: l.commonPlay,
+        onTap: () =>
+            context.push('/player', extra: BaseItemDto(id: e.itemId, name: e.name)),
+      ),
+      ContextMenuAction(
+        icon: Icons.delete_outline_rounded,
+        label: l.detailRemoveDownload,
+        color: cs.error,
+        onTap: () => ref.read(downloadsProvider.notifier).delete(e.itemId),
+      ),
+    ]);
   }
 
-  void _showMenu(
-      BuildContext context, WidgetRef ref, String seriesId, String name) {
+  void _showMenu(BuildContext context, WidgetRef ref, String seriesId,
+      String name, Offset at) {
     final l = AppLocalizations.of(context);
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _MenuTitle(name),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.info_outline_rounded),
-              title: Text(l.actionShowDetails),
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('/downloads/detail', extra: seriesId);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Theme.of(ctx).colorScheme.error),
-              title: Text(l.detailRemoveDownload,
-                  style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-              onTap: () async {
-                Navigator.pop(ctx);
-                final ok = await showDialog<bool>(
-                  context: context,
-                  builder: (dctx) => AlertDialog(
-                    title: Text(l.detailRemoveDownload),
-                    content: Text(l.detailRemoveOfflineCopy(name)),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(dctx, false),
-                        child: Text(l.commonCancel),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(dctx, true),
-                        child: Text(l.commonRemove),
-                      ),
-                    ],
-                  ),
-                );
-                if (ok == true) {
-                  await ref
-                      .read(downloadsProvider.notifier)
-                      .deleteSeries(seriesId);
-                }
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+    final cs = Theme.of(context).colorScheme;
+    showContextMenu(context, at: at, title: name, actions: [
+      ContextMenuAction(
+        icon: Icons.info_outline_rounded,
+        label: l.actionShowDetails,
+        onTap: () => context.push('/downloads/detail', extra: seriesId),
       ),
-    );
+      ContextMenuAction(
+        icon: Icons.delete_outline_rounded,
+        label: l.detailRemoveDownload,
+        color: cs.error,
+        onTap: () async {
+          final ok = await showDialog<bool>(
+            context: context,
+            builder: (dctx) => AlertDialog(
+              title: Text(l.detailRemoveDownload),
+              content: Text(l.detailRemoveOfflineCopy(name)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dctx, false),
+                  child: Text(l.commonCancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dctx, true),
+                  child: Text(l.commonRemove),
+                ),
+              ],
+            ),
+          );
+          if (ok == true) {
+            await ref.read(downloadsProvider.notifier).deleteSeries(seriesId);
+          }
+        },
+      ),
+    ]);
   }
 }
 
@@ -482,24 +425,6 @@ class _PosterGrid extends StatelessWidget {
       children: [
         for (final c in children) SizedBox(height: 308, child: c),
       ],
-    );
-  }
-}
-
-/// A downloaded show's episodes, grouped by season, each playing on tap.
-/// The item-name header at the top of a poster's action sheet.
-class _MenuTitle extends StatelessWidget {
-  final String text;
-  const _MenuTitle(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
-      child: Text(text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium),
     );
   }
 }

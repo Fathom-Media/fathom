@@ -10,6 +10,7 @@ import '../routing/app_shell.dart';
 import '../services/tv_mode.dart';
 import '../state/audio_player.dart';
 import '../state/radio.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/motion.dart';
 import '../widgets/reorder.dart';
@@ -291,37 +292,34 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
   Widget _groupMenu(String group) {
     final l = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
-    return PopupMenuButton<String>(
-      tooltip: l.radioGroupOptions,
-      // A pencil (not the station rows' vertical ⋮) so a group-level action
-      // reads as distinct: "manage this group", not "options for a station".
-      icon: Icon(Icons.edit_rounded, size: 18, color: scheme.onSurfaceVariant),
-      splashRadius: 20,
-      onSelected: (v) {
-        if (v == 'rename') _renameGroup(group);
-        if (v == 'delete') _deleteGroup(group);
-      },
-      itemBuilder: (_) => [
-        PopupMenuItem(
-          value: 'rename',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.drive_file_rename_outline_rounded),
-            title: Text(l.radioRenameGroup),
-          ),
-        ),
-        PopupMenuItem(
-          value: 'delete',
-          child: ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.delete_outline_rounded),
-            title: Text(l.radioDeleteGroup),
-          ),
-        ),
-      ],
-    );
+    // A pencil (not the station rows' vertical ⋮) so a group-level action
+    // reads as distinct: "manage this group", not "options for a station".
+    return Builder(builder: (btnContext) {
+      return IconButton(
+        tooltip: l.radioGroupOptions,
+        icon:
+            Icon(Icons.edit_rounded, size: 18, color: scheme.onSurfaceVariant),
+        splashRadius: 20,
+        onPressed: () {
+          final box = btnContext.findRenderObject() as RenderBox?;
+          final at = box == null
+              ? Offset.zero
+              : box.localToGlobal(box.size.center(Offset.zero));
+          showContextMenu(context, at: at, actions: [
+            ContextMenuAction(
+              icon: Icons.drive_file_rename_outline_rounded,
+              label: l.radioRenameGroup,
+              onTap: () => _renameGroup(group),
+            ),
+            ContextMenuAction(
+              icon: Icons.delete_outline_rounded,
+              label: l.radioDeleteGroup,
+              onTap: () => _deleteGroup(group),
+            ),
+          ]);
+        },
+      );
+    });
   }
 
   Future<void> _renameGroup(String group) async {
@@ -357,7 +355,6 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
   }
 
   Widget _tile(RadioStation s, String? playingId, {int? dragIndex}) {
-    final l = AppLocalizations.of(context);
     final di = dragIndex;
     final tile = _StationTile(
       station: s,
@@ -369,61 +366,64 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
           : Icon(Icons.drag_indicator, color: dragGripColor(context)),
       trailing: isTvDevice
           ? null
-          : PopupMenuButton<String>(
-        icon: const Icon(Icons.more_vert_rounded),
-        onSelected: (v) => _onAction(v, s),
-        itemBuilder: (_) => [
-          PopupMenuItem(
-            value: 'favorite',
-            child: ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(s.favorite
-                  ? Icons.favorite_rounded
-                  : Icons.favorite_border_rounded),
-              title: Text(s.favorite ? l.radioUnfavorite : l.radioFavorite),
-            ),
-          ),
-          PopupMenuItem(
-            value: 'group',
-            child: ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.folder_rounded),
-              title: Text(l.radioSetGroup),
-            ),
-          ),
-          PopupMenuItem(
-            value: 'edit',
-            child: ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.edit_rounded),
-              title: Text(l.commonEdit),
-            ),
-          ),
-          PopupMenuItem(
-            value: 'remove',
-            child: ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Theme.of(context).colorScheme.error),
-              title: Text(l.commonRemove,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ),
-          ),
-        ],
-      ),
+          : Builder(builder: (btnContext) {
+              return IconButton(
+                icon: const Icon(Icons.more_vert_rounded),
+                onPressed: () {
+                  final box = btnContext.findRenderObject() as RenderBox?;
+                  _openStationMenu(
+                      s,
+                      box == null
+                          ? Offset.zero
+                          : box.localToGlobal(box.size.center(Offset.zero)));
+                },
+              );
+            }),
       // TV: selecting opens the Play/Favorite/Group/Edit/Remove sheet, since the
       // row's ⋮ can't be reached with a remote.
       onTap: isTvDevice
           ? () => _showStationSheet(s, saved: true)
           : () => ref.read(audioControllerProvider.notifier).playStation(s),
+      onOpenMenu: isTvDevice ? null : (at) => _openStationMenu(s, at),
+      // Rows in this section are already draggable from anywhere on touch (a
+      // long-press starts the drag); a competing long-press-for-menu recognizer
+      // would fight it for the gesture. Right-click never conflicts (it's a
+      // separate mouse button from the drag-start press), so that stays on.
+      allowLongPressMenu: di == null,
     );
     if (di == null) return KeyedSubtree(key: ValueKey(s.id), child: tile);
     // Drag from anywhere on the row (press-drag on desktop, long-press on touch).
     return dragAnywhere(key: ValueKey(s.id), index: di, child: tile);
+  }
+
+  Future<void> _openStationMenu(RadioStation s, Offset at) async {
+    final l = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    await showContextMenu(context, at: at, title: s.name, actions: [
+      ContextMenuAction(
+        icon: s.favorite
+            ? Icons.favorite_rounded
+            : Icons.favorite_border_rounded,
+        label: s.favorite ? l.radioUnfavorite : l.radioFavorite,
+        onTap: () => _onAction('favorite', s),
+      ),
+      ContextMenuAction(
+        icon: Icons.folder_rounded,
+        label: l.radioSetGroup,
+        onTap: () => _onAction('group', s),
+      ),
+      ContextMenuAction(
+        icon: Icons.edit_rounded,
+        label: l.commonEdit,
+        onTap: () => _onAction('edit', s),
+      ),
+      ContextMenuAction(
+        icon: Icons.delete_outline_rounded,
+        label: l.commonRemove,
+        color: cs.error,
+        onTap: () => _onAction('remove', s),
+      ),
+    ]);
   }
 
   Future<void> _onAction(String action, RadioStation s) async {
@@ -563,12 +563,19 @@ class _StationTile extends StatelessWidget {
   final Widget? trailing;
   final Widget? dragHandle;
   final VoidCallback onTap;
+  // Right-click / long-press opens the same menu as the trailing "⋮" button,
+  // matching every other item row in the app. Null where the row has no menu
+  // to offer (a browse-search result only has a single "+" action).
+  final void Function(Offset at)? onOpenMenu;
+  final bool allowLongPressMenu;
   const _StationTile({
     required this.station,
     required this.playing,
     required this.onTap,
     this.trailing,
     this.dragHandle,
+    this.onOpenMenu,
+    this.allowLongPressMenu = true,
   });
 
   @override
@@ -599,7 +606,7 @@ class _StationTile extends StatelessWidget {
             : _fallback(scheme),
       ),
     );
-    return TvFocusRing(
+    final tile = TvFocusRing(
       borderRadius: BorderRadius.circular(12),
       child: ListTile(
         // Drag grip (when reorderable) sits at the very left, before the logo,
@@ -620,6 +627,15 @@ class _StationTile extends StatelessWidget {
             : trailing,
         onTap: onTap,
       ),
+    );
+    if (onOpenMenu == null || isTvDevice) return tile;
+    final openMenu = onOpenMenu!;
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      onLongPressStart:
+          allowLongPressMenu ? (d) => openMenu(d.globalPosition) : null,
+      onSecondaryTapUp: (d) => openMenu(d.globalPosition),
+      child: tile,
     );
   }
 
