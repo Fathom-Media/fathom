@@ -3,6 +3,7 @@
 ## Your library
 
 - **Movies and TV**: libraries, search, rich detail pages, resume and Next Up, next and previous episode, skip intro, recap, and credits, an Up Next prompt that rolls into the next episode during the credits, chapters, and trickplay thumbnails as you scrub.
+- **Favorites and Watchlist**: two separate personal lists, one for what you love, one for what you still want to watch. Toggle either from an item's detail page or its context menu (long-press, right-click, or the overflow button, they all open the same menu).
 - **Music**: albums, a play queue, now playing, shuffle and repeat, synced lyrics with an online fallback, and scrobbling. The now-playing screen flips between artwork and lyrics.
 - **Live TV and DVR**: a channel list, an EPG guide, recording with series rules, and tuner and guide-provider setup.
 
@@ -32,6 +33,7 @@ It works in both the Jellyfin and YouTube players, and stays put when you enter 
 Add stations by URL or search the built-in [radio-browser.info](https://www.radio-browser.info) directory. Organize them into groups and favorites, and reorder them by drag.
 
 - **Live time-shift**: pause and rewind a live station within a buffered window, then hit **LIVE** to jump back to the edge.
+- **Switch stations**: previous/next-station controls on the Now Playing screen, and on the OS media session too (the notification, Android Auto, and Linux/Windows media controls), so a keyboard media key or steering-wheel button skips to another saved station.
 - **Now playing**: station art (with album-art lookup for stations that report track info), an inline volume control, and background playback.
 - Radio can be cast to a speaker or TV alongside your music.
 

@@ -35,7 +35,12 @@ Once it runs, Fathom can keep itself up to date. See [Updates and channels](upda
 
 ## Windows
 
-Download **`Fathom-windows-x64.zip`**, extract it, and run `fathom.exe`. It is self-contained, with nothing else to install.
+Two options, same build either way:
+
+- **`Fathom-Setup-x64.exe`**: a real installer with a Start Menu entry and uninstaller. Installs per-user (no admin prompt), so it stays fully compatible with Fathom's own in-app updater.
+- **`Fathom-windows-x64.zip`**: extract it and run `fathom.exe` directly, no install step at all.
+
+Windows will likely warn that the app is from an unrecognized publisher the first time (it is not code-signed); choose "More info" then "Run anyway."
 
 ## Android
 
