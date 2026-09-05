@@ -2090,11 +2090,11 @@
   "@detailMarkUnwatched": {
     "description": "Tooltip: mark this item as not watched."
   },
-  "detailAddFavorite": "Add Favorite",
+  "detailAddFavorite": "Add to Favorites",
   "@detailAddFavorite": {
     "description": "Tooltip: add this item to favorites."
   },
-  "detailRemoveFavorite": "Remove Favorite",
+  "detailRemoveFavorite": "Remove from Favorites",
   "@detailRemoveFavorite": {
     "description": "Tooltip: remove this item from favorites."
   },

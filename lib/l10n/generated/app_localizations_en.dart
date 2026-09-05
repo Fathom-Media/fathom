@@ -1683,10 +1683,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get detailMarkUnwatched => 'Mark Unwatched';
 
   @override
-  String get detailAddFavorite => 'Add Favorite';
+  String get detailAddFavorite => 'Add to Favorites';
 
   @override
-  String get detailRemoveFavorite => 'Remove Favorite';
+  String get detailRemoveFavorite => 'Remove from Favorites';
 
   @override
   String get detailAddToWatchlist => 'Add to Watchlist';

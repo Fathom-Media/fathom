@@ -3181,13 +3181,13 @@ abstract class AppLocalizations {
   /// Tooltip: add this item to favorites.
   ///
   /// In en, this message translates to:
-  /// **'Add Favorite'**
+  /// **'Add to Favorites'**
   String get detailAddFavorite;
 
   /// Tooltip: remove this item from favorites.
   ///
   /// In en, this message translates to:
-  /// **'Remove Favorite'**
+  /// **'Remove from Favorites'**
   String get detailRemoveFavorite;
 
   /// Tooltip/menu row: add this item to the Watchlist.
