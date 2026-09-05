@@ -69,6 +69,13 @@ dependencies:
   audio_session: ^0.2.4
   # Voice entry on the D-pad keyboard (Android TV remotes with a mic button).
   speech_to_text: ^7.0.0
+  # Android has no system ffmpeg (unlike Linux/Windows, where the download
+  # merger shells out to it directly); this bundles a real ffmpeg for Android
+  # only, so YouTube downloads get the same quality/container/MP3 options
+  # there as on desktop. arthenica/ffmpeg-kit is archived and pub.dev marks
+  # ffmpeg_kit_flutter discontinued — this is the actively maintained
+  # successor (github.com/sk3llo/ffmpeg_kit_flutter).
+  ffmpeg_kit_flutter_new_audio: ^2.5.2
   smtc_windows: ^1.1.0
   # smtc_windows 1.1.0's generated bindings are codegen'd with flutter_rust_bridge
   # 2.11.1, but it only requires ^2.11.1 so pub picks 2.12.0, whose runtime

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:ffmpeg_kit_flutter_new_audio/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new_audio/return_code.dart';
 
 import 'youtube_streams.dart';
 
@@ -92,9 +94,10 @@ class YtDownloadProgress {
 /// — ffmpeg copies the streams, which takes a second or two rather than minutes,
 /// and loses nothing.
 ///
-/// NewPipe writes its own muxers because Android has no system ffmpeg. We're on
-/// the desktop, where it usually does, so this shells out and degrades honestly
-/// when it isn't there.
+/// Desktop has a system ffmpeg (usually), so that's a plain shell-out. Android
+/// has none, so it runs the same commands through a bundled ffmpeg instead
+/// (ffmpeg_kit_flutter_new) rather than being permanently capped at 360p/M4A
+/// the way it was before.
 class YoutubeDownloader {
   YoutubeDownloader({Dio? dio}) : _dio = dio ?? Dio();
 
@@ -102,10 +105,12 @@ class YoutubeDownloader {
 
   static bool? _ffmpegCached;
 
-  /// Whether ffmpeg is on PATH. Cached: it can't change while we run, and this
-  /// is asked on every download and every menu build.
+  /// Whether ffmpeg is available: bundled on Android, so always true there;
+  /// on PATH elsewhere. Cached — it can't change while we run, and this is
+  /// asked on every download and every menu build.
   static Future<bool> hasFfmpeg() async {
     if (_ffmpegCached != null) return _ffmpegCached!;
+    if (Platform.isAndroid) return _ffmpegCached = true;
     try {
       final r = await Process.run('ffmpeg', ['-version']);
       _ffmpegCached = r.exitCode == 0;
@@ -117,6 +122,25 @@ class YoutubeDownloader {
 
   /// Only for tests, which must not depend on the host having ffmpeg.
   static void debugSetFfmpeg(bool? value) => _ffmpegCached = value;
+
+  /// Runs an ffmpeg command: the bundled plugin on Android (which has no
+  /// system binary), the system `ffmpeg` on PATH elsewhere. Same call sites,
+  /// same failure behavior, either way.
+  static Future<void> _ffmpeg(List<String> args, String context) async {
+    if (Platform.isAndroid) {
+      final session = await FFmpegKit.executeWithArguments(args);
+      final rc = await session.getReturnCode();
+      if (!ReturnCode.isSuccess(rc)) {
+        final log = await session.getAllLogsAsString();
+        throw Exception('$context: ${(log ?? '').trim()}');
+      }
+      return;
+    }
+    final r = await Process.run('ffmpeg', args);
+    if (r.exitCode != 0) {
+      throw Exception('$context: ${r.stderr.toString().trim()}');
+    }
+  }
 
   /// Filenames that survive a real filesystem.
   ///
@@ -242,7 +266,7 @@ class YoutubeDownloader {
   /// faststart flag; mkv takes any codec pairing as-is, so it's dropped there.
   Future<void> _mux(File video, File audio, File output,
       {bool mkv = false}) async {
-    final r = await Process.run('ffmpeg', [
+    await _ffmpeg([
       '-hide_banner', '-loglevel', 'error',
       '-i', video.path,
       '-i', audio.path,
@@ -251,38 +275,29 @@ class YoutubeDownloader {
       '-c', 'copy',
       if (!mkv) ...['-movflags', '+faststart'],
       '-y', output.path,
-    ]);
-    if (r.exitCode != 0) {
-      throw Exception('Merging failed: ${r.stderr.toString().trim()}');
-    }
+    ], 'Merging failed');
   }
 
   /// Rewraps a self-contained stream into a new container without re-encoding.
   Future<void> _remux(File input, File output) async {
-    final r = await Process.run('ffmpeg', [
+    await _ffmpeg([
       '-hide_banner', '-loglevel', 'error',
       '-i', input.path,
       '-c', 'copy',
       '-y', output.path,
-    ]);
-    if (r.exitCode != 0) {
-      throw Exception('Remux failed: ${r.stderr.toString().trim()}');
-    }
+    ], 'Remux failed');
   }
 
   /// Re-encodes the audio in [input] to an MP3 at [bitrateKbps].
   Future<void> _transcodeMp3(File input, File output, int bitrateKbps) async {
-    final r = await Process.run('ffmpeg', [
+    await _ffmpeg([
       '-hide_banner', '-loglevel', 'error',
       '-i', input.path,
       '-vn',
       '-c:a', 'libmp3lame',
       '-b:a', '${bitrateKbps}k',
       '-y', output.path,
-    ]);
-    if (r.exitCode != 0) {
-      throw Exception('MP3 conversion failed: ${r.stderr.toString().trim()}');
-    }
+    ], 'MP3 conversion failed');
   }
 
   /// Downloads a video, muxing when it has to.
