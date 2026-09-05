@@ -74,6 +74,30 @@ jobs:
           "$HOME/flutter/bin/flutter" precache --linux
           "$HOME/flutter/bin/flutter" --version
 
+      # ffmpeg_kit_flutter_new_audio is only ever used on Android (Dart code
+      # gates every call behind Platform.isAndroid); its Linux CMakeLists.txt
+      # still unconditionally downloads and bundles a real, x86_64-only
+      # prebuilt ffmpeg (upstream has no aarch64 Linux build at all), which
+      # broke aarch64 outright and adds dead weight to x86_64. The plugin
+      # dlopen()s that binary lazily at runtime rather than linking it, so the
+      # glue library only actually needs GTK + json-glib to build — strip the
+      # download/link section post-fetch, before it's ever consulted.
+      - name: Neuter ffmpeg_kit_flutter's native bundle (Linux doesn't use it)
+        run: |
+          flutter pub get
+          cmake_file=$(find "$HOME/.pub-cache" -path \
+            '*ffmpeg_kit_flutter_new_audio*/linux/CMakeLists.txt' | head -1)
+          if [[ -z "$cmake_file" ]]; then
+            echo "::error::ffmpeg_kit_flutter_new_audio CMakeLists.txt not found in pub-cache"
+            exit 1
+          fi
+          # Keep everything through the target_link_libraries call (still needs
+          # GTK + json-glib to compile); replace the "--- native bundle ---"
+          # section after it with a no-op.
+          sed -i '/^# --- native bundle/,$d' "$cmake_file"
+          echo 'set(ffmpeg_kit_flutter_new_audio_bundled_libraries "" PARENT_SCOPE)' \
+            >> "$cmake_file"
+
       - name: Build self-contained AppImage
         env:
           BUNDLE_MPV: '1'
