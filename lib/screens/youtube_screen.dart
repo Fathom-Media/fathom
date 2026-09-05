@@ -768,17 +768,79 @@ class _LocalPlaylistRow extends ConsumerWidget {
 // ---- Downloads ----
 
 /// Downloads in progress, and the files already on disk.
-class _DownloadsTab extends ConsumerWidget {
+class _DownloadsTab extends ConsumerStatefulWidget {
   const _DownloadsTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DownloadsTab> createState() => _DownloadsTabState();
+}
+
+class _DownloadsTabState extends ConsumerState<_DownloadsTab> {
+  bool _selectionMode = false;
+  final Set<String> _selected = {};
+
+  // Only finished downloads are selectable — an active transfer already has
+  // its own Cancel, and bulk-deleting a failed/queued row doesn't mean the
+  // same thing as deleting a file.
+  void _enterSelection([String? firstId]) => setState(() {
+        _selectionMode = true;
+        if (firstId != null) _selected.add(firstId);
+      });
+
+  void _exitSelection() => setState(() {
+        _selectionMode = false;
+        _selected.clear();
+      });
+
+  void _toggle(String id) => setState(() {
+        if (!_selected.remove(id)) _selected.add(id);
+      });
+
+  void _selectAll(List<String> ids) => setState(() {
+        _selected
+          ..clear()
+          ..addAll(ids);
+      });
+
+  Future<void> _deleteSelected() async {
     final l = AppLocalizations.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l.ytDeleteSelectedTitle(_selected.length)),
+        content: Text(l.ytDeleteSelectedConfirm),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.commonCancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.commonDelete)),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final n = ref.read(youtubeDownloadsProvider.notifier);
+    final ids = _selected.toList();
+    _exitSelection();
+    for (final id in ids) {
+      await n.remove(id, deleteFile: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     final downloads =
         ref.watch(youtubeDownloadsProvider).asData?.value ?? const [];
     final dir =
         ref.watch(youtubeDownloadDirProvider(YtDownloadKind.video)).asData?.value;
     final hasFfmpeg = ref.watch(ffmpegAvailableProvider).asData?.value ?? true;
+    final doneIds = [
+      for (final d in downloads)
+        if (d.status == YtDownloadStatus.done) d.id,
+    ];
 
     if (downloads.isEmpty) {
       return EmptyState(
@@ -790,18 +852,81 @@ class _DownloadsTab extends ConsumerWidget {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      itemCount: downloads.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _DownloadRow(download: downloads[i]),
+    return Column(
+      children: [
+        if (doneIds.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: _selectionMode
+                ? Row(
+                    children: [
+                      Text(l.ytNSelected(_selected.length),
+                          style: theme.textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600)),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => _selectAll(doneIds),
+                        child: Text(l.ytSelectAll),
+                      ),
+                      IconButton(
+                        tooltip: l.commonCancel,
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: _exitSelection,
+                      ),
+                      IconButton(
+                        tooltip: l.commonDelete,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        onPressed:
+                            _selected.isEmpty ? null : _deleteSelected,
+                      ),
+                    ],
+                  )
+                : Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () => _enterSelection(),
+                      icon: const Icon(Icons.checklist_rounded),
+                      label: Text(l.ytSelectDownloads),
+                    ),
+                  ),
+          ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            itemCount: downloads.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final d = downloads[i];
+              final selectable = d.status == YtDownloadStatus.done;
+              return _DownloadRow(
+                download: d,
+                selecting: _selectionMode,
+                selected: _selected.contains(d.id),
+                onLongPress:
+                    selectable ? () => _enterSelection(d.id) : null,
+                onToggle: selectable ? () => _toggle(d.id) : null,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _DownloadRow extends ConsumerWidget {
   final YoutubeDownload download;
-  const _DownloadRow({required this.download});
+  final bool selecting;
+  final bool selected;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onToggle;
+  const _DownloadRow({
+    required this.download,
+    this.selecting = false,
+    this.selected = false,
+    this.onLongPress,
+    this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -836,8 +961,10 @@ class _DownloadRow extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         // The whole point of downloading is watching it later, offline. Tapping
-        // the row plays the file from disk rather than re-streaming it.
-        onTap: playable ? play : null,
+        // the row plays the file from disk rather than re-streaming it — unless
+        // a bulk selection is in progress, where a tap toggles instead.
+        onTap: selecting ? onToggle : (playable ? play : null),
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Row(
@@ -856,11 +983,23 @@ class _DownloadRow extends ConsumerWidget {
                               url: d.thumbnailUrl,
                               errorBuilder: (_) => Container(
                                   color: scheme.surfaceContainerHigh)),
-                      if (playable)
+                      if (playable && !selecting)
                         Container(
                           color: Colors.black38,
                           child: const Icon(Icons.play_arrow_rounded,
                               color: Colors.white, size: 28),
+                        ),
+                      if (selecting && onToggle != null)
+                        Container(
+                          color: selected ? Colors.black45 : Colors.black26,
+                          alignment: Alignment.center,
+                          child: Icon(
+                            selected
+                                ? Icons.check_circle_rounded
+                                : Icons.circle_outlined,
+                            color: Colors.white,
+                            size: 26,
+                          ),
                         ),
                     ],
                   ),
@@ -896,7 +1035,9 @@ class _DownloadRow extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              if (d.isActive)
+              if (selecting)
+                const SizedBox.shrink()
+              else if (d.isActive)
                 IconButton(
                   tooltip: l.commonCancel,
                   icon: const Icon(Icons.close_rounded),

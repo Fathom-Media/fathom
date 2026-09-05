@@ -3916,6 +3916,36 @@
   "@ytClearHistoryConfirm": {
     "description": "Confirmation body when clearing watch history."
   },
+  "ytSelectDownloads": "Select",
+  "@ytSelectDownloads": {
+    "description": "Button to enter multi-select mode on the Downloads tab."
+  },
+  "ytSelectAll": "Select All",
+  "@ytSelectAll": {
+    "description": "Button to select every finished download at once."
+  },
+  "ytNSelected": "{count, plural, =1{1 selected} other{{count} selected}}",
+  "@ytNSelected": {
+    "description": "App-bar-style label while some downloads are selected.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ytDeleteSelectedTitle": "{count, plural, =1{Delete download?} other{Delete {count} downloads?}}",
+  "@ytDeleteSelectedTitle": {
+    "description": "Confirmation dialog title for bulk-deleting selected downloads.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ytDeleteSelectedConfirm": "This removes the downloaded files from your device. They can be downloaded again later.",
+  "@ytDeleteSelectedConfirm": {
+    "description": "Confirmation dialog body for bulk-deleting selected downloads."
+  },
   "ytRemoveFromHistory": "Remove from History",
   "@ytRemoveFromHistory": {
     "description": "Tooltip to remove a single video from watch history."

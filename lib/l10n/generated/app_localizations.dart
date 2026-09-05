@@ -5488,6 +5488,36 @@ abstract class AppLocalizations {
   /// **'This removes every watched video and its saved position.'**
   String get ytClearHistoryConfirm;
 
+  /// Button to enter multi-select mode on the Downloads tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get ytSelectDownloads;
+
+  /// Button to select every finished download at once.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get ytSelectAll;
+
+  /// App-bar-style label while some downloads are selected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 selected} other{{count} selected}}'**
+  String ytNSelected(int count);
+
+  /// Confirmation dialog title for bulk-deleting selected downloads.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete download?} other{Delete {count} downloads?}}'**
+  String ytDeleteSelectedTitle(int count);
+
+  /// Confirmation dialog body for bulk-deleting selected downloads.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the downloaded files from your device. They can be downloaded again later.'**
+  String get ytDeleteSelectedConfirm;
+
   /// Tooltip to remove a single video from watch history.
   ///
   /// In en, this message translates to:

@@ -3030,6 +3030,38 @@ class AppLocalizationsEn extends AppLocalizations {
       'This removes every watched video and its saved position.';
 
   @override
+  String get ytSelectDownloads => 'Select';
+
+  @override
+  String get ytSelectAll => 'Select All';
+
+  @override
+  String ytNSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count selected',
+      one: '1 selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ytDeleteSelectedTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Delete $count downloads?',
+      one: 'Delete download?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ytDeleteSelectedConfirm =>
+      'This removes the downloaded files from your device. They can be downloaded again later.';
+
+  @override
   String get ytRemoveFromHistory => 'Remove from History';
 
   @override
