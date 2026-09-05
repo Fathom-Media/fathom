@@ -132,9 +132,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Fathom-${{ matrix.arch }}-AppImage
-          path: |
-            build/Fathom-${{ matrix.arch }}.AppImage
-            build/Fathom-${{ matrix.arch }}.AppImage.zsync
+          path: build/Fathom-${{ matrix.arch }}.AppImage
           if-no-files-found: error
           retention-days: 7
 

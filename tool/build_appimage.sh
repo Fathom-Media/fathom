@@ -175,17 +175,13 @@ if grep -qs 'GDK_BACKEND=x11' "$appdir"/apprun-hooks/*gtk*.sh; then
     "$appdir"/apprun-hooks/*gtk*.sh
 fi
 
-# Package the pruned AppDir.
+# Package the pruned AppDir. No -u/--updateinformation: Fathom has its own
+# in-app updater (app_updates.dart / app_installer.dart), so the AppImage
+# doesn't need embedded update info for the separate AppImageUpdate/
+# AppImageLauncher ecosystem tooling, and isn't publishing the .zsync sidecar
+# that path would need.
 export ARCH
-"$appimagetool" --appimage-extract-and-run \
-  -u "gh-releases-zsync|Fathom-Media|fathom|latest|Fathom-*$ARCH.AppImage.zsync" \
-  "$appdir" "$OUTPUT"
-
-# appimagetool writes the .zsync beside OUTPUT already; tidy any stray copies.
-for z in "$PWD"/Fathom-*.AppImage.zsync "$root"/Fathom-*.AppImage.zsync; do
-  [[ -f "$z" && "$(dirname "$z")" != "$root/build" ]] && mv -f "$z" "$root/build/" 2>/dev/null || true
-done
+"$appimagetool" --appimage-extract-and-run "$appdir" "$OUTPUT"
 
 echo
 echo "==> Built $OUTPUT"
-[[ -f "$root/build/$(basename "$OUTPUT").zsync" ]] && echo "==> Update file $root/build/$(basename "$OUTPUT").zsync"
