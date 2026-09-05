@@ -890,26 +890,67 @@ class _DownloadsTabState extends ConsumerState<_DownloadsTab> {
                     ),
                   ),
           ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            itemCount: downloads.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (_, i) {
-              final d = downloads[i];
-              final selectable = d.status == YtDownloadStatus.done;
-              return _DownloadRow(
-                download: d,
-                selecting: _selectionMode,
-                selected: _selected.contains(d.id),
-                onLongPress:
-                    selectable ? () => _enterSelection(d.id) : null,
-                onToggle: selectable ? () => _toggle(d.id) : null,
-              );
-            },
-          ),
-        ),
+        Expanded(child: _sectionedList(l, downloads)),
       ],
+    );
+  }
+
+  // Two sections rather than one mixed list: an in-progress item sitting
+  // next to a finished one (one selectable, one not) reads as clutter,
+  // especially now that only finished rows can be picked for bulk delete. A
+  // full separate screen (like the Jellyfin downloads library's
+  // Downloaded/Downloading toggle) would be more than this tab's usual
+  // handful of items need.
+  Widget _sectionedList(AppLocalizations l, List<YoutubeDownload> downloads) {
+    final active = [
+      for (final d in downloads)
+        if (d.status != YtDownloadStatus.done) d,
+    ];
+    final done = [
+      for (final d in downloads)
+        if (d.status == YtDownloadStatus.done) d,
+    ];
+    Widget row(YoutubeDownload d) {
+      final selectable = d.status == YtDownloadStatus.done;
+      return _DownloadRow(
+        download: d,
+        selecting: _selectionMode,
+        selected: _selected.contains(d.id),
+        onLongPress: selectable ? () => _enterSelection(d.id) : null,
+        onToggle: selectable ? () => _toggle(d.id) : null,
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: [
+        if (active.isNotEmpty) ...[
+          _DownloadSectionHeader(l.ytSectionDownloading),
+          for (final d in active) ...[row(d), const SizedBox(height: 10)],
+        ],
+        if (done.isNotEmpty) ...[
+          if (active.isNotEmpty) const SizedBox(height: 8),
+          _DownloadSectionHeader(l.ytSectionDownloaded),
+          for (final d in done) ...[row(d), const SizedBox(height: 10)],
+        ],
+      ],
+    );
+  }
+}
+
+class _DownloadSectionHeader extends StatelessWidget {
+  final String text;
+  const _DownloadSectionHeader(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(text,
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w700)),
     );
   }
 }
