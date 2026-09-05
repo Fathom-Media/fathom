@@ -2753,6 +2753,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytPlaylists => 'Playlists';
 
   @override
+  String get ytDownloadPill => 'YouTube Download';
+
+  @override
   String get ytDownloads => 'Downloads';
 
   @override

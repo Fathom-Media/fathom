@@ -16,6 +16,7 @@ import '../screens/discover_screen.dart';
 import '../screens/downloads_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/favorites_screen.dart';
+import '../screens/watchlist_screen.dart';
 import '../screens/artists_screen.dart';
 import '../screens/genres_screen.dart';
 import '../screens/home_layout_screen.dart';
@@ -324,7 +325,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               pageBuilder: (_, _) => _fadePage(const LiveTvScreen())),
           GoRoute(
               path: '/youtube',
-              pageBuilder: (_, _) => _fadePage(const YoutubeScreen())),
+              pageBuilder: (_, state) =>
+                  _fadePage(YoutubeScreen(initialTab: state.extra as int?))),
           GoRoute(
               path: '/radio',
               pageBuilder: (_, _) => _fadePage(const RadioScreen())),
@@ -344,6 +346,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/favorites',
               pageBuilder: (_, _) => _fadePage(const FavoritesScreen())),
+          GoRoute(
+              path: '/watchlist',
+              pageBuilder: (_, _) => _fadePage(const WatchlistScreen())),
           GoRoute(
               path: '/home-layout',
               pageBuilder: (_, _) => _fadePage(const HomeLayoutScreen())),

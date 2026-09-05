@@ -292,7 +292,7 @@ class AppShell extends ConsumerWidget {
                 ),
                 // Floating minimized video (picture-in-picture).
                 const MiniVideo(),
-                const Positioned.fill(child: DownloadPill()),
+                const Positioned.fill(child: DownloadPills()),
                 const Positioned.fill(child: UpdateBanner()),
               ],
             ),
@@ -609,7 +609,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
                     ),
                   ),
                   const MiniVideo(),
-                  const Positioned.fill(child: DownloadPill()),
+                  const Positioned.fill(child: DownloadPills()),
                 const Positioned.fill(child: UpdateBanner()),
                 ],
               ),
@@ -1115,6 +1115,7 @@ class _BrowseNav extends ConsumerWidget {
         mobile ? context.push(route) : context.go(route);
     final items = <(String, String, IconData)>[
       (l.miscNavPlaylists, '/playlists', Icons.playlist_play_rounded),
+      (l.browseWatchlist, '/watchlist', Icons.bookmark_rounded),
       (l.miscNavGenres, '/genres', Icons.category_rounded),
       (l.miscNavStudios, '/studios', Icons.business_rounded),
       (l.miscNavArtists, '/artists', Icons.groups_rounded),

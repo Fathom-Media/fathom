@@ -5002,6 +5002,12 @@ abstract class AppLocalizations {
   /// **'Playlists'**
   String get ytPlaylists;
 
+  /// Floating pill label while a YouTube download is in progress. Distinct from the Jellyfin download pill's plain "Downloading" since both can show at once.
+  ///
+  /// In en, this message translates to:
+  /// **'YouTube Download'**
+  String get ytDownloadPill;
+
   /// Tab / screen title: downloaded items.
   ///
   /// In en, this message translates to:

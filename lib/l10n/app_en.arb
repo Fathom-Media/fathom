@@ -3559,6 +3559,10 @@
   "@ytPlaylists": {
     "description": "YouTube tab / search filter label: playlists."
   },
+  "ytDownloadPill": "YouTube Download",
+  "@ytDownloadPill": {
+    "description": "Floating pill label while a YouTube download is in progress. Distinct from the Jellyfin download pill's plain \"Downloading\" since both can show at once."
+  },
   "ytDownloads": "Downloads",
   "@ytDownloads": {
     "description": "Tab / screen title: downloaded items."

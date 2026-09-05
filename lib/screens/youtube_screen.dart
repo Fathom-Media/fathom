@@ -34,7 +34,10 @@ import '../routing/app_shell.dart';
 
 /// The YouTube section: subscribed channels, what they've posted, and search.
 class YoutubeScreen extends ConsumerWidget {
-  const YoutubeScreen({super.key});
+  /// Tab to land on (e.g. the Downloads pill deep-links to it). Falls back to
+  /// the usual Search/Subscriptions default when unset.
+  final int? initialTab;
+  const YoutubeScreen({super.key, this.initialTab});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,7 +47,7 @@ class YoutubeScreen extends ConsumerWidget {
     // Land on Search until there's something subscribed to show.
     return DefaultTabController(
       length: 6,
-      initialIndex: subs.isEmpty ? 0 : 1,
+      initialIndex: initialTab ?? (subs.isEmpty ? 0 : 1),
       child: Scaffold(
         appBar: AppBar(
           leading: mobileDrawerLeading(context),
