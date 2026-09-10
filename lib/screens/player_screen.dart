@@ -65,6 +65,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // handed the player TO the dock (dispose/deactivate must leave it alone).
   bool _reclaimed = false;
   bool _minimized = false;
+  // A context from inside media_kit's controls tree, which it reuses in both
+  // the windowed and fullscreen trees (see _wrapControls). isFullscreen()/
+  // exitFullscreen() need a context scoped there, not the screen's own,
+  // to correctly see FullscreenInheritedWidget while actually fullscreen.
+  BuildContext? _controlsContext;
   late final VolumeSync _volume = VolumeSync(
     player: _player,
     read: () => ref.read(preferencesProvider).asData?.value.volume ?? 100,
@@ -1166,8 +1171,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } catch (_) {}
   }
 
-  void _playEpisodeAt(int index) {
+  /// media_kit's desktop fullscreen is a route pushed directly onto the same
+  /// Navigator go_router owns (see _wrapControls). Replacing the /player
+  /// route (episode advance) while that route is still sitting on top of it
+  /// discards it ungracefully, so desktopFullscreen never gets reset and
+  /// the custom title bar wrongly reappears over what's still a fullscreen-
+  /// looking video. Exit it properly first, through the media_kit helpers
+  /// (which need a context scoped inside the controls tree to see it, the
+  /// screen's own context can't), so the window/title-bar state stays sane
+  /// across the transition.
+  Future<void> _exitFullscreenIfNeeded() async {
+    final cc = _controlsContext;
+    if (cc == null || !cc.mounted) {
+      Diagnostics.instance.add(
+          'player', 'exitFullscreenIfNeeded: no controls context, skipped');
+      return;
+    }
+    if (isFullscreen(cc)) {
+      Diagnostics.instance
+          .add('player', 'exitFullscreenIfNeeded: exiting before episode change');
+      await exitFullscreen(cc);
+    }
+  }
+
+  Future<void> _playEpisodeAt(int index) async {
     if (index < 0 || index >= _episodes.length) return;
+    await _exitFullscreenIfNeeded();
+    if (!mounted) return;
     context.pushReplacement('/player', extra: _episodes[index]);
   }
 
@@ -1188,6 +1218,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         seriesId: seriesId,
       );
       if (next != null && next.id != widget.item.id && mounted) {
+        await _exitFullscreenIfNeeded();
+        if (!mounted) return;
         context.pushReplacement('/player', extra: next);
       }
     } catch (_) {}
@@ -1600,12 +1632,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         // media_kit's native fullscreen; mobile keeps the default.
                         onEnterFullscreen: isDesktopWindowFrame
                             ? () async {
+                                Diagnostics.instance
+                                    .add('player', 'desktopFullscreen -> true');
                                 desktopFullscreen.value = true;
                                 await defaultEnterNativeFullscreen();
                               }
                             : defaultEnterNativeFullscreen,
                         onExitFullscreen: isDesktopWindowFrame
                             ? () async {
+                                Diagnostics.instance
+                                    .add('player', 'desktopFullscreen -> false');
                                 desktopFullscreen.value = false;
                                 await defaultExitNativeFullscreen();
                               }
@@ -1954,10 +1990,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // other and broke Space. The Builder gives a context beneath the Video so
     // toggleFullscreen/isFullscreen resolve correctly.
     return Builder(
-      builder: (ctx) => CallbackShortcuts(
-        bindings: _buildShortcuts(ctx),
-        child: Focus(autofocus: true, child: controls),
-      ),
+      builder: (ctx) {
+        _controlsContext = ctx;
+        return CallbackShortcuts(
+          bindings: _buildShortcuts(ctx),
+          child: Focus(autofocus: true, child: controls),
+        );
+      },
     );
   }
 
