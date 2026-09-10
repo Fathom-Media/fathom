@@ -283,6 +283,190 @@ class _InlineVolumeState extends ConsumerState<InlineVolume> {
   }
 }
 
+/// Volume as a speaker icon that reveals a VERTICAL slider *inline*, below
+/// the icon, one continuous pill instead of a detached popup: the vertical
+/// twin of [InlineVolume] (same technique, rotated), for a spot where a
+/// horizontal reveal has nowhere to grow into (a Now Playing transport row
+/// that's already full-width on a phone, portrait or landscape).
+class VerticalVolumeButton extends ConsumerStatefulWidget {
+  final Player player;
+  const VerticalVolumeButton({super.key, required this.player});
+
+  @override
+  ConsumerState<VerticalVolumeButton> createState() =>
+      _VerticalVolumeButtonState();
+}
+
+class _VerticalVolumeButtonState extends ConsumerState<VerticalVolumeButton> {
+  bool _open = false;
+  bool _dragging = false;
+  double? _value;
+  double _beforeMute = 100;
+  Timer? _closeTimer;
+
+  static const _sliderHeight = 120.0;
+
+  bool get _touch =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  @override
+  void dispose() {
+    _closeTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleClose() {
+    _closeTimer?.cancel();
+    _closeTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted) setState(() => _open = false);
+    });
+  }
+
+  void _set(double v) {
+    if (ref.read(castControllerProvider).casting) {
+      setState(() => _value = v);
+      ref.read(castControllerProvider.notifier).setVolume(v);
+    } else {
+      setState(() => _value = v);
+      widget.player.setVolume(v);
+    }
+  }
+
+  void _toggleMute(double v) {
+    if (v > 0) {
+      _beforeMute = v;
+      _set(0);
+    } else {
+      _set(_beforeMute <= 0 ? 100 : _beforeMute);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final cast = ref.watch(castControllerProvider);
+    final casting = cast.casting;
+    ref.listen(preferencesProvider, (_, next) {
+      final v = next.asData?.value.volume;
+      if (!casting && v != null && !_dragging && mounted && v != _value) {
+        setState(() => _value = v);
+      }
+    });
+    final v = (casting
+            ? cast.volume
+            : (_value ??
+                ref.read(preferencesProvider).asData?.value.volume ??
+                100))
+        .clamp(0.0, 100.0);
+
+    final iconBtn = IconButton(
+      icon: Icon(volumeIcon(v)),
+      tooltip: v <= 0 ? l.playerUnmute : l.playerMute,
+      onPressed: () {
+        if (_touch) {
+          setState(() => _open = !_open);
+          if (_open) {
+            _scheduleClose();
+          } else {
+            _closeTimer?.cancel();
+          }
+        } else {
+          _toggleMute(v);
+        }
+      },
+    );
+    // Wipes open downward under a ClipRect via an Align height-factor (0→1),
+    // the same technique InlineVolume uses sideways.
+    final reveal = TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: _open ? 1 : 0),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      builder: (context, t, child) => ClipRect(
+        child: Align(
+          alignment: Alignment.topCenter,
+          heightFactor: t,
+          child: child,
+        ),
+      ),
+      child: SizedBox(
+        height: _sliderHeight,
+        width: 40,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 12),
+          child: SizedBox(
+            width: 24,
+            // A horizontal Slider rotated -90deg (3 quarter-turns): min ends
+            // up at the bottom, max at the top, matching how a physical
+            // volume slider (and Android's own) reads. RotatedBox transforms
+            // hit-testing along with the render, so dragging still works.
+            child: RotatedBox(
+              quarterTurns: 3,
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 3,
+                  overlayShape: SliderComponentShape.noOverlay,
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 6),
+                ),
+                child: Slider(
+                  value: v,
+                  max: 100,
+                  onChangeStart: (_) {
+                    _dragging = true;
+                    _closeTimer?.cancel(); // hold open while adjusting
+                  },
+                  onChanged: _set,
+                  onChangeEnd: (_) {
+                    _dragging = false;
+                    if (_touch && _open) _scheduleClose();
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [iconBtn, reveal],
+    );
+    // Icon and slider sit on ONE soft pill, so the slider reads as flowing
+    // directly out of the icon rather than a second, separate shape.
+    final chip = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: _open
+            ? const Color(0xFF16151A).withValues(alpha: 0.94)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: _open
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.38),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : const [],
+      ),
+      child: column,
+    );
+
+    if (_touch) return chip;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _open = true),
+      onExit: (_) {
+        if (!_dragging) setState(() => _open = false);
+      },
+      child: chip,
+    );
+  }
+}
+
 /// A volume icon that opens the [VolumeSlider] in a small popover, for tight
 /// spaces like the mini player.
 class VolumeMenuButton extends ConsumerWidget {

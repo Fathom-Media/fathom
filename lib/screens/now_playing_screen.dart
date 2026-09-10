@@ -299,12 +299,11 @@ class NowPlayingScreen extends ConsumerWidget {
                           if (!isTvDevice) const SizedBox(width: 48),
                             ],
                           ),
-                          // No volume on TV — the remote owns it.
+                          // No volume on TV, the remote owns it.
                           if (!isTvDevice)
                             Align(
                               alignment: Alignment.centerRight,
-                              child: InlineVolume(
-                                  player: player, expandLeft: true),
+                              child: VerticalVolumeButton(player: player),
                             ),
                         ],
                         ),
@@ -425,10 +424,16 @@ class _RadioNowPlaying extends ConsumerWidget {
           ),
           SafeArea(
             child: LayoutBuilder(builder: (context, c) {
-              final wide = c.maxWidth >= 840;
+              // Desktop/TV-wide, OR short-and-landscape (a phone rotated),
+              // matching the music Now Playing screen's own threshold, so a
+              // phone in landscape reliably gets the wide layout too instead
+              // of needing to cross 840 logical pixels on width alone.
+              final wide = c.maxWidth >= 840 ||
+                  (c.maxWidth > c.maxHeight && c.maxHeight < 500);
               final info = ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
-                child: _info(context, ref, l, audio, player, s, theme, cast),
+                child:
+                    _info(context, ref, l, audio, player, s, theme, cast, wide),
               );
               // Wide: art on the LEFT, info on the RIGHT, the whole pair centered
               // both ways on screen. Narrow: the same, stacked in a column.
@@ -517,12 +522,17 @@ class _RadioNowPlaying extends ConsumerWidget {
 
   Widget _info(BuildContext context, WidgetRef ref, AppLocalizations l,
       AudioState audio, Player player, RadioStation s, ThemeData theme,
-      CastState cast) {
+      CastState cast, bool wide) {
     final scheme = theme.colorScheme;
     final controller = ref.read(audioControllerProvider.notifier);
     final hasIcy = audio.radioTitle != null && audio.radioTitle!.isNotEmpty;
     final hasArt = audio.radioArtwork != null && audio.radioArtwork!.isNotEmpty;
     const tAlign = TextAlign.center;
+    // The landscape alignment (controls centered under the seek bar, volume
+    // centered under the LIVE badge) only makes sense once there's an actual
+    // seek bar to align against; not yet seekable or casting falls back to
+    // the plain stacked composition below, same as narrow/portrait.
+    final landscapeAligned = wide && audio.radioSeekable && !cast.casting;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -554,12 +564,26 @@ class _RadioNowPlaying extends ConsumerWidget {
             style: theme.textTheme.bodyLarge
                 ?.copyWith(color: scheme.onSurfaceVariant)),
         const SizedBox(height: 20),
-        // Time-shift only applies to the local buffer — hide it while casting.
-        if (!cast.casting) ...[
-          _liveRow(context, l, audio, controller, theme),
+        if (landscapeAligned) ...[
+          _RadioScrubBar(
+            window: audio.radioWindow,
+            behind: audio.radioBehindLive,
+            onSeekBehind: controller.radioSeekBehind,
+            onGoLive: controller.radioGoLive,
+            badgeWidth: _landscapeBadgeSlot,
+          ),
           const SizedBox(height: 14),
+          _landscapeTransport(
+              context, l, audio, controller, player, theme, cast),
+        ] else ...[
+          // Time-shift only applies to the local buffer, hide it while
+          // casting.
+          if (!cast.casting) ...[
+            _liveRow(context, l, audio, controller, theme),
+            const SizedBox(height: 14),
+          ],
+          _controls(context, l, audio, controller, player, theme, cast),
         ],
-        _controls(context, l, audio, controller, player, theme, cast),
       ],
     );
   }
@@ -617,78 +641,125 @@ class _RadioNowPlaying extends ConsumerWidget {
     );
   }
 
-  Widget _controls(BuildContext context, AppLocalizations l, AudioState audio,
+  /// Previous-station / rewind / play / skip / next-station, with no volume
+  /// and no outer layout, so both [_controls] (narrow: trails with volume via
+  /// a Spacer) and the landscape composition (centered under the seek bar,
+  /// volume aligned separately under the LIVE badge) can share it.
+  List<Widget> _transportButtons(AppLocalizations l, AudioState audio,
       AudioController controller, Player player, ThemeData theme,
       CastState cast) {
     final scheme = theme.colorScheme;
     // Rewind/skip act on the local buffer, so they're only meaningful when NOT
     // casting.
     final showSeek = audio.radioSeekable && !cast.casting;
-    // Transport clusters at the LEFT; volume sits at the far RIGHT (level with
-    // the seek bar's LIVE badge above) and expands leftward, so its open width
-    // reaches back to that same right edge.
+    return [
+      // Previous/next STATION (distinct from the rewind/skip pair below,
+      // which seek within this station's own live buffer).
+      IconButton(
+        iconSize: 38,
+        tooltip: l.radioPreviousStation,
+        icon: const Icon(Icons.skip_previous_rounded),
+        onPressed: controller.previous,
+      ),
+      if (showSeek) ...[
+        ControlButton(
+          icon: Icons.fast_rewind_rounded,
+          tooltip: l.radioRewind,
+          size: 32,
+          grow: false,
+          color: scheme.onSurfaceVariant,
+          onTap: () => controller.radioSeekBy(const Duration(seconds: -15)),
+        ),
+        const SizedBox(width: 10),
+      ],
+      StreamBuilder<bool>(
+        stream: player.stream.playing,
+        initialData: player.state.playing,
+        builder: (context, snap) {
+          // While casting the local player is paused; reflect the cast's
+          // state (togglePlay already routes to the cast device).
+          final playing = cast.casting ? cast.playing : (snap.data ?? false);
+          return ControlButton(
+            icon: playing
+                ? Icons.pause_circle_filled_rounded
+                : Icons.play_circle_fill_rounded,
+            tooltip: playing ? l.commonPause : l.commonPlay,
+            size: 72,
+            // TV: land the remote on play/stop when the screen opens, same as
+            // the music Now Playing, else nothing has focus and the D-pad
+            // appears to do nothing.
+            autofocus: isTvDevice,
+            onTap: controller.togglePlay,
+          );
+        },
+      ),
+      if (showSeek) ...[
+        const SizedBox(width: 10),
+        ControlButton(
+          icon: Icons.fast_forward_rounded,
+          tooltip: l.radioSkip,
+          size: 32,
+          grow: false,
+          color: scheme.onSurfaceVariant,
+          onTap: () => controller.radioSeekBy(const Duration(seconds: 15)),
+        ),
+      ],
+      IconButton(
+        iconSize: 38,
+        tooltip: l.radioNextStation,
+        icon: const Icon(Icons.skip_next_rounded),
+        onPressed: controller.next,
+      ),
+    ];
+  }
+
+  Widget _controls(BuildContext context, AppLocalizations l, AudioState audio,
+      AudioController controller, Player player, ThemeData theme,
+      CastState cast) {
+    // Transport clusters at the LEFT; volume sits at the far RIGHT and opens
+    // upward, so it never pushes the transport row off-screen.
     return Row(
       children: [
-        // Previous/next STATION (distinct from the rewind/skip pair below,
-        // which seek within this station's own live buffer).
-        IconButton(
-          iconSize: 38,
-          tooltip: l.radioPreviousStation,
-          icon: const Icon(Icons.skip_previous_rounded),
-          onPressed: controller.previous,
-        ),
-        if (showSeek) ...[
-          ControlButton(
-            icon: Icons.fast_rewind_rounded,
-            tooltip: l.radioRewind,
-            size: 32,
-            grow: false,
-            color: scheme.onSurfaceVariant,
-            onTap: () => controller.radioSeekBy(const Duration(seconds: -15)),
-          ),
-          const SizedBox(width: 10),
-        ],
-        StreamBuilder<bool>(
-          stream: player.stream.playing,
-          initialData: player.state.playing,
-          builder: (context, snap) {
-            // While casting the local player is paused; reflect the cast's
-            // state (togglePlay already routes to the cast device).
-            final playing = cast.casting ? cast.playing : (snap.data ?? false);
-            return ControlButton(
-              icon: playing
-                  ? Icons.pause_circle_filled_rounded
-                  : Icons.play_circle_fill_rounded,
-              tooltip: playing ? l.commonPause : l.commonPlay,
-              size: 72,
-              // TV: land the remote on play/stop when the screen opens, same as
-              // the music Now Playing — else nothing has focus and the D-pad
-              // appears to do nothing.
-              autofocus: isTvDevice,
-              onTap: controller.togglePlay,
-            );
-          },
-        ),
-        if (showSeek) ...[
-          const SizedBox(width: 10),
-          ControlButton(
-            icon: Icons.fast_forward_rounded,
-            tooltip: l.radioSkip,
-            size: 32,
-            grow: false,
-            color: scheme.onSurfaceVariant,
-            onTap: () => controller.radioSeekBy(const Duration(seconds: 15)),
-          ),
-        ],
-        IconButton(
-          iconSize: 38,
-          tooltip: l.radioNextStation,
-          icon: const Icon(Icons.skip_next_rounded),
-          onPressed: controller.next,
-        ),
+        ..._transportButtons(l, audio, controller, player, theme, cast),
         const Spacer(),
-        // No volume on TV — the remote owns it.
-        if (!isTvDevice) InlineVolume(player: player, expandLeft: true),
+        // No volume on TV, the remote owns it.
+        if (!isTvDevice) VerticalVolumeButton(player: player),
+      ],
+    );
+  }
+
+  /// Landscape composition: the seek bar and the transport row share the same
+  /// Expanded-plus-fixed-trailing-slot shape, so the controls land centered
+  /// under the seek bar itself (not the LIVE badge beside it), and the volume
+  /// button lands centered under the LIVE badge above it. [badgeSlot] is a
+  /// fixed width rather than a measured one: exact-matching two independent
+  /// rows' intrinsic widths isn't worth the complexity for what's a close
+  /// visual approximation either way.
+  static const _landscapeBadgeSlot = 72.0;
+
+  Widget _landscapeTransport(BuildContext context, AppLocalizations l,
+      AudioState audio, AudioController controller, Player player,
+      ThemeData theme, CastState cast) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children:
+                  _transportButtons(l, audio, controller, player, theme, cast),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: _landscapeBadgeSlot,
+          // No volume on TV, the remote owns it.
+          child: isTvDevice
+              ? null
+              : Center(child: VerticalVolumeButton(player: player)),
+        ),
       ],
     );
   }
@@ -757,12 +828,19 @@ class _RadioScrubBar extends StatefulWidget {
   final Duration behind;
   final Future<void> Function(Duration behind) onSeekBehind;
   final Future<void> Function() onGoLive;
+
+  /// Reserves this exact width for the LIVE badge (centered within it)
+  /// instead of the badge's own intrinsic width, so it lines up with the
+  /// same-width volume slot in the landscape transport row beneath it. Null
+  /// (the default) keeps the badge at its natural size.
+  final double? badgeWidth;
   const _RadioScrubBar({
     super.key,
     required this.window,
     required this.behind,
     required this.onSeekBehind,
     required this.onGoLive,
+    this.badgeWidth,
   });
 
   @override
@@ -779,7 +857,8 @@ class _RadioScrubBarState extends State<_RadioScrubBar> {
     final value =
         _drag ?? (1 - (widget.behind.inSeconds / w)).clamp(0.0, 1.0);
     final atLive = _drag == null && widget.behind.inMilliseconds < 2500;
-    // Seek bar and the LIVE badge on one row, to its RIGHT — like the video
+    final badge = radioLiveBadge(context, atLive: atLive, onTap: widget.onGoLive);
+    // Seek bar and the LIVE badge on one row, to its right, like the video
     // player's transport bar.
     return Row(
       children: [
@@ -801,7 +880,9 @@ class _RadioScrubBarState extends State<_RadioScrubBar> {
           ),
         ),
         const SizedBox(width: 10),
-        radioLiveBadge(context, atLive: atLive, onTap: widget.onGoLive),
+        widget.badgeWidth == null
+            ? badge
+            : SizedBox(width: widget.badgeWidth, child: Center(child: badge)),
       ],
     );
   }
@@ -1642,11 +1723,11 @@ class _YoutubeNowPlaying extends ConsumerWidget {
                       if (!isTvDevice) const SizedBox(width: 48),
                     ],
                   ),
-                  // No volume on TV — the remote owns it.
+                  // No volume on TV, the remote owns it.
                   if (!isTvDevice)
                     Align(
                       alignment: Alignment.centerRight,
-                      child: InlineVolume(player: player, expandLeft: true),
+                      child: VerticalVolumeButton(player: player),
                     ),
                 ],
                 ),
