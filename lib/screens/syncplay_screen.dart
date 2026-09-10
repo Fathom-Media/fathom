@@ -347,10 +347,8 @@ class _GroupTile extends StatelessWidget {
     final subtitle = participants.isEmpty
         ? l.appNoOneWatching
         : l.appWatchingList(participants.length, participants.join(', '));
-    // Flex layout (Expanded) mysteriously collapses this row on this screen even
-    // with a tight width, so we use a self-sizing row (the shape that renders)
-    // and make the WHOLE row tappable to join, with a text "Join" affordance
-    // instead of a FilledButton (which also wouldn't paint here).
+    // A FilledButton wouldn't paint here, hence the plain text "Join"
+    // affordance with the whole row made tappable instead.
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       // On TV the row is a bare GestureDetector (no focus node), so a D-pad can't
@@ -371,15 +369,16 @@ class _GroupTile extends StatelessWidget {
               color: scheme.surfaceContainerHighest,
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              // Full-width row so the Join affordance sits hard right (a Spacer
-              // pushes it there). Expanded on the title column collapsed here in
-              // the past, so keep the width-capped column + Spacer instead.
+              // The title column and the trailing Join label both flex/ellipsis
+              // instead of claiming a fixed width regardless of the actual
+              // screen: a long group name plus a long participant list (or a
+              // longer translation of "In a group") could otherwise overflow
+              // this row on a narrow phone.
               child: Row(
                 children: [
                   Icon(Icons.groups_rounded, color: scheme.onSurfaceVariant),
                   const SizedBox(width: 14),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
+                  Expanded(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,13 +398,18 @@ class _GroupTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    canJoin ? l.appJoin : l.appInAGroup,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color:
-                          canJoin ? scheme.primary : scheme.onSurfaceVariant,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      canJoin ? l.appJoin : l.appInAGroup,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color:
+                            canJoin ? scheme.primary : scheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),
