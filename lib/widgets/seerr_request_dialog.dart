@@ -630,25 +630,33 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
         : l.detailRequest;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          TextButton(
-              onPressed: _busy ? null : () => Navigator.pop(context, false),
-              child: Text(l.commonCancel)),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            style: kInlineButtonStyle,
-            onPressed: canSubmit ? _submit : null,
-            icon: _busy
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.download_rounded, size: 18),
-            label: Text(label),
-          ),
-        ],
+      // Scale-safe: "Select Season(s)" is already the longest of these
+      // labels in English, and a longer translation could outgrow a narrow
+      // phone's width even inside this dialog's own cap, so shrink together
+      // (both stay fully readable, just smaller) rather than hard-overflowing.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerRight,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+                onPressed: _busy ? null : () => Navigator.pop(context, false),
+                child: Text(l.commonCancel)),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              style: kInlineButtonStyle,
+              onPressed: canSubmit ? _submit : null,
+              icon: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.download_rounded, size: 18),
+              label: Text(label),
+            ),
+          ],
+        ),
       ),
     );
   }
