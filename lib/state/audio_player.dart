@@ -14,6 +14,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../services/diagnostics.dart';
 import '../services/secure_http.dart';
 import 'radio.dart';
 
@@ -164,6 +165,13 @@ class AudioController extends Notifier<AudioState> {
   Timer? _radioTick; // 1s ticker for live time-shift (behind-live / seekable)
   StreamSubscription<void>? _noisySub; // pause on BT/headphone disconnect (mobile)
   StreamSubscription<AudioInterruptionEvent>? _interruptSub; // pause on focus loss / AA disconnect
+  StreamSubscription<String>? _radioErrorSub; // auto-reconnect on a dropped stream
+  DateTime? _radioLastReconnectAttempt;
+  // Set on a stream error, cleared once playback is actually flowing again.
+  // Tells togglePlay() that resuming needs a real reconnect, not a bare
+  // unpause (which can leave mpv trying to resume a dead connection and
+  // replaying stale buffered data instead of continuing live).
+  bool _radioNeedsReconnect = false;
   // Live edge in playback time: advances by wall-clock every tick, so pausing or
   // rewinding leaves playback behind it. Reset on tune / go-live.
   Duration _radioEdge = Duration.zero;
@@ -414,6 +422,26 @@ class AudioController extends Notifier<AudioState> {
       // Re-publish now-playing once the real duration is known.
       subDuration = _player.stream.duration.listen((_) => _pushNowPlaying());
     }
+    // A dropped connection (network loss, a dead cell zone) surfaces here as a
+    // stream error, not a user pause. Auto-reconnect at the live edge instead
+    // of leaving the station stalled on a connection that's never coming back
+    // on its own; also flags togglePlay() in case the user hits Play first.
+    _radioErrorSub = _player.stream.error.listen((e) {
+      if (!state.isRadio) return;
+      Diagnostics.instance.add('radio', 'stream error: $e, reconnecting');
+      _radioNeedsReconnect = true;
+      unawaited(_reconnectRadio());
+    });
+    final subRadioPlaying = _player.stream.playing.listen((playing) {
+      if (!state.isRadio) return;
+      Diagnostics.instance.add('radio', 'playing=$playing');
+      if (playing) _radioNeedsReconnect = false;
+    });
+    final subRadioBuffering = _player.stream.buffering.listen((buffering) {
+      if (state.isRadio) {
+        Diagnostics.instance.add('radio', 'buffering=$buffering');
+      }
+    });
     _progressTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _reportProgress();
       _pushPlaybackState();
@@ -425,11 +453,14 @@ class AudioController extends Notifier<AudioState> {
       subPlaying?.cancel();
       subBuffering?.cancel();
       subDuration?.cancel();
+      subRadioPlaying.cancel();
+      subRadioBuffering.cancel();
       _progressTimer?.cancel();
       _radioIcyTimer?.cancel();
       _radioTick?.cancel();
       _noisySub?.cancel();
       _interruptSub?.cancel();
+      _radioErrorSub?.cancel();
       _reportStopped();
     });
     return const AudioState();
@@ -697,10 +728,12 @@ class AudioController extends Notifier<AudioState> {
   /// Play an internet-radio station: opens its live stream (replacing the music
   /// queue), switches the UI to the radio presentation, and polls ICY metadata.
   Future<void> playStation(RadioStation s) async {
+    Diagnostics.instance.add('radio', 'tuning in: ${s.name}');
     _radioIcyTimer?.cancel();
     _radioTick?.cancel();
     _reportStopped(); // no Jellyfin scrobble for radio
     _reportedId = null;
+    _radioNeedsReconnect = false;
     state = state.copyWith(
       radioStation: s,
       // Clear any YouTube item — otherwise isYoutubeAudio stays true and the
@@ -765,6 +798,7 @@ class AudioController extends Notifier<AudioState> {
   Future<void> stopRadio() async {
     _radioIcyTimer?.cancel();
     _radioTick?.cancel();
+    _radioNeedsReconnect = false;
     await _player.stop();
     state = state.copyWith(
       radioStation: null,
@@ -1042,6 +1076,38 @@ class AudioController extends Notifier<AudioState> {
     state = state.copyWith(radioBehindLive: Duration.zero);
     await _player.open(Media(s.url));
     _applyVolume();
+  }
+
+  /// Recovers from a dropped stream (a connectivity loss mid-broadcast):
+  /// reopens the station fresh at the live edge, instead of resuming a
+  /// connection mpv may have already given up on, which can otherwise replay
+  /// stale buffered audio from earlier in the session rather than continuing
+  /// live. Debounced, since a flaky connection can fire several error events
+  /// in a row.
+  Future<void> _reconnectRadio() async {
+    final s = state.radioStation;
+    if (s == null) return;
+    final now = DateTime.now();
+    final last = _radioLastReconnectAttempt;
+    if (last != null && now.difference(last) < const Duration(seconds: 3)) {
+      Diagnostics.instance.add('radio', 'reconnect skipped: debounced');
+      return;
+    }
+    _radioLastReconnectAttempt = now;
+    _radioEdge = Duration.zero;
+    _emptyIcyCount = 0;
+    _radioTickWall = null;
+    state = state.copyWith(radioBehindLive: Duration.zero, radioSeekable: false);
+    Diagnostics.instance.add('radio', 'reconnect attempt: ${s.name}');
+    try {
+      await _player.open(Media(s.url));
+      _applyVolume();
+      Diagnostics.instance.add('radio', 'reconnect: open() returned');
+    } catch (e) {
+      // Still offline, or the stream is genuinely down for now: another error
+      // event will retry this, or the user can hit Play themselves.
+      Diagnostics.instance.add('radio', 'reconnect failed: $e');
+    }
   }
 
   /// Rewind/skip within the buffered window (seekable streams only). Negative to
@@ -1501,6 +1567,17 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       final c = ref.read(castControllerProvider.notifier);
       return cast.playing ? c.pause() : c.play();
+    }
+    // Resuming radio after a dropped connection needs a real reconnect, not a
+    // bare unpause: see _reconnectRadio.
+    if (state.isRadio && !_player.state.playing && _radioNeedsReconnect) {
+      Diagnostics.instance
+          .add('radio', 'togglePlay: resuming via reconnect (needsReconnect)');
+      return _reconnectRadio();
+    }
+    if (state.isRadio) {
+      Diagnostics.instance.add('radio',
+          'togglePlay: playing=${_player.state.playing}, needsReconnect=$_radioNeedsReconnect');
     }
     return _player.playOrPause();
   }
