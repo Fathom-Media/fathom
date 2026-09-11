@@ -1868,46 +1868,46 @@ class AudioController extends Notifier<AudioState> {
     try {
       if (parentMediaId == AudioService.browsableRootId ||
           parentMediaId == 'root') {
-        return _autoRoot();
+        return await _autoRoot();
       }
       // Top-level tabs.
-      if (parentMediaId == 'tab:home') return _autoHome();
-      if (parentMediaId == 'tab:library') return _autoLibrary();
-      if (parentMediaId == 'tab:radio') return _autoRadioStations();
-      if (parentMediaId == 'tab:youtube') return _autoYoutubeRoot();
+      if (parentMediaId == 'tab:home') return await _autoHome();
+      if (parentMediaId == 'tab:library') return await _autoLibrary();
+      if (parentMediaId == 'tab:radio') return await _autoRadioStations();
+      if (parentMediaId == 'tab:youtube') return await _autoYoutubeRoot();
       // Home shortcuts + Library extras.
-      if (parentMediaId == 'home:recent') return _autoRecentlyPlayed();
-      if (parentMediaId == 'home:recentalbums') return _autoRecentAlbums();
-      if (parentMediaId == 'cat:genres') return _autoGenres();
+      if (parentMediaId == 'home:recent') return await _autoRecentlyPlayed();
+      if (parentMediaId == 'home:recentalbums') return await _autoRecentAlbums();
+      if (parentMediaId == 'cat:genres') return await _autoGenres();
       if (parentMediaId.startsWith('genre:')) {
-        return _autoGenreAlbums(parentMediaId.substring('genre:'.length));
+        return await _autoGenreAlbums(parentMediaId.substring('genre:'.length));
       }
-      if (parentMediaId == 'cat:radio') return _autoRadioStations();
+      if (parentMediaId == 'cat:radio') return await _autoRadioStations();
       if (parentMediaId == 'radio:favorites') {
-        return _radioStationsWhere((s) => s.favorite);
+        return await _radioStationsWhere((s) => s.favorite);
       }
       if (parentMediaId == 'radio:ungrouped') {
-        return _radioStationsWhere((s) => s.group == null || s.group!.isEmpty);
+        return await _radioStationsWhere((s) => s.group == null || s.group!.isEmpty);
       }
       if (parentMediaId.startsWith('radiogroup:')) {
         final g = parentMediaId.substring('radiogroup:'.length);
-        return _radioStationsWhere((s) => s.group == g);
+        return await _radioStationsWhere((s) => s.group == g);
       }
-      if (parentMediaId == 'cat:playlists') return _autoPlaylists();
-      if (parentMediaId == 'cat:albums') return _autoAlbums();
-      if (parentMediaId == 'cat:artists') return _autoArtists();
+      if (parentMediaId == 'cat:playlists') return await _autoPlaylists();
+      if (parentMediaId == 'cat:albums') return await _autoAlbums();
+      if (parentMediaId == 'cat:artists') return await _autoArtists();
       if (parentMediaId.startsWith('artist:')) {
-        return _autoArtistAlbums(parentMediaId.substring('artist:'.length));
+        return await _autoArtistAlbums(parentMediaId.substring('artist:'.length));
       }
-      if (parentMediaId == 'cat:youtube') return _autoYoutubeRoot();
-      if (parentMediaId == 'ytcat:whatsnew') return _autoYtWhatsNew();
-      if (parentMediaId == 'ytcat:playlists') return _autoYtPlaylists();
-      if (parentMediaId == 'ytcat:subs') return _autoYtSubs();
+      if (parentMediaId == 'cat:youtube') return await _autoYoutubeRoot();
+      if (parentMediaId == 'ytcat:whatsnew') return await _autoYtWhatsNew();
+      if (parentMediaId == 'ytcat:playlists') return await _autoYtPlaylists();
+      if (parentMediaId == 'ytcat:subs') return await _autoYtSubs();
       if (parentMediaId.startsWith('ytpl:')) {
-        return _autoYtPlaylistVideos(parentMediaId.substring('ytpl:'.length));
+        return await _autoYtPlaylistVideos(parentMediaId.substring('ytpl:'.length));
       }
       if (parentMediaId.startsWith('ytch:')) {
-        return _autoYtChannelVideos(parentMediaId.substring('ytch:'.length));
+        return await _autoYtChannelVideos(parentMediaId.substring('ytch:'.length));
       }
       if (parentMediaId == 'cat:favorites') {
         final tracks = await _songsForParent('favorites', '');
