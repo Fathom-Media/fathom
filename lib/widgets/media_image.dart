@@ -9,6 +9,7 @@ import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import 'cached_image.dart';
+import '../api/jellyfin_client.dart';
 
 /// Loads the best image for an item (portrait poster, or landscape art for
 /// continue-watching / library tiles), with correct auth headers and a

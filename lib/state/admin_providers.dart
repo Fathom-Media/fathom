@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/base_item.dart';
 import 'providers.dart';
 import 'session_controller.dart';
+import '../api/jellyfin_client.dart';
 
 typedef _JsonList = List<Map<String, dynamic>>;
 

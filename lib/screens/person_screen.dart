@@ -7,6 +7,7 @@ import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/item_grid.dart';
+import '../api/jellyfin_client.dart';
 
 /// A cast/crew member's page: a profile header (photo, name, bio) with their
 /// filmography as a poster grid below.

@@ -6,6 +6,7 @@ import 'session_controller.dart';
 import '../models/base_item.dart';
 import '../services/lrclib.dart';
 import 'preferences.dart';
+import '../api/jellyfin_client.dart';
 
 /// Lyrics for a track, by item id.
 ///

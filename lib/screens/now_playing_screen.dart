@@ -26,6 +26,7 @@ import '../widgets/motion.dart';
 import '../widgets/reorder.dart';
 import '../widgets/volume_control.dart';
 import '../widgets/sleep_timer_sheet.dart';
+import '../api/jellyfin_client.dart';
 
 /// Full-screen now-playing: large art, draggable seek bar, transport controls,
 /// shuffle and repeat.

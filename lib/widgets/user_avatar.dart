@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
+import '../api/jellyfin_client.dart';
 
 /// Circular avatar for an arbitrary Jellyfin user (by id + image tag). Shows
 /// their profile image when set, otherwise the first letter of their name.

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers.dart';
 import 'session_controller.dart';
 import 'syncplay_session.dart';
+import '../api/jellyfin_client.dart';
 
 /// Active SyncPlay groups on the server. Capped with a short timeout so a
 /// stalled `/SyncPlay/List` surfaces as an inline error fast, instead of leaving

@@ -6,6 +6,7 @@ import '../models/base_item.dart';
 import 'library_providers.dart';
 import 'providers.dart';
 import 'session_controller.dart';
+import '../api/jellyfin_client.dart';
 
 /// Extracts a signature accent color from an item's artwork (backdrop, else
 /// poster). Powers the ambient, art-driven tinting on detail/now-playing.

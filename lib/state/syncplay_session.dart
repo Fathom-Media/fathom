@@ -9,6 +9,7 @@ import '../routing/app_router.dart';
 import 'providers.dart';
 import 'session_controller.dart';
 import 'syncplay.dart';
+import '../api/jellyfin_client.dart';
 
 /// A SyncPlay playback command to apply to the local player, emitted at the
 /// scheduled moment (the server's `When`, converted to local time via the

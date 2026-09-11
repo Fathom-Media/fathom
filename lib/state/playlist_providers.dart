@@ -4,6 +4,7 @@ import '../models/base_item.dart';
 import 'providers.dart';
 import 'session_controller.dart';
 import 'watchlist.dart';
+import '../api/jellyfin_client.dart';
 
 /// The signed-in user's playlists — excluding the hidden Watchlist playlist
 /// ([WatchlistController.kWatchlistName]), which has its own dedicated screen

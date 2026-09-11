@@ -14,6 +14,7 @@ import 'detail_header.dart';
 import 'media_image.dart';
 import 'motion.dart';
 import 'tv_focus.dart';
+import '../api/jellyfin_client.dart';
 
 /// A large auto-rotating hero banner at the top of Home, cycling through a few
 /// featured items with their backdrop, title, overview, and quick actions.

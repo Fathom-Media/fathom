@@ -20,6 +20,7 @@ import 'preferences.dart';
 import 'providers.dart';
 import 'seerr_providers.dart';
 import 'session_controller.dart';
+import '../api/jellyfin_client.dart';
 
 enum DownloadStatus { downloading, complete, failed }
 

@@ -4,6 +4,7 @@ import '../models/base_item.dart';
 import '../models/session.dart';
 import 'providers.dart';
 import 'session_controller.dart';
+import '../api/jellyfin_client.dart';
 
 /// A single tap, always-there "want to watch" list for things already in your
 /// library, distinct from Favorites (which is for what you love, not what's

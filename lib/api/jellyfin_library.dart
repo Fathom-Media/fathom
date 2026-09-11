@@ -1,0 +1,586 @@
+part of 'jellyfin_client.dart';
+
+/// Browsing and editing the library: views, items, playlists, artists, and the per-item actions (played, favourite, delete).
+extension JellyfinLibraryApi on JellyfinClient {
+/// The user's libraries (Movies, TV Shows, Music, Live TV, ...).
+  Future<List<BaseItemDto>> getUserViews({
+    required String baseUrl,
+    required String userId,
+    required String token,
+  }) async {
+    return _getItems('$baseUrl/Users/$userId/Views', token);
+  }
+
+/// "Continue Watching" — partially played video items.
+  Future<List<BaseItemDto>> getResumeItems({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    int limit = 20,
+  }) async {
+    return _getItems(
+      '$baseUrl/Users/$userId/Items/Resume',
+      token,
+      query: {
+        'Limit': '$limit',
+        'MediaTypes': 'Video',
+        'Fields': 'PrimaryImageAspectRatio,Overview',
+        'EnableImageTypes': 'Primary,Backdrop,Thumb,Logo',
+      },
+    );
+  }
+
+/// The user's global Next Up queue (next episodes across all series).
+  Future<List<BaseItemDto>> getNextUpItems({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    int limit = 20,
+  }) {
+    return _getItems(
+      '$baseUrl/Shows/NextUp',
+      token,
+      query: {
+        'UserId': userId,
+        'Limit': '$limit',
+        'Fields': 'PrimaryImageAspectRatio,Overview',
+        'EnableImageTypes': 'Primary,Backdrop,Thumb,Logo',
+      },
+    );
+  }
+
+/// "Recently Added" — newest items, optionally scoped to one library.
+  Future<List<BaseItemDto>> getLatestItems({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    String? parentId,
+    int limit = 20,
+  }) async {
+    return _getItems(
+      '$baseUrl/Users/$userId/Items/Latest',
+      token,
+      query: {
+        'Limit': '$limit',
+        'Fields': 'Overview,PrimaryImageAspectRatio',
+        'EnableImageTypes': 'Primary,Backdrop,Thumb,Logo',
+        'ParentId': ?parentId,
+      },
+    );
+  }
+
+Future<List<BaseItemDto>> _getItems(
+    String url,
+    String token, {
+    Map<String, dynamic>? query,
+    String? typeOverride,
+  }) async {
+    try {
+      final res = await _dio.get(
+        url,
+        queryParameters: query,
+        options: _authed(token),
+      );
+      final data = res.data;
+      final rawList = data is List
+          ? data
+          : (data is Map ? (data['Items'] as List? ?? const []) : const []);
+      return rawList.whereType<Map>().map((e) {
+        final m = Map<String, dynamic>.from(e);
+        // Recordings come back typed as their content (Movie/Video/Episode);
+        // stamp the kind so the app can treat them uniformly as recordings.
+        if (typeOverride != null) m['Type'] = typeOverride;
+        return BaseItemDto.fromJson(m);
+      }).toList();
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// General item query used for library browsing and search. Returns a page
+  /// of items plus the total count so callers can page with [startIndex].
+  Future<ItemsResult> getItems({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    String? parentId,
+    String? searchTerm,
+    String? includeItemTypes,
+    String? genres,
+    String? studios,
+    String? albumArtistIds,
+    String? personIds,
+    String? filters,
+    bool? isFavorite,
+    String sortBy = 'SortName',
+    String sortOrder = 'Ascending',
+    bool recursive = false,
+    int startIndex = 0,
+    int limit = 100,
+  }) async {
+    try {
+      final res = await _dio.get(
+        '$baseUrl/Users/$userId/Items',
+        queryParameters: {
+          'ParentId': ?parentId,
+          'SearchTerm': ?searchTerm,
+          'IncludeItemTypes': ?includeItemTypes,
+          'Genres': ?genres,
+          'Studios': ?studios,
+          'AlbumArtistIds': ?albumArtistIds,
+          'PersonIds': ?personIds,
+          'Filters': ?filters,
+          'IsFavorite': isFavorite == null ? null : '$isFavorite',
+          'SortBy': sortBy,
+          'SortOrder': sortOrder,
+          'Recursive': '$recursive',
+          'StartIndex': '$startIndex',
+          'Limit': '$limit',
+          'Fields': 'PrimaryImageAspectRatio,ProductionYear',
+          'ImageTypeLimit': '1',
+          'EnableImageTypes': 'Primary,Backdrop,Thumb',
+        },
+        options: _authed(token),
+      );
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final items = (data['Items'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => BaseItemDto.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+      return ItemsResult(
+        items: items,
+        totalRecordCount:
+            (data['TotalRecordCount'] as num?)?.toInt() ?? items.length,
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Several specific items at once, with the detail fields list views skip
+  /// (genres, synopsis, trailers) plus watched state and runtime.
+  Future<List<BaseItemDto>> getItemsByIds({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required List<String> ids,
+  }) {
+    if (ids.isEmpty) return Future.value(const []);
+    return _getItems(
+      '$baseUrl/Users/$userId/Items',
+      token,
+      query: {
+        'Ids': ids.join(','),
+        'Fields': 'Genres,Overview,RemoteTrailers,ProductionYear',
+        'EnableUserData': 'true',
+      },
+    );
+  }
+
+/// All genres present in the user's libraries.
+  Future<List<BaseItemDto>> getGenres({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    String? parentId,
+  }) {
+    return _getItems(
+      '$baseUrl/Genres',
+      token,
+      query: {
+        'UserId': userId,
+        'ParentId': ?parentId,
+        'SortBy': 'SortName',
+        'Recursive': 'true',
+      },
+    );
+  }
+
+/// The user's playlists.
+  Future<List<BaseItemDto>> getPlaylists({
+    required String baseUrl,
+    required String userId,
+    required String token,
+  }) {
+    return _getItems(
+      '$baseUrl/Users/$userId/Items',
+      token,
+      query: {
+        'IncludeItemTypes': 'Playlist',
+        'Recursive': 'true',
+        'SortBy': 'SortName',
+        'Fields': 'ChildCount,PrimaryImageAspectRatio',
+      },
+    );
+  }
+
+/// The items inside a playlist, in playlist order. Each carries a
+  /// `PlaylistItemId` used to remove it.
+  Future<List<BaseItemDto>> getPlaylistItems({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String playlistId,
+  }) {
+    return _getItems(
+      '$baseUrl/Playlists/$playlistId/Items',
+      token,
+      query: {
+        'UserId': userId,
+        'Fields': 'PrimaryImageAspectRatio,ProductionYear',
+      },
+    );
+  }
+
+/// Create a playlist, optionally seeded with items. Returns the new id.
+  Future<String> createPlaylist({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String name,
+    List<String> itemIds = const [],
+  }) async {
+    try {
+      final res = await _dio.post(
+        '$baseUrl/Playlists',
+        data: {
+          'Name': name,
+          'UserId': userId,
+          if (itemIds.isNotEmpty) 'Ids': itemIds,
+        },
+        options: _authed(token),
+      );
+      return (res.data as Map?)?['Id'] as String? ?? '';
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+Future<void> addToPlaylist({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String playlistId,
+    required List<String> itemIds,
+  }) async {
+    try {
+      await _dio.post(
+        '$baseUrl/Playlists/$playlistId/Items',
+        queryParameters: {'Ids': itemIds.join(','), 'UserId': userId},
+        options: _authed(token),
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Remove entries from a playlist. [entryIds] are the per-entry
+  /// `PlaylistItemId`s, not the underlying item ids.
+  Future<void> removeFromPlaylist({
+    required String baseUrl,
+    required String token,
+    required String playlistId,
+    required List<String> entryIds,
+  }) async {
+    try {
+      await _dio.delete(
+        '$baseUrl/Playlists/$playlistId/Items',
+        queryParameters: {'EntryIds': entryIds.join(',')},
+        options: _authed(token),
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+Future<void> deletePlaylist({
+    required String baseUrl,
+    required String token,
+    required String playlistId,
+  }) => deleteItem(baseUrl: baseUrl, token: token, itemId: playlistId);
+
+/// Move a playlist entry to a new index. [entryId] is the per-entry
+  /// PlaylistItemId (not the underlying item id).
+  Future<void> movePlaylistItem({
+    required String baseUrl,
+    required String token,
+    required String playlistId,
+    required String entryId,
+    required int newIndex,
+  }) async {
+    try {
+      await _dio.post(
+        '$baseUrl/Playlists/$playlistId/Items/$entryId/Move/$newIndex',
+        options: _authed(token),
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// All studios/networks across the user's libraries.
+  Future<List<BaseItemDto>> getStudios({
+    required String baseUrl,
+    required String userId,
+    required String token,
+  }) {
+    return _getItems(
+      '$baseUrl/Studios',
+      token,
+      query: {'UserId': userId, 'SortBy': 'SortName', 'Recursive': 'true'},
+    );
+  }
+
+/// All music artists.
+  Future<List<BaseItemDto>> getArtists({
+    required String baseUrl,
+    required String userId,
+    required String token,
+  }) {
+    return _getItems(
+      '$baseUrl/Artists',
+      token,
+      query: {
+        'UserId': userId,
+        'SortBy': 'SortName',
+        'Recursive': 'true',
+        'Fields': 'PrimaryImageAspectRatio',
+      },
+    );
+  }
+
+/// The signed-in user, including their live policy (admin / delete rights).
+  Future<UserDto> getCurrentUser({
+    required String baseUrl,
+    required String token,
+  }) async {
+    try {
+      final res = await _dio.get('$baseUrl/Users/Me', options: _authed(token));
+      return UserDto.fromJson(Map<String, dynamic>.from(res.data as Map));
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Full details for a single item (Overview, Genres, runtime, resume, ...).
+  Future<BaseItemDto> getItem({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+  }) async {
+    try {
+      final res = await _dio.get(
+        '$baseUrl/Users/$userId/Items/$itemId',
+        options: _authed(token),
+      );
+      return BaseItemDto.fromJson(Map<String, dynamic>.from(res.data as Map));
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// The raw item JSON (full detail: overview, people, genres, images), so a
+  /// downloaded item's detail can be stored and rebuilt offline. Returns null on
+  /// failure; best-effort.
+  Future<Map<String, dynamic>?> getItemJson({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+  }) async {
+    try {
+      final res = await _dio.get(
+        '$baseUrl/Users/$userId/Items/$itemId',
+        options: _authed(token),
+      );
+      return Map<String, dynamic>.from(res.data as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+/// Titles similar to [itemId] ("More Like This").
+  Future<List<BaseItemDto>> getSimilar({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+    int limit = 16,
+  }) async {
+    return _getItems(
+      '$baseUrl/Items/$itemId/Similar',
+      token,
+      query: {
+        'UserId': userId,
+        'Limit': '$limit',
+        'Fields': 'PrimaryImageAspectRatio',
+      },
+    );
+  }
+
+/// Deletes an item from the server (requires delete permission).
+  Future<void> deleteItem({
+    required String baseUrl,
+    required String token,
+    required String itemId,
+  }) async {
+    try {
+      await _dio.delete('$baseUrl/Items/$itemId', options: _authed(token));
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Triggers a metadata refresh for an item (requires permission).
+  Future<void> refreshItem({
+    required String baseUrl,
+    required String token,
+    required String itemId,
+  }) async {
+    try {
+      await _dio.post(
+        '$baseUrl/Items/$itemId/Refresh',
+        queryParameters: {
+          'metadataRefreshMode': 'FullRefresh',
+          'imageRefreshMode': 'FullRefresh',
+        },
+        options: _authed(token),
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Marks an item played or unplayed.
+  Future<void> setPlayed({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+    required bool played,
+  }) async {
+    final url = '$baseUrl/Users/$userId/PlayedItems/$itemId';
+    try {
+      if (played) {
+        await _dio.post(url, options: _authed(token));
+      } else {
+        await _dio.delete(url, options: _authed(token));
+      }
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Adds or removes an item from favorites.
+  Future<void> setFavorite({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+    required bool favorite,
+  }) async {
+    final url = '$baseUrl/Users/$userId/FavoriteItems/$itemId';
+    try {
+      if (favorite) {
+        await _dio.post(url, options: _authed(token));
+      } else {
+        await _dio.delete(url, options: _authed(token));
+      }
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Skippable media segments (intro/credits/…) for an item. Empty when the
+  /// server has no Media Segments provider — degrade gracefully, never throw.
+  Future<List<MediaSegment>> getMediaSegments({
+    required String baseUrl,
+    required String token,
+    required String itemId,
+  }) async {
+    try {
+      // The endpoint filters by includeSegmentTypes. ASP.NET binds an omitted
+      // `IReadOnlyList<MediaSegmentType>` to an EMPTY (non-null) list, so leaving
+      // it off makes the server filter to nothing and return zero segments —
+      // which is why Skip Intro/Credits never appeared. Ask for every type we
+      // can skip, sent as repeated query keys (ListFormat.multi), which is what
+      // the server's list binder expects.
+      final res = await _dio.get(
+        '$baseUrl/MediaSegments/$itemId',
+        queryParameters: const {
+          'includeSegmentTypes': [
+            'Intro',
+            'Outro',
+            'Recap',
+            'Preview',
+            'Commercial',
+          ],
+        },
+        options: _authed(token).copyWith(listFormat: ListFormat.multi),
+      );
+      final items = (res.data['Items'] as List? ?? const []);
+      return items
+          .whereType<Map>()
+          .map((e) => MediaSegment.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } on DioException catch (e) {
+      // Don't blind-swallow: a real failure should be distinguishable from a
+      // server that simply has no Media Segments provider (empty success).
+      Diagnostics.instance.add(
+        'jellyfin',
+        'MediaSegments $itemId failed: ${e.response?.statusCode ?? e.type}',
+      );
+      return const [];
+    }
+  }
+
+/// The next episode to watch for a series, or null if none.
+  Future<BaseItemDto?> getNextUp({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String seriesId,
+  }) async {
+    try {
+      final res = await _dio.get(
+        '$baseUrl/Shows/NextUp',
+        queryParameters: {
+          'UserId': userId,
+          'SeriesId': seriesId,
+          'Limit': '1',
+          'Fields': 'Overview,PrimaryImageAspectRatio',
+        },
+        options: _authed(token),
+      );
+      final items = (res.data['Items'] as List? ?? const []);
+      if (items.isEmpty) return null;
+      return BaseItemDto.fromJson(
+        Map<String, dynamic>.from(items.first as Map),
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Episodes for a series (optionally a single season), in order.
+  Future<List<BaseItemDto>> getEpisodes({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String seriesId,
+    String? seasonId,
+  }) async {
+    return _getItems(
+      '$baseUrl/Shows/$seriesId/Episodes',
+      token,
+      query: {
+        'UserId': userId,
+        'SeasonId': ?seasonId,
+        // ChannelId is retained on recorded episodes (a DVR marker a normal
+        // library episode never has), so downloads can classify recordings.
+        'Fields': 'Overview,PrimaryImageAspectRatio,ChannelId',
+      },
+    );
+  }
+}

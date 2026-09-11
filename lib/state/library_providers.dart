@@ -5,6 +5,7 @@ import '../models/guide_data.dart';
 import '../models/user_dto.dart';
 import 'providers.dart';
 import 'session_controller.dart';
+import '../api/jellyfin_client.dart';
 
 /// Whether the active server is reachable, re-probed every 30s so the app
 /// notices going offline mid-session (not just at load). Emits true when no
