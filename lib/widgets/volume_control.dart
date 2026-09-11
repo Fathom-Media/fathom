@@ -255,8 +255,13 @@ class _InlineVolumeState extends ConsumerState<InlineVolume> {
       curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
+        // From the theme, not a fixed near-black: these two pills live on the
+        // music screens (never over video), so in the light theme a hardcoded
+        // dark slab swallowed its own icon, which is drawn in the theme's
+        // foreground colour.
         color: _open
-            ? const Color(0xFF16151A).withValues(alpha: 0.94)
+            ? Theme.of(context).colorScheme.surfaceContainerHigh
+                .withValues(alpha: 0.96)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(30),
         boxShadow: _open
@@ -463,8 +468,10 @@ class _VerticalVolumeButtonState extends ConsumerState<VerticalVolumeButton> {
       curve: Curves.easeOut,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
+        // From the theme, for the same reason as InlineVolume above.
         color: _open
-            ? const Color(0xFF16151A).withValues(alpha: 0.94)
+            ? Theme.of(context).colorScheme.surfaceContainerHigh
+                .withValues(alpha: 0.96)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(28),
         boxShadow: _open
