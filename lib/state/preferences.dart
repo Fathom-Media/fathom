@@ -134,6 +134,14 @@ class Prefs {
   final bool syncPlayEnabled;
   // Movie Night Wheel: elimination-style picker on Watchlist/SyncPlay.
   final bool movieWheelEnabled;
+  // 'last' (last one standing), 'single' (one spin picks), 'best3'.
+  final String movieWheelMode;
+  final bool movieWheelSound;
+  // Stored as the titles left UNCHECKED, so anything newly added to the
+  // Watchlist since the last spin starts out selected.
+  final List<String> movieWheelDeselected;
+  // Library titles added to the wheel on top of the Watchlist.
+  final List<String> movieWheelExtras;
 
   // Internet radio: shows the Radio section in the sidebar. Off by default —
   // this is primarily a Jellyfin client, so radio is an opt-in integration.
@@ -336,6 +344,10 @@ class Prefs {
     this.trailerQuality = 'auto',
     this.syncPlayEnabled = true,
     this.movieWheelEnabled = true,
+    this.movieWheelMode = 'last',
+    this.movieWheelSound = true,
+    this.movieWheelDeselected = const [],
+    this.movieWheelExtras = const [],
     this.radioEnabled = false,
     this.notifNewRequest = true,
     this.notifSeerrApproved = true,
@@ -455,6 +467,10 @@ class Prefs {
     String? trailerQuality,
     bool? syncPlayEnabled,
     bool? movieWheelEnabled,
+    String? movieWheelMode,
+    bool? movieWheelSound,
+    List<String>? movieWheelDeselected,
+    List<String>? movieWheelExtras,
     bool? radioEnabled,
     bool? notifNewRequest,
     bool? notifSeerrApproved,
@@ -575,6 +591,10 @@ class Prefs {
         trailerQuality: trailerQuality ?? this.trailerQuality,
         syncPlayEnabled: syncPlayEnabled ?? this.syncPlayEnabled,
         movieWheelEnabled: movieWheelEnabled ?? this.movieWheelEnabled,
+        movieWheelMode: movieWheelMode ?? this.movieWheelMode,
+        movieWheelSound: movieWheelSound ?? this.movieWheelSound,
+        movieWheelDeselected: movieWheelDeselected ?? this.movieWheelDeselected,
+        movieWheelExtras: movieWheelExtras ?? this.movieWheelExtras,
         radioEnabled: radioEnabled ?? this.radioEnabled,
         notifNewRequest: notifNewRequest ?? this.notifNewRequest,
         notifSeerrApproved: notifSeerrApproved ?? this.notifSeerrApproved,
@@ -706,6 +726,10 @@ class Prefs {
         'trailerQuality': trailerQuality,
         'syncPlayEnabled': syncPlayEnabled,
         'movieWheelEnabled': movieWheelEnabled,
+        'movieWheelMode': movieWheelMode,
+        'movieWheelSound': movieWheelSound,
+        'movieWheelDeselected': movieWheelDeselected,
+        'movieWheelExtras': movieWheelExtras,
         'radioEnabled': radioEnabled,
         'notifNewRequest': notifNewRequest,
         'notifSeerrApproved': notifSeerrApproved,
@@ -831,6 +855,12 @@ class Prefs {
         trailerQuality: j['trailerQuality'] as String? ?? 'auto',
         syncPlayEnabled: j['syncPlayEnabled'] as bool? ?? true,
         movieWheelEnabled: j['movieWheelEnabled'] as bool? ?? true,
+        movieWheelMode: j['movieWheelMode'] as String? ?? 'last',
+        movieWheelSound: j['movieWheelSound'] as bool? ?? true,
+        movieWheelDeselected:
+            (j['movieWheelDeselected'] as List?)?.cast<String>() ?? const [],
+        movieWheelExtras:
+            (j['movieWheelExtras'] as List?)?.cast<String>() ?? const [],
         radioEnabled: j['radioEnabled'] as bool? ?? false,
         notifNewRequest: j['notifNewRequest'] as bool? ?? true,
         notifSeerrApproved: j['notifSeerrApproved'] as bool? ?? true,

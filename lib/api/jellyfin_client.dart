@@ -454,6 +454,26 @@ class JellyfinClient {
     }
   }
 
+  /// Several specific items at once, with the detail fields list views skip
+  /// (genres, synopsis, trailers) plus watched state and runtime.
+  Future<List<BaseItemDto>> getItemsByIds({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required List<String> ids,
+  }) {
+    if (ids.isEmpty) return Future.value(const []);
+    return _getItems(
+      '$baseUrl/Users/$userId/Items',
+      token,
+      query: {
+        'Ids': ids.join(','),
+        'Fields': 'Genres,Overview,RemoteTrailers,ProductionYear',
+        'EnableUserData': 'true',
+      },
+    );
+  }
+
   /// All genres present in the user's libraries.
   Future<List<BaseItemDto>> getGenres({
     required String baseUrl,

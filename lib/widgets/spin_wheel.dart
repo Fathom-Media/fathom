@@ -1,20 +1,24 @@
-import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit/media_kit.dart';
 
 import '../models/base_item.dart';
-import '../services/diagnostics.dart';
+import '../services/tv_mode.dart';
+import 'clapper_icon.dart';
 import 'media_image.dart';
 
-/// A Price-Is-Right-style prize wheel: N labeled wedges, a fixed pointer at
-/// the top, and a spin that decelerates into a landing with a peg-tick as
-/// each wedge boundary passes. The outcome is chosen before the animation
-/// starts (there's no physical randomness to simulate), the deceleration
-/// curve just makes a predetermined stop feel like real momentum and
-/// friction rather than a snap decision.
+/// A Price-Is-Right-style prize wheel: labeled wedges, a fixed pointer at the
+/// top, and a spin that decelerates into a landing with a peg-tick as each
+/// wedge boundary passes. The outcome is chosen before the animation starts;
+/// the deceleration curve just makes a predetermined stop feel like real
+/// momentum and friction.
+///
+/// The wheel keeps its own state across changes to [items]: a removed title's
+/// wedge shrinks away while its neighbours close the gap (and a re-added one
+/// grows back), with the wedge under the pointer held steady throughout.
 class SpinWheel extends StatefulWidget {
   final List<BaseItemDto> items;
   final double size;
@@ -23,48 +27,50 @@ class SpinWheel extends StatefulWidget {
   /// the pointer landed on.
   final ValueChanged<int> onLanded;
 
+  /// Called when wedges finish shrinking away or growing in after [items]
+  /// changed.
+  final VoidCallback? onSettled;
+
+  /// Called each time a peg passes under the pointer (the tick sound).
+  final VoidCallback? onTick;
+
+  /// Landings per item id, drawn as stars on that wedge.
+  final Map<String, int> marks;
+
   const SpinWheel({
     super.key,
     required this.items,
     required this.onLanded,
+    this.onSettled,
+    this.onTick,
     this.size = 320,
+    this.marks = const {},
   });
 
   @override
   State<SpinWheel> createState() => SpinWheelState();
 }
 
+class _Entry {
+  _Entry(this.item, this.color, {this.from = 1, this.to = 1});
+  BaseItemDto item;
+  final Color color;
+  double from;
+  double to;
+  double weight(double t) => from + (to - from) * t;
+}
+
+class _Geometry {
+  const _Geometry(this.starts, this.sweeps);
+  final List<double> starts;
+  final List<double> sweeps;
+}
+
 class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
-  late final AnimationController _controller;
-  late Animation<double> _rotation;
-  int _lastSegment = -1;
-  bool _spinning = false;
-  final _random = math.Random();
+  static const _pointerAngle = -math.pi / 2; // top, in canvas convention
 
-  // A short, independent flap each time a peg passes under the pointer, like
-  // a real spring-loaded flapper getting knocked up and snapping back, not
-  // just a static triangle.
-  late final AnimationController _flapController;
-  late final Animation<double> _flap;
-
-  // A continuously-flipping hourglass in the center hub while the wheel is
-  // spinning, like sand actually falling and the glass getting turned over,
-  // rather than a static icon.
-  late final AnimationController _hourglassController;
-
-  // The peg-tick sound. Reuses media_kit (already a dependency everywhere
-  // else in the app) rather than adding a new audio package just for this.
-  // Opened once and re-seeked/replayed per tick, not re-opened each time,
-  // so rapid ticks early in a fast spin don't each pay demuxer setup cost.
-  late final Player _tickPlayer;
-  // Guards against seeking/playing before the asset has actually finished
-  // loading: media_kit's seek()/play() don't throw or no-op visibly if
-  // there's no media loaded yet, so an early command is silently lost
-  // rather than surfaced as an error.
-  bool _tickReady = false;
-
-  // A fixed, high-contrast palette cycled across wedges, independent of the
-  // theme accent so every wedge reads clearly against its neighbours.
+  // A fixed, high-contrast palette, independent of the theme accent. Each
+  // title keeps its colour for the whole session, even as others drop out.
   static const _palette = [
     Color(0xFFEF4444),
     Color(0xFFF59E0B),
@@ -76,11 +82,58 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
     Color(0xFFF97316),
   ];
 
+  final _angle = ValueNotifier<double>(0);
+  final _random = math.Random();
+  final List<_Entry> _entries = [];
+  final Map<String, Color> _colors = {};
+
+  late final AnimationController _spinCtl;
+  Animation<double>? _spinAnim;
+  bool _spinning = false;
+
+  late final AnimationController _layoutCtl;
+  late final CurvedAnimation _layoutCurve;
+  int? _pinned;
+  double _pinFraction = 0.5;
+  double _pinBase = 0;
+
+  late final AnimationController _highlightCtl;
+  int? _highlighted;
+
+  late final AnimationController _flapCtl;
+  late final Animation<double> _flap;
+  late final AnimationController _hourglassCtl;
+
+  bool _dragging = false;
+  double _lastDragAngle = 0;
+  Offset _lastDragPos = Offset.zero;
+
+  int _lastSegment = -1;
+  double _speed = 0; // rad/s, smoothed
+  double _speedAngle = 0;
+  int _speedMicros = 0;
+  final _clock = Stopwatch()..start();
+
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this);
-    _flapController = AnimationController(
+    for (final item in widget.items) {
+      _entries.add(_Entry(item, _colorFor(item.id)));
+    }
+    _spinCtl = AnimationController(vsync: this)
+      ..addListener(() {
+        final a = _spinAnim;
+        if (a != null) _angle.value = a.value;
+      });
+    _layoutCtl = AnimationController(vsync: this)
+      ..addListener(_onLayoutTick)
+      ..addStatusListener((s) {
+        if (s == AnimationStatus.completed) _finishLayout();
+      });
+    _layoutCurve =
+        CurvedAnimation(parent: _layoutCtl, curve: Curves.easeInOutCubic);
+    _highlightCtl = AnimationController(vsync: this);
+    _flapCtl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 180),
     );
@@ -97,236 +150,449 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
             .chain(CurveTween(curve: Curves.easeOutBack)),
         weight: 65,
       ),
-    ]).animate(_flapController);
-    _hourglassController = AnimationController(
+    ]).animate(_flapCtl);
+    _hourglassCtl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     );
-    _tickPlayer = Player();
-    unawaited(_loadTickSound());
-  }
-
-  // A plain async function, not a bare .then()/.catchError() chain: Media's
-  // constructor resolves and validates the asset path synchronously, so a
-  // missing/misbundled asset throws before .open() is even called and
-  // before any .catchError() on its result could ever see it. Wrapping the
-  // whole thing in async turns that synchronous throw into a normal Future
-  // error this try/catch actually catches.
-  Future<void> _loadTickSound() async {
-    Diagnostics.instance.add('wheel', 'tick sound: opening asset');
-    try {
-      await _tickPlayer.open(
-        Media('asset:///assets/audio/wheel_tick.wav'),
-        play: false,
-      );
-      _tickReady = true;
-      Diagnostics.instance.add('wheel',
-          'tick sound: opened, duration=${_tickPlayer.state.duration} volume=${_tickPlayer.state.volume}');
-    } catch (e) {
-      Diagnostics.instance.add('wheel', 'tick sound: failed to open: $e');
-    }
+    _angle.addListener(_onAngleChanged);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _flapController.dispose();
-    _hourglassController.dispose();
-    _tickPlayer.dispose();
+    _angle.dispose();
+    _spinCtl.dispose();
+    _layoutCurve.dispose();
+    _layoutCtl.dispose();
+    _highlightCtl.dispose();
+    _flapCtl.dispose();
+    _hourglassCtl.dispose();
     super.dispose();
   }
 
-  double get _segmentAngle => (2 * math.pi) / widget.items.length;
+  Color _colorFor(String id) =>
+      _colors.putIfAbsent(id, () => _palette[_colors.length % _palette.length]);
 
-  /// Which wedge is currently under the fixed top pointer, for a given
-  /// wheel rotation [theta] (radians, how far the wheel has turned).
-  int _segmentAt(double theta) {
-    const pointerAngle = -math.pi / 2; // top, in canvas angle convention
-    var originalAngle = (pointerAngle - theta) % (2 * math.pi);
-    if (originalAngle < 0) originalAngle += 2 * math.pi;
-    final seg = _segmentAngle;
-    return (originalAngle / seg).floor() % widget.items.length;
+  bool get _reduceMotion => MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+  /// True while spinning, highlighting a landing, or reshaping wedges.
+  bool get isBusy =>
+      _spinning || _layoutCtl.isAnimating || _highlightCtl.isAnimating;
+
+  _Geometry _geometry() {
+    final t = _layoutCurve.value;
+    final weights = [for (final e in _entries) e.weight(t)];
+    final total = weights.fold<double>(0, (a, b) => a + b);
+    final starts = <double>[];
+    final sweeps = <double>[];
+    var acc = 0.0;
+    for (final w in weights) {
+      final sweep = total <= 0 ? 0.0 : w / total * 2 * math.pi;
+      starts.add(acc);
+      sweeps.add(sweep);
+      acc += sweep;
+    }
+    return _Geometry(starts, sweeps);
   }
 
-  bool get isSpinning => _spinning;
-
-  /// Spins to a random wedge, several full turns first for effect. Ticks a
-  /// selection haptic on every wedge boundary crossed along the way.
-  Future<void> spin() async {
-    if (_spinning || widget.items.length < 2) return;
-    setState(() => _spinning = true);
-    _hourglassController.repeat();
-    final targetIndex = _random.nextInt(widget.items.length);
-    final seg = _segmentAngle;
-    // Land somewhere within the middle 70% of the wedge, not dead-center
-    // every time and never right on a boundary.
-    final jitter = (_random.nextDouble() - 0.5) * seg * 0.7;
-    final targetOriginalAngle = targetIndex * seg + seg / 2 + jitter;
-    const pointerAngle = -math.pi / 2;
-    var base = pointerAngle - targetOriginalAngle;
-    base = base % (2 * math.pi);
-    if (base < 0) base += 2 * math.pi;
-    // More turns alongside the longer duration so the opening speed stays
-    // just as fast and the extra time lands in the slow, suspenseful crawl.
-    final spins = 9 + _random.nextInt(3); // 9-11 extra full turns
-    final target = base + 2 * math.pi * spins;
-
-    _lastSegment = _segmentAt(0);
-    _controller.duration =
-        Duration(milliseconds: 7000 + _random.nextInt(1000));
-    _rotation = Tween<double>(begin: 0, end: target).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutQuint),
-    );
-    _rotation.addListener(_onTick);
-    _controller.reset();
-    await _controller.forward();
-    _rotation.removeListener(_onTick);
-    _hourglassController.stop();
-    _hourglassController.reset();
-    if (!mounted) return;
-    setState(() => _spinning = false);
-    HapticFeedback.mediumImpact();
-    widget.onLanded(targetIndex);
+  /// The wedge under the fixed top pointer for a wheel rotation [theta].
+  int _segmentAt(double theta, _Geometry g) {
+    final a = (_pointerAngle - theta) % (2 * math.pi);
+    for (var i = 0; i < g.starts.length; i++) {
+      if (g.sweeps[i] <= 0) continue;
+      if (a >= g.starts[i] && a < g.starts[i] + g.sweeps[i]) return i;
+    }
+    return g.starts.length - 1;
   }
 
-  void _onTick() {
-    final v = _rotation.value;
-    final seg = _segmentAt(v);
+  // ---- Reshaping when items change ----
+
+  @override
+  void didUpdateWidget(covariant SpinWheel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final byId = {for (final i in widget.items) i.id: i};
+    for (final e in _entries) {
+      final fresh = byId[e.item.id];
+      if (fresh != null) e.item = fresh;
+    }
+    final newIds = [for (final i in widget.items) i.id];
+    final liveIds = [for (final e in _entries) if (e.to > 0) e.item.id];
+    if (listEquals(newIds, liveIds)) return;
+    _reshape(newIds, byId);
+  }
+
+  void _reshape(List<String> newIds, Map<String, BaseItemDto> byId) {
+    // Settle wherever a previous reshape had got to, then start fresh.
+    final t = _layoutCurve.value;
+    _pinned = null;
+    for (final e in _entries) {
+      final w = e.weight(t);
+      e.from = w;
+      e.to = w;
+    }
+    _entries.removeWhere((e) => e.from <= 0.0001 && !byId.containsKey(e.item.id));
+    _layoutCtl.stop();
+    _layoutCtl.value = 0;
+
+    for (final e in _entries) {
+      e.to = byId.containsKey(e.item.id) ? 1 : 0;
+    }
+    for (var k = 0; k < newIds.length; k++) {
+      final id = newIds[k];
+      if (_entries.any((e) => e.item.id == id)) continue;
+      final prev = k == 0
+          ? -1
+          : _entries.indexWhere((e) => e.item.id == newIds[k - 1]);
+      _entries.insert(prev + 1, _Entry(byId[id]!, _colorFor(id), from: 0, to: 1));
+    }
+
+    // Hold whichever wedge is under the pointer steady, at the same spot
+    // within it, so a knocked-out wedge shrinks away right under the pointer
+    // and a sole survivor grows out from it.
+    final g = _geometry();
+    if (g.starts.isNotEmpty) {
+      final k = _segmentAt(_angle.value, g);
+      if (k >= 0 && g.sweeps[k] > 0) {
+        final a = (_pointerAngle - _angle.value) % (2 * math.pi);
+        _pinned = k;
+        _pinFraction = ((a - g.starts[k]) / g.sweeps[k]).clamp(0.0, 1.0);
+        _pinBase = _angle.value -
+            (_pointerAngle - (g.starts[k] + _pinFraction * g.sweeps[k]));
+      }
+    }
+    _layoutCtl.duration = Duration(milliseconds: _reduceMotion ? 200 : 700);
+    _layoutCtl.forward(from: 0);
+  }
+
+  void _onLayoutTick() {
+    final k = _pinned;
+    if (k == null || k >= _entries.length) return;
+    final g = _geometry();
+    _angle.value = _pinBase +
+        _pointerAngle -
+        (g.starts[k] + _pinFraction * g.sweeps[k]);
+  }
+
+  void _finishLayout() {
+    _entries.removeWhere((e) => e.to <= 0);
+    for (final e in _entries) {
+      e.from = 1;
+      e.to = 1;
+    }
+    _pinned = null;
+    _lastSegment = _entries.isEmpty ? -1 : _segmentAt(_angle.value, _geometry());
+    if (mounted) setState(() {});
+    widget.onSettled?.call();
+  }
+
+  // ---- Ticks, speed, sound ----
+
+  void _onAngleChanged() {
+    final now = _clock.elapsedMicroseconds;
+    final dt = (now - _speedMicros) / 1e6;
+    if (dt > 0) {
+      final inst = (_angle.value - _speedAngle).abs() / dt;
+      _speed = dt > 0.2 ? inst : _speed * 0.6 + inst * 0.4;
+    }
+    _speedMicros = now;
+    _speedAngle = _angle.value;
+
+    if (_layoutCtl.isAnimating || _entries.length < 2) return;
+    final seg = _segmentAt(_angle.value, _geometry());
     if (seg != _lastSegment) {
       _lastSegment = seg;
       HapticFeedback.selectionClick();
-      _flapController.forward(from: 0);
-      unawaited(_playTick());
+      _flapCtl.forward(from: 0);
+      widget.onTick?.call();
     }
   }
 
-  Future<void> _playTick() async {
-    // Skip rather than queue: a command sent before the asset has loaded
-    // is silently dropped anyway, and catching up on several queued clicks
-    // in a burst once ready would sound worse than just missing a couple
-    // of the earliest, fastest pegs.
-    if (!_tickReady) {
-      Diagnostics.instance.add('wheel', 'tick: skipped, player not ready yet');
-      return;
-    }
-    try {
-      await _tickPlayer.seek(Duration.zero);
-      await _tickPlayer.play();
-      // media_kit's seek()/play() can report success with playing=true even
-      // when nothing audible actually happens, so log the resulting state
-      // unconditionally rather than only on a thrown exception.
-      Diagnostics.instance.add('wheel',
-          'tick: played, playing=${_tickPlayer.state.playing} pos=${_tickPlayer.state.position} vol=${_tickPlayer.state.volume}');
-    } catch (e) {
-      Diagnostics.instance.add('wheel', 'tick: playback failed: $e');
-    }
+  // ---- Spinning ----
+
+  /// Spins to a random wedge. [velocity] (rad/s, sign = direction) comes
+  /// from a flick: a harder flick means more turns and a longer spin. A tap
+  /// or the remote's Select spins clockwise at normal strength.
+  Future<void> spin({double? velocity}) async {
+    if (isBusy || _dragging || _entries.length < 2) return;
+    final reduce = _reduceMotion;
+    final dir = (velocity ?? 1) >= 0 ? 1.0 : -1.0;
+    final strength =
+        velocity == null ? 1.0 : (velocity.abs() / 14).clamp(0.55, 1.4);
+    setState(() => _spinning = true);
+    if (!reduce) _hourglassCtl.repeat();
+
+    final g = _geometry();
+    final target = _random.nextInt(_entries.length);
+    // Land within the middle 70% of the wedge, never right on a boundary.
+    final frac = 0.5 + (_random.nextDouble() - 0.5) * 0.7;
+    final point = g.starts[target] + g.sweeps[target] * frac;
+    final start = _angle.value;
+    var rest = (_pointerAngle - point - start) % (2 * math.pi);
+    if (dir < 0) rest -= 2 * math.pi;
+    final turns = reduce ? 2 : (9 * strength).round() + _random.nextInt(3);
+    final ms = reduce
+        ? 1600
+        : ((7000 + _random.nextInt(1000)) * (0.75 + 0.25 * strength)).round();
+
+    _lastSegment = _segmentAt(start, g);
+    _spinCtl.duration = Duration(milliseconds: ms);
+    _spinAnim = Tween<double>(
+      begin: start,
+      end: start + rest + dir * 2 * math.pi * turns,
+    ).animate(CurvedAnimation(parent: _spinCtl, curve: Curves.easeOutQuint));
+    await _spinCtl.forward(from: 0);
+    _spinAnim = null;
+    _hourglassCtl
+      ..stop()
+      ..reset();
+    _speed = 0;
+    if (!mounted) return;
+
+    setState(() {
+      _spinning = false;
+      _highlighted = target;
+    });
+    HapticFeedback.mediumImpact();
+    _highlightCtl.duration = Duration(milliseconds: reduce ? 450 : 1150);
+    await _highlightCtl.forward(from: 0);
+    if (!mounted) return;
+    setState(() => _highlighted = null);
+    final id = _entries[target].item.id;
+    final index = widget.items.indexWhere((e) => e.id == id);
+    if (index >= 0) widget.onLanded(index);
   }
+
+  // ---- Flick to spin ----
+
+  Offset get _center => Offset(widget.size / 2, 24 + widget.size / 2);
+
+  double _angleOf(Offset p) => math.atan2(p.dy - _center.dy, p.dx - _center.dx);
+
+  void _onPanStart(DragStartDetails d) {
+    if (isBusy || _entries.length < 2) return;
+    _dragging = true;
+    _lastDragPos = d.localPosition;
+    _lastDragAngle = _angleOf(d.localPosition);
+  }
+
+  void _onPanUpdate(DragUpdateDetails d) {
+    if (!_dragging) return;
+    final a = _angleOf(d.localPosition);
+    var delta = a - _lastDragAngle;
+    if (delta > math.pi) delta -= 2 * math.pi;
+    if (delta < -math.pi) delta += 2 * math.pi;
+    _lastDragAngle = a;
+    _lastDragPos = d.localPosition;
+    _angle.value += delta;
+  }
+
+  void _onPanEnd(DragEndDetails d) {
+    if (!_dragging) return;
+    _dragging = false;
+    // Angular velocity from the release: the tangential part of the finger's
+    // velocity over its distance from the hub (clamped so a release right
+    // on the hub can't read as an absurd spin).
+    final r = _lastDragPos - _center;
+    final dist2 = math.max(r.distanceSquared, 60.0 * 60.0);
+    final v = d.velocity.pixelsPerSecond;
+    final omega = (r.dx * v.dy - r.dy * v.dx) / dist2;
+    if (omega.abs() >= 3) spin(velocity: omega);
+  }
+
+  // ---- Build ----
 
   @override
   Widget build(BuildContext context) {
-    final n = widget.items.length;
+    final size = widget.size;
+    final reduce = _reduceMotion;
+    final blurAllowed = !reduce && !isTvDevice;
     return GestureDetector(
-      onTap: _spinning ? null : spin,
+      onTap: isBusy ? null : () => spin(),
+      onPanStart: _onPanStart,
+      onPanUpdate: _onPanUpdate,
+      onPanEnd: _onPanEnd,
+      onPanCancel: () => _dragging = false,
       child: SizedBox(
-        width: widget.size,
-        height: widget.size + 24,
+        width: size,
+        height: size + 24,
         child: Stack(
           alignment: Alignment.topCenter,
           children: [
+            // A soft shadow under the wheel; it doesn't turn with it.
+            Positioned(
+              top: 24,
+              child: IgnorePointer(
+                child: Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        blurRadius: 30,
+                        offset: const Offset(0, 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
             Positioned(
               top: 24,
               child: AnimatedBuilder(
-                animation: _controller,
+                animation: _angle,
                 builder: (context, child) {
-                  final theta =
-                      _controller.isAnimating || _controller.value > 0
-                          ? _rotation.value
-                          : 0.0;
-                  return Transform.rotate(angle: theta, child: child);
+                  // A light blur while it's really moving, fading out as it
+                  // slows, like a camera catching a fast-spinning wheel.
+                  final sigma = blurAllowed && _spinning
+                      ? ((_speed - 10) / 8).clamp(0.0, 3.0)
+                      : 0.0;
+                  return Transform.rotate(
+                    angle: _angle.value,
+                    child: ClipOval(
+                      child: ImageFiltered(
+                        enabled: sigma > 0.05,
+                        imageFilter:
+                            ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                        child: child,
+                      ),
+                    ),
+                  );
                 },
+                child: AnimatedBuilder(
+                  animation: Listenable.merge([_layoutCtl, _highlightCtl]),
+                  builder: (context, _) => _content(),
+                ),
+              ),
+            ),
+            // A glossy highlight fixed to the screen, not the wheel, so it
+            // reads as light catching a physical spinning surface.
+            Positioned(
+              top: 24,
+              child: IgnorePointer(
                 child: ClipOval(
-                  child: SizedBox(
-                    width: widget.size,
-                    height: widget.size,
-                    child: Stack(
-                      children: [
-                        // Palette fill first, as the fallback behind each
-                        // poster (visible at the wedge's far corners a
-                        // poster image doesn't quite reach, and while it's
-                        // still loading).
-                        CustomPaint(
-                          size: Size.square(widget.size),
-                          painter: _WheelFillPainter(count: n, palette: _palette),
-                        ),
-                        for (var i = 0; i < n; i++)
-                          Positioned.fill(
-                            child: ClipPath(
-                              clipper: _WedgeClipper(index: i, count: n),
-                              // A fresh Stack so the poster's own Positioned
-                              // (sized/placed in full-wheel coordinates) has
-                              // a direct Stack ancestor, with only this
-                              // clip's own Positioned.fill wrapping it.
-                              child: Stack(
-                                children: [
-                                  _WedgePoster(
-                                    item: widget.items[i],
-                                    index: i,
-                                    count: n,
-                                    wheelSize: widget.size,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        // A center-to-rim darkening so the title text and the
-                        // divider/peg lines stay legible over busy poster art.
-                        IgnorePointer(
-                          child: Container(
-                            width: widget.size,
-                            height: widget.size,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  Colors.black.withValues(alpha: 0.05),
-                                  Colors.black.withValues(alpha: 0.45),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Dividers, rim, and pegs on top of the poster art so
-                        // they stay crisp regardless of what's underneath.
-                        CustomPaint(
-                          size: Size.square(widget.size),
-                          painter: _WheelLinesPainter(count: n),
-                        ),
-                        for (var i = 0; i < n; i++)
-                          _WedgeTitle(
-                            item: widget.items[i],
-                            index: i,
-                            count: n,
-                            wheelSize: widget.size,
-                          ),
-                      ],
+                  child: Container(
+                    width: size,
+                    height: size,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0x30FFFFFF),
+                          Color(0x0CFFFFFF),
+                          Color(0x00000000),
+                          Color(0x1F000000),
+                        ],
+                        stops: [0, 0.32, 0.6, 1],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-            // Fixed pointer, doesn't rotate with the wheel; flaps on its own
-            // short animation each time a peg passes under it.
+            // Fixed pointer; flaps on its own each time a peg passes.
+            Positioned(top: 0, child: _Pointer(flap: _flap)),
             Positioned(
-              top: 0,
-              child: _Pointer(flap: _flap),
-            ),
-            // Center hub, also the tap target.
-            Positioned(
-              top: 24 + widget.size / 2 - 34,
-              child: _Hub(spinning: _spinning, hourglass: _hourglassController),
+              top: 24 + size / 2 - 34,
+              child: _Hub(
+                spinning: _spinning,
+                hourglass: _hourglassCtl,
+                animate: !reduce,
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _content() {
+    final size = widget.size;
+    final g = _geometry();
+    final t = _layoutCurve.value;
+    final hl = _highlighted;
+    // Posters request one resolution per wheel size, stepped so a window
+    // resize doesn't refetch on every pixel and a wedge reshaping never
+    // changes the URL mid-animation.
+    final reqHeight = ((size * 1.6 / 240).ceil() * 240).clamp(480, 1200);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        children: [
+          // Palette fill, the fallback behind each poster while it loads.
+          CustomPaint(
+            size: Size.square(size),
+            painter: _WheelFillPainter(
+              starts: g.starts,
+              sweeps: g.sweeps,
+              colors: [for (final e in _entries) e.color],
+            ),
+          ),
+          for (var i = 0; i < _entries.length; i++)
+            if (g.sweeps[i] > 0.002)
+              Positioned.fill(
+                key: ValueKey('poster-${_entries[i].item.id}'),
+                child: ClipPath(
+                  clipper: _WedgeClipper(start: g.starts[i], sweep: g.sweeps[i]),
+                  // A fresh Stack so the poster's own Positioned (placed in
+                  // full-wheel coordinates) has a direct Stack ancestor.
+                  child: Stack(
+                    children: [
+                      _WedgePoster(
+                        item: _entries[i].item,
+                        start: g.starts[i],
+                        sweep: g.sweeps[i],
+                        wheelSize: size,
+                        requestHeight: reqHeight,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          // Center-to-rim darkening so titles and lines stay legible.
+          IgnorePointer(
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.black.withValues(alpha: 0.05),
+                    Colors.black.withValues(alpha: 0.45),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (hl != null && hl < _entries.length)
+            CustomPaint(
+              size: Size.square(size),
+              painter: _HighlightPainter(
+                start: g.starts[hl],
+                sweep: g.sweeps[hl],
+                t: _highlightCtl.value,
+              ),
+            ),
+          CustomPaint(
+            size: Size.square(size),
+            painter: _WheelLinesPainter(starts: g.starts, sweeps: g.sweeps),
+          ),
+          for (var i = 0; i < _entries.length; i++)
+            if (g.sweeps[i] > 0.05)
+              _WedgeTitle(
+                key: ValueKey('title-${_entries[i].item.id}'),
+                item: _entries[i].item,
+                start: g.starts[i],
+                sweep: g.sweeps[i],
+                wheelSize: size,
+                opacity: _entries[i].weight(t).clamp(0.0, 1.0),
+                marks: widget.marks[_entries[i].item.id] ?? 0,
+              ),
+        ],
       ),
     );
   }
@@ -341,8 +607,7 @@ class _Pointer extends StatelessWidget {
     return AnimatedBuilder(
       animation: flap,
       builder: (context, child) => Transform.rotate(
-        // Pivots from the top, like it's hinged there, instead of spinning
-        // around its own center.
+        // Pivots from the top, like it's hinged there.
         alignment: Alignment.topCenter,
         angle: flap.value,
         child: child,
@@ -358,16 +623,13 @@ class _Pointer extends StatelessWidget {
 class _PointerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFFFD54A)
-      ..style = PaintingStyle.fill;
     final path = Path()
       ..moveTo(0, 0)
       ..lineTo(size.width, 0)
       ..lineTo(size.width / 2, size.height)
       ..close();
     canvas.drawShadow(path, Colors.black, 3, false);
-    canvas.drawPath(path, paint);
+    canvas.drawPath(path, Paint()..color = const Color(0xFFFFD54A));
     canvas.drawPath(
       path,
       Paint()
@@ -384,7 +646,12 @@ class _PointerPainter extends CustomPainter {
 class _Hub extends StatelessWidget {
   final bool spinning;
   final Animation<double> hourglass;
-  const _Hub({required this.spinning, required this.hourglass});
+  final bool animate;
+  const _Hub({
+    required this.spinning,
+    required this.hourglass,
+    required this.animate,
+  });
 
   static const _sand = Color(0xFFFFD54A);
 
@@ -409,13 +676,15 @@ class _Hub extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!spinning) {
+    if (!spinning || !animate) {
       return Container(
         width: 68,
         height: 68,
-        decoration: _decoration(),
+        decoration: _decoration(glow: spinning ? 0.6 : 0),
         alignment: Alignment.center,
-        child: const Icon(Icons.casino_rounded, color: Colors.white, size: 28),
+        child: spinning
+            ? const Icon(Icons.hourglass_top_rounded, color: _sand, size: 30)
+            : const ClapperIcon(size: 28, color: Colors.white),
       );
     }
     return AnimatedBuilder(
@@ -474,65 +743,76 @@ class _Hub extends StatelessWidget {
   }
 }
 
+Path _wedgePath(Offset center, double radius, double start, double sweep) {
+  if (sweep >= 2 * math.pi - 1e-6) {
+    return Path()..addOval(Rect.fromCircle(center: center, radius: radius));
+  }
+  return Path()
+    ..moveTo(center.dx, center.dy)
+    ..arcTo(Rect.fromCircle(center: center, radius: radius), start, sweep, false)
+    ..close();
+}
+
 /// Flat palette fill per wedge, painted first as the fallback behind each
-/// poster: visible at the corners a (deliberately oversized, but not
-/// infinite) poster image doesn't quite reach, and while it's still loading.
+/// poster, visible while it's still loading.
 class _WheelFillPainter extends CustomPainter {
-  final int count;
-  final List<Color> palette;
-  const _WheelFillPainter({required this.count, required this.palette});
+  final List<double> starts;
+  final List<double> sweeps;
+  final List<Color> colors;
+  const _WheelFillPainter({
+    required this.starts,
+    required this.sweeps,
+    required this.colors,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final radius = size.width / 2;
-    final seg = (2 * math.pi) / count;
-    for (var i = 0; i < count; i++) {
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        i * seg,
-        seg,
-        true,
-        Paint()
-          ..color = palette[i % palette.length]
-          ..style = PaintingStyle.fill,
+    for (var i = 0; i < starts.length; i++) {
+      if (sweeps[i] <= 0) continue;
+      canvas.drawPath(
+        _wedgePath(center, radius, starts[i], sweeps[i]),
+        Paint()..color = colors[i],
       );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _WheelFillPainter oldDelegate) =>
-      oldDelegate.count != count;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-/// Dividers, rim, and pegs, painted last (on top of the poster art) so they
-/// stay crisp and readable regardless of what's underneath.
+/// Dividers, rim, and pegs, painted on top of the poster art so they stay
+/// crisp regardless of what's underneath.
 class _WheelLinesPainter extends CustomPainter {
-  final int count;
-  const _WheelLinesPainter({required this.count});
+  final List<double> starts;
+  final List<double> sweeps;
+  const _WheelLinesPainter({required this.starts, required this.sweeps});
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final radius = size.width / 2;
-    final seg = (2 * math.pi) / count;
+    final visible = sweeps.where((s) => s > 0).length;
 
-    final divider = Paint()
-      ..color = Colors.white.withValues(alpha: 0.85)
-      ..strokeWidth = 2;
-    for (var i = 0; i < count; i++) {
-      final a = i * seg;
-      canvas.drawLine(
-        center,
-        center + Offset(math.cos(a), math.sin(a)) * radius,
-        divider,
-      );
+    if (visible > 1) {
+      final divider = Paint()
+        ..color = Colors.white.withValues(alpha: 0.85)
+        ..strokeWidth = 2;
+      for (var i = 0; i < starts.length; i++) {
+        if (sweeps[i] <= 0) continue;
+        final a = starts[i];
+        canvas.drawLine(
+          center,
+          center + Offset(math.cos(a), math.sin(a)) * radius,
+          divider,
+        );
+      }
     }
 
     // Rim as a filled ring path, not a stroked drawCircle: on Impeller a
     // stroked circle past a certain radius renders as a thick opaque band
-    // that buried everything painted under it (posters, fill, dividers)
-    // while the pegs painted after it stayed visible.
+    // that buried everything painted under it.
     canvas.drawPath(
       Path()
         ..fillType = PathFillType.evenOdd
@@ -540,77 +820,118 @@ class _WheelLinesPainter extends CustomPainter {
         ..addOval(Rect.fromCircle(center: center, radius: radius - 4)),
       Paint()..color = const Color(0xFF16151A),
     );
-    // Pegs (small notches at each boundary, like a real prize wheel).
-    final pegPaint = Paint()..color = const Color(0xFFFFD54A);
-    for (var i = 0; i < count; i++) {
-      final a = i * seg;
-      final p = center + Offset(math.cos(a), math.sin(a)) * (radius - 4);
-      canvas.drawCircle(p, 4, pegPaint);
+
+    if (visible > 1) {
+      final pegPaint = Paint()..color = const Color(0xFFFFD54A);
+      for (var i = 0; i < starts.length; i++) {
+        if (sweeps[i] <= 0) continue;
+        final a = starts[i];
+        canvas.drawCircle(
+          center + Offset(math.cos(a), math.sin(a)) * (radius - 4),
+          4,
+          pegPaint,
+        );
+      }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _WheelLinesPainter oldDelegate) =>
-      oldDelegate.count != count;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-/// Clips a child to exactly one wedge's pie-slice shape, matching the same
-/// arc geometry the painters use, so a poster positioned under it only shows
-/// through within its own slice.
-class _WedgeClipper extends CustomClipper<Path> {
-  final int index;
-  final int count;
-  const _WedgeClipper({required this.index, required this.count});
+/// The landed wedge pulsing gold while everything else dims, for a beat
+/// before the result is announced.
+class _HighlightPainter extends CustomPainter {
+  final double start;
+  final double sweep;
+  final double t;
+  const _HighlightPainter({
+    required this.start,
+    required this.sweep,
+    required this.t,
+  });
 
   @override
-  Path getClip(Size size) {
+  void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final radius = size.width / 2;
-    final seg = (2 * math.pi) / count;
-    return Path()
-      ..moveTo(center.dx, center.dy)
-      ..arcTo(Rect.fromCircle(center: center, radius: radius), index * seg, seg, false)
-      ..close();
+    final env = t < 0.15 ? t / 0.15 : (t > 0.85 ? (1 - t) / 0.15 : 1.0);
+    final pulse = 0.5 + 0.5 * math.sin(t * 4 * math.pi - math.pi / 2);
+    final wedge = _wedgePath(center, radius, start, sweep);
+
+    // Everything but the landed wedge: the circle with the wedge cut out.
+    final others = Path()
+      ..fillType = PathFillType.evenOdd
+      ..addOval(Rect.fromCircle(center: center, radius: radius))
+      ..addPath(wedge, Offset.zero);
+    canvas.drawPath(
+        others, Paint()..color = Colors.black.withValues(alpha: 0.5 * env));
+    canvas.drawPath(
+      wedge,
+      Paint()..color = Colors.white.withValues(alpha: 0.22 * pulse * env),
+    );
+    canvas.drawPath(
+      wedge,
+      Paint()
+        ..color = const Color(0xFFFFD54A).withValues(alpha: env)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5 + 3 * pulse
+        ..strokeJoin = StrokeJoin.round,
+    );
   }
 
   @override
-  bool shouldReclip(covariant _WedgeClipper oldClipper) =>
-      oldClipper.index != index || oldClipper.count != count;
+  bool shouldRepaint(covariant _HighlightPainter oldDelegate) => true;
 }
 
-/// The wedge's poster art, sized generously enough to cover its own slice
-/// (fewer, wider wedges need a bigger image to reach every corner) and
-/// rotated so "up" in the poster points radially outward, then cropped to
-/// the slice by the [_WedgeClipper] wrapping it.
+/// Clips a child to one wedge's pie-slice shape, matching the painters.
+class _WedgeClipper extends CustomClipper<Path> {
+  final double start;
+  final double sweep;
+  const _WedgeClipper({required this.start, required this.sweep});
+
+  @override
+  Path getClip(Size size) =>
+      _wedgePath(size.center(Offset.zero), size.width / 2, start, sweep);
+
+  @override
+  bool shouldReclip(covariant _WedgeClipper oldClipper) =>
+      oldClipper.start != start || oldClipper.sweep != sweep;
+}
+
+/// The wedge's poster art in the smallest 2:3 box that still covers the
+/// wedge, so as much of the art as possible shows. In the wedge's own frame
+/// (bisector pointing outward) its bounding rect runs from the hub (or, for a
+/// wedge wider than a half circle, from behind it) to the rim, and
+/// +-r*sin(sweep/2) across. The small margin keeps anti-aliased clip edges
+/// from showing a hairline.
 class _WedgePoster extends StatelessWidget {
   final BaseItemDto item;
-  final int index;
-  final int count;
+  final double start;
+  final double sweep;
   final double wheelSize;
+  final int requestHeight;
   const _WedgePoster({
     required this.item,
-    required this.index,
-    required this.count,
+    required this.start,
+    required this.sweep,
     required this.wheelSize,
+    required this.requestHeight,
   });
 
   @override
   Widget build(BuildContext context) {
-    final seg = (2 * math.pi) / count;
-    final mid = index * seg + seg / 2;
+    final mid = start + sweep / 2;
+    final half = sweep / 2;
     final radius = wheelSize / 2;
-    // The smallest 2:3 poster box that still covers this wedge, so as much of
-    // the art as possible shows instead of a zoomed-in slice. In the wedge's
-    // own frame (bisector pointing outward) its bounding rect runs from the
-    // hub to the rim radially and +-r*sin(seg/2) across (count >= 2 keeps
-    // seg/2 <= 90deg, so the far corners never dip behind the hub). The
-    // small margin keeps anti-aliased clip edges from showing a hairline.
-    final rectW = 2 * radius * math.sin(seg / 2);
-    final rectH = radius;
+    final radialMin = half <= math.pi / 2 ? 0.0 : radius * math.cos(half);
+    final rectW = half <= math.pi / 2 ? 2 * radius * math.sin(half) : 2 * radius;
+    final rectH = radius - radialMin;
     final boxW = math.max(rectW, rectH * 2 / 3) * 1.04 + 2;
     final boxH = boxW * 1.5;
-    final cx = radius + math.cos(mid) * rectH / 2;
-    final cy = radius + math.sin(mid) * rectH / 2;
+    final along = (radius + radialMin) / 2;
+    final cx = radius + math.cos(mid) * along;
+    final cy = radius + math.sin(mid) * along;
     return Positioned(
       left: cx - boxW / 2,
       top: cy - boxH / 2,
@@ -618,13 +939,10 @@ class _WedgePoster extends StatelessWidget {
       height: boxH,
       child: Transform.rotate(
         angle: mid + math.pi / 2,
-        // Without this, MediaImage falls back to a fixed 480px request
-        // regardless of the actual box size, so a big wheel stretches a
-        // comparatively tiny source image several times over.
         child: MediaImage(
           item: item,
           placeholderIcon: Icons.movie_rounded,
-          maxHeight: boxH.round().clamp(480, 1200),
+          maxHeight: requestHeight,
           filterQuality: FilterQuality.high,
         ),
       ),
@@ -632,50 +950,77 @@ class _WedgePoster extends StatelessWidget {
   }
 }
 
-/// The wedge's title, sitting near the outer rim over the darkened part of
-/// the poster where it reads clearly, rotated to point outward like the
-/// poster beneath it.
+/// The wedge's title near the outer rim, rotated to point outward like the
+/// poster beneath it, sized to the room its wedge has.
 class _WedgeTitle extends StatelessWidget {
   final BaseItemDto item;
-  final int index;
-  final int count;
+  final double start;
+  final double sweep;
   final double wheelSize;
+  final double opacity;
+  final int marks;
   const _WedgeTitle({
+    super.key,
     required this.item,
-    required this.index,
-    required this.count,
+    required this.start,
+    required this.sweep,
     required this.wheelSize,
+    required this.opacity,
+    required this.marks,
   });
 
   @override
   Widget build(BuildContext context) {
-    final seg = (2 * math.pi) / count;
-    final mid = index * seg + seg / 2;
+    final mid = start + sweep / 2;
     final radius = wheelSize / 2;
-    final labelRadius = radius * 0.78;
-    // Fewer wedges means more room, both angularly and for the eye, so the
-    // title grows accordingly rather than sitting at one fixed size
-    // regardless of whether there are 2 titles on the wheel or 15.
-    final fontSize = (12.0 + 36.0 / count).clamp(10.0, 20.0);
-    final labelWidth = (60.0 + 260.0 / count).clamp(70.0, 130.0);
+    final share = sweep / (2 * math.pi);
+    final labelRadius = radius * 0.76;
+    // The text runs across the wedge, so its room is the wedge's actual
+    // width at the label's distance from the hub. A fixed pixel cap cut long
+    // titles short on a big wheel with plenty of space, and the cut moved
+    // around as other titles dropped out.
+    final chord = sweep >= math.pi
+        ? 2 * labelRadius
+        : 2 * labelRadius * math.sin(sweep / 2);
+    final labelWidth = (chord * 0.8).clamp(56.0, radius * 1.2);
+    final fontSize = ((12.0 + 36.0 * share) * (radius / 200).clamp(0.9, 1.6))
+        .clamp(10.0, 28.0);
+    const shadows = [
+      Shadow(color: Colors.black, blurRadius: 4),
+      Shadow(color: Colors.black87, blurRadius: 8),
+    ];
     return Positioned(
       left: radius + math.cos(mid) * labelRadius - labelWidth / 2,
       top: radius + math.sin(mid) * labelRadius - fontSize,
       width: labelWidth,
-      child: Transform.rotate(
-        angle: mid + math.pi / 2,
-        child: Text(
-          item.name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: fontSize,
-            fontWeight: FontWeight.w800,
-            shadows: const [
-              Shadow(color: Colors.black, blurRadius: 4),
-              Shadow(color: Colors.black87, blurRadius: 8),
+      child: Opacity(
+        opacity: opacity,
+        child: Transform.rotate(
+          angle: mid + math.pi / 2,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (marks > 0)
+                Text(
+                  '★' * marks,
+                  style: TextStyle(
+                    color: const Color(0xFFFFD54A),
+                    fontSize: fontSize,
+                    shadows: shadows,
+                  ),
+                ),
+              Text(
+                item.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w800,
+                  shadows: shadows,
+                ),
+              ),
             ],
           ),
         ),

@@ -5410,39 +5410,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wheelNeedsWatchlist =>
-      'Add a few titles to your Watchlist first, then come back here to spin for one.';
+      'Search your library above to add titles, or put a few on your Watchlist.';
 
   @override
-  String get wheelSetupHint =>
-      'Pick at least two titles, then spin. Each spin eliminates one until only your pick is left.';
+  String get wheelSetupHint => 'Pick at least two titles, then spin.';
 
   @override
   String wheelStartWith(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Start with $count titles',
-      one: 'Start with 1 title',
+      other: 'Start with $count Titles',
+      one: 'Start with 1 Title',
     );
     return '$_temp0';
   }
 
   @override
-  String get wheelNeedTwo => 'Pick at least 2 titles';
+  String get wheelNeedTwo => 'Pick at Least 2 Titles';
 
   @override
   String wheelRemaining(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count left',
-      one: '1 left',
+      other: '$count Left',
+      one: '1 Left',
     );
     return '$_temp0';
   }
 
   @override
-  String get wheelTapToSpin => 'Tap the wheel to spin';
+  String get wheelTapToSpin => 'Tap or flick the wheel to spin';
 
   @override
   String wheelEliminated(String name) {
@@ -5454,4 +5453,99 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wheelSpinAgain => 'Spin Again';
+
+  @override
+  String get wheelPressToSpin => 'Press OK to spin';
+
+  @override
+  String get wheelModeLast => 'Last One Standing';
+
+  @override
+  String get wheelModeSingle => 'Single Spin';
+
+  @override
+  String get wheelModeBest3 => 'Best of 3';
+
+  @override
+  String get wheelModeLastHint =>
+      'Each spin knocks one title out until one is left.';
+
+  @override
+  String get wheelModeSingleHint =>
+      'One spin. Wherever it lands is tonight\'s pick.';
+
+  @override
+  String get wheelModeBest3Hint =>
+      'The first title the wheel lands on twice wins.';
+
+  @override
+  String get wheelSearchLabel => 'Add from Your Library';
+
+  @override
+  String get wheelSearchHint => 'Search movies and shows';
+
+  @override
+  String get wheelNoResults => 'No matches';
+
+  @override
+  String get wheelAdded => 'Added';
+
+  @override
+  String get wheelWatched => 'Watched';
+
+  @override
+  String get wheelRemoveTitle => 'Remove';
+
+  @override
+  String get wheelFilterUnwatched => 'Unwatched';
+
+  @override
+  String get wheelFilterUnder2h => 'Under 2 Hours';
+
+  @override
+  String get wheelFilterGenre => 'Genre';
+
+  @override
+  String get wheelFilterAllGenres => 'All Genres';
+
+  @override
+  String get wheelSelectAll => 'Select All';
+
+  @override
+  String get wheelSelectNone => 'Select None';
+
+  @override
+  String get wheelNothingMatches => 'Nothing matches these filters.';
+
+  @override
+  String get wheelUndo => 'Undo';
+
+  @override
+  String wheelSpinOf(int current, int total) {
+    return 'Spin $current of $total';
+  }
+
+  @override
+  String get wheelTiebreak => 'Tiebreaker: This Spin Decides It';
+
+  @override
+  String get wheelSingleHeader => 'One Spin Decides It';
+
+  @override
+  String wheelScored(String name) {
+    return '$name scores!';
+  }
+
+  @override
+  String get wheelMute => 'Mute Sounds';
+
+  @override
+  String get wheelUnmute => 'Unmute Sounds';
+
+  @override
+  String get wheelPlayForGroup => 'Play for Group';
+
+  @override
+  String get wheelGroupHint =>
+      'Everyone in your Watch Together group will start watching.';
 }

@@ -9802,40 +9802,40 @@ abstract class AppLocalizations {
   /// **'Movie Night Wheel'**
   String get wheelTitle;
 
-  /// Shown when the wheel has no Watchlist items to pull from.
+  /// Shown on the wheel setup screen when there are no titles to pick from yet.
   ///
   /// In en, this message translates to:
-  /// **'Add a few titles to your Watchlist first, then come back here to spin for one.'**
+  /// **'Search your library above to add titles, or put a few on your Watchlist.'**
   String get wheelNeedsWatchlist;
 
   /// Instructions on the wheel's setup screen, above the checklist.
   ///
   /// In en, this message translates to:
-  /// **'Pick at least two titles, then spin. Each spin eliminates one until only your pick is left.'**
+  /// **'Pick at least two titles, then spin.'**
   String get wheelSetupHint;
 
   /// Start button label, showing how many titles are selected.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{Start with 1 title} other{Start with {count} titles}}'**
+  /// **'{count, plural, =1{Start with 1 Title} other{Start with {count} Titles}}'**
   String wheelStartWith(int count);
 
   /// Disabled Start button label when fewer than 2 titles are selected.
   ///
   /// In en, this message translates to:
-  /// **'Pick at least 2 titles'**
+  /// **'Pick at Least 2 Titles'**
   String get wheelNeedTwo;
 
   /// Header above the wheel showing how many titles remain in this round.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 left} other{{count} left}}'**
+  /// **'{count, plural, =1{1 Left} other{{count} Left}}'**
   String wheelRemaining(int count);
 
   /// Hint text below the wheel.
   ///
   /// In en, this message translates to:
-  /// **'Tap the wheel to spin'**
+  /// **'Tap or flick the wheel to spin'**
   String get wheelTapToSpin;
 
   /// Shown over a dimmed poster right after a spin eliminates a title.
@@ -9855,6 +9855,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Spin Again'**
   String get wheelSpinAgain;
+
+  /// Hint below the wheel on TV, where the remote's OK/Select button spins it.
+  ///
+  /// In en, this message translates to:
+  /// **'Press OK to spin'**
+  String get wheelPressToSpin;
+
+  /// Wheel game mode: each spin eliminates a title until one remains.
+  ///
+  /// In en, this message translates to:
+  /// **'Last One Standing'**
+  String get wheelModeLast;
+
+  /// Wheel game mode: one spin picks the winner.
+  ///
+  /// In en, this message translates to:
+  /// **'Single Spin'**
+  String get wheelModeSingle;
+
+  /// Wheel game mode: the first title landed on twice wins.
+  ///
+  /// In en, this message translates to:
+  /// **'Best of 3'**
+  String get wheelModeBest3;
+
+  /// Explains the Last One Standing mode on the setup screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Each spin knocks one title out until one is left.'**
+  String get wheelModeLastHint;
+
+  /// Explains the Single Spin mode on the setup screen.
+  ///
+  /// In en, this message translates to:
+  /// **'One spin. Wherever it lands is tonight\'s pick.'**
+  String get wheelModeSingleHint;
+
+  /// Explains the Best of 3 mode on the setup screen.
+  ///
+  /// In en, this message translates to:
+  /// **'The first title the wheel lands on twice wins.'**
+  String get wheelModeBest3Hint;
+
+  /// Label of the search field for adding library titles to the wheel.
+  ///
+  /// In en, this message translates to:
+  /// **'Add from Your Library'**
+  String get wheelSearchLabel;
+
+  /// Placeholder in the wheel's library search field.
+  ///
+  /// In en, this message translates to:
+  /// **'Search movies and shows'**
+  String get wheelSearchHint;
+
+  /// Shown under the wheel's library search when nothing matches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matches'**
+  String get wheelNoResults;
+
+  /// Tag on a wheel candidate that was added from the library rather than the Watchlist.
+  ///
+  /// In en, this message translates to:
+  /// **'Added'**
+  String get wheelAdded;
+
+  /// Tag on a wheel candidate the user has already watched.
+  ///
+  /// In en, this message translates to:
+  /// **'Watched'**
+  String get wheelWatched;
+
+  /// Tooltip on the button that removes a library-added title from the wheel list.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get wheelRemoveTitle;
+
+  /// Filter chip: only include titles not yet watched.
+  ///
+  /// In en, this message translates to:
+  /// **'Unwatched'**
+  String get wheelFilterUnwatched;
+
+  /// Filter chip: only include titles with a runtime of 2 hours or less.
+  ///
+  /// In en, this message translates to:
+  /// **'Under 2 Hours'**
+  String get wheelFilterUnder2h;
+
+  /// Genre filter chip label when no genre is chosen.
+  ///
+  /// In en, this message translates to:
+  /// **'Genre'**
+  String get wheelFilterGenre;
+
+  /// Genre filter menu option that clears the genre filter.
+  ///
+  /// In en, this message translates to:
+  /// **'All Genres'**
+  String get wheelFilterAllGenres;
+
+  /// Button that checks every title currently shown on the wheel setup list.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get wheelSelectAll;
+
+  /// Button that unchecks every title currently shown on the wheel setup list.
+  ///
+  /// In en, this message translates to:
+  /// **'Select None'**
+  String get wheelSelectNone;
+
+  /// Shown on the wheel setup list when the filters exclude every title.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing matches these filters.'**
+  String get wheelNothingMatches;
+
+  /// Button under the wheel that reverses the last result.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get wheelUndo;
+
+  /// Header above the wheel in Best of 3 mode.
+  ///
+  /// In en, this message translates to:
+  /// **'Spin {current} of {total}'**
+  String wheelSpinOf(int current, int total);
+
+  /// Header above the wheel when three spins landed on three different titles.
+  ///
+  /// In en, this message translates to:
+  /// **'Tiebreaker: This Spin Decides It'**
+  String get wheelTiebreak;
+
+  /// Header above the wheel in Single Spin mode.
+  ///
+  /// In en, this message translates to:
+  /// **'One Spin Decides It'**
+  String get wheelSingleHeader;
+
+  /// Shown over a poster in Best of 3 mode when the wheel lands on it.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} scores!'**
+  String wheelScored(String name);
+
+  /// Tooltip for the wheel's sound toggle while sound is on.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute Sounds'**
+  String get wheelMute;
+
+  /// Tooltip for the wheel's sound toggle while sound is off.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute Sounds'**
+  String get wheelUnmute;
+
+  /// Play button on the wheel's result screen while in a Watch Together group.
+  ///
+  /// In en, this message translates to:
+  /// **'Play for Group'**
+  String get wheelPlayForGroup;
+
+  /// Note under the result screen's buttons while in a Watch Together group.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone in your Watch Together group will start watching.'**
+  String get wheelGroupHint;
 }
 
 class _AppLocalizationsDelegate

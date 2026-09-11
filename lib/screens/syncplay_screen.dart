@@ -7,6 +7,7 @@ import '../services/tv_mode.dart';
 import '../state/preferences.dart';
 import '../state/session_controller.dart';
 import '../state/syncplay.dart';
+import '../widgets/clapper_icon.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/tv_keyboard.dart';
 import '../widgets/user_avatar.dart';
@@ -315,11 +316,13 @@ class _CurrentGroup extends ConsumerWidget {
         // presses play.
         if (ref.watch(preferencesProvider
             .select((p) => p.asData?.value.movieWheelEnabled ?? true))) ...[
-          FilledButton.tonalIcon(
-            onPressed: () => context.push('/watchlist/wheel'),
-            icon: const Icon(Icons.casino_rounded),
-            label: Text(l.wheelTitle),
-            style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+          ClapOnHover(
+            child: FilledButton.tonalIcon(
+              onPressed: () => context.push('/watchlist/wheel'),
+              icon: const ClapperIcon(),
+              label: Text(l.wheelTitle),
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+            ),
           ),
           const SizedBox(height: 12),
         ],

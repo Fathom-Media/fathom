@@ -11,18 +11,25 @@ import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
 import '../services/diagnostics.dart';
 import '../services/tv_mode.dart';
+import '../state/preferences.dart';
+import '../state/providers.dart';
+import '../state/session_controller.dart';
+import '../state/syncplay.dart';
 import '../state/watchlist.dart';
-import '../theme/app_theme.dart' show kInlineButtonStyle;
+import '../widgets/clapper_icon.dart';
+import '../widgets/hover_pill_button.dart';
 import '../widgets/media_image.dart';
+import '../widgets/meta_pill.dart';
 import '../widgets/spin_wheel.dart';
 import '../widgets/tv_focus.dart';
+import '../widgets/tv_keyboard.dart';
 
-/// "Can't decide what to watch?" elimination wheel: pick candidates from the
-/// Watchlist, spin, the wedge the pointer lands on is eliminated, repeat
-/// until one remains. Single-device by design (see the module doc on
-/// SpinWheel): whoever's holding the phone/remote spins while everyone else
-/// just watches the screen, like passing a real prize wheel around a room,
-/// no cross-device sync needed for that.
+/// "Can't decide what to watch?" wheel. Candidates come from the Watchlist
+/// plus anything added from the library, narrowed by optional filters. Three
+/// ways to play: knock titles out one spin at a time until one is left, let
+/// a single spin decide, or first to two landings. Single-device by design:
+/// whoever holds the phone or remote spins while the room watches. In a
+/// Watch Together group, playing the result starts it for everyone.
 class MovieWheelScreen extends ConsumerStatefulWidget {
   const MovieWheelScreen({super.key});
 
@@ -32,37 +39,362 @@ class MovieWheelScreen extends ConsumerStatefulWidget {
 
 enum _Phase { setup, spinning, winner }
 
+enum _Mode {
+  last('last'),
+  single('single'),
+  best3('best3');
+
+  const _Mode(this.key);
+  final String key;
+
+  static _Mode fromKey(String k) =>
+      values.firstWhere((m) => m.key == k, orElse: () => last);
+}
+
+enum _OverlayKind { out, scored }
+
+class _Overlay {
+  const _Overlay(this.item, this.kind);
+  final BaseItemDto item;
+  final _OverlayKind kind;
+}
+
+/// One reversible step, so Undo can walk the game back.
+sealed class _Action {
+  const _Action();
+}
+
+class _Eliminated extends _Action {
+  const _Eliminated(this.item);
+  final BaseItemDto item;
+}
+
+class _Scored extends _Action {
+  const _Scored(this.id);
+  final String id;
+}
+
+class _Narrowed extends _Action {
+  const _Narrowed(this.previousPool);
+  final List<BaseItemDto> previousPool;
+}
+
 class _MovieWheelScreenState extends ConsumerState<MovieWheelScreen> {
   _Phase _phase = _Phase.setup;
-  final Set<String> _selected = {};
-  bool _selectedInit = false;
-  List<BaseItemDto> _pool = [];
-  BaseItemDto? _justEliminated;
   final _wheelKey = GlobalKey<SpinWheelState>();
 
-  void _initSelection(List<BaseItemDto> watchlist) {
-    if (_selectedInit) return;
-    _selectedInit = true;
-    _selected.addAll(watchlist.map((e) => e.id));
+  // Setup.
+  bool _prefsLoaded = false;
+  _Mode _mode = _Mode.last;
+  Set<String> _deselected = {};
+  // Library titles added on top of the Watchlist, in the order added.
+  final Map<String, BaseItemDto> _extras = {};
+  // Richer copies (genres, watched state, synopsis) fetched once per title.
+  final Map<String, BaseItemDto> _details = {};
+  final Set<String> _detailsRequested = {};
+  bool _unwatchedOnly = false;
+  bool _under2h = false;
+  String? _genre;
+  final _searchCtl = TextEditingController();
+  Timer? _searchDebounce;
+  String _lastQuery = '';
+  List<BaseItemDto> _results = [];
+  bool _searching = false;
+
+  // Game.
+  List<BaseItemDto> _pool = [];
+  List<String> _order = [];
+  final List<_Action> _history = [];
+  final Map<String, int> _tally = {};
+  int _spins = 0;
+  bool _tiebreak = false;
+  _Overlay? _overlay;
+  BaseItemDto? _winner;
+  bool _awaitingWinner = false;
+
+  final _audio = _WheelAudio();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtl.addListener(_onSearchChanged);
   }
 
-  void _start(List<BaseItemDto> watchlist) {
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    _searchCtl.dispose();
+    _audio.dispose();
+    super.dispose();
+  }
+
+  BaseItemDto _best(BaseItemDto i) => _details[i.id] ?? i;
+
+  void _loadPrefs(Prefs p) {
+    if (_prefsLoaded) return;
+    _prefsLoaded = true;
+    _mode = _Mode.fromKey(p.movieWheelMode);
+    _deselected = p.movieWheelDeselected.toSet();
+    if (p.movieWheelExtras.isNotEmpty) {
+      unawaited(_fetchDetails(p.movieWheelExtras, asExtras: true));
+    }
+  }
+
+  void _savePrefs(List<BaseItemDto> candidates) {
+    final ids = {for (final c in candidates) c.id};
+    ref.read(preferencesProvider.notifier).edit((x) => x.copyWith(
+          movieWheelMode: _mode.key,
+          // Drop titles that are no longer candidates so this never grows
+          // without bound.
+          movieWheelDeselected: [
+            for (final id in _deselected)
+              if (ids.contains(id)) id,
+          ],
+          movieWheelExtras: _extras.keys.toList(),
+        ));
+  }
+
+  void _ensureDetails(List<BaseItemDto> items) {
+    final missing = [
+      for (final i in items)
+        if (!_detailsRequested.contains(i.id)) i.id,
+    ];
+    if (missing.isEmpty) return;
+    _detailsRequested.addAll(missing);
+    Future.microtask(() => _fetchDetails(missing));
+  }
+
+  Future<void> _fetchDetails(List<String> ids, {bool asExtras = false}) async {
+    final s = ref.read(sessionControllerProvider).asData?.value;
+    if (s == null) return;
+    _detailsRequested.addAll(ids);
+    try {
+      final got = await ref.read(jellyfinClientProvider).getItemsByIds(
+            baseUrl: s.baseUrl,
+            userId: s.userId,
+            token: s.accessToken,
+            ids: ids,
+          );
+      if (!mounted) return;
+      setState(() {
+        for (final i in got) {
+          _details[i.id] = i;
+          if (asExtras) _extras[i.id] = i;
+        }
+      });
+    } catch (e) {
+      // Filters just work with what the list already has; retry next time.
+      _detailsRequested.removeAll(ids);
+      Diagnostics.instance.add('wheel', 'details fetch failed: $e');
+    }
+  }
+
+  List<BaseItemDto> _candidates(List<BaseItemDto> watchlist) {
+    final seen = <String>{};
+    return [
+      for (final i in [..._extras.values, ...watchlist])
+        if (seen.add(i.id)) _best(i),
+    ];
+  }
+
+  bool _passes(BaseItemDto i) {
+    if (_unwatchedOnly && i.userData.played) return false;
+    if (_under2h) {
+      final m = i.runtimeMinutes;
+      if (m != null && m > 120) return false;
+    }
+    if (_genre != null && !i.genres.contains(_genre)) return false;
+    return true;
+  }
+
+  // ---- Library search ----
+
+  void _onSearchChanged() {
+    final q = _searchCtl.text.trim();
+    if (q == _lastQuery) return;
+    _lastQuery = q;
+    _searchDebounce?.cancel();
+    if (q.length < 2) {
+      setState(() {
+        _results = [];
+        _searching = false;
+      });
+      return;
+    }
+    setState(() => _searching = true);
+    _searchDebounce =
+        Timer(const Duration(milliseconds: 350), () => _runSearch(q));
+  }
+
+  Future<void> _runSearch(String q) async {
+    final s = ref.read(sessionControllerProvider).asData?.value;
+    if (s == null) return;
+    try {
+      final r = await ref.read(jellyfinClientProvider).getItems(
+            baseUrl: s.baseUrl,
+            userId: s.userId,
+            token: s.accessToken,
+            searchTerm: q,
+            includeItemTypes: 'Movie,Series',
+            recursive: true,
+            limit: 12,
+          );
+      if (!mounted || q != _lastQuery) return;
+      setState(() {
+        _results = r.items;
+        _searching = false;
+      });
+    } catch (_) {
+      if (!mounted || q != _lastQuery) return;
+      setState(() {
+        _results = [];
+        _searching = false;
+      });
+    }
+  }
+
+  void _addExtra(BaseItemDto item, List<BaseItemDto> watchlist) {
     setState(() {
-      _pool = watchlist.where((e) => _selected.contains(e.id)).toList();
+      _extras[item.id] = item;
+      _deselected.remove(item.id);
+      _searchCtl.clear();
+      _results = [];
+    });
+    _ensureDetails([item]);
+    _savePrefs(_candidates(watchlist));
+  }
+
+  void _removeExtra(String id, List<BaseItemDto> watchlist) {
+    setState(() => _extras.remove(id));
+    _savePrefs(_candidates(watchlist));
+  }
+
+  // ---- Game flow ----
+
+  void _start(List<BaseItemDto> picks) {
+    setState(() {
+      _pool = List.of(picks)..shuffle();
+      _order = [for (final i in _pool) i.id];
+      _history.clear();
+      _tally.clear();
+      _spins = 0;
+      _tiebreak = false;
+      _overlay = null;
+      _winner = null;
+      _awaitingWinner = false;
       _phase = _Phase.spinning;
     });
+    unawaited(_audio.prepareTick());
   }
 
   void _onLanded(int index) {
-    setState(() => _justEliminated = _pool[index]);
+    final item = _pool[index];
+    switch (_mode) {
+      case _Mode.last:
+        setState(() => _overlay = _Overlay(item, _OverlayKind.out));
+      case _Mode.single:
+        _crown(item);
+      case _Mode.best3:
+        if (_tiebreak) {
+          _crown(item);
+          return;
+        }
+        _history.add(_Scored(item.id));
+        setState(() {
+          _tally[item.id] = (_tally[item.id] ?? 0) + 1;
+          _spins++;
+          _overlay = _Overlay(item, _OverlayKind.scored);
+        });
+    }
   }
 
-  void _dismissElimination() {
+  void _dismissOverlay() {
+    final o = _overlay;
+    if (o == null) return;
+    setState(() => _overlay = null);
+    switch (_mode) {
+      case _Mode.last:
+        _history.add(_Eliminated(o.item));
+        setState(() {
+          _pool = [
+            for (final i in _pool)
+              if (i.id != o.item.id) i,
+          ];
+          if (_pool.length == 1) {
+            _winner = _pool.first;
+            _awaitingWinner = true;
+          }
+        });
+      case _Mode.best3:
+        if ((_tally[o.item.id] ?? 0) >= 2) {
+          _crown(o.item);
+        } else if (_spins >= 3) {
+          // Three spins, three different titles: a final spin between them.
+          final landed = _tally.keys.toSet();
+          _history.add(_Narrowed(_pool));
+          setState(() {
+            _tiebreak = true;
+            _pool = [
+              for (final i in _pool)
+                if (landed.contains(i.id)) i,
+            ];
+          });
+        }
+      case _Mode.single:
+        break;
+    }
+  }
+
+  /// The wheel shrinks every other wedge away so the pick fills it, then
+  /// [_onSettled] reveals the result.
+  void _crown(BaseItemDto item) {
     setState(() {
-      final gone = _justEliminated;
-      if (gone != null) _pool = _pool.where((e) => e.id != gone.id).toList();
-      _justEliminated = null;
-      if (_pool.length == 1) _phase = _Phase.winner;
+      _winner = item;
+      _awaitingWinner = true;
+      _pool = [item];
+    });
+  }
+
+  void _onSettled() {
+    if (!_awaitingWinner || _pool.length != 1) return;
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    Future.delayed(Duration(milliseconds: reduce ? 150 : 700), () {
+      if (!mounted || !_awaitingWinner) return;
+      setState(() {
+        _awaitingWinner = false;
+        _phase = _Phase.winner;
+      });
+      unawaited(_audio.winner());
+    });
+  }
+
+  bool get _canUndo =>
+      _history.isNotEmpty && _overlay == null && !_awaitingWinner;
+
+  void _undo() {
+    if (!_canUndo || (_wheelKey.currentState?.isBusy ?? false)) return;
+    final a = _history.removeLast();
+    setState(() {
+      switch (a) {
+        case _Eliminated(:final item):
+          final keep = {for (final i in _pool) i.id, item.id};
+          final byId = {for (final i in _pool) i.id: i, item.id: item};
+          _pool = [
+            for (final id in _order)
+              if (keep.contains(id)) byId[id]!,
+          ];
+        case _Scored(:final id):
+          final n = (_tally[id] ?? 1) - 1;
+          if (n <= 0) {
+            _tally.remove(id);
+          } else {
+            _tally[id] = n;
+          }
+          _spins--;
+        case _Narrowed(:final previousPool):
+          _pool = previousPool;
+          _tiebreak = false;
+      }
     });
   }
 
@@ -70,105 +402,216 @@ class _MovieWheelScreenState extends ConsumerState<MovieWheelScreen> {
     setState(() {
       _phase = _Phase.setup;
       _pool = [];
-      _justEliminated = null;
+      _overlay = null;
+      _winner = null;
+      _awaitingWinner = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final prefs = ref.watch(preferencesProvider).asData?.value;
+    if (prefs != null) _loadPrefs(prefs);
+    final sound = prefs?.movieWheelSound ?? true;
+    _audio.muted = !sound;
     final watchlist =
         ref.watch(watchlistProvider).asData?.value ?? const <BaseItemDto>[];
-    _initSelection(watchlist);
+    final candidates = _candidates(watchlist);
+    _ensureDetails(candidates);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l.wheelTitle)),
+      appBar: AppBar(
+        title: Text(l.wheelTitle),
+        actions: [
+          IconButton(
+            tooltip: sound ? l.wheelMute : l.wheelUnmute,
+            icon: Icon(
+                sound ? Icons.volume_up_rounded : Icons.volume_off_rounded),
+            onPressed: () => ref
+                .read(preferencesProvider.notifier)
+                .edit((x) => x.copyWith(movieWheelSound: !sound)),
+          ),
+        ],
+      ),
       body: switch (_phase) {
-        _Phase.setup => _SetupView(
-            watchlist: watchlist,
-            selected: _selected,
-            onToggle: (id) => setState(() {
-              _selected.contains(id)
-                  ? _selected.remove(id)
-                  : _selected.add(id);
-            }),
-            onStart: _selected.length >= 2
-                ? () => _start(watchlist)
-                : null,
-          ),
-        _Phase.spinning => _SpinView(
-            key: ValueKey(_pool.map((e) => e.id).join(',')),
-            wheelKey: _wheelKey,
-            pool: _pool,
-            eliminated: _justEliminated,
-            onLanded: _onLanded,
-            onDismissElimination: _dismissElimination,
-          ),
+        _Phase.setup => _buildSetup(context, candidates, watchlist),
+        _Phase.spinning => _buildSpin(context, sound),
         _Phase.winner => _WinnerView(
-            winner: _pool.first,
+            winner: _best(_winner ?? _pool.first),
             onRestart: _restart,
           ),
       },
     );
   }
-}
 
-class _SetupView extends StatelessWidget {
-  final List<BaseItemDto> watchlist;
-  final Set<String> selected;
-  final ValueChanged<String> onToggle;
-  final VoidCallback? onStart;
-  const _SetupView({
-    required this.watchlist,
-    required this.selected,
-    required this.onToggle,
-    required this.onStart,
-  });
+  // ---- Setup screen ----
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSetup(BuildContext context, List<BaseItemDto> candidates,
+      List<BaseItemDto> watchlist) {
     final l = AppLocalizations.of(context);
-    if (watchlist.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(l.wheelNeedsWatchlist, textAlign: TextAlign.center),
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final eligible = candidates.where(_passes).toList();
+    final picks =
+        eligible.where((i) => !_deselected.contains(i.id)).toList();
+    final genres = {
+      for (final c in candidates) ...c.genres,
+    }.toList()
+      ..sort();
+    final candidateIds = {for (final c in candidates) c.id};
+    final modeHint = switch (_mode) {
+      _Mode.last => l.wheelModeLastHint,
+      _Mode.single => l.wheelModeSingleHint,
+      _Mode.best3 => l.wheelModeBest3Hint,
+    };
+
+    final header = <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: TvTextField(
+          controller: _searchCtl,
+          label: l.wheelSearchLabel,
+          hint: l.wheelSearchHint,
+          icon: Icons.search_rounded,
         ),
-      );
-    }
+      ),
+      if (_searching)
+        const Padding(
+          padding: EdgeInsets.all(12),
+          child: Center(
+              child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5))),
+        )
+      else if (_lastQuery.length >= 2 && _results.isEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+          child: Text(l.wheelNoResults, style: TextStyle(color: muted)),
+        )
+      else
+        for (final r in _results)
+          ListTile(
+            leading: _Thumb(item: r),
+            title: Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: r.productionYear != null
+                ? Text('${r.productionYear}')
+                : null,
+            trailing: Icon(
+              candidateIds.contains(r.id)
+                  ? Icons.check_circle_rounded
+                  : Icons.add_circle_outline_rounded,
+              color: theme.colorScheme.primary,
+            ),
+            onTap: candidateIds.contains(r.id)
+                ? null
+                : () => _addExtra(r, watchlist),
+          ),
+      // Single scrolling rows rather than wrapping ones, so the controls
+      // stay a compact band on a phone and the list keeps the space.
+      _ChipRow(children: [
+        for (final m in _Mode.values)
+          ChoiceChip(
+            label: Text(switch (m) {
+              _Mode.last => l.wheelModeLast,
+              _Mode.single => l.wheelModeSingle,
+              _Mode.best3 => l.wheelModeBest3,
+            }),
+            selected: _mode == m,
+            onSelected: (_) {
+              setState(() => _mode = m);
+              _savePrefs(candidates);
+            },
+          ),
+      ]),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Text(modeHint,
+            style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
+      ),
+      _ChipRow(children: [
+        FilterChip(
+          label: Text(l.wheelFilterUnwatched),
+          selected: _unwatchedOnly,
+          onSelected: (v) => setState(() => _unwatchedOnly = v),
+        ),
+        FilterChip(
+          label: Text(l.wheelFilterUnder2h),
+          selected: _under2h,
+          onSelected: (v) => setState(() => _under2h = v),
+        ),
+        if (genres.isNotEmpty)
+          PopupMenuButton<String>(
+            tooltip: l.wheelFilterGenre,
+            onSelected: (g) => setState(() => _genre = g.isEmpty ? null : g),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: '', child: Text(l.wheelFilterAllGenres)),
+              for (final g in genres) PopupMenuItem(value: g, child: Text(g)),
+            ],
+            child: Chip(
+              avatar: const Icon(Icons.theater_comedy_rounded, size: 18),
+              label: Text(_genre ?? l.wheelFilterGenre),
+              backgroundColor:
+                  _genre != null ? theme.colorScheme.secondaryContainer : null,
+            ),
+          ),
+        ActionChip(
+          avatar: const Icon(Icons.done_all_rounded, size: 18),
+          label: Text(l.wheelSelectAll),
+          onPressed: () {
+            setState(() => _deselected.removeAll(eligible.map((e) => e.id)));
+            _savePrefs(candidates);
+          },
+        ),
+        ActionChip(
+          avatar: const Icon(Icons.remove_done_rounded, size: 18),
+          label: Text(l.wheelSelectNone),
+          onPressed: () {
+            setState(() => _deselected.addAll(eligible.map((e) => e.id)));
+            _savePrefs(candidates);
+          },
+        ),
+      ]),
+    ];
+
+    final emptyMessage = candidates.isEmpty
+        ? l.wheelNeedsWatchlist
+        : eligible.isEmpty
+            ? l.wheelNothingMatches
+            : null;
+
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text(l.wheelSetupHint,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: watchlist.length,
+            padding: const EdgeInsets.only(bottom: 8),
+            itemCount: header.length + (emptyMessage != null ? 1 : eligible.length),
             itemBuilder: (context, i) {
-              final item = watchlist[i];
-              final checked = selected.contains(item.id);
-              return CheckboxListTile(
-                // Lands the remote on real content the moment this phase
-                // appears; the global shell autofocus only fires on route
-                // changes, and setup/spinning/winner all live in one route.
-                autofocus: isTvDevice && i == 0,
-                value: checked,
-                onChanged: (_) => onToggle(item.id),
-                secondary: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: SizedBox(
-                    width: 40,
-                    height: 56,
-                    child: MediaImage(item: item, placeholderIcon: Icons.movie_rounded),
-                  ),
-                ),
-                title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (i < header.length) return header[i];
+              if (emptyMessage != null) {
+                return Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text(emptyMessage,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: muted)),
+                );
+              }
+              final item = eligible[i - header.length];
+              return _CandidateTile(
+                item: item,
+                autofocus: isTvDevice && i == header.length,
+                selected: !_deselected.contains(item.id),
+                added: _extras.containsKey(item.id),
+                onToggle: () {
+                  setState(() {
+                    _deselected.contains(item.id)
+                        ? _deselected.remove(item.id)
+                        : _deselected.add(item.id);
+                  });
+                  _savePrefs(candidates);
+                },
+                onRemove: () => _removeExtra(item.id, watchlist),
               );
             },
           ),
@@ -177,101 +620,404 @@ class _SetupView extends StatelessWidget {
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: FilledButton.icon(
-              onPressed: onStart,
-              icon: const Icon(Icons.casino_rounded),
-              label: Text(selected.length >= 2
-                  ? l.wheelStartWith(selected.length)
-                  : l.wheelNeedTwo),
+            child: ClapOnHover(
+              child: FilledButton.icon(
+                onPressed: picks.length >= 2 ? () => _start(picks) : null,
+                icon: const ClapperIcon(),
+                label: Text(picks.length >= 2
+                    ? l.wheelStartWith(picks.length)
+                    : l.wheelNeedTwo),
+              ),
             ),
           ),
         ),
       ],
     );
   }
-}
 
-class _SpinView extends StatelessWidget {
-  final GlobalKey<SpinWheelState> wheelKey;
-  final List<BaseItemDto> pool;
-  final BaseItemDto? eliminated;
-  final ValueChanged<int> onLanded;
-  final VoidCallback onDismissElimination;
-  const _SpinView({
-    super.key,
-    required this.wheelKey,
-    required this.pool,
-    required this.eliminated,
-    required this.onLanded,
-    required this.onDismissElimination,
-  });
+  // ---- Spin screen ----
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSpin(BuildContext context, bool sound) {
     final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final header = switch (_mode) {
+      _Mode.last => l.wheelRemaining(_pool.length),
+      _Mode.single => l.wheelSingleHeader,
+      _Mode.best3 => _tiebreak
+          ? l.wheelTiebreak
+          : l.wheelSpinOf(math.min(_spins + 1, 3), 3),
+    };
+    final eliminated = [
+      for (final a in _history)
+        if (a is _Eliminated) a.item,
+    ];
+    final scored = _mode == _Mode.best3
+        ? [
+            for (final i in _order)
+              if ((_tally[i] ?? 0) > 0) i,
+          ]
+        : const <String>[];
+    final byId = {for (final e in eliminated) e.id: e};
+    for (final i in _pool) {
+      byId[i.id] = i;
+    }
+    final hasStrip = eliminated.isNotEmpty || scored.isNotEmpty;
+
     return Stack(
       children: [
         Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
               child: Text(
-                l.wheelRemaining(pool.length),
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
+                header,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
             Expanded(
               child: Center(
                 child: LayoutBuilder(builder: (context, c) {
-                  final size = (c.maxWidth < c.maxHeight ? c.maxWidth : c.maxHeight) - 48;
+                  // Fit the space actually there, pointer (24px above the
+                  // wheel) included. A fixed 220px minimum overflowed a
+                  // phone held sideways, silently cropping the wheel's
+                  // bottom.
+                  final size = math.min(c.maxWidth - 32, c.maxHeight - 24 - 12);
                   final wheel = SpinWheel(
-                    key: wheelKey,
-                    items: pool,
-                    size: size.clamp(220.0, 820.0),
-                    onLanded: onLanded,
+                    key: _wheelKey,
+                    items: _pool,
+                    size: size.clamp(120.0, 820.0),
+                    marks: _tally,
+                    onTick: _audio.tick,
+                    onLanded: _onLanded,
+                    onSettled: _onSettled,
                   );
                   // The wheel's own tap-to-spin is a bare GestureDetector
-                  // (mouse/touch only): it has no focus node and isn't part
-                  // of D-pad traversal at all, so without this wrap a remote
-                  // has no way to ever spin it. TvFocusable is a no-op off TV.
+                  // with no focus node, so a remote can't reach it without
+                  // this wrap. TvFocusable is a no-op off TV.
                   return TvFocusable(
                     autofocus: isTvDevice,
-                    onTap: () => wheelKey.currentState?.spin(),
+                    onTap: () => _wheelKey.currentState?.spin(),
                     child: wheel,
                   );
                 }),
               ),
             ),
+            if (hasStrip)
+              SizedBox(
+                height: 72,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: [
+                          for (final e in eliminated)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: _OutThumb(item: e),
+                            ),
+                          for (final id in scored)
+                            if (byId[id] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: _ScoreChip(
+                                    item: byId[id]!, count: _tally[id] ?? 0),
+                              ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: TextButton.icon(
+                        onPressed: _canUndo ? _undo : null,
+                        icon: const Icon(Icons.undo_rounded),
+                        label: Text(l.wheelUndo),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: Text(l.wheelTapToSpin,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+              child: Text(isTvDevice ? l.wheelPressToSpin : l.wheelTapToSpin,
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted)),
             ),
           ],
         ),
-        if (eliminated != null)
-          _EliminationOverlay(item: eliminated!, onDone: onDismissElimination),
+        if (_overlay != null)
+          _ResultOverlay(
+            key: ValueKey('${_overlay!.item.id}-${_history.length}'),
+            overlay: _overlay!,
+            onDone: _dismissOverlay,
+          ),
       ],
     );
   }
 }
 
-class _EliminationOverlay extends StatefulWidget {
-  final BaseItemDto item;
-  final VoidCallback onDone;
-  const _EliminationOverlay({required this.item, required this.onDone});
+/// Every wheel sound goes through one player that lives as long as the
+/// screen and keeps its audio stream open between sounds (mpv's
+/// audio-stream-silence). A new player per sound meant a new audio stream
+/// per sound, and a stream that is still starting up swallows a short
+/// effect: the opening ticks of a spin and the whole winner jingle went
+/// silent even though mpv reported them as playing.
+class _WheelAudio {
+  _WheelAudio() {
+    unawaited(_init());
+  }
 
-  @override
-  State<_EliminationOverlay> createState() => _EliminationOverlayState();
+  static const _tick = 'wheel_tick.wav';
+  static const _winner = 'wheel_winner.wav';
+
+  final _player = Player();
+  final _clock = Stopwatch()..start();
+  bool muted = false;
+  bool _disposed = false;
+  // The asset currently open and ready to play, null while switching.
+  String? _loaded;
+  int _lastTickMicros = -1000000;
+
+  Future<void> _init() async {
+    try {
+      final p = _player.platform;
+      if (p is NativePlayer) {
+        await p.setProperty('audio-stream-silence', 'yes');
+      }
+      await _load(_tick);
+      // One silent play so the audio device is already running before the
+      // first spin rather than starting up on its first tick.
+      await _player.setVolume(0);
+      await _player.play();
+      await Future.delayed(const Duration(milliseconds: 200));
+      await _player.pause();
+      await _player.seek(Duration.zero);
+      await _player.setVolume(100);
+    } catch (e) {
+      Diagnostics.instance.add('wheel', 'sound setup failed: $e');
+    }
+  }
+
+  // Media's constructor resolves the asset path synchronously, so this must
+  // be an async function for a missing asset to land in the catch.
+  Future<void> _load(String asset) async {
+    if (_loaded == asset) return;
+    _loaded = null;
+    try {
+      await _player.open(Media('asset:///assets/audio/$asset'), play: false);
+      if (!_disposed) _loaded = asset;
+    } catch (e) {
+      Diagnostics.instance.add('wheel', 'sound $asset failed to open: $e');
+    }
+  }
+
+  Future<void> prepareTick() => _load(_tick);
+
+  void tick() {
+    if (muted || _disposed || _loaded != _tick) return;
+    // At full speed a peg passes nearly every frame, and each replay seeks
+    // back to the start, discarding the previous tick before it reaches the
+    // speakers. Spacing them out keeps every tick audible as a fast rattle.
+    final now = _clock.elapsedMicroseconds;
+    if (now - _lastTickMicros < 45000) return;
+    _lastTickMicros = now;
+    unawaited(() async {
+      try {
+        await _player.seek(Duration.zero);
+        await _player.play();
+      } catch (_) {}
+    }());
+  }
+
+  Future<void> winner() async {
+    Diagnostics.instance.add('wheel', 'winner sound: muted=$muted');
+    if (muted || _disposed) return;
+    await _load(_winner);
+    if (_disposed || _loaded != _winner) return;
+    try {
+      await _player.seek(Duration.zero);
+      await _player.play();
+      // media_kit can report success without anything audible happening,
+      // so record the state a moment later rather than trusting play().
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (_disposed) return;
+      final st = _player.state;
+      Diagnostics.instance.add('wheel',
+          'winner sound: playing=${st.playing} pos=${st.position} duration=${st.duration}');
+    } catch (e) {
+      Diagnostics.instance.add('wheel', 'winner sound failed: $e');
+    }
+  }
+
+  void dispose() {
+    _disposed = true;
+    _player.dispose();
+  }
 }
 
-class _EliminationOverlayState extends State<_EliminationOverlay> {
+class _ChipRow extends StatelessWidget {
+  const _ChipRow({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Row(
+        children: [
+          for (final c in children)
+            Padding(padding: const EdgeInsets.only(right: 8), child: c),
+        ],
+      ),
+    );
+  }
+}
+
+class _Thumb extends StatelessWidget {
+  const _Thumb({required this.item});
+  final BaseItemDto item;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        width: 40,
+        height: 56,
+        child: MediaImage(item: item, placeholderIcon: Icons.movie_rounded),
+      ),
+    );
+  }
+}
+
+class _CandidateTile extends StatelessWidget {
+  const _CandidateTile({
+    required this.item,
+    required this.selected,
+    required this.added,
+    required this.onToggle,
+    required this.onRemove,
+    this.autofocus = false,
+  });
+
+  final BaseItemDto item;
+  final bool selected;
+  final bool added;
+  final bool autofocus;
+  final VoidCallback onToggle;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final meta = [
+      if (item.productionYear != null) '${item.productionYear}',
+      if (item.runtimeMinutes != null) fmtRuntime(item.runtimeMinutes!),
+      if (item.userData.played) l.wheelWatched,
+      if (added) l.wheelAdded,
+    ].join(' · ');
+    return ListTile(
+      autofocus: autofocus,
+      onTap: onToggle,
+      leading: _Thumb(item: item),
+      title: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: meta.isEmpty ? null : Text(meta, maxLines: 1),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (added)
+            IconButton(
+              tooltip: l.wheelRemoveTitle,
+              icon: const Icon(Icons.close_rounded),
+              onPressed: onRemove,
+            ),
+          // The whole row is the D-pad stop and toggles on Select, so the
+          // checkbox itself stays out of focus traversal.
+          ExcludeFocus(
+            child: Checkbox(value: selected, onChanged: (_) => onToggle()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OutThumb extends StatelessWidget {
+  const _OutThumb({required this.item});
+  final BaseItemDto item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: item.name,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: SizedBox(
+          width: 40,
+          height: 60,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ColorFiltered(
+                colorFilter: const ColorFilter.matrix([
+                  0.33, 0.33, 0.33, 0, 0, //
+                  0.33, 0.33, 0.33, 0, 0, //
+                  0.33, 0.33, 0.33, 0, 0, //
+                  0, 0, 0, 0.55, 0,
+                ]),
+                child:
+                    MediaImage(item: item, placeholderIcon: Icons.movie_rounded),
+              ),
+              const Center(
+                child: Icon(Icons.close_rounded,
+                    color: Color(0xFFEF4444), size: 30),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScoreChip extends StatelessWidget {
+  const _ScoreChip({required this.item, required this.count});
+  final BaseItemDto item;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Chip(
+        avatar: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: 22,
+            height: 32,
+            child: MediaImage(item: item, placeholderIcon: Icons.movie_rounded),
+          ),
+        ),
+        label: Text('${'★' * count}  ${item.name}',
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
+}
+
+class _ResultOverlay extends StatefulWidget {
+  const _ResultOverlay({super.key, required this.overlay, required this.onDone});
+  final _Overlay overlay;
+  final VoidCallback onDone;
+
+  @override
+  State<_ResultOverlay> createState() => _ResultOverlayState();
+}
+
+class _ResultOverlayState extends State<_ResultOverlay> {
   @override
   void initState() {
     super.initState();
@@ -283,32 +1029,43 @@ class _EliminationOverlayState extends State<_EliminationOverlay> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final item = widget.overlay.item;
+    final out = widget.overlay.kind == _OverlayKind.out;
     return Positioned.fill(
       child: GestureDetector(
         onTap: widget.onDone,
         child: Container(
           color: Colors.black.withValues(alpha: 0.78),
           alignment: Alignment.center,
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 120,
-                  height: 170,
-                  child: Opacity(
-                    opacity: 0.5,
-                    child: MediaImage(
-                        item: widget.item, placeholderIcon: Icons.movie_rounded),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: out
+                      ? null
+                      : Border.all(color: const Color(0xFFFFD54A), width: 3),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    width: 120,
+                    height: 170,
+                    child: Opacity(
+                      opacity: out ? 0.5 : 1,
+                      child: MediaImage(
+                          item: item, placeholderIcon: Icons.movie_rounded),
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              Text(l.wheelEliminated(widget.item.name),
+              Text(out ? l.wheelEliminated(item.name) : l.wheelScored(item.name),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      color: Colors.white,
+                  style: TextStyle(
+                      color: out ? Colors.white : const Color(0xFFFFD54A),
                       fontSize: 22,
                       fontWeight: FontWeight.w800)),
             ],
@@ -319,114 +1076,237 @@ class _EliminationOverlayState extends State<_EliminationOverlay> {
   }
 }
 
-class _WinnerView extends StatefulWidget {
+class _WinnerView extends ConsumerStatefulWidget {
+  const _WinnerView({required this.winner, required this.onRestart});
   final BaseItemDto winner;
   final VoidCallback onRestart;
-  const _WinnerView({required this.winner, required this.onRestart});
 
   @override
-  State<_WinnerView> createState() => _WinnerViewState();
+  ConsumerState<_WinnerView> createState() => _WinnerViewState();
 }
 
-class _WinnerViewState extends State<_WinnerView>
+class _WinnerViewState extends ConsumerState<_WinnerView>
     with SingleTickerProviderStateMixin {
   late final AnimationController _confettiController;
   late final List<_ConfettiPiece> _confetti;
-  late final Player _cheerPlayer;
+  bool _watchlistBusy = false;
 
   @override
   void initState() {
     super.initState();
     _confettiController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2800),
-    )..forward();
-    _confetti = List.generate(70, (_) => _ConfettiPiece(math.Random()));
+      duration: const Duration(milliseconds: 4800),
+    );
+    final r = math.Random();
+    _confetti = List.generate(200, (_) => _ConfettiPiece(r));
     HapticFeedback.heavyImpact();
-    _cheerPlayer = Player();
-    unawaited(_playCheer());
   }
 
-  // A plain async function so a synchronous throw from Media's constructor
-  // (it resolves/validates the asset path eagerly, not lazily inside
-  // open()) lands as a caught Future error instead of crashing initState.
-  Future<void> _playCheer() async {
-    try {
-      await _cheerPlayer.open(Media('asset:///assets/audio/wheel_winner.wav'));
-    } catch (e) {
-      Diagnostics.instance.add('wheel', 'winner sound: failed to open: $e');
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (!reduce && !_confettiController.isAnimating &&
+        _confettiController.value == 0) {
+      _confettiController.forward();
     }
   }
 
   @override
   void dispose() {
     _confettiController.dispose();
-    _cheerPlayer.dispose();
     super.dispose();
+  }
+
+  // The same add/remove toggle as the detail screen's Watchlist button.
+  Future<void> _toggleWatchlist(bool inWatchlist) async {
+    setState(() => _watchlistBusy = true);
+    final c = ref.read(watchlistProvider.notifier);
+    try {
+      inWatchlist
+          ? await c.remove(widget.winner.id)
+          : await c.add(widget.winner);
+    } finally {
+      if (mounted) setState(() => _watchlistBusy = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final w = widget.winner;
+    final inGroup = ref.watch(syncPlayControllerProvider);
+    // .value keeps the last list while it reloads after a toggle, so the
+    // pill doesn't flicker back to "not on the Watchlist" mid-refresh.
+    final inWatchlist = (ref.watch(watchlistProvider).value ?? const [])
+        .any((e) => e.id == w.id);
+
     return Stack(
       children: [
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(l.wheelWinnerLabel,
-                    style: TextStyle(
-                        color: cs.primary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1)),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: SizedBox(
-                    width: 200,
-                    height: 300,
-                    child: MediaImage(
-                        item: widget.winner, placeholderIcon: Icons.movie_rounded),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(widget.winner.name,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FilledButton.icon(
-                      // Same reasoning as the wheel's own autofocus: this
-                      // phase change is an internal setState, not a route
-                      // change, so the shell's autofocus never refires here.
-                      autofocus: isTvDevice,
-                      style: kInlineButtonStyle,
-                      onPressed: () => context.push('/player', extra: widget.winner),
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: Text(l.commonPlay),
+        LayoutBuilder(builder: (context, c) {
+          final wide = c.maxWidth >= 720;
+          final poster = ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+              width: wide ? 240 : 170,
+              height: wide ? 360 : 255,
+              child: MediaImage(
+                item: w,
+                placeholderIcon: Icons.movie_rounded,
+                maxHeight: 720,
+                filterQuality: FilterQuality.high,
+              ),
+            ),
+          );
+          final align =
+              wide ? CrossAxisAlignment.start : CrossAxisAlignment.center;
+          final textAlign = wide ? TextAlign.start : TextAlign.center;
+          final info = Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: align,
+            children: [
+              Text(l.wheelWinnerLabel,
+                  style: TextStyle(
+                      color: cs.primary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Text(w.name,
+                  textAlign: textAlign,
+                  style: theme.textTheme.headlineMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                alignment: wide ? WrapAlignment.start : WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (w.productionYear != null) Text('${w.productionYear}'),
+                  if (w.runtimeMinutes != null)
+                    Text(fmtRuntime(w.runtimeMinutes!)),
+                  if (w.officialRating != null) CertBadge(text: w.officialRating!),
+                  if (w.communityRating != null)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.star_rounded,
+                            size: 18, color: Color(0xFFFFD54A)),
+                        const SizedBox(width: 2),
+                        Text(w.communityRating!.toStringAsFixed(1)),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    OutlinedButton.icon(
-                      style: kInlineButtonStyle,
-                      onPressed: widget.onRestart,
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: Text(l.wheelSpinAgain),
-                    ),
-                  ],
+                ],
+              ),
+              if (w.genres.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(w.genres.take(3).join(' · '),
+                    textAlign: textAlign,
+                    style: TextStyle(color: cs.onSurfaceVariant)),
+              ],
+              if ((w.overview ?? '').isNotEmpty) ...[
+                const SizedBox(height: 14),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Text(w.overview!,
+                      maxLines: 5,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: textAlign,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.4)),
                 ),
               ],
+              const SizedBox(height: 22),
+              // The same expand-on-hover pills as the detail screen's actions.
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                alignment: wide ? WrapAlignment.start : WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  HoverPillButton(
+                    // This phase change is an internal setState, not a
+                    // route change, so the shell's autofocus never refires.
+                    autofocus: isTvDevice,
+                    primary: true,
+                    icon: inGroup
+                        ? Icons.groups_rounded
+                        : Icons.play_arrow_rounded,
+                    label: inGroup ? l.wheelPlayForGroup : l.commonPlay,
+                    onTap: () => context.push('/player', extra: w),
+                  ),
+                  if (w.trailerUrl != null)
+                    HoverPillButton(
+                      icon: Icons.movie_outlined,
+                      label: l.detailTrailer,
+                      onTap: () => context.push('/trailer',
+                          extra: (url: w.trailerUrl!, title: w.name)),
+                    ),
+                  HoverPillButton(
+                    tinted: inWatchlist,
+                    icon: inWatchlist
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    label: inWatchlist
+                        ? l.detailRemoveFromWatchlist
+                        : l.detailAddToWatchlist,
+                    onTap: _watchlistBusy
+                        ? null
+                        : () => _toggleWatchlist(inWatchlist),
+                  ),
+                  ClapOnHover(
+                    child: HoverPillButton(
+                      icon: Icons.movie_filter_rounded,
+                      iconWidget:
+                          ClapperIcon(size: 20, color: cs.onSurfaceVariant),
+                      label: l.wheelSpinAgain,
+                      onTap: widget.onRestart,
+                    ),
+                  ),
+                ],
+              ),
+              if (inGroup) ...[
+                const SizedBox(height: 10),
+                Text(l.wheelGroupHint,
+                    textAlign: textAlign,
+                    style: TextStyle(color: cs.onSurfaceVariant)),
+              ],
+            ],
+          );
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: c.maxHeight),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 960),
+                    child: wide
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              poster,
+                              const SizedBox(width: 36),
+                              Flexible(child: info),
+                            ],
+                          )
+                        : Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              poster,
+                              const SizedBox(height: 20),
+                              info,
+                            ],
+                          ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        }),
         IgnorePointer(
           child: AnimatedBuilder(
             animation: _confettiController,
@@ -445,30 +1325,57 @@ class _WinnerViewState extends State<_WinnerView>
 /// One confetti piece's fixed randomized traits, drawn at a position derived
 /// purely from the shared clock [t] rather than storing mutable per-frame
 /// state, so nothing needs to advance it except the one controller.
+///
+/// Each piece falls over its own slice of the timeline ([delay] to
+/// [delay] + [life]): a big opening burst, then a steady rain for a couple of
+/// seconds more instead of one wave that's gone almost at once.
 class _ConfettiPiece {
   final double x0;
   final double delay;
-  final double fallSpeed;
+  final double life;
   final double drift;
   final double spin;
+  final double tumble;
   final double phase;
   final double size;
+  final bool round;
   final Color color;
 
-  _ConfettiPiece(math.Random r)
-      : x0 = r.nextDouble(),
-        delay = r.nextDouble() * 0.25,
-        fallSpeed = 0.8 + r.nextDouble() * 0.5,
-        drift = (r.nextDouble() - 0.5) * 0.5,
-        spin = (r.nextDouble() - 0.5) * 12,
-        phase = r.nextDouble() * math.pi * 2,
-        size = 5 + r.nextDouble() * 5,
-        color = _kConfettiColors[r.nextInt(_kConfettiColors.length)];
+  factory _ConfettiPiece(math.Random r) {
+    final life = 0.45 + r.nextDouble() * 0.15;
+    final burst = r.nextDouble() < 0.4;
+    return _ConfettiPiece._(
+      x0: r.nextDouble(),
+      delay: (burst ? r.nextDouble() * 0.06 : r.nextDouble()) * (1 - life),
+      life: life,
+      drift: (r.nextDouble() - 0.5) * 0.35,
+      spin: (r.nextDouble() - 0.5) * 14,
+      tumble: 2 + r.nextDouble() * 5,
+      phase: r.nextDouble() * math.pi * 2,
+      size: 6 + r.nextDouble() * 6,
+      round: r.nextDouble() < 0.2,
+      color: _kConfettiColors[r.nextInt(_kConfettiColors.length)],
+    );
+  }
+
+  const _ConfettiPiece._({
+    required this.x0,
+    required this.delay,
+    required this.life,
+    required this.drift,
+    required this.spin,
+    required this.tumble,
+    required this.phase,
+    required this.size,
+    required this.round,
+    required this.color,
+  });
 }
 
 const _kConfettiColors = [
   Color(0xFFEF4444),
   Color(0xFFF59E0B),
+  Color(0xFFFFD54A),
   Color(0xFF22C55E),
   Color(0xFF3B82F6),
   Color(0xFF8B5CF6),
@@ -483,24 +1390,31 @@ class _ConfettiPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (t <= 0) return;
     for (final p in pieces) {
-      final local = ((t - p.delay) / (1 - p.delay)).clamp(0.0, 1.0);
-      if (local <= 0) continue;
-      final fall = Curves.easeIn.transform((local * p.fallSpeed).clamp(0.0, 1.0));
+      final local = (t - p.delay) / p.life;
+      if (local <= 0 || local >= 1) continue;
+      final fall = Curves.easeIn.transform(local);
       final y = -20 + fall * (size.height + 40);
-      final sway = math.sin(local * 4 * math.pi + p.phase) * 18;
+      final sway = math.sin(local * 4 * math.pi + p.phase) * 22;
       final x = p.x0 * size.width + p.drift * local * size.width + sway;
-      final angle = local * p.spin;
-      final opacity = local > 0.8 ? (1 - local) / 0.2 : 1.0;
+      final opacity = local > 0.85 ? (1 - local) / 0.15 : 1.0;
       final paint = Paint()
         ..color = p.color.withValues(alpha: opacity.clamp(0.0, 1.0));
       canvas.save();
       canvas.translate(x, y);
-      canvas.rotate(angle);
-      canvas.drawRect(
-        Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size * 0.5),
-        paint,
-      );
+      canvas.rotate(local * p.spin);
+      if (p.round) {
+        canvas.drawCircle(Offset.zero, p.size * 0.32, paint);
+      } else {
+        // Squashing the width over time reads as the piece tumbling in 3D.
+        final w = p.size * math.cos(local * p.tumble * math.pi + p.phase).abs();
+        canvas.drawRect(
+          Rect.fromCenter(
+              center: Offset.zero, width: math.max(w, 1), height: p.size * 0.5),
+          paint,
+        );
+      }
       canvas.restore();
     }
   }

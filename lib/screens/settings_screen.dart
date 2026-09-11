@@ -213,7 +213,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             .edit((x) => x.copyWith(syncPlayEnabled: v)),
       ),
       SwitchListTile(
-        secondary: _leading(context, Icons.casino_rounded),
+        secondary: _leading(context, Icons.movie_filter_rounded),
         title: Text(l.settingsMovieWheel),
         subtitle: Text(l.settingsMovieWheelSubtitle),
         value: ref.watch(preferencesProvider

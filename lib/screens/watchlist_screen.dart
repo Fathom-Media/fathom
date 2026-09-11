@@ -6,6 +6,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
 import '../state/preferences.dart';
 import '../state/watchlist.dart';
+import '../widgets/clapper_icon.dart';
 import '../widgets/item_grid.dart';
 
 /// The user's Watchlist as a poster grid — newest addition first, exactly
@@ -26,12 +27,12 @@ class WatchlistScreen extends ConsumerWidget {
         title: Text(l.browseWatchlist),
         actions: [
           if (wheelEnabled)
-            IconButton(
-              tooltip: l.wheelTitle,
-              icon: const Icon(Icons.casino_rounded),
-              onPressed: items.asData?.value.isNotEmpty ?? false
-                  ? () => context.push('/watchlist/wheel')
-                  : null,
+            ClapOnHover(
+              child: IconButton(
+                tooltip: l.wheelTitle,
+                icon: const ClapperIcon(),
+                onPressed: () => context.push('/watchlist/wheel'),
+              ),
             ),
           IconButton(
             tooltip: l.commonRefresh,
