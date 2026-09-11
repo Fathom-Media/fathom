@@ -34,6 +34,10 @@ SnackBar _buildSnack(
         Expanded(child: Text(message)),
       ],
     ),
+    // Load-bearing. Flutter defaults persist to `action != null`
+    // (snack_bar.dart: `persist = persist ?? action != null`), so an offer to
+    // undo would otherwise sit there until it's taken or the route is gone.
+    persist: false,
     action: (actionLabel != null && onAction != null)
         ? SnackBarAction(label: actionLabel, onPressed: onAction)
         : null,
@@ -58,6 +62,31 @@ void showSnack(
     ..showSnackBar(_buildSnack(context, message, kind,
         actionLabel: actionLabel, onAction: onAction, duration: duration));
 }
+
+/// The same styled snackbar, for the common pattern of grabbing the messenger
+/// *before* an await and showing the result after it (where the original
+/// BuildContext may no longer be mounted).
+void showSnackOn(
+  ScaffoldMessengerState messenger,
+  String message, {
+  SnackKind kind = SnackKind.info,
+  String? actionLabel,
+  VoidCallback? onAction,
+  Duration? duration,
+}) {
+  if (!messenger.mounted) return;
+  messenger
+    ..clearSnackBars()
+    ..showSnackBar(_buildSnack(messenger.context, message, kind,
+        actionLabel: actionLabel, onAction: onAction, duration: duration));
+}
+
+/// [showSnackOn] for the common error case.
+void showErrorOn(ScaffoldMessengerState messenger, Object error,
+        {String? prefix}) =>
+    showSnackOn(messenger,
+        prefix == null ? error.toString() : '$prefix: $error',
+        kind: SnackKind.error);
 
 /// The same styled snackbar, fired through the app-wide messenger so it works
 /// without a BuildContext (e.g. a notification arriving while the app is
