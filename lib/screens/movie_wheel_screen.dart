@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show SemanticsService;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -287,11 +288,21 @@ class _MovieWheelScreenState extends ConsumerState<MovieWheelScreen> {
     unawaited(_audio.prepareTick());
   }
 
+  /// Reads a result out for screen-reader users (the overlay and the wheel
+  /// are visual only).
+  void _announce(String message) {
+    if (!mounted) return;
+    SemanticsService.sendAnnouncement(
+        View.of(context), message, Directionality.of(context));
+  }
+
   void _onLanded(int index) {
     final item = _pool[index];
+    final l = AppLocalizations.of(context);
     switch (_mode) {
       case _Mode.last:
         setState(() => _overlay = _Overlay(item, _OverlayKind.out));
+        _announce(l.wheelEliminated(item.name));
       case _Mode.single:
         _crown(item);
       case _Mode.best3:
@@ -305,6 +316,7 @@ class _MovieWheelScreenState extends ConsumerState<MovieWheelScreen> {
           _spins++;
           _overlay = _Overlay(item, _OverlayKind.scored);
         });
+        _announce(l.wheelScored(item.name));
     }
   }
 
@@ -365,6 +377,8 @@ class _MovieWheelScreenState extends ConsumerState<MovieWheelScreen> {
         _phase = _Phase.winner;
       });
       unawaited(_audio.winner());
+      final w = _winner ?? _pool.first;
+      _announce(AppLocalizations.of(context).a11yWinner(w.name));
     });
   }
 
@@ -931,7 +945,7 @@ class _CandidateTile extends StatelessWidget {
         children: [
           if (added)
             IconButton(
-              tooltip: l.wheelRemoveTitle,
+              tooltip: l.commonRemove,
               icon: const Icon(Icons.close_rounded),
               onPressed: onRemove,
             ),

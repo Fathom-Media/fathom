@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
 import '../services/tv_mode.dart';
 import 'clapper_icon.dart';
@@ -406,7 +407,18 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
     final size = widget.size;
     final reduce = _reduceMotion;
     final blurAllowed = !reduce && !isTvDevice;
-    return GestureDetector(
+    final l = AppLocalizations.of(context);
+    // One screen-reader stop that names the wheel and its titles, and spins
+    // on the reader's activate gesture (the drawing itself says nothing).
+    return Semantics(
+      container: true,
+      button: true,
+      excludeSemantics: true,
+      label: '${l.a11yWheel(_entries.length)}: '
+          '${_entries.map((e) => e.item.name).join(', ')}',
+      onTapHint: l.a11ySpin,
+      onTap: isBusy ? null : () => spin(),
+      child: GestureDetector(
       onTap: isBusy ? null : () => spin(),
       onPanStart: _onPanStart,
       onPanUpdate: _onPanUpdate,
@@ -504,6 +516,7 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
             ),
           ],
         ),
+      ),
       ),
     );
   }

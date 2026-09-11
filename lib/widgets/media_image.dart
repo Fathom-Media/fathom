@@ -105,8 +105,14 @@ class MediaImage extends ConsumerWidget {
     return 'posters/$key.jpg';
   }
 
+  // Artwork is decorative: the card or header it sits in carries the title,
+  // so the image itself is kept out of the screen-reader order (otherwise it
+  // reads as "unlabeled image" before every title).
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, WidgetRef ref) =>
+      ExcludeSemantics(child: _image(context, ref));
+
+  Widget _image(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionControllerProvider).asData?.value;
     final client = ref.watch(jellyfinClientProvider);
     final headers = ref.watch(imageHeadersProvider);

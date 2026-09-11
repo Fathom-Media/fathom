@@ -368,6 +368,7 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
           ? null
           : Builder(builder: (btnContext) {
               return IconButton(
+                tooltip: AppLocalizations.of(context).commonMoreOptions,
                 icon: const Icon(Icons.more_vert_rounded),
                 onPressed: () {
                   final box = btnContext.findRenderObject() as RenderBox?;

@@ -165,6 +165,7 @@ class _ManageSheetState extends ConsumerState<_ManageSheet> {
                       ),
                     ),
                     IconButton(
+                      tooltip: AppLocalizations.of(context).commonClose,
                       icon: const Icon(Icons.close_rounded),
                       onPressed: () => Navigator.of(context).pop(),
                     ),

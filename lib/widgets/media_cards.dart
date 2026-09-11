@@ -450,7 +450,11 @@ class PosterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
+    // One screen-reader stop that reads "Title, 2019, button", not an
+    // unlabeled tap target followed by stray text.
+    return _CardSemantics(
+      onTap: onTap,
+      child: SizedBox(
       width: width,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -500,6 +504,7 @@ class PosterCard extends StatelessWidget {
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
         ],
       ),
+      ),
     );
   }
 }
@@ -522,7 +527,9 @@ class PosterTile extends StatelessWidget {
     final subtitle = item.isEpisode
         ? (item.seriesName ?? '')
         : (item.productionYear?.toString() ?? '');
-    return Column(
+    return _CardSemantics(
+      onTap: onTap,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
@@ -541,6 +548,7 @@ class PosterTile extends StatelessWidget {
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
       ],
+      ),
     );
   }
 }
@@ -561,7 +569,9 @@ class ContinueCard extends StatelessWidget {
         ? _episodeLabel(item)
         : (item.productionYear?.toString() ?? '');
 
-    return HoverLift(
+    return _CardSemantics(
+      onTap: onTap,
+      child: HoverLift(
       child: SizedBox(
         width: width,
         child: Column(
@@ -643,6 +653,7 @@ class ContinueCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -665,7 +676,9 @@ class LibraryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return HoverLift(
+    return _CardSemantics(
+      onTap: onTap,
+      child: HoverLift(
       child: SizedBox(
         width: width,
         child: TvFocusable(
@@ -733,6 +746,21 @@ class LibraryCard extends StatelessWidget {
         ),
         ),
       ),
+      ),
     );
   }
+}
+
+/// Makes a card one screen-reader stop: its tap target, title, and subtitle
+/// read together as a single button ("Title, 2019, button") instead of an
+/// unlabeled tap target followed by stray pieces of text.
+class _CardSemantics extends StatelessWidget {
+  const _CardSemantics({required this.onTap, required this.child});
+  final VoidCallback? onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => MergeSemantics(
+        child: Semantics(button: onTap != null, child: child),
+      );
 }

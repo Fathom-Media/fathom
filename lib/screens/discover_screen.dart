@@ -1939,6 +1939,7 @@ class _RequestTile extends ConsumerWidget {
                   ] else
                     Builder(builder: (btnContext) {
                       return IconButton(
+                        tooltip: AppLocalizations.of(context).commonMoreOptions,
                         icon: const Icon(Icons.more_vert_rounded),
                         onPressed: () {
                           final box =

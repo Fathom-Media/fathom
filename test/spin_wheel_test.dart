@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:media_kit/media_kit.dart';
 
+import 'package:fathom/l10n/generated/app_localizations.dart';
 import 'package:fathom/models/base_item.dart';
 import 'package:fathom/state/providers.dart';
 import 'package:fathom/widgets/spin_wheel.dart';
@@ -22,6 +23,8 @@ Widget _harness({required int count, required double size}) {
   return ProviderScope(
     overrides: [deviceIdProvider.overrideWithValue('test-device')],
     child: MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: Center(
           child: SpinWheel(
@@ -51,6 +54,8 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: [deviceIdProvider.overrideWithValue('test-device')],
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Center(
             child: SpinWheel(

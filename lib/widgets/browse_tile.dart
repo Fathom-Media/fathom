@@ -30,7 +30,11 @@ class GradientBrowseTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return HoverLift(
+    // One screen-reader stop: "Comedy, button".
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        child: HoverLift(
       child: TvFocusable(
         onTap: onTap,
         autofocus: autofocus,
@@ -80,6 +84,8 @@ class GradientBrowseTile extends StatelessWidget {
           ),
         ),
       ),
+      ),
+    ),
       ),
     );
   }

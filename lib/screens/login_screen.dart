@@ -214,6 +214,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             labelText: l.appPassword,
                             prefixIcon: const Icon(Icons.lock_outline_rounded),
                             suffixIcon: IconButton(
+                              tooltip: _obscure ? AppLocalizations.of(context).loginShowPassword : AppLocalizations.of(context).loginHidePassword,
                               icon: Icon(_obscure
                                   ? Icons.visibility_rounded
                                   : Icons.visibility_off_rounded),
