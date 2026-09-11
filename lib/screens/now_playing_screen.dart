@@ -230,16 +230,19 @@ class NowPlayingScreen extends ConsumerWidget {
                       // enough slack (#40).
                       FittedBox(
                         fit: BoxFit.scaleDown,
-                        child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Transport clusters in the true center; volume floats
-                          // at the right edge and expands leftward over the empty
-                          // space, so opening it never shoves the controls.
-                          Row(
+                        // Transport in the true center and volume at the right
+                        // edge, balanced by an equal gap on the left. The pill
+                        // floats over the page when it opens, so it never
+                        // shoves the controls or re-centers the page. (An
+                        // Align(centerRight) in a Stack here collapsed to the
+                        // button's own width inside the FittedBox and sat on
+                        // top of Play.)
+                        child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              if (!isTvDevice) const SizedBox(width: 48),
                               IconButton(
+                            tooltip: AppLocalizations.of(context).browseShuffle,
                             icon: const Icon(Icons.shuffle_rounded),
                             isSelected: audio.shuffle,
                             color: audio.shuffle
@@ -248,6 +251,7 @@ class NowPlayingScreen extends ConsumerWidget {
                             onPressed: controller.toggleShuffle,
                           ),
                           IconButton(
+                            tooltip: AppLocalizations.of(context).commonPrevious,
                             iconSize: 38,
                             icon: const Icon(Icons.skip_previous_rounded),
                             onPressed: controller.previous,
@@ -280,11 +284,13 @@ class NowPlayingScreen extends ConsumerWidget {
                               },
                             ),
                           IconButton(
+                            tooltip: AppLocalizations.of(context).commonNext,
                             iconSize: 38,
                             icon: const Icon(Icons.skip_next_rounded),
                             onPressed: controller.next,
                           ),
                           IconButton(
+                            tooltip: AppLocalizations.of(context).commonRepeat,
                             icon: Icon(audio.repeat == PlaylistMode.single
                                 ? Icons.repeat_one_rounded
                                 : Icons.repeat_rounded),
@@ -294,21 +300,11 @@ class NowPlayingScreen extends ConsumerWidget {
                                 : null,
                             onPressed: controller.cycleRepeat,
                           ),
-                          // Reserves the collapsed volume icon's own footprint
-                          // so it lands in empty space instead of on top of
-                          // repeat (#40) — the centered row needs to actually
-                          // be wider than its buttons for that space to exist.
-                          if (!isTvDevice) const SizedBox(width: 48),
-                            ],
-                          ),
                           // No volume on TV, the remote owns it.
                           if (!isTvDevice)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: VerticalVolumeButton(player: player),
-                            ),
-                        ],
-                        ),
+                            VerticalVolumeButton(player: player, floating: true),
+                            ],
+                          ),
                       ),
                       const SizedBox(height: 12),
                       _UpNextPeek(
@@ -390,12 +386,12 @@ class _RadioNowPlaying extends ConsumerWidget {
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(l.radioNowPlaying),
-          // A live station has no end to stop at, so timed stops only.
-          const SleepTimerButton(),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          // A live station has no end to stop at, so timed stops only.
+          const SleepTimerButton(),
           CastButton(
             videoOnly: false,
             title: s.name,
@@ -1551,11 +1547,11 @@ class _YoutubeNowPlaying extends ConsumerWidget {
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(l.playerNowPlaying),
-          SleepTimerButton(endOfItemLabel: l.sleepTimerEndOfTrack),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          SleepTimerButton(endOfItemLabel: l.sleepTimerEndOfTrack),
           // Round-trip back to video: reopen the watch page at the current audio
           // position (persisted to history so the player resumes there), and
           // leave audio mode.
@@ -1681,12 +1677,14 @@ class _YoutubeNowPlaying extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
+                        tooltip: AppLocalizations.of(context).browseShuffle,
                         icon: const Icon(Icons.shuffle_rounded),
                         isSelected: audio.shuffle,
                         color: audio.shuffle ? scheme.primary : null,
                         onPressed: controller.toggleShuffle,
                       ),
                       IconButton(
+                        tooltip: AppLocalizations.of(context).commonPrevious,
                         iconSize: 36,
                         icon: const Icon(Icons.skip_previous_rounded),
                         onPressed: controller.previous,
@@ -1698,6 +1696,7 @@ class _YoutubeNowPlaying extends ConsumerWidget {
                         builder: (context, snap) {
                           final playing = snap.data ?? false;
                           return IconButton(
+                            tooltip: playing ? AppLocalizations.of(context).commonPause : AppLocalizations.of(context).commonPlay,
                             iconSize: 68,
                             icon: Icon(playing
                                 ? Icons.pause_circle_filled_rounded
@@ -1708,11 +1707,13 @@ class _YoutubeNowPlaying extends ConsumerWidget {
                       ),
                       const SizedBox(width: 8),
                       IconButton(
+                        tooltip: AppLocalizations.of(context).commonNext,
                         iconSize: 36,
                         icon: const Icon(Icons.skip_next_rounded),
                         onPressed: controller.next,
                       ),
                       IconButton(
+                        tooltip: AppLocalizations.of(context).commonRepeat,
                         icon: Icon(audio.repeat == PlaylistMode.single
                             ? Icons.repeat_one_rounded
                             : Icons.repeat_rounded),
@@ -1929,6 +1930,7 @@ class _YtQueueSheet extends ConsumerWidget {
                       Navigator.of(context).maybePop();
                     },
                     trailing: IconButton(
+                      tooltip: AppLocalizations.of(context).commonRemove,
                       icon: const Icon(Icons.close_rounded),
                       onPressed: () => qn.remove(v.id),
                     ),

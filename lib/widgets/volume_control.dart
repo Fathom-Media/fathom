@@ -290,7 +290,14 @@ class _InlineVolumeState extends ConsumerState<InlineVolume> {
 /// that's already full-width on a phone, portrait or landscape).
 class VerticalVolumeButton extends ConsumerStatefulWidget {
   final Player player;
-  const VerticalVolumeButton({super.key, required this.player});
+
+  /// Draws the pill on the overlay, exactly over its spot in the layout,
+  /// instead of growing in the layout. For places where opening it must not
+  /// push or re-center anything around it (content below it, or a centered
+  /// page). The layout keeps only the collapsed icon's footprint.
+  final bool floating;
+  const VerticalVolumeButton(
+      {super.key, required this.player, this.floating = false});
 
   @override
   ConsumerState<VerticalVolumeButton> createState() =>
@@ -303,12 +310,25 @@ class _VerticalVolumeButtonState extends ConsumerState<VerticalVolumeButton> {
   double? _value;
   double _beforeMute = 100;
   Timer? _closeTimer;
+  final _portal = OverlayPortalController();
 
   static const _sliderHeight = 120.0;
 
   bool get _touch =>
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
+
+  @override
+  void initState() {
+    super.initState();
+    // The floating pill always lives on the overlay (collapsed it's just the
+    // icon), so hovering it never has to hand off between two widgets.
+    if (widget.floating) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _portal.show();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -386,6 +406,10 @@ class _VerticalVolumeButtonState extends ConsumerState<VerticalVolumeButton> {
         child: Align(
           alignment: Alignment.topCenter,
           heightFactor: t,
+          // Without a width factor this stretches to whatever width it's
+          // offered, which on the overlay is the whole window: the pill grew
+          // window-wide and shoved its own icon off screen.
+          widthFactor: 1,
           child: child,
         ),
       ),
@@ -456,13 +480,45 @@ class _VerticalVolumeButtonState extends ConsumerState<VerticalVolumeButton> {
       child: column,
     );
 
-    if (_touch) return chip;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _open = true),
-      onExit: (_) {
-        if (!_dragging) setState(() => _open = false);
+    final pill = _touch
+        ? chip
+        : MouseRegion(
+            onEnter: (_) => setState(() => _open = true),
+            onExit: (_) {
+              if (!_dragging) setState(() => _open = false);
+            },
+            child: chip,
+          );
+    if (!widget.floating) return pill;
+    // The layout holds an invisible copy of the collapsed icon (so the
+    // footprint matches exactly); the real pill is drawn on the overlay,
+    // pinned to that spot, so it can open over whatever is below without
+    // moving it, and stays fully tappable (content that merely overflowed its
+    // parent couldn't be).
+    // Placed by hand from the layout builder's paint transform rather than by
+    // a CompositedTransformFollower: a follower only gets its transform when
+    // it's composited, so any overlay of its own inside it (the icon's own
+    // tooltip is one) can't work out where it belongs, and asserts on hover.
+    return OverlayPortal.overlayChildLayoutBuilder(
+      controller: _portal,
+      overlayChildBuilder: (context, info) {
+        final at = MatrixUtils.transformPoint(
+            info.childPaintTransform, Offset.zero);
+        return Stack(
+          children: [
+            Positioned(
+              left: at.dx,
+              top: at.dy,
+              child: Align(alignment: Alignment.topLeft, child: pill),
+            ),
+          ],
+        );
       },
-      child: chip,
+      child: ExcludeSemantics(
+        child: ExcludeFocus(
+          child: IgnorePointer(child: Opacity(opacity: 0, child: iconBtn)),
+        ),
+      ),
     );
   }
 }
