@@ -43,6 +43,14 @@ chmod +x Fathom-x86_64.AppImage
 ./Fathom-x86_64.AppImage
 ```
 
+On Debian and Ubuntu, the `.deb` from the same release installs Fathom properly, with a launcher entry and icons:
+
+```bash
+sudo apt install ./fathom_*_amd64.deb
+```
+
+On Arch, `fathom-bin` is on the AUR.
+
 On Android, download the `.apk` and open it to install (allow installs from your browser or file manager if prompted). The same APK covers phones, tablets, and Android TV (Android TV is experimental for now).
 
 Full instructions, first-run setup, and troubleshooting are in the **[documentation](https://fathom-media.github.io/fathom/install/)**.

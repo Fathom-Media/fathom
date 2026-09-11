@@ -136,11 +136,43 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # A native .deb alongside the AppImage, from the same release bundle that
+      # was just built and smoke-tested. It depends on the distro's GTK and
+      # libmpv instead of carrying copies, which is what lets libmpv reach the
+      # host GPU drivers.
+      - name: Build .deb
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          sudo apt-get install -y --no-install-recommends dpkg-dev
+          SKIP_BUILD=1 ./tool/build_deb.sh
+          echo "DEB_PATH=$(ls build/fathom_*_*.deb)" >> "$GITHUB_ENV"
+
+      - name: Check the .deb installs and is well formed
+        run: |
+          set -x
+          dpkg-deb --info "$DEB_PATH"
+          dpkg-deb --contents "$DEB_PATH" | head -20
+          sudo apt-get install -y "./$DEB_PATH"
+          test -x /opt/app.fathom.player/fathom
+          test -L /usr/bin/fathom
+          sudo apt-get remove -y fathom
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fathom-${{ matrix.arch }}-deb
+          path: build/fathom_*_*.deb
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Attach to release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: build/Fathom-${{ matrix.arch }}.AppImage
+          files: |
+            build/Fathom-${{ matrix.arch }}.AppImage
+            build/fathom_*_*.deb
           prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
 
@@ -154,6 +186,8 @@ jobs:
         with:
           tag_name: dev-latest
           name: Dev Build (latest)
-          files: build/Fathom-${{ matrix.arch }}.AppImage
+          files: |
+            build/Fathom-${{ matrix.arch }}.AppImage
+            build/fathom_*_*.deb
           prerelease: true
           make_latest: false
