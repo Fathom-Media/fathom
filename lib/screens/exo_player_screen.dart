@@ -28,6 +28,8 @@ import '../widgets/glass.dart';
 import '../widgets/exo_video.dart';
 import '../widgets/live_info_panel.dart';
 import '../widgets/live_record_button.dart';
+import '../state/sleep_timer.dart';
+import '../widgets/sleep_timer_sheet.dart';
 
 /// Whether the native Media3 ExoPlayer backend should handle playback, given the
 /// user's `playerBackend` preference. Android only.
@@ -57,6 +59,7 @@ class ExoPlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
+  VoidCallback? _unregisterSleep;
   // Player-agnostic native PiP channel: `setActive` tells the Activity a video
   // is playing (so leaving the app floats it into a PiP window) and the native
   // side calls back `pipModeChanged` on enter/exit. Same channel the media_kit
@@ -187,6 +190,22 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     _controller.state.addListener(_onState);
     _controller.textTracks.addListener(_onTracks);
     _controller.audioTracks.addListener(_onTracks);
+    // Sleep timer: fade out and pause. ExoPlayer's volume is its own 0-1 gain
+    // (never the remembered app volume), so it simply goes back to full.
+    _unregisterSleep =
+        ref.read(sleepTimerProvider.notifier).register((fade) async {
+      if (!_controller.state.value.playing) return;
+      const stepEvery = Duration(milliseconds: 250);
+      final steps = (fade.inMilliseconds / stepEvery.inMilliseconds).ceil();
+      for (var i = 1; i <= steps; i++) {
+        await Future<void>.delayed(stepEvery);
+        if (!mounted || !_controller.state.value.playing) break;
+        await _controller.setVolume(1 - i / steps);
+      }
+      if (!mounted) return;
+      await _controller.pause();
+      await _controller.setVolume(1);
+    });
     // Register for SyncPlay follow: increments the open-player count so a group
     // item-switch REPLACES this route instead of stacking a second player.
     final syncSession = ref.read(syncPlaySessionProvider);
@@ -556,6 +575,11 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
                 onTap: () => Navigator.of(ctx).pop('speed'),
               ),
             ListTile(
+              leading: const Icon(Icons.bedtime_outlined),
+              title: Text(l.sleepTimer),
+              onTap: () => Navigator.of(ctx).pop('sleep'),
+            ),
+            ListTile(
               autofocus: _isLive,
               leading: const Icon(Icons.info_outline_rounded),
               title: Text(l.playerPlaybackInfo),
@@ -572,6 +596,15 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
         await _pickChapter();
       case 'speed':
         await _pickSpeed();
+      case 'sleep':
+        if (!mounted) return;
+        await showSleepTimerSheet(context,
+            endOfItemLabel: _isLive
+                ? null
+                : widget.item.isEpisode
+                    ? l.sleepTimerEndOfEpisode
+                    : l.sleepTimerEndOfVideo);
+        if (mounted) _restoreMenuFocus();
       case 'stats':
         setState(() => _statsOpen = !_statsOpen);
         _show();
@@ -688,6 +721,9 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
     // A live broadcast never "ends"; only VOD auto-closes on completion.
     if (s.ended && _started && !_isLive) {
       _started = false;
+      // Closing is also the stop the sleep timer wanted, if it was set to
+      // the end of this one.
+      ref.read(sleepTimerProvider.notifier).consumeEndOfItem();
       Navigator.of(context).maybePop();
       return;
     }
@@ -991,7 +1027,10 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
   /// Mirrors the media_kit path.
   void _handleUpNext(MediaSegment seg, Duration pos) {
     final prefs = ref.read(preferencesProvider).asData?.value;
-    final autoplayOn = prefs?.autoplayNext ?? true;
+    // No countdown into the next episode when the sleep timer is set to stop
+    // at the end of this one.
+    final autoplayOn = (prefs?.autoplayNext ?? true) &&
+        !ref.read(sleepTimerProvider.notifier).stopsAtEndOfItem;
     final lead = prefs?.upNextLeadSeconds ?? 20;
     final segId = seg.startTicks;
     if (_upNextSegTicks != segId) {
@@ -1343,6 +1382,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
   @override
   void dispose() {
     _disposed = true;
+    _unregisterSleep?.call();
     _disableSystemPip();
     // Decrement the SyncPlay open-player count (mirrors notifyPlayerOpened).
     _syncSessionRef?.notifyPlayerClosed();

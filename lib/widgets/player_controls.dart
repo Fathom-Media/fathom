@@ -60,6 +60,7 @@ class FathomPlayerControls extends StatefulWidget {
   final VoidCallback? onSubtitles;
   final VoidCallback? onAudio;
   final VoidCallback? onSpeed;
+  final VoidCallback? onSleepTimer;
   final VoidCallback? onQuality;
   final String qualityLabel;
   final VoidCallback? onChapters;
@@ -184,6 +185,7 @@ class FathomPlayerControls extends StatefulWidget {
     this.onSubtitles,
     this.onAudio,
     this.onSpeed,
+    this.onSleepTimer,
     this.onQuality,
     this.qualityLabel = '',
     this.onChapters,
@@ -914,8 +916,9 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                         ),
                     ];
                     // The settings gear (⚙) holds the occasional / settings-ish
-                    // items, in order: Quality, Chapters, Speed, then the
-                    // diagnostic Playback Info toggle. Mirrors YouTube's gear.
+                    // items, in order: Quality, Chapters, Speed, Sleep Timer,
+                    // then the diagnostic Playback Info toggle. Mirrors
+                    // YouTube's gear.
                     final overflow = <(IconData, String, VoidCallback)>[
                       if (widget.onQuality != null)
                         (
@@ -929,6 +932,9 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                       if (widget.onSpeed != null)
                         (Icons.speed_rounded, l.playerPlaybackSpeed,
                             widget.onSpeed!),
+                      if (widget.onSleepTimer != null)
+                        (Icons.bedtime_outlined, l.sleepTimer,
+                            widget.onSleepTimer!),
                       if (widget.statsPlayMethod != null &&
                           widget.statsOpen != null)
                         (

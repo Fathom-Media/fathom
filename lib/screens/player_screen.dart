@@ -10,6 +10,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../widgets/player_controls.dart';
+import '../widgets/sleep_timer_sheet.dart';
 
 import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -29,6 +30,7 @@ import '../state/media_session.dart';
 import '../state/cast.dart';
 import '../state/downloads.dart';
 import '../state/preferences.dart';
+import '../state/sleep_timer.dart';
 import '../state/library_providers.dart';
 import '../state/pip_controller.dart';
 import '../state/providers.dart';
@@ -70,6 +72,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // exitFullscreen() need a context scoped there, not the screen's own,
   // to correctly see FullscreenInheritedWidget while actually fullscreen.
   BuildContext? _controlsContext;
+  VoidCallback? _unregisterSleep;
   late final VolumeSync _volume = VolumeSync(
     player: _player,
     read: () => ref.read(preferencesProvider).asData?.value.volume ?? 100,
@@ -377,6 +380,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     syncSession.notifyPlayerOpened();
     // Volume is shared and remembered across every player.
     _volume.attach();
+    _unregisterSleep = ref
+        .read(sleepTimerProvider.notifier)
+        .register((fade) => fadeOutAndPause(_player, fade));
     // Quitting outright skips dispose(); the registry tears mpv down
     // before the engine goes. A reclaimed player is already registered.
     if (!_reclaimed) LivePlayers.add(_player);
@@ -1203,6 +1209,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _onCompleted() async {
     if (!mounted || _deactivated) return;
+    // The sleep timer is set to stop at the end of this one.
+    if (ref.read(sleepTimerProvider.notifier).consumeEndOfItem()) return;
     if (widget.item.isLiveChannel || !widget.item.isEpisode) return;
     final seriesId = widget.item.seriesId;
     if (seriesId == null) return;
@@ -1453,6 +1461,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
     _volume.dispose();
+    // A player handed to the dock keeps playing after this screen goes, so it
+    // stays registered with the sleep timer (the early return above).
+    _unregisterSleep?.call();
     LivePlayers.remove(_player);
     _progressTimer?.cancel();
     _loadTimer?.cancel();
@@ -1688,6 +1699,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onChapters: widget.item.chapters.isNotEmpty
                               ? _showChapters
                               : null,
+                          onSleepTimer: () => showSleepTimerSheet(context,
+                              endOfItemLabel: widget.item.isLiveChannel
+                                  ? null
+                                  : widget.item.isEpisode
+                                      ? AppLocalizations.of(context)
+                                          .sleepTimerEndOfEpisode
+                                      : AppLocalizations.of(context)
+                                          .sleepTimerEndOfVideo),
                           statsPlayMethod: _playMethodLabel(l),
                           statsOpen: _statsOpen,
                           markers: [
@@ -1795,7 +1814,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// Skip Credits pill suppressed).
   bool _handleUpNext(MediaSegment seg, Duration pos) {
     final prefs = ref.read(preferencesProvider).asData?.value;
-    final autoplayOn = prefs?.autoplayNext ?? true;
+    // No countdown into the next episode when the sleep timer is set to stop
+    // at the end of this one.
+    final autoplayOn = (prefs?.autoplayNext ?? true) &&
+        !ref.read(sleepTimerProvider.notifier).stopsAtEndOfItem;
     final lead = prefs?.upNextLeadSeconds ?? 20;
     final next = _episodes[_epIndex + 1];
 
@@ -2319,6 +2341,7 @@ class _ErrorOverlay extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: IconButton.filledTonal(
+                tooltip: AppLocalizations.of(context).commonBack,
                 icon: const Icon(Icons.arrow_back_rounded),
                 onPressed: () => Navigator.of(context).maybePop(),
               ),

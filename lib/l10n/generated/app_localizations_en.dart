@@ -5494,9 +5494,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get wheelWatched => 'Watched';
 
   @override
-  String get wheelRemoveTitle => 'Remove';
-
-  @override
   String get wheelFilterUnwatched => 'Unwatched';
 
   @override
@@ -5548,4 +5545,69 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get wheelGroupHint =>
       'Everyone in your Watch Together group will start watching.';
+
+  @override
+  String get sleepTimer => 'Sleep Timer';
+
+  @override
+  String sleepTimerMinutes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Minutes',
+      one: '1 Minute',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sleepTimerEndOfTrack => 'End of Track';
+
+  @override
+  String get sleepTimerEndOfEpisode => 'End of Episode';
+
+  @override
+  String get sleepTimerEndOfVideo => 'End of Video';
+
+  @override
+  String sleepTimerStopsIn(String time) {
+    return 'Stops in $time';
+  }
+
+  @override
+  String get sleepTimerAfterThis => 'Stops at the end of this one';
+
+  @override
+  String get sleepTimerTurnOff => 'Turn Off';
+
+  @override
+  String get commonRepeat => 'Repeat';
+
+  @override
+  String get commonMoreOptions => 'More Options';
+
+  @override
+  String get loginShowPassword => 'Show Password';
+
+  @override
+  String get loginHidePassword => 'Hide Password';
+
+  @override
+  String a11yWheel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Movie Night Wheel with $count titles',
+      one: 'Movie Night Wheel with 1 title',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get a11ySpin => 'Spin';
+
+  @override
+  String a11yWinner(String name) {
+    return 'Tonight\'s pick: $name';
+  }
 }

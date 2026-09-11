@@ -9928,12 +9928,6 @@ abstract class AppLocalizations {
   /// **'Watched'**
   String get wheelWatched;
 
-  /// Tooltip on the button that removes a library-added title from the wheel list.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove'**
-  String get wheelRemoveTitle;
-
   /// Filter chip: only include titles not yet watched.
   ///
   /// In en, this message translates to:
@@ -10029,6 +10023,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Everyone in your Watch Together group will start watching.'**
   String get wheelGroupHint;
+
+  /// Sleep timer button tooltip, player menu entry, and sheet title.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleep Timer'**
+  String get sleepTimer;
+
+  /// Sleep timer option: stop playback after this many minutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 Minute} other{{count} Minutes}}'**
+  String sleepTimerMinutes(int count);
+
+  /// Sleep timer option: stop when the current song finishes instead of playing the next.
+  ///
+  /// In en, this message translates to:
+  /// **'End of Track'**
+  String get sleepTimerEndOfTrack;
+
+  /// Sleep timer option: stop when the current episode finishes instead of playing the next.
+  ///
+  /// In en, this message translates to:
+  /// **'End of Episode'**
+  String get sleepTimerEndOfEpisode;
+
+  /// Sleep timer option: stop when the current movie or video finishes.
+  ///
+  /// In en, this message translates to:
+  /// **'End of Video'**
+  String get sleepTimerEndOfVideo;
+
+  /// Sleep timer countdown, e.g. 'Stops in 23m'.
+  ///
+  /// In en, this message translates to:
+  /// **'Stops in {time}'**
+  String sleepTimerStopsIn(String time);
+
+  /// Sleep timer status when set to stop at the end of the current track or episode.
+  ///
+  /// In en, this message translates to:
+  /// **'Stops at the end of this one'**
+  String get sleepTimerAfterThis;
+
+  /// Button that cancels a running sleep timer.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn Off'**
+  String get sleepTimerTurnOff;
+
+  /// Tooltip / screen-reader label for the repeat (off / all / one) button.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat'**
+  String get commonRepeat;
+
+  /// Tooltip / screen-reader label for a three-dot overflow menu button.
+  ///
+  /// In en, this message translates to:
+  /// **'More Options'**
+  String get commonMoreOptions;
+
+  /// Tooltip / screen-reader label for the button that reveals the typed password.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Password'**
+  String get loginShowPassword;
+
+  /// Tooltip / screen-reader label for the button that hides the typed password again.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Password'**
+  String get loginHidePassword;
+
+  /// Screen-reader label for the spinning wheel.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Movie Night Wheel with 1 title} other{Movie Night Wheel with {count} titles}}'**
+  String a11yWheel(int count);
+
+  /// Screen-reader name of the action that spins the wheel.
+  ///
+  /// In en, this message translates to:
+  /// **'Spin'**
+  String get a11ySpin;
+
+  /// Screen-reader announcement of the wheel's final pick.
+  ///
+  /// In en, this message translates to:
+  /// **'Tonight\'s pick: {name}'**
+  String a11yWinner(String name);
 }
 
 class _AppLocalizationsDelegate

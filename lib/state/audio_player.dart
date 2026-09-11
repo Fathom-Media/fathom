@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../services/diagnostics.dart';
+import 'sleep_timer.dart';
 import '../services/secure_http.dart';
 import 'radio.dart';
 
@@ -402,6 +403,8 @@ class AudioController extends Notifier<AudioState> {
       // that actually played out — should advance, otherwise a bad/expired URL
       // cascades "completed -> next -> completed" through the whole queue.
       if (_player.state.duration <= Duration.zero) return;
+      // The sleep timer is set to stop at the end of this track.
+      if (ref.read(sleepTimerProvider.notifier).consumeEndOfItem()) return;
       // Repeat-one: replay the current track instead of advancing. The Next
       // button still skips, because it calls _ytNext directly.
       if (state.repeat == PlaylistMode.single) {
@@ -446,7 +449,34 @@ class AudioController extends Notifier<AudioState> {
       _reportProgress();
       _pushPlaybackState();
     });
+    // Sleep timer: a timed stop fades out whatever is playing (or pauses the
+    // cast device); "end of track" pauses just before the track ends instead
+    // of letting the queue move on. Checked against the position rather than
+    // waiting for a track change, because the queue advances inside the
+    // player itself and the next song would already be playing.
+    final sleep = ref.read(sleepTimerProvider.notifier);
+    final unregisterSleep = sleep.register((fade) async {
+      final cast = ref.read(castControllerProvider);
+      if (cast.casting) {
+        if (cast.playing) await ref.read(castControllerProvider.notifier).pause();
+        return;
+      }
+      await fadeOutAndPause(_player, fade);
+    });
+    final subSleepEnd = _player.stream.position.listen((pos) {
+      if (!sleep.stopsAtEndOfItem || state.isRadio || !_player.state.playing) {
+        return;
+      }
+      final dur = _player.state.duration;
+      if (dur > Duration.zero &&
+          dur - pos <= const Duration(milliseconds: 400) &&
+          sleep.consumeEndOfItem()) {
+        unawaited(_player.pause());
+      }
+    });
     ref.onDispose(() {
+      unregisterSleep();
+      subSleepEnd.cancel();
       subPlaylist.cancel();
       subPosition.cancel();
       subCompleted.cancel();

@@ -26,6 +26,8 @@ import '../services/tv_mode.dart';
 import '../models/youtube_caption.dart';
 import '../models/youtube_chapter.dart';
 import '../models/youtube_download.dart';
+import '../state/sleep_timer.dart';
+import '../widgets/sleep_timer_sheet.dart';
 
 /// Plays a YouTube video (or any direct URL) with the shared Fathom controls.
 ///
@@ -151,6 +153,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   // (the video was minimized and is now being reopened), rather than creating a
   // fresh one. Reclaiming skips the reload and keeps playback seamless.
   late final bool _reclaimed;
+  VoidCallback? _unregisterSleep;
   late final VolumeSync _volume = VolumeSync(
     player: _player,
     read: () => ref.read(preferencesProvider).asData?.value.volume ?? 100,
@@ -286,6 +289,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     }
     // Volume is shared and remembered across every player.
     _volume.attach();
+    _unregisterSleep = ref
+        .read(sleepTimerProvider.notifier)
+        .register((fade) => fadeOutAndPause(_player, fade));
     widget.handle?._seek = _player.seek;
     // Quitting outright skips dispose(); the registry tears mpv down
     // before the engine goes. A reclaimed player is already registered.
@@ -299,7 +305,10 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
       }
     });
     _completedSub = _player.stream.completed.listen((done) {
-      if (done) widget.onEnded?.call();
+      if (!done) return;
+      // The sleep timer is set to stop at the end of this video.
+      if (ref.read(sleepTimerProvider.notifier).consumeEndOfItem()) return;
+      widget.onEnded?.call();
     });
     if (widget.onProgress != null) {
       _progressTimer = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -813,6 +822,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
       return;
     }
     _volume.dispose();
+    // A player handed to the PiP dock keeps playing, so it stays registered
+    // with the sleep timer (the early return above).
+    _unregisterSleep?.call();
     _sponsorSub?.cancel();
     _firstFrameSub?.cancel();
     _mpvLogSub?.cancel();
@@ -1029,6 +1041,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
             if (!widget.embedded)
               SafeArea(
                 child: IconButton.filledTonal(
+                  tooltip: AppLocalizations.of(context).commonBack,
                   icon: const Icon(Icons.arrow_back_rounded),
                   onPressed:
                       widget.onBack ?? () => Navigator.of(context).maybePop(),
@@ -1068,6 +1081,8 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         theaterActive: widget.theaterActive,
         onNext: widget.onNext,
         onSpeed: _showSpeedMenu,
+        onSleepTimer: () => showSleepTimerSheet(context,
+            endOfItemLabel: AppLocalizations.of(context).sleepTimerEndOfVideo),
         onQuality: _qualities.isNotEmpty ? _showQualityMenu : null,
         qualityLabel: _qualityLabel == 'Auto' ? l.playerAuto : _qualityLabel,
         onSubtitles: _captions.isNotEmpty ? _showSubtitleMenu : null,

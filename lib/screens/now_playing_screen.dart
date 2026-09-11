@@ -25,6 +25,7 @@ import '../widgets/media_image.dart';
 import '../widgets/motion.dart';
 import '../widgets/reorder.dart';
 import '../widgets/volume_control.dart';
+import '../widgets/sleep_timer_sheet.dart';
 
 /// Full-screen now-playing: large art, draggable seek bar, transport controls,
 /// shuffle and repeat.
@@ -74,6 +75,7 @@ class NowPlayingScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          SleepTimerButton(endOfItemLabel: l.sleepTimerEndOfTrack),
           // Music can cast to any device, including audio-only speakers. The
           // whole queue is handed to the receiver so Skip advances on-device.
           CastButton(
@@ -388,6 +390,8 @@ class _RadioNowPlaying extends ConsumerWidget {
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(l.radioNowPlaying),
+          // A live station has no end to stop at, so timed stops only.
+          const SleepTimerButton(),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -1547,6 +1551,7 @@ class _YoutubeNowPlaying extends ConsumerWidget {
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Text(l.playerNowPlaying),
+          SleepTimerButton(endOfItemLabel: l.sleepTimerEndOfTrack),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
