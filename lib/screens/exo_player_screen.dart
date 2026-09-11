@@ -30,6 +30,7 @@ import '../widgets/live_info_panel.dart';
 import '../widgets/live_record_button.dart';
 import '../state/sleep_timer.dart';
 import '../widgets/sleep_timer_sheet.dart';
+import '../widgets/app_spinner.dart';
 
 /// Whether the native Media3 ExoPlayer backend should handle playback, given the
 /// user's `playerBackend` preference. Android only.
@@ -1507,7 +1508,7 @@ class _ExoPlayerScreenState extends ConsumerState<ExoPlayerScreen> {
                 valueListenable: _controller.state,
                 builder: (_, s, _) => s.buffering
                     ? const Center(
-                        child: CircularProgressIndicator(color: Colors.white))
+                        child: AppSpinner(color: Colors.white))
                     : const SizedBox.shrink(),
               ),
             // Center play/pause flash.

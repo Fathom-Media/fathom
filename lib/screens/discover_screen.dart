@@ -32,6 +32,8 @@ import '../widgets/seerr_avatar.dart';
 import '../widgets/seerr_edit_request_dialog.dart';
 import '../widgets/seerr_poster_card.dart';
 import '../widgets/shimmer.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 /// Seerr Discover: browse trending / popular and request titles.
 class DiscoverScreen extends ConsumerWidget {
@@ -1616,7 +1618,7 @@ class _RequestsTab extends ConsumerWidget {
         ),
         Expanded(
           child: async.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: AppSpinner()),
             error: (e, _) => ErrorView(message: '$e'),
             data: (list) => list.isEmpty
                 ? EmptyState(

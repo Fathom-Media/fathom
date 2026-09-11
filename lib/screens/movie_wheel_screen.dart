@@ -24,6 +24,8 @@ import '../widgets/meta_pill.dart';
 import '../widgets/spin_wheel.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/tv_keyboard.dart';
+import '../widgets/app_spinner.dart';
+import '../api/jellyfin_client.dart';
 
 /// "Can't decide what to watch?" wheel. Candidates come from the Watchlist
 /// plus anything added from the library, narrowed by optional filters. Three
@@ -494,10 +496,7 @@ class _MovieWheelScreenState extends ConsumerState<MovieWheelScreen> {
         const Padding(
           padding: EdgeInsets.all(12),
           child: Center(
-              child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5))),
+              child: AppSpinner.inline()),
         )
       else if (_lastQuery.length >= 2 && _results.isEmpty)
         Padding(

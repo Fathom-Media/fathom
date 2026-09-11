@@ -25,6 +25,8 @@ import '../widgets/youtube_actions.dart';
 import '../widgets/youtube_skeletons.dart';
 import '../l10n/generated/app_localizations.dart';
 import 'youtube_player_screen.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 /// The watch page: the player, what you're watching, who made it, and where to
 /// go next. Related videos sit beside the player on wide windows and below it
@@ -997,7 +999,7 @@ class _Comments extends ConsumerWidget {
     return async.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: AppSpinner()),
       ),
       // Comments failing shouldn't shout; the video is the point.
       error: (e, _) => const SizedBox.shrink(),
@@ -1027,11 +1029,7 @@ class _Comments extends ConsumerWidget {
                   child: page.loadingMore
                       ? const Padding(
                           padding: EdgeInsets.all(8),
-                          child: SizedBox(
-                              height: 20,
-                              width: 20,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2)),
+                          child: AppSpinner.inline(),
                         )
                       : TextButton.icon(
                           onPressed: () => ref
@@ -1198,10 +1196,7 @@ class _CommentRowState extends ConsumerState<_CommentRow> {
       child: async.when(
         loading: () => const Padding(
           padding: EdgeInsets.symmetric(vertical: 8),
-          child: SizedBox(
-              height: 18,
-              width: 18,
-              child: CircularProgressIndicator(strokeWidth: 2)),
+          child: AppSpinner.inline(),
         ),
         error: (_, _) => Text(AppLocalizations.of(context).ytCouldNotLoadReplies,
             style: theme.textTheme.bodySmall

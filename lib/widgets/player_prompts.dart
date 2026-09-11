@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import 'tv_focus.dart';
+import 'app_spinner.dart';
 
 /// Fades its child in once on mount via an explicit controller — robust to
 /// parent rebuilds (the exo screen rebuilds every position tick, which reset an
@@ -287,12 +288,7 @@ class UpNextPrompt extends StatelessWidget {
                       tween: Tween<double>(
                           end: (remaining! / total).clamp(0.0, 1.0)),
                       builder: (_, v, _) => SizedBox.expand(
-                        child: CircularProgressIndicator(
-                          value: v,
-                          strokeWidth: 3.5 * s,
-                          color: cs.primary,
-                          backgroundColor: Colors.white24,
-                        ),
+                        child: AppSpinner.inline(value: v, color: cs.primary),
                       ),
                     ),
                     Text('$remaining',

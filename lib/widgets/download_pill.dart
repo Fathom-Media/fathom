@@ -7,6 +7,7 @@ import '../models/youtube_download.dart';
 import '../services/tv_mode.dart';
 import '../state/downloads.dart';
 import '../state/youtube_providers.dart';
+import 'app_spinner.dart';
 
 /// Floating pills for downloads in flight: one for Jellyfin media, one for
 /// YouTube, stacked bottom-center so both can show at once without
@@ -108,15 +109,8 @@ class _Pill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 2.6,
-                  color: scheme.onPrimaryContainer,
-                ),
-              ),
+              AppSpinner.inline(
+                  value: progress, color: scheme.onPrimaryContainer),
               const SizedBox(width: 12),
               Text(
                 label,

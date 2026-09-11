@@ -16,6 +16,7 @@ import '../models/youtube_playlist.dart';
 import '../services/youtube_innertube.dart';
 import '../services/tv_mode.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../widgets/app_spinner.dart';
 
 /// A YouTube channel page: banner + avatar header, a subscribe toggle, and the
 /// channel's content split by tab.
@@ -74,7 +75,7 @@ class _YoutubeChannelScreenState extends ConsumerState<YoutubeChannelScreen> {
               child: probe.when(
                 loading: () => const SizedBox(
                   height: 140,
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: AppSpinner()),
                 ),
                 error: (e, _) => Padding(
                   padding: const EdgeInsets.all(16),

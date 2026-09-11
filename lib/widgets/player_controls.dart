@@ -14,6 +14,7 @@ import 'animated_control.dart';
 import 'glass.dart';
 import 'playback_stats.dart';
 import 'trickplay_thumb.dart';
+import 'app_spinner.dart';
 
 /// Fathom's own auto-hiding player chrome: a cinematic top bar, a centered
 /// transport with 10s-back / 30s-forward skips, and a bottom bar with a custom
@@ -601,7 +602,7 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const CircularProgressIndicator(),
+                      const AppSpinner(),
                       const SizedBox(height: 16),
                       Text(widget.isLive ? l.playerTuningIn : l.playerLoading,
                           style: const TextStyle(color: Colors.white70)),

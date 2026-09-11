@@ -219,7 +219,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
     if (_loading) {
       return Scaffold(
         appBar: AppBar(title: Text(_name.isEmpty ? l.adminUser : _name)),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: AppSpinner()),
       );
     }
     if (_error != null) {
@@ -237,10 +237,7 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
             TextButton(
               onPressed: _saving ? null : _save,
               child: _saving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                  ? AppSpinner.inline()
                   : Text(l.commonSave),
             ),
           ],

@@ -812,7 +812,7 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
             ExcludeFocus(child: ExoVideo(controller: _controller)),
             if (busy)
               const Center(
-                  child: CircularProgressIndicator(color: Colors.white)),
+                  child: AppSpinner(color: Colors.white)),
             if (_flashIcon != null)
               Center(
                 child: Container(

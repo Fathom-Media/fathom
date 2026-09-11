@@ -161,7 +161,7 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
 
   Widget _directoryResults(AppLocalizations l) {
     if (_searching) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: AppSpinner());
     }
     if (_searchCtrl.text.trim().isEmpty) {
       return EmptyState(

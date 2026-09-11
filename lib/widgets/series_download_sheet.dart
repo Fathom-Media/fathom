@@ -5,6 +5,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
 import '../state/downloads.dart';
 import '../state/library_providers.dart';
+import 'app_spinner.dart';
 
 /// Opens the download-scope picker for a [series]: Download All, or a single
 /// season. Resolves the episodes first (cached by [episodesProvider]) and groups
@@ -89,11 +90,7 @@ class _SeriesDownloadSheet extends ConsumerWidget {
         trailing = Icon(Icons.download_done_rounded,
             color: Theme.of(context).colorScheme.primary);
       } else if (downloading > 0) {
-        trailing = const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2.5),
-        );
+        trailing = AppSpinner.inline();
       } else {
         trailing = const Icon(Icons.download_rounded);
       }

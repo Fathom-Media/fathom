@@ -109,7 +109,7 @@ class PreferencesScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: prefsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppSpinner()),
         error: (e, _) => Center(child: Text('$e')),
         data: (p) => ListView(
           padding: const EdgeInsets.symmetric(vertical: 8),

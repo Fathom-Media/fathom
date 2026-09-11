@@ -1662,7 +1662,7 @@ class _Results extends ConsumerWidget {
             if (i >= rows.length) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppSpinner()),
               );
             }
             return rows[i];

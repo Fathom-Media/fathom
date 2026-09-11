@@ -16,6 +16,7 @@ import '../state/session_controller.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/tv_keyboard.dart';
+import '../widgets/app_spinner.dart';
 
 /// Step 2 of sign-in: authenticate against the connected server.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -236,11 +237,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     focusNode: node,
                     onPressed: _loading ? null : _signIn,
                     child: _loading
-                        ? const SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          )
+                        ? AppSpinner.inline()
                         : Text(l.commonSignIn),
                   ),
                 ),
@@ -265,11 +262,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     focusNode: node,
                     onPressed: (_loading || _qcLoading) ? null : _quickConnect,
                     icon: _qcLoading
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          )
+                        ? AppSpinner.inline()
                         : const Icon(Icons.qr_code_2_rounded),
                     label: Text(l.appUseQuickConnect),
                     style: OutlinedButton.styleFrom(
@@ -374,10 +367,7 @@ class _QuickConnectDialogState extends ConsumerState<_QuickConnectDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2)),
+                AppSpinner.inline(),
                 const SizedBox(width: 12),
                 Text(l.appWaitingForApproval,
                     style: theme.textTheme.bodySmall),

@@ -12,6 +12,7 @@ import 'context_menu.dart';
 import 'tv_focus.dart';
 import 'youtube_actions.dart';
 import 'youtube_cards.dart';
+import 'app_spinner.dart';
 
 /// Videos as a list or a grid, following the YouTube list-mode setting.
 ///
@@ -55,7 +56,7 @@ class YoutubeVideoCollection extends ConsumerWidget {
         itemBuilder: (_, i) => i >= videos.length
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppSpinner()),
               )
             : YoutubeVideoRow(
                 video: videos[i],
@@ -79,7 +80,7 @@ class YoutubeVideoCollection extends ConsumerWidget {
         ),
         itemCount: count,
         itemBuilder: (_, i) => i >= videos.length
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: AppSpinner())
             : YoutubeVideoCard(
                 video: videos[i],
                 showAuthor: showAuthor,

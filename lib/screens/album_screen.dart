@@ -12,6 +12,8 @@ import '../widgets/equalizer_bars.dart';
 import '../widgets/media_image.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/hover_pill_button.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 /// Album detail: cover, artist, a play button, and the track list. Rendered by
 /// DetailScreen when the item is a MusicAlbum online; in [downloadScoped] mode
@@ -151,7 +153,7 @@ class AlbumView extends ConsumerWidget {
             loading: () => const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppSpinner()),
               ),
             ),
             error: (e, _) => SliverToBoxAdapter(
@@ -320,12 +322,7 @@ class AlbumView extends ConsumerWidget {
         icon: Icons.download_rounded,
         label: l.detailDownloading,
         onTap: null,
-        iconWidget: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-              value: progress > 0 ? progress : null, strokeWidth: 2.5),
-        ),
+        iconWidget: AppSpinner.inline(value: progress > 0 ? progress : null),
       );
     }
     if (done >= trackCount && trackCount > 0) {
@@ -333,22 +330,11 @@ class AlbumView extends ConsumerWidget {
         icon: Icons.download_done_rounded,
         label: l.detailDownloaded,
         onTap: () async {
-          final ok = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: Text(l.detailRemoveDownload),
-              content: Text(l.detailRemoveOfflineCopy(album.name)),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: Text(l.commonCancel)),
-                FilledButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: Text(l.commonRemove)),
-              ],
-            ),
-          );
-          if (ok == true) {
+          final ok = await confirm(context,
+              title: l.detailRemoveDownload,
+              message: l.detailRemoveOfflineCopy(album.name),
+              confirmLabel: l.commonRemove);
+          if (ok) {
             await ref.read(downloadsProvider.notifier).deleteSeries(album.id);
           }
         },

@@ -236,7 +236,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           if (_busy)
             const Padding(
               padding: EdgeInsets.only(top: 16),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: AppSpinner()),
             ),
         ],
       ),

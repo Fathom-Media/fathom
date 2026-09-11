@@ -1680,10 +1680,7 @@ class _QuickConnectAuthorizeDialogState
         FilledButton(
           onPressed: _busy ? null : _authorize,
           child: _busy
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2.5))
+              ? AppSpinner.inline()
               : Text(l.miscApprove),
         ),
       ],

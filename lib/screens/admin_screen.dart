@@ -159,7 +159,7 @@ Widget _async(
   Widget Function(List<Map<String, dynamic>>) builder,
 ) {
   return async.when(
-    loading: () => const Center(child: CircularProgressIndicator()),
+    loading: () => const Center(child: AppSpinner()),
     error: (e, _) => ErrorView(message: '$e'),
     data: (list) => list.isEmpty
         ? Center(child: Text(AppLocalizations.of(context).adminNothingHere))

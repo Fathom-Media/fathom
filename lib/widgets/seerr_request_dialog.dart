@@ -229,7 +229,7 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
         child: _loading
             ? const SizedBox(
                 height: 220,
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppSpinner()),
               )
             : Column(
                 mainAxisSize: MainAxisSize.min,
@@ -650,10 +650,7 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
               style: kInlineButtonStyle,
               onPressed: canSubmit ? _submit : null,
               icon: _busy
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                  ? AppSpinner.inline()
                   : const Icon(Icons.download_rounded, size: 18),
               label: Text(label),
             ),

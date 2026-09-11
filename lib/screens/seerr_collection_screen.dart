@@ -6,6 +6,7 @@ import '../widgets/cached_image.dart';
 import '../widgets/error_view.dart';
 import '../widgets/motion.dart';
 import '../widgets/seerr_poster_card.dart';
+import '../widgets/app_spinner.dart';
 
 /// A movie collection (franchise): backdrop + overview, then its titles.
 class SeerrCollectionScreen extends ConsumerWidget {
@@ -18,7 +19,7 @@ class SeerrCollectionScreen extends ConsumerWidget {
     final async = ref.watch(seerrCollectionProvider(collectionId));
     return Scaffold(
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppSpinner()),
         error: (e, _) => SafeArea(
           child: Column(
             children: [

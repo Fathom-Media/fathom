@@ -134,7 +134,7 @@ class _SyncPlayScreenState extends ConsumerState<SyncPlayScreen> {
     } else if (groups.isLoading) {
       children.add(const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: AppSpinner()),
       ));
     } else if (groups.hasError) {
       children.add(_InlineError(

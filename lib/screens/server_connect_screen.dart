@@ -12,6 +12,7 @@ import '../widgets/app_logo.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/tv_keyboard.dart';
+import '../widgets/app_spinner.dart';
 
 /// Step 1 of sign-in: enter a server address and validate it's a live
 /// Jellyfin server before asking for credentials.
@@ -139,11 +140,7 @@ class _ServerConnectScreenState extends ConsumerState<ServerConnectScreen> {
                     focusNode: node,
                     onPressed: _loading ? null : _connect,
                     child: _loading
-                        ? const SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          )
+                        ? AppSpinner.inline()
                         : Text(l.appConnect),
                   ),
                 ),
@@ -154,11 +151,7 @@ class _ServerConnectScreenState extends ConsumerState<ServerConnectScreen> {
                     onPressed:
                         (_loading || _scanning) ? null : _scan,
                     icon: _scanning
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2.5),
-                          )
+                        ? AppSpinner.inline()
                         : const Icon(Icons.wifi_find_rounded),
                     label: Text(
                         _scanning ? l.appScanningServers : l.appFindServers),

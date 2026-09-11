@@ -135,7 +135,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
         ],
       ),
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppSpinner()),
         error: (e, _) => ErrorView(message: '$e'),
         data: (items) {
           if (items.isEmpty) {

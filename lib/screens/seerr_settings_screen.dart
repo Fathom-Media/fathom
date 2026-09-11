@@ -253,10 +253,7 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
     );
   }
 
-  Widget _spinner() => const SizedBox(
-      width: 20,
-      height: 20,
-      child: CircularProgressIndicator(strokeWidth: 2.5));
+  Widget _spinner() => AppSpinner.inline();
 }
 
 /// A sign-in method choice, branded with the provider's logo tinted to the

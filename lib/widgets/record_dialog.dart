@@ -127,7 +127,7 @@ class _RecordDialogState extends ConsumerState<_RecordDialog> {
               style: TextStyle(color: Theme.of(context).colorScheme.error))
           : _defaults == null
               ? const SizedBox(
-                  height: 60, child: Center(child: CircularProgressIndicator()))
+                  height: 60, child: Center(child: AppSpinner()))
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,10 +166,7 @@ class _RecordDialogState extends ConsumerState<_RecordDialog> {
           onPressed:
               (_busy || _defaults == null) ? null : () => _record(series: false),
           child: _busy
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2.5))
+              ? AppSpinner.inline()
               : Text(l.playerRecord),
         ),
       ],

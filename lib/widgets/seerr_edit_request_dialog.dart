@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import 'app_snack.dart';
 import 'cached_image.dart';
 import 'seerr_avatar.dart';
+import 'app_spinner.dart';
 
 /// Edit a pending request's advanced options (quality profile, root folder,
 /// language profile), matching Jellyseerr's request edit. Returns true on save.
@@ -234,7 +235,7 @@ class _EditRequestDialogState extends ConsumerState<_EditRequestDialog> {
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 28),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: AppSpinner()),
       );
     }
     if (noOptions) {
@@ -301,10 +302,7 @@ class _EditRequestDialogState extends ConsumerState<_EditRequestDialog> {
               style: kInlineButtonStyle,
               onPressed: _busy || _loading ? null : _save,
               child: _busy
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                  ? AppSpinner.inline()
                   : Text(l.commonSave),
             ),
           ],

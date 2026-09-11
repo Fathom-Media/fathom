@@ -16,6 +16,7 @@ import '../widgets/media_image.dart';
 import '../widgets/motion.dart';
 import '../widgets/shimmer.dart';
 import '../widgets/tv_focus.dart';
+import '../widgets/app_spinner.dart';
 
 /// Full contents of one library, as a paged poster grid with infinite scroll.
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -227,10 +228,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             if (!_genresLoaded)
               const Padding(
                 padding: EdgeInsets.all(12),
-                child: SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2)),
+                child: AppSpinner.inline(),
               )
             else if (_genres.isNotEmpty) ...[
               const SizedBox(height: 10),

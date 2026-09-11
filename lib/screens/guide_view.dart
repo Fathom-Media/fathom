@@ -13,6 +13,7 @@ import '../state/library_providers.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/media_image.dart';
+import '../widgets/app_spinner.dart';
 
 // The floor; the guide stretches wider than this when the window is short
 // enough to leave empty space on a wide screen.
@@ -100,7 +101,7 @@ class _GuideViewState extends ConsumerState<GuideView> {
   Widget build(BuildContext context) {
     final guide = ref.watch(guideProvider);
     return guide.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: AppSpinner()),
       error: (e, _) => ErrorView(message: '$e'),
       data: (data) {
         if (data.channels.isEmpty) {
@@ -194,12 +195,7 @@ class _GuideViewState extends ConsumerState<GuideView> {
                                 top: 0,
                                 bottom: 0,
                                 child: Center(
-                                  child: SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2),
-                                  ),
+                                  child: AppSpinner.inline(),
                                 ),
                               ),
                           ],

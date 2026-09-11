@@ -14,6 +14,8 @@ import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
 import 'album_screen.dart';
 import 'detail_screen.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 /// Offline downloads. A segmented control switches between the downloaded
 /// library (posters, Movies + TV Shows) and the in-progress queue; the queue
@@ -59,7 +61,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         ],
       ),
       body: downloads.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppSpinner()),
         error: (e, _) => ErrorView(message: '$e'),
         data: (map) {
           if (map.isEmpty) {

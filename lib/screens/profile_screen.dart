@@ -199,10 +199,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 FilledButton(
                   onPressed: submitting ? null : submit,
                   child: submitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                      ? AppSpinner.inline()
                       : Text(l.commonSave),
                 ),
               ],
@@ -296,7 +293,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 28),
             if (_busy)
-              const CircularProgressIndicator()
+              const AppSpinner()
             else ...[
               FilledButton.icon(
                 onPressed: _changePhoto,

@@ -127,7 +127,7 @@ class _AddToPlaylistSheet extends ConsumerWidget {
               child: playlists.when(
                 loading: () => const Padding(
                   padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: AppSpinner()),
                 ),
                 error: (e, _) => Padding(
                   padding: const EdgeInsets.all(16),

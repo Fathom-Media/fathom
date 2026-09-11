@@ -115,10 +115,7 @@ class CastButton extends ConsumerWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2.5)),
+                        AppSpinner.inline(),
                         const SizedBox(width: 14),
                         Text(l.castSearching),
                       ],

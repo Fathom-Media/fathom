@@ -1035,15 +1035,9 @@ class _DownloadButton extends ConsumerWidget {
           tooltip: l.detailDownloadingTooltip,
           label: l.detailDownloading,
           onTap: null,
-          iconOverride: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
+          iconOverride: AppSpinner.inline(
               value: entry.progress > 0 ? entry.progress : null,
-              strokeWidth: 2.5,
-              color: header ? Colors.white : null,
-            ),
-          ),
+              color: header ? Colors.white : null),
         );
       case DownloadStatus.complete:
         return _btn(
@@ -1125,15 +1119,9 @@ class _DownloadButton extends ConsumerWidget {
         tooltip: l.detailDownloadingTooltip,
         label: l.detailDownloading,
         onTap: null,
-        iconOverride: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
+        iconOverride: AppSpinner.inline(
             value: progress > 0 ? progress : null,
-            strokeWidth: 2.5,
-            color: header ? Colors.white : null,
-          ),
-        ),
+            color: header ? Colors.white : null),
       );
     }
     return downloadBtn();
@@ -1142,24 +1130,11 @@ class _DownloadButton extends ConsumerWidget {
   Future<void> _confirmDeleteSeries(
       BuildContext context, WidgetRef ref, List<BaseItemDto> episodes) async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.detailRemoveDownload),
-        content: Text(l.detailRemoveOfflineCopy(item.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l.commonRemove),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    final ok = await confirm(context,
+        title: l.detailRemoveDownload,
+        message: l.detailRemoveOfflineCopy(item.name),
+        confirmLabel: l.commonRemove);
+    if (!ok) return;
     final notifier = ref.read(downloadsProvider.notifier);
     for (final e in episodes) {
       await notifier.delete(e.id);
