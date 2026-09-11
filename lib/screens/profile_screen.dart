@@ -133,27 +133,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 return;
               }
               if (newCtrl.text.isEmpty) {
-                final confirmed = await showDialog<bool>(
-                  context: ctx,
-                  builder: (wctx) => AlertDialog(
-                    title: Text(l.profileNoPasswordTitle),
-                    content: Text(l.profileNoPasswordBody),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(wctx, false),
-                        child: Text(l.commonCancel),
-                      ),
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(wctx).colorScheme.error),
-                        onPressed: () => Navigator.pop(wctx, true),
-                        child: Text(l.profileNoPasswordConfirm),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed != true) return;
+                final confirmed = await confirm(ctx,
+                    title: l.profileNoPasswordTitle,
+                    message: l.profileNoPasswordBody,
+                    confirmLabel: l.profileNoPasswordConfirm,
+                    destructive: true);
+                if (!confirmed) return;
               }
               setSt(() {
                 submitting = true;

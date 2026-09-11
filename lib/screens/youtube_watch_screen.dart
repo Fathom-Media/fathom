@@ -888,32 +888,17 @@ class _QueueSheet extends ConsumerWidget {
                     onPressed: queue.isEmpty
                         ? null
                         : () async {
-                            final confirm = ref
+                            final needsConfirm = ref
                                     .read(preferencesProvider)
                                     .asData
                                     ?.value
                                     .youtubeConfirmClearQueue ??
                                 true;
-                            if (confirm) {
-                              final ok = await showDialog<bool>(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      title: Text(l.ytClearQueueTitle),
-                                      content: Text(
-                                          l.ytClearQueueConfirm(queue.length)),
-                                      actions: [
-                                        TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, false),
-                                            child: Text(l.commonCancel)),
-                                        FilledButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, true),
-                                            child: Text(l.commonClear)),
-                                      ],
-                                    ),
-                                  ) ??
-                                  false;
+                            if (needsConfirm) {
+                              final ok = await confirm(context,
+                                  title: l.ytClearQueueTitle,
+                                  message: l.ytClearQueueConfirm(queue.length),
+                                  confirmLabel: l.commonClear);
                               if (!ok) return;
                             }
                             notifier.clear();

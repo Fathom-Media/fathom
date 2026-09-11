@@ -1676,27 +1676,12 @@ class _RequestTile extends ConsumerWidget {
   Future<bool> _confirm(BuildContext context, String title, String action,
       {bool destructive = true}) async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(title),
-        content: Text(l.browseConfirmUndone(action)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-            style: destructive
-                ? FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error)
-                : null,
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(action),
-          ),
-        ],
-      ),
-    );
-    return ok ?? false;
+    final ok = await confirm(context,
+        title: title,
+        message: l.browseConfirmUndone(action),
+        confirmLabel: action,
+        destructive: true);
+    return ok;
   }
 
   Future<void> _act(BuildContext context, WidgetRef ref, String action) async {

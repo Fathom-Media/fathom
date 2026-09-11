@@ -337,22 +337,11 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
 
   Future<void> _deleteGroup(String group) async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.radioDeleteGroup),
-        content: Text(l.radioDeleteGroupBody(group)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonRemove)),
-        ],
-      ),
-    );
-    if (ok == true) {
+    final ok = await confirm(context,
+        title: l.radioDeleteGroup,
+        message: l.radioDeleteGroupBody(group),
+        confirmLabel: l.commonRemove);
+    if (ok) {
       await ref.read(radioControllerProvider.notifier).deleteGroup(group);
     }
   }

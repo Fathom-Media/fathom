@@ -1280,22 +1280,10 @@ class _YoutubeClearData extends ConsumerWidget {
 
   Future<bool> _confirm(BuildContext context, String what) async {
     final l = AppLocalizations.of(context);
-    return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(l.prefsClearConfirmTitle(what)),
-            content: Text(l.prefsClearCannotUndo),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: Text(l.commonCancel)),
-              FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: Text(l.commonClear)),
-            ],
-          ),
-        ) ??
-        false;
+    return await confirm(context,
+        title: l.prefsClearConfirmTitle(what),
+        message: l.prefsClearCannotUndo,
+        confirmLabel: l.commonClear);
   }
 
   @override

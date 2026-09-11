@@ -274,28 +274,12 @@ Future<void> _confirmAndDelete(
   final l = AppLocalizations.of(context);
   final s = container.read(sessionControllerProvider).asData?.value;
   if (s == null) return;
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (dctx) => AlertDialog(
-      title: Text(l.detailDeleteItem),
-      content: Text(l.detailDeleteConfirm(item.name)),
-      actions: [
-        TextButton(
-          autofocus: true,
-          onPressed: () => Navigator.pop(dctx, false),
-          child: Text(l.commonCancel),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(dctx).colorScheme.error,
-          ),
-          onPressed: () => Navigator.pop(dctx, true),
-          child: Text(l.commonDelete),
-        ),
-      ],
-    ),
-  );
-  if (ok != true) return;
+  final ok = await confirm(context,
+      title: l.detailDeleteItem,
+      message: l.detailDeleteConfirm(item.name),
+      confirmLabel: l.commonDelete,
+      destructive: true);
+  if (!ok) return;
   try {
     await container.read(jellyfinClientProvider).deleteItem(
           baseUrl: s.baseUrl,

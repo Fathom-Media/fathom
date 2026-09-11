@@ -110,24 +110,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   Future<void> _confirmCancelAll(
       BuildContext context, DownloadsController controller) async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.downloadsCancelAll),
-        content: Text(l.downloadsCancelAllConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l.downloadsCancelAll),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) await controller.cancelActive();
+    final ok = await confirm(context,
+        title: l.downloadsCancelAll,
+        message: l.downloadsCancelAllConfirm,
+        confirmLabel: l.downloadsCancelAll);
+    if (ok) await controller.cancelActive();
   }
 }
 
@@ -371,24 +358,11 @@ class _DownloadedLibrary extends ConsumerWidget {
         label: l.detailRemoveDownload,
         color: cs.error,
         onTap: () async {
-          final ok = await showDialog<bool>(
-            context: context,
-            builder: (dctx) => AlertDialog(
-              title: Text(l.detailRemoveDownload),
-              content: Text(l.detailRemoveOfflineCopy(name)),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dctx, false),
-                  child: Text(l.commonCancel),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(dctx, true),
-                  child: Text(l.commonRemove),
-                ),
-              ],
-            ),
-          );
-          if (ok == true) {
+          final ok = await confirm(context,
+              title: l.detailRemoveDownload,
+              message: l.detailRemoveOfflineCopy(name),
+              confirmLabel: l.commonRemove);
+          if (ok) {
             await ref.read(downloadsProvider.notifier).deleteSeries(seriesId);
           }
         },

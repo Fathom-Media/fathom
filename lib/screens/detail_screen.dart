@@ -1058,24 +1058,11 @@ class _DownloadButton extends ConsumerWidget {
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.detailRemoveDownload),
-        content: Text(l.detailRemoveOfflineCopy(item.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l.commonRemove),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) ref.read(downloadsProvider.notifier).delete(item.id);
+    final ok = await confirm(context,
+        title: l.detailRemoveDownload,
+        message: l.detailRemoveOfflineCopy(item.name),
+        confirmLabel: l.commonRemove);
+    if (ok) ref.read(downloadsProvider.notifier).delete(item.id);
   }
 
   /// The series-level download button. It has no file of its own, so its state
@@ -1334,22 +1321,11 @@ class _ItemMenu extends ConsumerWidget {
   Future<void> _removeDownload(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
     final ctrl = ref.read(downloadsProvider.notifier);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.detailRemoveDownload),
-        content: Text(l.detailRemoveOfflineCopy(item.name)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonRemove)),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    final confirmed = await confirm(context,
+        title: l.detailRemoveDownload,
+        message: l.detailRemoveOfflineCopy(item.name),
+        confirmLabel: l.commonRemove);
+    if (!confirmed) return;
     if (item.isSeries) {
       await ctrl.deleteSeries(item.id);
     } else {

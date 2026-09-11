@@ -804,21 +804,10 @@ class _DownloadsTabState extends ConsumerState<_DownloadsTab> {
 
   Future<void> _deleteSelected() async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.ytDeleteSelectedTitle(_selected.length)),
-        content: Text(l.ytDeleteSelectedConfirm),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonDelete)),
-        ],
-      ),
-    );
+    final ok = await confirm(context,
+        title: l.ytDeleteSelectedTitle(_selected.length),
+        message: l.ytDeleteSelectedConfirm,
+        confirmLabel: l.commonDelete);
     if (ok != true || !mounted) return;
     final n = ref.read(youtubeDownloadsProvider.notifier);
     final ids = _selected.toList();
@@ -1170,22 +1159,11 @@ class _HistoryTab extends ConsumerWidget {
 
   Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.ytClearHistory),
-        content: Text(l.ytClearHistoryConfirm),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonClear)),
-        ],
-      ),
-    );
-    if (ok == true) await ref.read(youtubeHistoryProvider.notifier).clear();
+    final ok = await confirm(context,
+        title: l.ytClearHistory,
+        message: l.ytClearHistoryConfirm,
+        confirmLabel: l.commonClear);
+    if (ok) await ref.read(youtubeHistoryProvider.notifier).clear();
   }
 }
 
