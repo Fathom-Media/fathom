@@ -32,6 +32,9 @@ import '../services/youtube_search_params.dart';
 import '../services/youtube_download.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 /// The YouTube section: subscribed channels, what they've posted, and search.
 class YoutubeScreen extends ConsumerWidget {
@@ -112,19 +115,15 @@ class _SubscriptionsTab extends ConsumerWidget {
       parsed = const [];
     }
     if (parsed.isEmpty) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(l.ytImportNotFound),
-      ));
+      showSnackOn(messenger, l.ytImportNotFound);
       return;
     }
     final added = await ref
         .read(youtubeSubscriptionsProvider.notifier)
         .importAll(parsed);
-    messenger.showSnackBar(SnackBar(
-      content: Text(added == 0
+    showSnackOn(messenger, added == 0
           ? l.ytAlreadySubscribedAll(parsed.length)
-          : l.ytAddedOfTotal(added, parsed.length)),
-    ));
+          : l.ytAddedOfTotal(added, parsed.length), kind: SnackKind.success);
   }
 
   /// Writes NewPipe's format, so these can be taken elsewhere.
@@ -140,8 +139,8 @@ class _SubscriptionsTab extends ConsumerWidget {
       bytes: utf8.encode(SubscriptionTransfer.exportNewPipeJson(subs)),
     );
     if (path == null) return;
-    messenger.showSnackBar(
-        SnackBar(content: Text(l.ytExportedSubscriptions(subs.length))));
+    showSnackOn(messenger, l.ytExportedSubscriptions(subs.length),
+        kind: SnackKind.success);
   }
 
   @override

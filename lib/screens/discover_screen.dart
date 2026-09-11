@@ -432,7 +432,7 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
       };
       if (mounted) showSnack(context, done, kind: SnackKind.success);
     } catch (e) {
-      if (mounted) showSnack(context, '$e', kind: SnackKind.error);
+      if (mounted) showError(context, e);
     }
   }
 
@@ -1760,7 +1760,7 @@ class _RequestTile extends ConsumerWidget {
       };
       if (context.mounted) showSnack(context, done, kind: SnackKind.success);
     } catch (e) {
-      if (context.mounted) showSnack(context, '$e', kind: SnackKind.error);
+      if (context.mounted) showError(context, e);
     }
   }
 

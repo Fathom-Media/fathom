@@ -8,6 +8,9 @@ import '../state/admin_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/tv_keyboard.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 typedef _Toggle = (String key, String label, String subtitle);
 
@@ -135,9 +138,9 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
           userId: widget.userId,
           policy: _policy);
       ref.invalidate(adminUsersProvider);
-      messenger.showSnackBar(SnackBar(content: Text(l.adminSaved)));
+      showSnackOn(messenger, l.adminSaved, kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -177,9 +180,9 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
           token: c.session.accessToken,
           userId: widget.userId,
           newPassword: newPw.isEmpty ? null : newPw);
-      messenger.showSnackBar(SnackBar(content: Text(l.adminPasswordUpdated)));
+      showSnackOn(messenger, l.adminPasswordUpdated, kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 
@@ -188,25 +191,12 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
     if (c == null) return;
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.adminDeleteUser),
-        content: Text(l.adminDeleteUserConfirm(_name)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l.commonDelete),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    final ok = await confirm(context,
+        title: l.adminDeleteUser,
+        message: l.adminDeleteUserConfirm(_name),
+        confirmLabel: l.commonDelete,
+        destructive: true);
+    if (!ok) return;
     try {
       await c.client.deleteUser(
           baseUrl: c.session.baseUrl,
@@ -215,10 +205,11 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
       ref.invalidate(adminUsersProvider);
       if (mounted) {
         context.pop();
-        messenger.showSnackBar(SnackBar(content: Text(l.adminDeletedUser(_name))));
+        showSnackOn(messenger, l.adminDeletedUser(_name),
+            kind: SnackKind.success);
       }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 

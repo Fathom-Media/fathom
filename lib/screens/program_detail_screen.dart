@@ -11,6 +11,8 @@ import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/record_dialog.dart';
+import '../widgets/app_snack.dart';
+import '../api/jellyfin_client.dart';
 
 typedef ProgramArgs = ({BaseItemDto channel, BaseItemDto program, bool isNow});
 
@@ -49,12 +51,11 @@ class ProgramDetailScreen extends ConsumerWidget {
       ref.invalidate(guideProvider);
       ref.invalidate(recordingsProvider);
       if (context.mounted) {
-        messenger.showSnackBar(
-            SnackBar(content: Text(l.detailRecordingCanceled)));
+        showSnackOn(messenger, l.detailRecordingCanceled);
         context.pop();
       }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 

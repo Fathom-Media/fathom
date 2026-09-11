@@ -17,6 +17,9 @@ import '../widgets/reorder.dart';
 import '../widgets/search_field.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/tv_keyboard.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 /// Internet radio: your saved stations (favorites first, then by group), a
 /// radio-browser.info directory search to discover and add stations, and
@@ -185,8 +188,8 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
                   onPressed: () async {
                     await ref.read(radioControllerProvider.notifier).add(s);
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(l.radioAdded(s.name))));
+                      showSnack(context, l.radioAdded(s.name),
+                          kind: SnackKind.success);
                     }
                   },
                 ),
@@ -514,8 +517,7 @@ class _RadioScreenState extends ConsumerState<RadioScreen> {
     } else if (chosen == 'add') {
       await ref.read(radioControllerProvider.notifier).add(s);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(l.radioAdded(s.name))));
+        showSnack(context, l.radioAdded(s.name), kind: SnackKind.success);
       }
     } else {
       await _onAction(chosen, s);

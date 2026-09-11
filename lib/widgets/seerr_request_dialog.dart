@@ -10,6 +10,8 @@ import '../state/seerr_providers.dart';
 import '../theme/app_theme.dart';
 import 'cached_image.dart';
 import 'seerr_avatar.dart';
+import 'app_snack.dart';
+import 'app_spinner.dart';
 
 /// Jellyseerr's request flow: a backdrop header, a per-season table for a
 /// series, and the advanced options (4K, server, quality/language profile,
@@ -205,10 +207,10 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
         tags: _selectedTags.toList(),
       );
       if (mounted) Navigator.pop(context, true);
-      messenger.showSnackBar(SnackBar(
-          content: Text(l.detailRequestedTitle(widget.result.title))));
+      showSnackOn(messenger, l.detailRequestedTitle(widget.result.title),
+          kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
       if (mounted) setState(() => _busy = false);
     }
   }

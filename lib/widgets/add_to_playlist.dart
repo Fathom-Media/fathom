@@ -6,6 +6,9 @@ import '../state/playlist_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import 'tv_keyboard.dart';
+import 'app_snack.dart';
+import 'app_spinner.dart';
+import '../api/jellyfin_client.dart';
 
 /// Shows a sheet to add [itemIds] to an existing playlist or a new one.
 Future<void> showAddToPlaylistSheet(
@@ -45,10 +48,10 @@ class _AddToPlaylistSheet extends ConsumerWidget {
       ref.invalidate(playlistsProvider);
       ref.invalidate(playlistItemsProvider(playlistId));
       if (context.mounted) Navigator.pop(context);
-      messenger.showSnackBar(
-          SnackBar(content: Text(l.appAddedToNamed(playlistName))));
+      showSnackOn(messenger, l.appAddedToNamed(playlistName),
+          kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 
@@ -88,9 +91,9 @@ class _AddToPlaylistSheet extends ConsumerWidget {
           );
       ref.invalidate(playlistsProvider);
       if (context.mounted) Navigator.pop(context);
-      messenger.showSnackBar(SnackBar(content: Text(l.appCreatedNamed(name))));
+      showSnackOn(messenger, l.appCreatedNamed(name), kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 

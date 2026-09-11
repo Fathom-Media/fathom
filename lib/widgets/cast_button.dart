@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../state/cast.dart';
 import 'hover_pill_button.dart';
+import 'app_snack.dart';
+import 'app_spinner.dart';
 
 /// A cast icon that opens a Chromecast device picker and casts the media
 /// resolved by [mediaUrl] (lazily, at tap time, so a live-updating stream URL is
@@ -154,8 +156,8 @@ class CastButton extends ConsumerWidget {
                               if (queueResolve != null) {
                                 final q = await queueResolve!();
                                 if (q == null) {
-                                  messenger.showSnackBar(
-                                      SnackBar(content: Text(l.castFailed)));
+                                  showSnackOn(messenger, l.castFailed,
+                                      kind: SnackKind.error);
                                   return;
                                 }
                                 await ctrl.selectDevice(d.id, name: d.name);
@@ -168,8 +170,8 @@ class CastButton extends ConsumerWidget {
                               }
                               final media = await resolve!();
                               if (media == null) {
-                                messenger.showSnackBar(
-                                    SnackBar(content: Text(l.castFailed)));
+                                showSnackOn(messenger, l.castFailed,
+                                    kind: SnackKind.error);
                                 return;
                               }
                               await ctrl.selectDevice(d.id, name: d.name);

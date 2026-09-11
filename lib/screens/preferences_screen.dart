@@ -19,6 +19,8 @@ import '../widgets/ui_common.dart';
 import '../state/youtube_providers.dart';
 import '../services/youtube_download.dart';
 import '../services/sponsorblock.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
 
 Map<String, String> _languages(AppLocalizations l) => {
       '': l.prefsLanguageServerDefault,
@@ -1319,8 +1321,8 @@ class _YoutubeClearData extends ConsumerWidget {
               : () async {
                   if (!await _confirm(context, l.prefsWhatWatchHistory)) return;
                   await ref.read(youtubeHistoryProvider.notifier).clear();
-                  messenger.showSnackBar(
-                      SnackBar(content: Text(l.prefsWatchHistoryCleared)));
+                  showSnackOn(messenger, l.prefsWatchHistoryCleared,
+                      kind: SnackKind.success);
                 },
         ),
         ListTile(
@@ -1337,8 +1339,8 @@ class _YoutubeClearData extends ConsumerWidget {
                     return;
                   }
                   await ref.read(youtubeSearchHistoryProvider.notifier).clear();
-                  messenger.showSnackBar(
-                      SnackBar(content: Text(l.prefsSearchHistoryCleared)));
+                  showSnackOn(messenger, l.prefsSearchHistoryCleared,
+                      kind: SnackKind.success);
                 },
         ),
       ],

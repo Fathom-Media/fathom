@@ -14,6 +14,8 @@ import '../widgets/media_cards.dart';
 import '../widgets/motion.dart';
 import '../widgets/shimmer.dart';
 import '../widgets/tv_keyboard.dart';
+import '../widgets/app_snack.dart';
+import '../api/jellyfin_client.dart';
 
 /// Lists the user's playlists and lets them create a new (empty) one.
 class PlaylistsScreen extends ConsumerWidget {
@@ -53,9 +55,9 @@ class PlaylistsScreen extends ConsumerWidget {
             name: name,
           );
       ref.invalidate(playlistsProvider);
-      messenger.showSnackBar(SnackBar(content: Text(l.appCreatedNamed(name))));
+      showSnackOn(messenger, l.appCreatedNamed(name), kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 

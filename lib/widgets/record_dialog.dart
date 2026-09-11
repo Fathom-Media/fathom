@@ -8,6 +8,8 @@ import '../state/admin_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import 'tv_keyboard.dart';
+import 'app_snack.dart';
+import 'app_spinner.dart';
 
 /// Opens the schedule-recording dialog for a Live TV program: pre/post padding
 /// (start early / stop late) and a one-off or whole-series choice.
@@ -96,9 +98,8 @@ class _RecordDialogState extends ConsumerState<_RecordDialog> {
         ref.invalidate(adminTimersProvider);
       }
       nav.pop();
-      messenger.showSnackBar(SnackBar(
-          content: Text(
-              series ? l.playerSeriesRecordingSet : l.playerRecordingSet)));
+      showSnackOn(messenger,
+          series ? l.playerSeriesRecordingSet : l.playerRecordingSet);
     } on JellyfinException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {

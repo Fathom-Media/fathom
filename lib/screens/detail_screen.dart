@@ -33,6 +33,10 @@ import '../widgets/meta_pill.dart';
 import '../widgets/shimmer.dart';
 import 'album_screen.dart';
 import 'collection_view.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
+import '../api/jellyfin_client.dart';
 
 /// Item detail: backdrop, metadata, overview, a Play/Resume action, and — for
 /// series — an episode list. Tapping Play opens the media_kit player.
@@ -1201,14 +1205,12 @@ class _RemoteButton extends ConsumerWidget {
         token: session.accessToken,
       );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
       return;
     }
     if (!context.mounted) return;
     if (devices.isEmpty) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(l.detailNoControllableDevices)),
-      );
+      showSnackOn(messenger, l.detailNoControllableDevices);
       return;
     }
     showModalBottomSheet<void>(
@@ -1255,19 +1257,11 @@ class _RemoteButton extends ConsumerWidget {
                               sessionId: '${d['Id']}',
                               itemId: item.id,
                             );
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  l.detailPlayingOn(
+                            showSnackOn(messenger, l.detailPlayingOn(
                                     '${d['DeviceName'] ?? l.detailDevice}',
-                                  ),
-                                ),
-                              ),
-                            );
+                                  ),);
                           } catch (e) {
-                            messenger.showSnackBar(
-                              SnackBar(content: Text('$e')),
-                            );
+                            showErrorOn(messenger, e);
                           }
                         },
                       ),
@@ -1415,34 +1409,18 @@ class _ItemMenu extends ConsumerWidget {
           token: session.accessToken,
           itemId: item.id,
         );
-        messenger.showSnackBar(
-          SnackBar(content: Text(l.detailMetadataRefreshStarted)),
-        );
+        showSnackOn(messenger, l.detailMetadataRefreshStarted,
+            kind: SnackKind.success);
       } catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('$e')));
+        showErrorOn(messenger, e);
       }
     } else if (value == 'delete') {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(l.detailDeleteItem),
-          content: Text(l.detailDeleteConfirm(item.name)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error,
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonDelete),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
+      final confirmed = await confirm(context,
+          title: l.detailDeleteItem,
+          message: l.detailDeleteConfirm(item.name),
+          confirmLabel: l.commonDelete,
+          destructive: true);
+      if (!confirmed) return;
       try {
         await client.deleteItem(
           baseUrl: session.baseUrl,
@@ -1454,12 +1432,11 @@ class _ItemMenu extends ConsumerWidget {
         ref.invalidate(favoriteItemsProvider);
         if (context.mounted) {
           context.pop();
-          messenger.showSnackBar(
-            SnackBar(content: Text(l.detailDeleted(item.name))),
-          );
+          showSnackOn(messenger, l.detailDeleted(item.name),
+              kind: SnackKind.success);
         }
       } catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('$e')));
+        showErrorOn(messenger, e);
       }
     }
   }

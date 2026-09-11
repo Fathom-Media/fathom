@@ -13,6 +13,10 @@ import '../widgets/error_view.dart';
 import '../widgets/media_image.dart';
 import '../widgets/reorder.dart';
 import '../widgets/hover_pill_button.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
+import '../api/jellyfin_client.dart';
 
 /// Shows the contents of a playlist with play, reorder-free removal, and
 /// delete-playlist actions.
@@ -35,10 +39,10 @@ class PlaylistDetailScreen extends ConsumerWidget {
           );
       ref.invalidate(playlistItemsProvider(playlist.id));
       ref.invalidate(playlistsProvider);
-      messenger.showSnackBar(
-          SnackBar(content: Text(l.appRemovedNamed(item.name))));
+      showSnackOn(messenger, l.appRemovedNamed(item.name),
+          kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 
@@ -47,25 +51,12 @@ class PlaylistDetailScreen extends ConsumerWidget {
     final session = ref.read(sessionControllerProvider).asData?.value;
     if (session == null) return;
     final messenger = ScaffoldMessenger.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.appDeletePlaylist),
-        content: Text(l.appDeletePlaylistConfirm(playlist.name)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l.commonDelete),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    final ok = await confirm(context,
+        title: l.appDeletePlaylist,
+        message: l.appDeletePlaylistConfirm(playlist.name),
+        confirmLabel: l.commonDelete,
+        destructive: true);
+    if (!ok) return;
     try {
       await ref.read(jellyfinClientProvider).deletePlaylist(
             baseUrl: session.baseUrl,
@@ -75,11 +66,11 @@ class PlaylistDetailScreen extends ConsumerWidget {
       ref.invalidate(playlistsProvider);
       if (context.mounted) {
         context.pop();
-        messenger.showSnackBar(
-            SnackBar(content: Text(l.appDeletedNamed(playlist.name))));
+        showSnackOn(messenger, l.appDeletedNamed(playlist.name),
+            kind: SnackKind.success);
       }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 
@@ -100,7 +91,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
           );
       ref.invalidate(playlistItemsProvider(playlist.id));
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 

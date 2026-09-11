@@ -8,6 +8,8 @@ import '../l10n/generated/app_localizations.dart';
 import '../state/preferences.dart';
 import '../state/session_controller.dart';
 import '../widgets/tv_keyboard.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
 
 /// Configure the Seerr connection: an admin API key, or sign in so requests are
 /// attributed to you, either with your Jellyfin account or a local Seerr one.
@@ -72,12 +74,11 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
         ));
     if (!mounted) return;
     setState(() => _busy = false);
-    messenger.showSnackBar(SnackBar(
-        content: Text(url.isEmpty
+    showSnackOn(messenger, url.isEmpty
             ? l.seerrDisconnected
             : ok
                 ? l.seerrConnected
-                : l.seerrSavedTestFailed)));
+                : l.seerrSavedTestFailed, kind: SnackKind.error);
   }
 
   Future<void> _signIn() async {
@@ -89,9 +90,8 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
     final email = _email.text.trim();
     final pass = _password.text;
     if (url.isEmpty || pass.isEmpty || (local ? email.isEmpty : user.isEmpty)) {
-      messenger.showSnackBar(SnackBar(
-          content: Text(
-              local ? l.seerrEnterCredentialsLocal : l.seerrEnterCredentials)));
+      showSnackOn(messenger,
+          local ? l.seerrEnterCredentialsLocal : l.seerrEnterCredentials);
       return;
     }
     setState(() => _busy = true);
@@ -110,10 +110,9 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
       // clear the field.
       TextInput.finishAutofillContext();
       _password.clear();
-      messenger.showSnackBar(SnackBar(
-          content: Text(l.seerrSignedInAs(name ?? (local ? email : user)))));
+      showSnackOn(messenger, l.seerrSignedInAs(name ?? (local ? email : user)));
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -124,8 +123,7 @@ class _SeerrSettingsScreenState extends ConsumerState<SeerrSettingsScreen> {
         seerrAuthMode: 'apikey', seerrCookie: ''));
     if (mounted) {
       final l = AppLocalizations.of(context);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(l.seerrSignedOut)));
+      showSnack(context, l.seerrSignedOut);
     }
   }
 

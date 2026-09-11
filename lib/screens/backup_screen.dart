@@ -11,6 +11,8 @@ import 'package:share_plus/share_plus.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../services/settings_backup.dart';
 import '../state/radio.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
 
 /// Export/import of Fathom's own settings as a portable JSON file, selectable by
 /// group (everything checked by default). No passwords or API keys are included.
@@ -42,9 +44,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    showSnack(context, message);
   }
 
   Future<void> _export(Set<String> groups) async {

@@ -28,6 +28,7 @@ import '../models/youtube_chapter.dart';
 import '../models/youtube_download.dart';
 import '../state/sleep_timer.dart';
 import '../widgets/sleep_timer_sheet.dart';
+import '../widgets/app_snack.dart';
 
 /// Plays a YouTube video (or any direct URL) with the shared Fathom controls.
 ///
@@ -569,25 +570,14 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
       // seek, so by default it says what it did and offers a way back.
       if (notify && mounted) {
         final l = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context)
-          // Only one at a time: back-to-back segments would otherwise queue,
-          // and each waits its full turn before the next appears.
-          ..clearSnackBars()
-          ..showSnackBar(SnackBar(
-            duration: const Duration(seconds: 4),
-            // Load-bearing. Flutter defaults persist to `action != null`
-            // (snack_bar.dart: `persist = persist ?? action != null`), so
-            // adding Undo silently opted this into never going away — it sat
-            // there until the action or the route was dismissed. The offer to
-            // undo shouldn't outlive the moment it's useful.
-            persist: false,
-            content: Text(l.playerSkippedSegment(
-                s.category.label.toLowerCase(), s.length.inSeconds)),
-            action: SnackBarAction(
-              label: l.playerUndo,
-              onPressed: () => unawaited(_player.seek(s.start)),
-            ),
-          ));
+        showSnack(
+          context,
+          l.playerSkippedSegment(
+              s.category.label.toLowerCase(), s.length.inSeconds),
+          duration: const Duration(seconds: 4),
+          actionLabel: l.playerUndo,
+          onAction: () => unawaited(_player.seek(s.start)),
+        );
       }
       return;
     }

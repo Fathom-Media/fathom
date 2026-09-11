@@ -31,6 +31,8 @@ import '../widgets/mini_player.dart';
 import '../widgets/mini_video.dart';
 import '../widgets/user_avatar.dart';
 import '../widgets/ui_common.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
 
 
 /// The shell's inner navigator. Held here so navigation code can pop any pushed
@@ -1627,8 +1629,7 @@ class _QuickConnectAuthorizeDialogState
       if (!mounted) return;
       if (ok) {
         Navigator.of(context).pop();
-        messenger.showSnackBar(
-            SnackBar(content: Text(l.miscDeviceApproved)));
+        showSnackOn(messenger, l.miscDeviceApproved);
       } else {
         setState(() => _error = l.miscCodeNotApproved);
       }

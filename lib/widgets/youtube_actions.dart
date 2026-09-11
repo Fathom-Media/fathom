@@ -14,6 +14,7 @@ import 'context_menu.dart';
 import 'hover_pill_button.dart';
 import 'youtube_download_sheet.dart';
 import '../l10n/generated/app_localizations.dart';
+import 'app_snack.dart';
 
 /// One thing you can do to a video.
 typedef YtAction = ({
@@ -41,8 +42,7 @@ class YoutubeActions {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     await Clipboard.setData(ClipboardData(text: urlFor(video.id)));
-    messenger.showSnackBar(
-        SnackBar(content: Text(l.ytLinkCopied)));
+    showSnackOn(messenger, l.ytLinkCopied, kind: SnackKind.success);
   }
 
   /// Opens the video on YouTube in the system browser.
@@ -59,8 +59,7 @@ class YoutubeActions {
       mode: LaunchMode.externalApplication,
     );
     if (!ok) {
-      messenger.showSnackBar(
-          SnackBar(content: Text(l.ytCouldNotOpenBrowser)));
+      showSnackOn(messenger, l.ytCouldNotOpenBrowser);
     }
   }
 

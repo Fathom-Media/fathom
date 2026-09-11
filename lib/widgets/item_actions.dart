@@ -12,6 +12,9 @@ import '../state/watchlist.dart';
 import 'add_to_playlist.dart';
 import 'context_menu.dart';
 import 'series_download_sheet.dart';
+import 'app_snack.dart';
+import 'ui_common.dart';
+import '../api/jellyfin_client.dart';
 
 /// Shared per-item context menu (the "hamburger"), the same surface Jellyfin and
 /// Fladder expose on a poster, in a detail page, and on an individual episode.
@@ -232,7 +235,7 @@ Future<void> showItemActionsMenu(
                 token: s.accessToken,
                 itemId: item.id,
               );
-          messenger.showSnackBar(SnackBar(content: Text(started)));
+          showSnackOn(messenger, started, kind: SnackKind.success);
         });
       },
     ));
@@ -257,7 +260,7 @@ Future<void> _mutate(
   try {
     await action();
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('$e')));
+    showErrorOn(messenger, e);
   }
 }
 
@@ -308,9 +311,9 @@ Future<void> _confirmAndDelete(
       }
     }
     onDeleted?.call();
-    messenger.showSnackBar(SnackBar(content: Text(l.detailDeleted(item.name))));
+    showSnackOn(messenger, l.detailDeleted(item.name), kind: SnackKind.success);
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('$e')));
+    showErrorOn(messenger, e);
   }
 }
 

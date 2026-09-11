@@ -7,6 +7,10 @@ import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/user_avatar.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
+import '../api/jellyfin_client.dart';
 
 /// The signed-in user's profile: large avatar with change / remove actions.
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -53,10 +57,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             contentType: mime,
           );
       ref.invalidate(currentUserProvider);
-      messenger.showSnackBar(
-          SnackBar(content: Text(l.profilePictureUpdated)));
+      showSnackOn(messenger, l.profilePictureUpdated, kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -76,10 +79,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             userId: user.id,
           );
       ref.invalidate(currentUserProvider);
-      messenger
-          .showSnackBar(SnackBar(content: Text(l.profilePictureRemoved)));
+      showSnackOn(messenger, l.profilePictureRemoved, kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -213,7 +215,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     newCtrl.dispose();
     confirmCtrl.dispose();
     if (ok == true) {
-      messenger.showSnackBar(SnackBar(content: Text(l.profilePasswordChanged)));
+      showSnackOn(messenger, l.profilePasswordChanged);
     }
   }
 

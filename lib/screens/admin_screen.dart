@@ -12,6 +12,9 @@ import '../widgets/tv_keyboard.dart';
 import '../widgets/user_avatar.dart';
 import '../widgets/ui_common.dart';
 import 'settings_search.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../api/jellyfin_client.dart';
 
 /// Server administration (visible only to administrators): users, libraries,
 /// scheduled tasks, active sessions, and the activity log. A search box jumps
@@ -172,26 +175,17 @@ class _SystemTab extends ConsumerWidget {
     if (s == null) return;
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(restart
-            ? l.adminRestartServerConfirmTitle
-            : l.adminShutDownServerConfirmTitle),
-        content: Text(restart
-            ? l.adminRestartServerConfirmBody
-            : l.adminShutDownServerConfirmBody),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(restart ? l.adminRestart : l.adminShutDown)),
-        ],
-      ),
+    final ok = await confirm(
+      context,
+      title: restart
+          ? l.adminRestartServerConfirmTitle
+          : l.adminShutDownServerConfirmTitle,
+      message: restart
+          ? l.adminRestartServerConfirmBody
+          : l.adminShutDownServerConfirmBody,
+      confirmLabel: restart ? l.adminRestart : l.adminShutDown,
     );
-    if (ok != true) return;
+    if (!ok) return;
     try {
       final client = ref.read(jellyfinClientProvider);
       if (restart) {
@@ -199,12 +193,11 @@ class _SystemTab extends ConsumerWidget {
       } else {
         await client.shutdownServer(baseUrl: s.baseUrl, token: s.accessToken);
       }
-      messenger.showSnackBar(SnackBar(
-          content: Text(restart
-              ? l.adminRestartRequested
-              : l.adminShutdownRequested)));
+      showSnackOn(messenger,
+          restart ? l.adminRestartRequested : l.adminShutdownRequested,
+          kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 
@@ -213,7 +206,7 @@ class _SystemTab extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final info = ref.watch(adminSystemProvider);
     return info.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: AppSpinner()),
       error: (e, _) => Center(child: Text('$e')),
       data: (m) => ListView(
         children: [
@@ -328,11 +321,11 @@ class _UsersTab extends ConsumerWidget {
         password: pwCtrl.text.isEmpty ? null : pwCtrl.text,
       );
       ref.invalidate(adminUsersProvider);
-      messenger.showSnackBar(SnackBar(
-          content: Text(
-              l.adminCreatedUser('${created['Name'] ?? nameCtrl.text}'))));
+      showSnackOn(messenger,
+          l.adminCreatedUser('${created['Name'] ?? nameCtrl.text}'),
+          kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 
@@ -401,10 +394,10 @@ class _LibrariesTab extends ConsumerWidget {
               try {
                 await ref.read(jellyfinClientProvider).scanAllLibraries(
                     baseUrl: s.baseUrl, token: s.accessToken);
-                messenger.showSnackBar(
-                    SnackBar(content: Text(loc.adminLibraryScanStarted)));
+                showSnackOn(messenger, loc.adminLibraryScanStarted,
+                    kind: SnackKind.success);
               } catch (e) {
-                messenger.showSnackBar(SnackBar(content: Text('$e')));
+                showErrorOn(messenger, e);
               }
             },
             icon: const Icon(Icons.sync_rounded),
@@ -443,12 +436,13 @@ class _LibrariesTab extends ConsumerWidget {
                                   baseUrl: s.baseUrl,
                                   token: s.accessToken,
                                   itemId: id);
-                              messenger.showSnackBar(SnackBar(
-                                  content: Text(loc.adminScanningLibrary(
-                                      '${l['Name'] ?? loc.adminLibraryFallback}'))));
+                              showSnackOn(
+                                  messenger,
+                                  loc.adminScanningLibrary(
+                                      '${l['Name'] ?? loc.adminLibraryFallback}'),
+                                  kind: SnackKind.success);
                             } catch (e) {
-                              messenger.showSnackBar(
-                                  SnackBar(content: Text('$e')));
+                              showErrorOn(messenger, e);
                             }
                           },
                         ),
@@ -500,12 +494,12 @@ class _TasksTab extends ConsumerWidget {
                               baseUrl: s.baseUrl,
                               token: s.accessToken,
                               taskId: '${t['Id']}');
-                          messenger.showSnackBar(SnackBar(
-                              content: Text(l.adminTaskStarted('${t['Name']}'))));
+                          showSnackOn(messenger,
+                              l.adminTaskStarted('${t['Name']}'),
+                              kind: SnackKind.success);
                           ref.invalidate(adminTasksProvider);
                         } catch (e) {
-                          messenger
-                              .showSnackBar(SnackBar(content: Text('$e')));
+                          showErrorOn(messenger, e);
                         }
                       },
               ),
@@ -556,9 +550,9 @@ class _SessionsTab extends ConsumerWidget {
             header: l.adminMessageFrom(s.userName),
             text: text.trim(),
           );
-      messenger.showSnackBar(SnackBar(content: Text(l.adminMessageSent)));
+      showSnackOn(messenger, l.adminMessageSent, kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 

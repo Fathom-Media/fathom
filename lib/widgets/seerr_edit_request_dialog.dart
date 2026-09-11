@@ -127,7 +127,7 @@ class _EditRequestDialogState extends ConsumerState<_EditRequestDialog> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
-        showSnack(context, '$e', kind: SnackKind.error);
+        showError(context, e);
         setState(() => _busy = false);
       }
     }

@@ -696,7 +696,7 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
         );
       }
     } catch (e) {
-      if (mounted) showSnack(context, '$e', kind: SnackKind.error);
+      if (mounted) showError(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

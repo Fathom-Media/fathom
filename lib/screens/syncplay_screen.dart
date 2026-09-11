@@ -11,6 +11,8 @@ import '../widgets/clapper_icon.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/tv_keyboard.dart';
 import '../widgets/user_avatar.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
 
 /// Watch Together (SyncPlay) management panel: create or join a group, see who
 /// is in the one you're in, and leave. Reached from the profile menu. Actual
@@ -62,9 +64,9 @@ class _SyncPlayScreenState extends ConsumerState<SyncPlayScreen> {
     if (name == null || name.trim().isEmpty) return;
     try {
       await ref.read(syncPlayControllerProvider.notifier).create(name.trim());
-      messenger.showSnackBar(SnackBar(content: Text(l.appGroupCreated)));
+      showSnackOn(messenger, l.appGroupCreated, kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 
@@ -73,8 +75,7 @@ class _SyncPlayScreenState extends ConsumerState<SyncPlayScreen> {
       await ref.read(syncPlayControllerProvider.notifier).join(groupId);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
+        showError(context, e);
       }
     }
   }

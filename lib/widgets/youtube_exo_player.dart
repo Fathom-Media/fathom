@@ -17,6 +17,8 @@ import 'animated_control.dart';
 import 'exo_stats_panel.dart';
 import 'exo_video.dart';
 import 'glass.dart';
+import 'app_snack.dart';
+import 'app_spinner.dart';
 
 /// Width of one Up Next card (thumbnail). Cards are 16:9.
 const double _upNextCardWidth = 200;
@@ -278,18 +280,14 @@ class _YoutubeExoPlayerState extends ConsumerState<YoutubeExoPlayer> {
           true;
       if (notify && mounted) {
         final l = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context)
-          ..clearSnackBars()
-          ..showSnackBar(SnackBar(
-            duration: const Duration(seconds: 4),
-            persist: false,
-            content: Text(l.playerSkippedSegment(
-                seg.category.label.toLowerCase(), seg.length.inSeconds)),
-            action: SnackBarAction(
-              label: l.playerUndo,
-              onPressed: () => _controller.seekTo(seg.start),
-            ),
-          ));
+        showSnack(
+          context,
+          l.playerSkippedSegment(
+              seg.category.label.toLowerCase(), seg.length.inSeconds),
+          duration: const Duration(seconds: 4),
+          actionLabel: l.playerUndo,
+          onAction: () => _controller.seekTo(seg.start),
+        );
       }
       return;
     }
