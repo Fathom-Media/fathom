@@ -212,6 +212,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             .read(preferencesProvider.notifier)
             .edit((x) => x.copyWith(syncPlayEnabled: v)),
       ),
+      SwitchListTile(
+        secondary: _leading(context, Icons.casino_rounded),
+        title: Text(l.settingsMovieWheel),
+        subtitle: Text(l.settingsMovieWheelSubtitle),
+        value: ref.watch(preferencesProvider
+            .select((p) => p.asData?.value.movieWheelEnabled ?? true)),
+        onChanged: (v) => ref
+            .read(preferencesProvider.notifier)
+            .edit((x) => x.copyWith(movieWheelEnabled: v)),
+      ),
       const Divider(height: 24),
       _sectionLabel(context, l.settingsSectionAccount),
       ListTile(

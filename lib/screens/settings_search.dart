@@ -158,6 +158,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // Integrations
   SettingResult(title: l.searchWatchTogether, section: l.searchIntegrations, icon: Icons.groups_rounded, route: '/settings', keywords: ['syncplay', 'sync play', 'watch together', 'watch party', 'group', 'together', 'enable', 'shared playback', 'sync']),
   SettingResult(title: l.settingsRadio, section: l.searchIntegrations, icon: Icons.radio_rounded, route: '/settings', keywords: ['radio', 'internet radio', 'stations', 'station', 'stream', 'icy', 'shoutcast', 'icecast', 'fm', 'am', 'enable', 'music']),
+  SettingResult(title: l.settingsMovieWheel, section: l.searchIntegrations, icon: Icons.casino_rounded, route: '/settings', keywords: ['wheel', 'movie wheel', 'movie night', 'spin', 'decide', 'elimination', 'random', 'randomize', 'picker', 'enable', 'watchlist', 'watch together', 'syncplay']),
 ];
 
 // Admin section icons, mirroring the Server Admin hub.

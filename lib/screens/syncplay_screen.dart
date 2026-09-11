@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../services/tv_mode.dart';
+import '../state/preferences.dart';
 import '../state/session_controller.dart';
 import '../state/syncplay.dart';
 import '../widgets/tv_focus.dart';
@@ -306,6 +308,20 @@ class _CurrentGroup extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 24),
+        ],
+        // Can't agree what to watch? Spin for one, single-device (whoever's
+        // holding this screen spins, everyone else just watches it), no
+        // playback sync needed for a decision that happens before anyone
+        // presses play.
+        if (ref.watch(preferencesProvider
+            .select((p) => p.asData?.value.movieWheelEnabled ?? true))) ...[
+          FilledButton.tonalIcon(
+            onPressed: () => context.push('/watchlist/wheel'),
+            icon: const Icon(Icons.casino_rounded),
+            label: Text(l.wheelTitle),
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+          ),
+          const SizedBox(height: 12),
         ],
         OutlinedButton.icon(
           onPressed: onLeave,

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
+import '../state/preferences.dart';
 import '../state/watchlist.dart';
 import '../widgets/item_grid.dart';
 
@@ -16,11 +18,21 @@ class WatchlistScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
     final items = ref.watch(watchlistProvider);
+    final wheelEnabled = ref.watch(preferencesProvider
+        .select((p) => p.asData?.value.movieWheelEnabled ?? true));
     return Scaffold(
       appBar: AppBar(
         leading: mobileDrawerLeading(context),
         title: Text(l.browseWatchlist),
         actions: [
+          if (wheelEnabled)
+            IconButton(
+              tooltip: l.wheelTitle,
+              icon: const Icon(Icons.casino_rounded),
+              onPressed: items.asData?.value.isNotEmpty ?? false
+                  ? () => context.push('/watchlist/wheel')
+                  : null,
+            ),
           IconButton(
             tooltip: l.commonRefresh,
             icon: const Icon(Icons.refresh_rounded),

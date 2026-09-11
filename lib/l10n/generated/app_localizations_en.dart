@@ -171,6 +171,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sync playback with others, from your profile menu';
 
   @override
+  String get settingsMovieWheel => 'Movie Night Wheel';
+
+  @override
+  String get settingsMovieWheelSubtitle =>
+      'Can\'t decide? Spin an elimination wheel from Watchlist or Watch Together';
+
+  @override
   String get settingsRadio => 'Internet Radio';
 
   @override
@@ -5397,4 +5404,54 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tvVoiceUnavailable =>
       'Voice input isn\'t available on this device';
+
+  @override
+  String get wheelTitle => 'Movie Night Wheel';
+
+  @override
+  String get wheelNeedsWatchlist =>
+      'Add a few titles to your Watchlist first, then come back here to spin for one.';
+
+  @override
+  String get wheelSetupHint =>
+      'Pick at least two titles, then spin. Each spin eliminates one until only your pick is left.';
+
+  @override
+  String wheelStartWith(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Start with $count titles',
+      one: 'Start with 1 title',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get wheelNeedTwo => 'Pick at least 2 titles';
+
+  @override
+  String wheelRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count left',
+      one: '1 left',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get wheelTapToSpin => 'Tap the wheel to spin';
+
+  @override
+  String wheelEliminated(String name) {
+    return '$name is out!';
+  }
+
+  @override
+  String get wheelWinnerLabel => 'TONIGHT\'S PICK';
+
+  @override
+  String get wheelSpinAgain => 'Spin Again';
 }

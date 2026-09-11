@@ -132,6 +132,8 @@ class Prefs {
 
   // Watch Together (SyncPlay): surfaces the entry in the profile menu.
   final bool syncPlayEnabled;
+  // Movie Night Wheel: elimination-style picker on Watchlist/SyncPlay.
+  final bool movieWheelEnabled;
 
   // Internet radio: shows the Radio section in the sidebar. Off by default —
   // this is primarily a Jellyfin client, so radio is an opt-in integration.
@@ -333,6 +335,7 @@ class Prefs {
     this.rememberTracks = true,
     this.trailerQuality = 'auto',
     this.syncPlayEnabled = true,
+    this.movieWheelEnabled = true,
     this.radioEnabled = false,
     this.notifNewRequest = true,
     this.notifSeerrApproved = true,
@@ -451,6 +454,7 @@ class Prefs {
     bool? rememberTracks,
     String? trailerQuality,
     bool? syncPlayEnabled,
+    bool? movieWheelEnabled,
     bool? radioEnabled,
     bool? notifNewRequest,
     bool? notifSeerrApproved,
@@ -570,6 +574,7 @@ class Prefs {
         rememberTracks: rememberTracks ?? this.rememberTracks,
         trailerQuality: trailerQuality ?? this.trailerQuality,
         syncPlayEnabled: syncPlayEnabled ?? this.syncPlayEnabled,
+        movieWheelEnabled: movieWheelEnabled ?? this.movieWheelEnabled,
         radioEnabled: radioEnabled ?? this.radioEnabled,
         notifNewRequest: notifNewRequest ?? this.notifNewRequest,
         notifSeerrApproved: notifSeerrApproved ?? this.notifSeerrApproved,
@@ -700,6 +705,7 @@ class Prefs {
         'rememberTracks': rememberTracks,
         'trailerQuality': trailerQuality,
         'syncPlayEnabled': syncPlayEnabled,
+        'movieWheelEnabled': movieWheelEnabled,
         'radioEnabled': radioEnabled,
         'notifNewRequest': notifNewRequest,
         'notifSeerrApproved': notifSeerrApproved,
@@ -824,6 +830,7 @@ class Prefs {
         rememberTracks: j['rememberTracks'] as bool? ?? true,
         trailerQuality: j['trailerQuality'] as String? ?? 'auto',
         syncPlayEnabled: j['syncPlayEnabled'] as bool? ?? true,
+        movieWheelEnabled: j['movieWheelEnabled'] as bool? ?? true,
         radioEnabled: j['radioEnabled'] as bool? ?? false,
         notifNewRequest: j['notifNewRequest'] as bool? ?? true,
         notifSeerrApproved: j['notifSeerrApproved'] as bool? ?? true,

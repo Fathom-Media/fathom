@@ -26,6 +26,7 @@ import '../screens/libraries_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/live_tv_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/movie_wheel_screen.dart';
 import '../screens/person_screen.dart';
 import '../screens/now_playing_screen.dart';
 import '../screens/exo_player_screen.dart';
@@ -363,6 +364,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/watchlist',
               pageBuilder: (_, _) => _fadePage(const WatchlistScreen())),
+          GoRoute(
+              path: '/watchlist/wheel',
+              pageBuilder: (_, _) => _fadePage(const MovieWheelScreen())),
           GoRoute(
               path: '/home-layout',
               pageBuilder: (_, _) => _fadePage(const HomeLayoutScreen())),

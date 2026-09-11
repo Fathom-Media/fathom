@@ -412,6 +412,18 @@ abstract class AppLocalizations {
   /// **'Sync playback with others, from your profile menu'**
   String get settingsWatchTogetherSubtitle;
 
+  /// Settings toggle for the Movie Night Wheel feature.
+  ///
+  /// In en, this message translates to:
+  /// **'Movie Night Wheel'**
+  String get settingsMovieWheel;
+
+  /// Subtitle under the Movie Night Wheel settings toggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t decide? Spin an elimination wheel from Watchlist or Watch Together'**
+  String get settingsMovieWheelSubtitle;
+
   /// No description provided for @settingsRadio.
   ///
   /// In en, this message translates to:
@@ -9783,6 +9795,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Voice input isn\'t available on this device'**
   String get tvVoiceUnavailable;
+
+  /// Title of the elimination-wheel decider screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Movie Night Wheel'**
+  String get wheelTitle;
+
+  /// Shown when the wheel has no Watchlist items to pull from.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a few titles to your Watchlist first, then come back here to spin for one.'**
+  String get wheelNeedsWatchlist;
+
+  /// Instructions on the wheel's setup screen, above the checklist.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick at least two titles, then spin. Each spin eliminates one until only your pick is left.'**
+  String get wheelSetupHint;
+
+  /// Start button label, showing how many titles are selected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Start with 1 title} other{Start with {count} titles}}'**
+  String wheelStartWith(int count);
+
+  /// Disabled Start button label when fewer than 2 titles are selected.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick at least 2 titles'**
+  String get wheelNeedTwo;
+
+  /// Header above the wheel showing how many titles remain in this round.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 left} other{{count} left}}'**
+  String wheelRemaining(int count);
+
+  /// Hint text below the wheel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the wheel to spin'**
+  String get wheelTapToSpin;
+
+  /// Shown over a dimmed poster right after a spin eliminates a title.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is out!'**
+  String wheelEliminated(String name);
+
+  /// Small eyebrow label above the winning title's poster.
+  ///
+  /// In en, this message translates to:
+  /// **'TONIGHT\'S PICK'**
+  String get wheelWinnerLabel;
+
+  /// Button to restart the wheel from the setup screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Spin Again'**
+  String get wheelSpinAgain;
 }
 
 class _AppLocalizationsDelegate

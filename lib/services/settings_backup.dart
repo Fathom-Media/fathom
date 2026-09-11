@@ -52,6 +52,7 @@ const _playerKeys = <String>{
   'previewThumbnailsWhileSeeking', 'autoSkipIntro', 'autoSkipCredits',
   'keyBindings', 'playerFit', 'playerBarStyle', 'miniPlayerX', 'miniPlayerY',
   'miniPlayerSize', 'rememberTracks', 'trailerQuality', 'syncPlayEnabled',
+  'movieWheelEnabled',
 };
 
 /// Which group a preference key belongs to. YouTube is prefix-matched so new
