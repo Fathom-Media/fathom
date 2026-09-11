@@ -45,11 +45,11 @@ class _SecureHttpOverrides extends HttpOverrides {
 }
 
 /// Makes the bundled CA roots the process-wide default trust store, so every
-/// `HttpClient` (Dio, the http package used by youtube_explode, google_fonts,
-/// etc.) verifies against them.
+/// `HttpClient` (Dio, the http package used by youtube_explode, etc.)
+/// verifies against them.
 ///
 /// Windows only: its Dart/BoringSSL doesn't read the OS certificate store, so
-/// public HTTPS (YouTube search, stream resolution, fonts) fails with
+/// public HTTPS (YouTube search, stream resolution) fails with
 /// CERTIFICATE_VERIFY_FAILED. macOS/Linux trust the OS roots fine, so this is a
 /// no-op there. Self-signed servers aren't supported either way, so this doesn't
 /// change that. Call once at startup.

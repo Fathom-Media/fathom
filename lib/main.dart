@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:uuid/uuid.dart';
@@ -26,8 +27,15 @@ Future<void> main() async {
   // Initialize libmpv-backed playback before the UI starts.
   MediaKit.ensureInitialized();
 
+  // The Inter typeface ships inside the app under the SIL Open Font License,
+  // which asks that the license travel with it: list it with the others.
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(const ['Inter'],
+        await rootBundle.loadString('assets/fonts/Inter-OFL.txt'));
+  });
+
   // Trust the bundled CA roots for all HTTPS (Windows only; see the function).
-  // Must run before any outbound request (YouTube, fonts, update checks).
+  // Must run before any outbound request (YouTube, update checks).
   await installSecureHttpOverrides();
 
   // Detect Android TV (leanback) up front so screens can swap the un-drivable

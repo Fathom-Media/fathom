@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../services/tv_mode.dart';
 
@@ -17,6 +16,9 @@ import '../services/tv_mode.dart';
 ///
 /// Only minimumSize is set, so colour, shape and text style still come from the
 /// theme. test/button_theme_row_test.dart guards both halves of this.
+/// The bundled UI typeface (assets/fonts, declared in pubspec.yaml).
+const kAppFontFamily = 'Inter';
+
 const kInlineButtonStyle = ButtonStyle(
   minimumSize: WidgetStatePropertyAll(Size(0, 46)),
 );
@@ -42,12 +44,13 @@ class AppTheme {
 
   static ThemeData _base(ColorScheme scheme) {
     // Inter for its clean, tight, modern letterforms, which suit the bold
-    // editorial headers below. google_fonts fetches + caches it on first run and
-    // falls back to the platform font if it can't (so it never blocks offline).
-    final baseText = GoogleFonts.interTextTheme(
-        scheme.brightness == Brightness.dark
+    // editorial headers below. Bundled (assets/fonts), not fetched from Google
+    // at runtime: no third-party request from a self-hosted media app, and the
+    // right font on a first launch with no internet.
+    final baseText = (scheme.brightness == Brightness.dark
             ? Typography.material2021().white
-            : Typography.material2021().black);
+            : Typography.material2021().black)
+        .apply(fontFamily: kAppFontFamily);
     // Bold, tightly-tracked headers give Fathom a more premium, editorial feel.
     final textTheme = baseText.copyWith(
       displayLarge: baseText.displayLarge
@@ -73,6 +76,7 @@ class AppTheme {
 
     return ThemeData(
       colorScheme: scheme,
+      fontFamily: kAppFontFamily,
       textTheme: textTheme,
       // Transparent so the app-shell's ambient wash shows through the content,
       // not just behind the sidebar. A base surface is painted below everything
