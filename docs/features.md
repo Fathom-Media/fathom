@@ -3,7 +3,11 @@
 ## Your library
 
 - **Movies and TV**: libraries, search, rich detail pages, resume and Next Up, next and previous episode, skip intro, recap, and credits, an Up Next prompt that rolls into the next episode during the credits, chapters, and trickplay thumbnails as you scrub.
+- **Browse by anything**: genres, studios, artists, and a page for every person, so a cast member's other work is one tap away. Trailers play in the app rather than sending you to a browser.
+- **Extras**: a title's bonus material (behind the scenes, deleted scenes, interviews, featurettes, and trailer files held on your server) appears as its own row on the detail page, and plays in the normal player.
 - **Favorites and Watchlist**: two separate personal lists, one for what you love, one for what you still want to watch. Toggle either from an item's detail page or its context menu (long-press, right-click, or the overflow button, they all open the same menu).
+- **Tidy up Continue Watching**: something you started and will not finish can be dropped from the row through the same context menu. It only clears the resume position, so the title is not marked watched and comes back if you play it again.
+- **Movie Night Wheel**: when nobody can decide, spin for it. Fill the wheel from your library or type titles in, then pick a mode: Last One Standing knocks a title out on every spin, Single Spin takes the first result, and Best of 3 wants a title to win twice. It is reachable from the Watchlist, and from a SyncPlay session so a group can decide together.
 - **Music**: albums, a play queue, now playing, shuffle and repeat, synced lyrics with an online fallback, and scrobbling. The now-playing screen flips between artwork and lyrics.
 - **Live TV and DVR**: a channel list, an EPG guide, recording with series rules, and tuner and guide-provider setup.
 
@@ -27,6 +31,19 @@ Open the settings gear in the control bar and choose **Playback Info** for a rea
 - **General**: container, buffer, and A/V sync.
 
 It works in both the Jellyfin and YouTube players, and stays put when you enter fullscreen.
+
+## Offline downloads
+
+Download a movie, an episode, a whole season or series, a Live TV recording, a track, or an entire album, and watch or listen with the server out of reach.
+
+- **Downloads is a real library**, not a list of files: Movies, TV Shows, Recordings, and Music sections with the same artwork and rating badges as your online library.
+- **Detail pages work offline** too, scoped to what you actually have: only the episodes on the device, with local Play, Mark Watched, and Remove that never touch the server.
+- **Pick a scope** when downloading a series (everything, or a single season), and watch progress on a floating pill with a Cancel All action.
+- **Choose where it lands** under **Settings → Downloads**.
+
+## Sleep timer
+
+Every player has one, from the gear menu or the moon button in the top bar: music, video, YouTube, and radio. Pick anything from 15 minutes to 2 hours, or have it stop at the end of the current track or episode. The sound fades out over the last 15 seconds rather than cutting off, and the button shows the time left while it runs.
 
 ## Internet radio
 
@@ -59,7 +76,10 @@ Run most of Jellyfin from the app, without opening the web dashboard: manage use
 
 ## Personalization
 
-Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, in-app updates with a Stable or Dev channel, system and in-app notifications, a Settings screen you can search, and a fully translatable interface.
+Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, a sidebar whose items you can reorder or hide, in-app updates with a Stable or Dev channel, system and in-app notifications, a Settings screen you can search, and a fully translatable interface.
+
+- **Several accounts**: keep more than one Jellyfin account (or server) signed in and switch between them without re-entering anything.
+- **Screen readers**: cards announce themselves as a single item with their title and year, every icon-only button carries a label, and the Movie Night Wheel names its titles and reads out each result.
 
 ## Notifications
 
