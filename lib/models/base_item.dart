@@ -116,6 +116,10 @@ class BaseItemDto {
   final String? overview;
   final List<String> genres;
   final String? mediaType; // Video, Audio
+  /// Jellyfin's ExtraType on a bonus item: Trailer, BehindTheScenes,
+  /// DeletedScene, Interview, Scene, Sample, Clip, Featurette, Short,
+  /// ThemeSong, ThemeVideo. Null on ordinary library items.
+  final String? extraType;
   final bool isFolder;
   final String? officialRating;
   final double? communityRating; // IMDb-style, 0-10
@@ -163,6 +167,7 @@ class BaseItemDto {
     this.overview,
     this.genres = const [],
     this.mediaType,
+    this.extraType,
     this.isFolder = false,
     this.officialRating,
     this.communityRating,
@@ -278,6 +283,7 @@ class BaseItemDto {
       overview: json['Overview'] as String?,
       genres: (json['Genres'] as List?)?.cast<String>() ?? const [],
       mediaType: json['MediaType'] as String?,
+      extraType: json['ExtraType'] as String?,
       isFolder: json['IsFolder'] as bool? ?? false,
       officialRating: json['OfficialRating'] as String?,
       communityRating: (json['CommunityRating'] as num?)?.toDouble(),

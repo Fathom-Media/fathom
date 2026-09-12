@@ -2322,6 +2322,26 @@
   "@detailTrailer": {
     "description": "Button label for the trailer action."
   },
+  "detailExtras": "Extras",
+  "@detailExtras": { "description": "Detail page section: a title's bonus material." },
+  "extraTypeTrailer": "Trailer",
+  "@extraTypeTrailer": { "description": "Extra kind label." },
+  "extraTypeBehindTheScenes": "Behind the Scenes",
+  "@extraTypeBehindTheScenes": { "description": "Extra kind label." },
+  "extraTypeDeletedScene": "Deleted Scene",
+  "@extraTypeDeletedScene": { "description": "Extra kind label." },
+  "extraTypeInterview": "Interview",
+  "@extraTypeInterview": { "description": "Extra kind label." },
+  "extraTypeScene": "Scene",
+  "@extraTypeScene": { "description": "Extra kind label." },
+  "extraTypeFeaturette": "Featurette",
+  "@extraTypeFeaturette": { "description": "Extra kind label." },
+  "extraTypeShort": "Short",
+  "@extraTypeShort": { "description": "Extra kind label." },
+  "extraTypeClip": "Clip",
+  "@extraTypeClip": { "description": "Extra kind label." },
+  "extraTypeSample": "Sample",
+  "@extraTypeSample": { "description": "Extra kind label." },
   "detailMoreLikeThis": "More Like This",
   "@detailMoreLikeThis": {
     "description": "Section heading for a row of similar titles."

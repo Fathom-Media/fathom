@@ -1852,6 +1852,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get detailTrailer => 'Trailer';
 
   @override
+  String get detailExtras => 'Extras';
+
+  @override
+  String get extraTypeTrailer => 'Trailer';
+
+  @override
+  String get extraTypeBehindTheScenes => 'Behind the Scenes';
+
+  @override
+  String get extraTypeDeletedScene => 'Deleted Scene';
+
+  @override
+  String get extraTypeInterview => 'Interview';
+
+  @override
+  String get extraTypeScene => 'Scene';
+
+  @override
+  String get extraTypeFeaturette => 'Featurette';
+
+  @override
+  String get extraTypeShort => 'Short';
+
+  @override
+  String get extraTypeClip => 'Clip';
+
+  @override
+  String get extraTypeSample => 'Sample';
+
+  @override
   String get detailMoreLikeThis => 'More Like This';
 
   @override

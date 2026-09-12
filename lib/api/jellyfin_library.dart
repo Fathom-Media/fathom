@@ -472,6 +472,60 @@ Future<void> deletePlaylist({
     }
   }
 
+/// A title's bonus material: behind the scenes, deleted scenes, interviews,
+  /// featurettes and the like, plus any trailer files held on the server (which
+  /// are separate from the RemoteTrailers URL the detail page's trailer button
+  /// uses). Theme songs and theme videos are dropped: they're background audio
+  /// for a detail page, not something to sit and watch, and every other client
+  /// hides them too.
+  Future<List<BaseItemDto>> getExtras({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+  }) async {
+    Future<List<BaseItemDto>> fetch(String kind) async {
+      List<dynamic> raw;
+      try {
+        final res = await _dio.get(
+          '$baseUrl/Items/$itemId/$kind',
+          queryParameters: {'userId': userId},
+          options: _authed(token),
+        );
+        raw = (res.data as List?) ?? const [];
+      } on DioException catch (e) {
+        // The route moved in 10.10; older servers only have the per-user one.
+        if (e.response?.statusCode != 404) {
+          throw JellyfinException(_friendlyDioError(e));
+        }
+        try {
+          final res = await _dio.get(
+            '$baseUrl/Users/$userId/Items/$itemId/$kind',
+            options: _authed(token),
+          );
+          raw = (res.data as List?) ?? const [];
+        } on DioException catch (e2) {
+          throw JellyfinException(_friendlyDioError(e2));
+        }
+      }
+      return raw
+          .whereType<Map>()
+          .map((e) => BaseItemDto.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+
+    final lists = await Future.wait(
+        [fetch('SpecialFeatures'), fetch('LocalTrailers')]);
+    final seen = <String>{};
+    final out = <BaseItemDto>[];
+    for (final item in [...lists[1], ...lists[0]]) {
+      const themes = {'ThemeSong', 'ThemeVideo'};
+      if (themes.contains(item.extraType)) continue;
+      if (seen.add(item.id)) out.add(item);
+    }
+    return out;
+  }
+
 /// Clears an item's resume position, which is what takes it out of Continue
   /// Watching: that row is simply the items whose position is above zero.
   ///

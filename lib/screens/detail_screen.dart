@@ -592,6 +592,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               // A recorded series' episodes download as recordings.
               downloadAsType: sourceType == 'Recording' ? 'Recording' : null,
             ),
+          if (!downloadScoped) _Extras(itemId: item.id),
           if (!item.isEpisode && !downloadScoped) _MoreLikeThis(itemId: item.id),
         ],
       ),
@@ -2083,6 +2084,56 @@ class _DetailTitle extends ConsumerWidget {
           fit: BoxFit.contain,
           alignment: Alignment.centerLeft,
           errorBuilder: (_, _, _) => text,
+        ),
+      ),
+    );
+  }
+}
+
+/// A row of the title's extras: behind the scenes, deleted scenes, interviews,
+/// featurettes, and trailer files held on the server. Hidden when there are
+/// none, which is most of the time.
+class _Extras extends ConsumerWidget {
+  final String itemId;
+  const _Extras({required this.itemId});
+
+  /// Jellyfin's ExtraType, in the user's language. Unknown kinds fall back to
+  /// no label rather than showing the raw enum name.
+  static String? _kind(AppLocalizations l, String? type) => switch (type) {
+        'Trailer' => l.extraTypeTrailer,
+        'BehindTheScenes' => l.extraTypeBehindTheScenes,
+        'DeletedScene' => l.extraTypeDeletedScene,
+        'Interview' => l.extraTypeInterview,
+        'Scene' => l.extraTypeScene,
+        'Featurette' => l.extraTypeFeaturette,
+        'Short' => l.extraTypeShort,
+        'Clip' => l.extraTypeClip,
+        'Sample' => l.extraTypeSample,
+        _ => null,
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final extras = ref.watch(extrasProvider(itemId));
+    // No skeleton here: unlike More Like This, most titles have no extras at
+    // all, so a placeholder would flash on every page for nothing.
+    final items = extras.asData?.value ?? const <BaseItemDto>[];
+    if (items.isEmpty) return const SliverToBoxAdapter();
+    final l = AppLocalizations.of(context);
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 24),
+        child: MediaSection(
+          title: l.detailExtras,
+          height: 210,
+          children: [
+            for (final e in items)
+              ExtraCard(
+                item: e,
+                kind: _kind(l, e.extraType),
+                onTap: () => context.push('/player', extra: e),
+              ),
+          ],
         ),
       ),
     );

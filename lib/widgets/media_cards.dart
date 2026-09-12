@@ -8,6 +8,7 @@ import '../services/tv_mode.dart';
 import '../state/preferences.dart';
 import 'item_actions.dart';
 import 'media_image.dart';
+import 'meta_pill.dart';
 import 'motion.dart';
 import 'tv_focus.dart';
 
@@ -554,6 +555,94 @@ class PosterTile extends StatelessWidget {
 }
 
 /// Landscape card with a progress bar (Continue Watching).
+/// A single extra (behind the scenes, a deleted scene, a trailer file): a
+/// landscape thumbnail with its kind and runtime, which plays on tap.
+class ExtraCard extends StatelessWidget {
+  final BaseItemDto item;
+
+  /// The localized ExtraType ("Deleted Scene"), or null for an unknown kind.
+  final String? kind;
+  final VoidCallback? onTap;
+  static const double width = 240;
+
+  const ExtraCard({super.key, required this.item, this.kind, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final minutes = item.runTimeTicks == null
+        ? null
+        : (item.runTimeTicks! / 600000000).round();
+    final subtitle = [
+      if (kind != null) kind!,
+      if (minutes != null && minutes > 0) fmtRuntime(minutes),
+    ].join(' · ');
+    return _CardSemantics(
+      onTap: onTap,
+      child: HoverLift(
+        child: SizedBox(
+          width: width,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: TvFocusable(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: InkWell(
+                        onTap: onTap,
+                        canRequestFocus: isTvDevice,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            MediaImage(
+                              item: item,
+                              landscape: true,
+                              placeholderIcon: Icons.movie_creation_outlined,
+                            ),
+                            Center(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.45),
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(6),
+                                child: const Icon(Icons.play_arrow_rounded,
+                                    color: Colors.white, size: 22),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              if (subtitle.isNotEmpty)
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The landscape card used by Continue Watching and Next Up.
 ///
 /// Carries the same item menu a poster does (long-press, right-click, or the

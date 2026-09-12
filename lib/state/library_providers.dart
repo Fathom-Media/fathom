@@ -86,6 +86,20 @@ final personDetailProvider = FutureProvider.autoDispose
   }
 });
 
+/// A title's extras: behind the scenes, deleted scenes, interviews, and any
+/// trailer files on the server.
+final extrasProvider = FutureProvider.autoDispose
+    .family<List<BaseItemDto>, String>((ref, itemId) async {
+  final session = ref.watch(sessionControllerProvider).asData?.value;
+  if (session == null) return const [];
+  return ref.watch(jellyfinClientProvider).getExtras(
+        baseUrl: session.baseUrl,
+        userId: session.userId,
+        token: session.accessToken,
+        itemId: itemId,
+      );
+});
+
 /// "More Like This" — titles similar to a given item.
 final similarItemsProvider = FutureProvider.autoDispose
     .family<List<BaseItemDto>, String>((ref, itemId) async {

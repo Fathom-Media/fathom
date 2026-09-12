@@ -3460,6 +3460,66 @@ abstract class AppLocalizations {
   /// **'Trailer'**
   String get detailTrailer;
 
+  /// Detail page section: a title's bonus material.
+  ///
+  /// In en, this message translates to:
+  /// **'Extras'**
+  String get detailExtras;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Trailer'**
+  String get extraTypeTrailer;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Behind the Scenes'**
+  String get extraTypeBehindTheScenes;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted Scene'**
+  String get extraTypeDeletedScene;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Interview'**
+  String get extraTypeInterview;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Scene'**
+  String get extraTypeScene;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Featurette'**
+  String get extraTypeFeaturette;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Short'**
+  String get extraTypeShort;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Clip'**
+  String get extraTypeClip;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Sample'**
+  String get extraTypeSample;
+
   /// Section heading for a row of similar titles.
   ///
   /// In en, this message translates to:
