@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show SemanticsService;
 import 'package:flutter/services.dart';
@@ -788,13 +790,29 @@ class _WheelAudio {
 
   final _player = Player();
   final _clock = Stopwatch()..start();
+  // Android serves the ticks from SoundPool instead (see WheelSfx.kt): one
+  // media_kit stream restarted every 50ms smears on Android's media-sized
+  // output buffer, so the rattle lagged the wheel and sounded slower than the
+  // same code does on the desktop, even though both tick at the same rate.
+  static const _sfx = MethodChannel('app.fathom.player/sfx');
+  bool get _nativeTicks => defaultTargetPlatform == TargetPlatform.android;
+  bool _nativeTickReady = false;
   bool muted = false;
   bool _disposed = false;
   // The asset currently open and ready to play, null while switching.
   String? _loaded;
   int _lastTickMicros = -1000000;
+  bool _replaying = false;
 
   Future<void> _init() async {
+    if (_nativeTicks) {
+      try {
+        await _sfx.invokeMethod('load', {'asset': 'assets/audio/$_tick'});
+        _nativeTickReady = true;
+      } catch (e) {
+        Diagnostics.instance.add('wheel', 'native tick setup failed: $e');
+      }
+    }
     try {
       final p = _player.platform;
       if (p is NativePlayer) {
@@ -830,18 +848,40 @@ class _WheelAudio {
   Future<void> prepareTick() => _load(_tick);
 
   void tick() {
-    if (muted || _disposed || _loaded != _tick) return;
+    if (muted || _disposed) return;
+    if (_nativeTickReady) {
+      // SoundPool mixes overlapping plays, so no throttle and no restart: every
+      // crossing gets its own click, at the rate the wheel actually turns.
+      unawaited(_sfx
+          .invokeMethod('play', {'asset': 'assets/audio/$_tick'})
+          .catchError((_) => null));
+      return;
+    }
+    if (_loaded != _tick) return;
     // At full speed a peg passes nearly every frame, and each replay seeks
     // back to the start, discarding the previous tick before it reaches the
     // speakers. Spacing them out keeps every tick audible as a fast rattle.
     final now = _clock.elapsedMicroseconds;
     if (now - _lastTickMicros < 45000) return;
+    // Each replay is two platform round trips, and on a phone they take long
+    // enough that firing the next one before the last has landed just queues
+    // them: the rattle then drifts behind the wheel instead of tracking it.
+    // One in flight at a time, so ticks come as fast as the device can serve
+    // them and always match where the wheel actually is.
+    // Each replay is two platform round trips; starting the next before the
+    // last has landed only queues them, so the rattle drifts behind the wheel.
+    // One in flight at a time keeps the ticks on the wedges.
+    if (_replaying) return;
     _lastTickMicros = now;
+    _replaying = true;
     unawaited(() async {
       try {
         await _player.seek(Duration.zero);
         await _player.play();
-      } catch (_) {}
+      } catch (_) {
+      } finally {
+        _replaying = false;
+      }
     }());
   }
 
