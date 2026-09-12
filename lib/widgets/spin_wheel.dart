@@ -88,6 +88,9 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
   final List<_Entry> _entries = [];
   final Map<String, Color> _colors = {};
 
+  // Rasterizes the wheel while it spins (see the SnapshotWidget below).
+  final _snapshot = SnapshotController();
+
   late final AnimationController _spinCtl;
   Animation<double>? _spinAnim;
   bool _spinning = false;
@@ -113,6 +116,7 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
   double _speed = 0; // rad/s, smoothed
   double _speedAngle = 0;
   int _speedMicros = 0;
+  int _hapticMicros = -1000000;
   final _clock = Stopwatch()..start();
 
   @override
@@ -163,6 +167,7 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
   void dispose() {
     _angle.dispose();
     _spinCtl.dispose();
+    _snapshot.dispose();
     _layoutCurve.dispose();
     _layoutCtl.dispose();
     _highlightCtl.dispose();
@@ -302,7 +307,15 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
     final seg = _segmentAt(_angle.value, _geometry());
     if (seg != _lastSegment) {
       _lastSegment = seg;
-      HapticFeedback.selectionClick();
+      // A fast spin crosses wedges dozens of times a second, and on a phone
+      // every haptic is a platform round trip plus a real vibration: firing one
+      // per crossing was enough to cost frames (and buzz continuously). The
+      // pegs still tick and flap at full rate; only the buzz is rationed, which
+      // is also closer to how a real wheel feels.
+      if (now - _hapticMicros >= 60000) {
+        _hapticMicros = now;
+        HapticFeedback.selectionClick();
+      }
       _flapCtl.forward(from: 0);
       widget.onTick?.call();
     }
@@ -320,6 +333,7 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
     final strength =
         velocity == null ? 1.0 : (velocity.abs() / 14).clamp(0.55, 1.4);
     setState(() => _spinning = true);
+    _snapshot.allowSnapshotting = true;
     if (!reduce) _hourglassCtl.repeat();
 
     final g = _geometry();
@@ -342,6 +356,7 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
       end: start + rest + dir * 2 * math.pi * turns,
     ).animate(CurvedAnimation(parent: _spinCtl, curve: Curves.easeOutQuint));
     await _spinCtl.forward(from: 0);
+    _snapshot.allowSnapshotting = false;
     _spinAnim = null;
     _hourglassCtl
       ..stop()
@@ -406,6 +421,9 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final size = widget.size;
     final reduce = _reduceMotion;
+    // Measured on a 120Hz phone (2026-09-12): the blur costs nothing there, so
+    // it stays on everywhere but TV. The first spin after launch is the janky
+    // one with or without it, which is warm-up, not the filter.
     final blurAllowed = !reduce && !isTvDevice;
     final l = AppLocalizations.of(context);
     // One screen-reader stop that names the wheel and its titles, and spins
@@ -457,9 +475,14 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
                 builder: (context, child) {
                   // A light blur while it's really moving, fading out as it
                   // slows, like a camera catching a fast-spinning wheel.
-                  final sigma = blurAllowed && _spinning
+                  // Quantized: a sigma that drifts by a hair every frame is a
+                  // different filter every frame, so nothing downstream can be
+                  // reused. In quarter steps it holds still for a stretch of
+                  // frames at a time, and the streak looks identical.
+                  final raw = blurAllowed && _spinning
                       ? ((_speed - 10) / 8).clamp(0.0, 3.0)
                       : 0.0;
+                  final sigma = (raw * 4).roundToDouble() / 4;
                   return Transform.rotate(
                     angle: _angle.value,
                     child: ClipOval(
@@ -472,9 +495,19 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
                     ),
                   );
                 },
-                child: AnimatedBuilder(
-                  animation: Listenable.merge([_layoutCtl, _highlightCtl]),
-                  builder: (context, _) => _content(),
+                // The wheel's painting doesn't change while it turns, only
+                // its angle does, yet every frame was repainting each wedge's
+                // clipped poster, the fills and the labels: measured at ~4.4ms
+                // a frame on a 120Hz phone, against an 8.3ms budget. Snapshot
+                // it for the duration of the spin instead, so those frames
+                // rotate one texture. Switched off again the moment the wheel
+                // stops, since the landing highlight really does repaint.
+                child: SnapshotWidget(
+                  controller: _snapshot,
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([_layoutCtl, _highlightCtl]),
+                    builder: (context, _) => _content(),
+                  ),
                 ),
               ),
             ),
@@ -956,7 +989,11 @@ class _WedgePoster extends StatelessWidget {
           item: item,
           placeholderIcon: Icons.movie_rounded,
           maxHeight: requestHeight,
-          filterQuality: FilterQuality.high,
+          // Medium (bilinear + mipmaps), not high (bicubic): the posters are
+          // drawn at roughly their own size, so the two are hard to tell apart
+          // even at rest, and bicubic is resampled per poster per frame while
+          // the wheel turns, which a phone GPU feels and a desktop one doesn't.
+          filterQuality: FilterQuality.medium,
         ),
       ),
     );

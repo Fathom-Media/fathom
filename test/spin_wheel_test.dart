@@ -123,4 +123,29 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('the wheel rasterizes itself while it spins', (tester) async {
+    // Measured on a 120Hz phone: repainting every clipped poster, fill and
+    // label each frame cost ~4.4ms a frame against an 8.3ms budget, and the
+    // spin visibly stuttered. Snapshotting for the duration of the spin turns
+    // those frames into one rotated texture. It has to go off again at the
+    // end, or the landing highlight would animate under a frozen picture.
+    await tester.pumpWidget(_harness(count: 5, size: 320));
+    await tester.pump();
+    final snapshot =
+        tester.widget<SnapshotWidget>(find.byType(SnapshotWidget)).controller;
+    expect(snapshot.allowSnapshotting, isFalse);
+
+    final state = tester.state<SpinWheelState>(find.byType(SpinWheel));
+    state.spin();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(snapshot.allowSnapshotting, isTrue, reason: 'snapshot while spinning');
+
+    for (var i = 0; i < 130; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(state.isBusy, isFalse);
+    expect(snapshot.allowSnapshotting, isFalse,
+        reason: 'back to live painting once it lands');
+  });
 }
