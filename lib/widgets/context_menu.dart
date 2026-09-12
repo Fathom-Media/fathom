@@ -77,7 +77,16 @@ Future<VoidCallback?> _showDropdown(
             children: [
               Icon(a.icon, size: 20, color: a.color),
               const SizedBox(width: 12),
-              Text(a.label, style: TextStyle(color: a.color)),
+              // Flexible: the dropdown is capped by the space left between the
+              // click and the screen edge, so a long label (or a longer
+              // translation of a short one) overflowed the row.
+              Flexible(
+                child: Text(
+                  a.label,
+                  style: TextStyle(color: a.color),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),
