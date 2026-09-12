@@ -611,6 +611,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#offline-downloads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Offline downloads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sleep-timer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sleep timer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#internet-radio" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -911,6 +933,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#offline-downloads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Offline downloads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sleep-timer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sleep timer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#internet-radio" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1016,7 +1060,11 @@
 <h2 id="your-library">Your library<a class="headerlink" href="#your-library" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Movies and TV</strong>: libraries, search, rich detail pages, resume and Next Up, next and previous episode, skip intro, recap, and credits, an Up Next prompt that rolls into the next episode during the credits, chapters, and trickplay thumbnails as you scrub.</li>
+<li><strong>Browse by anything</strong>: genres, studios, artists, and a page for every person, so a cast member's other work is one tap away. Trailers play in the app rather than sending you to a browser.</li>
+<li><strong>Extras</strong>: a title's bonus material (behind the scenes, deleted scenes, interviews, featurettes, and trailer files held on your server) appears as its own row on the detail page, and plays in the normal player.</li>
 <li><strong>Favorites and Watchlist</strong>: two separate personal lists, one for what you love, one for what you still want to watch. Toggle either from an item's detail page or its context menu (long-press, right-click, or the overflow button, they all open the same menu).</li>
+<li><strong>Tidy up Continue Watching</strong>: something you started and will not finish can be dropped from the row through the same context menu. It only clears the resume position, so the title is not marked watched and comes back if you play it again.</li>
+<li><strong>Movie Night Wheel</strong>: when nobody can decide, spin for it. Fill the wheel from your library or type titles in, then pick a mode: Last One Standing knocks a title out on every spin, Single Spin takes the first result, and Best of 3 wants a title to win twice. It is reachable from the Watchlist, and from a SyncPlay session so a group can decide together.</li>
 <li><strong>Music</strong>: albums, a play queue, now playing, shuffle and repeat, synced lyrics with an online fallback, and scrobbling. The now-playing screen flips between artwork and lyrics.</li>
 <li><strong>Live TV and DVR</strong>: a channel list, an EPG guide, recording with series rules, and tuner and guide-provider setup.</li>
 </ul>
@@ -1038,6 +1086,16 @@
 <li><strong>General</strong>: container, buffer, and A/V sync.</li>
 </ul>
 <p>It works in both the Jellyfin and YouTube players, and stays put when you enter fullscreen.</p>
+<h2 id="offline-downloads">Offline downloads<a class="headerlink" href="#offline-downloads" title="Permanent link">&para;</a></h2>
+<p>Download a movie, an episode, a whole season or series, a Live TV recording, a track, or an entire album, and watch or listen with the server out of reach.</p>
+<ul>
+<li><strong>Downloads is a real library</strong>, not a list of files: Movies, TV Shows, Recordings, and Music sections with the same artwork and rating badges as your online library.</li>
+<li><strong>Detail pages work offline</strong> too, scoped to what you actually have: only the episodes on the device, with local Play, Mark Watched, and Remove that never touch the server.</li>
+<li><strong>Pick a scope</strong> when downloading a series (everything, or a single season), and watch progress on a floating pill with a Cancel All action.</li>
+<li><strong>Choose where it lands</strong> under <strong>Settings → Downloads</strong>.</li>
+</ul>
+<h2 id="sleep-timer">Sleep timer<a class="headerlink" href="#sleep-timer" title="Permanent link">&para;</a></h2>
+<p>Every player has one, from the gear menu or the moon button in the top bar: music, video, YouTube, and radio. Pick anything from 15 minutes to 2 hours, or have it stop at the end of the current track or episode. The sound fades out over the last 15 seconds rather than cutting off, and the button shows the time left while it runs.</p>
 <h2 id="internet-radio">Internet radio<a class="headerlink" href="#internet-radio" title="Permanent link">&para;</a></h2>
 <p>Add stations by URL or search the built-in <a href="https://www.radio-browser.info">radio-browser.info</a> directory. Organize them into groups and favorites, and reorder them by drag.</p>
 <ul>
@@ -1060,7 +1118,11 @@
 <h2 id="server-administration">Server administration<a class="headerlink" href="#server-administration" title="Permanent link">&para;</a></h2>
 <p>Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, and plugins. Each plugin's configuration is an in-app form (toggles, fields, and add/remove lists), with a raw-JSON option if you prefer, and plugin logos show in the list.</p>
 <h2 id="personalization">Personalization<a class="headerlink" href="#personalization" title="Permanent link">&para;</a></h2>
-<p>Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, in-app updates with a Stable or Dev channel, system and in-app notifications, a Settings screen you can search, and a fully translatable interface.</p>
+<p>Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, a sidebar whose items you can reorder or hide, in-app updates with a Stable or Dev channel, system and in-app notifications, a Settings screen you can search, and a fully translatable interface.</p>
+<ul>
+<li><strong>Several accounts</strong>: keep more than one Jellyfin account (or server) signed in and switch between them without re-entering anything.</li>
+<li><strong>Screen readers</strong>: cards announce themselves as a single item with their title and year, every icon-only button carries a label, and the Movie Night Wheel names its titles and reads out each result.</li>
+</ul>
 <h2 id="notifications">Notifications<a class="headerlink" href="#notifications" title="Permanent link">&para;</a></h2>
 <p>Fathom keeps an in-app notification centre (the bell), and shows an in-app toast while you're using the app. Choose which events you care about under <strong>Settings → Notifications</strong>:</p>
 <ul>
@@ -1089,7 +1151,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 5, 2026 19:17:19 UTC">September 5, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 12, 2026 21:30:49 UTC">September 12, 2026</span>
   </span>
 
     
