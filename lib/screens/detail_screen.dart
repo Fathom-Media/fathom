@@ -238,6 +238,15 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     ref.invalidate(itemDetailProvider(item.id));
     ref.invalidate(resumeItemsProvider);
     ref.invalidate(latestItemsProvider);
+    // Same refresh the player teardown does: Next Up and the episode list both
+    // change when an episode's watched state does.
+    ref.invalidate(nextUpItemsProvider);
+    final seriesId = item.isSeries ? item.id : item.seriesId;
+    if (seriesId != null) {
+      ref.invalidate(itemDetailProvider(seriesId));
+      ref.invalidate(episodesProvider(seriesId));
+      ref.invalidate(nextUpProvider(seriesId));
+    }
   }
 
   Future<void> _toggleFavorite(WidgetRef ref) async {

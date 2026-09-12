@@ -306,4 +306,15 @@ void _invalidateLists(ProviderContainer container, BaseItemDto item) {
   container.invalidate(resumeItemsProvider);
   container.invalidate(latestItemsProvider);
   container.invalidate(favoriteItemsProvider);
+  // Next Up is where a just-watched episode is most visibly wrong: without
+  // this the row keeps offering the episode, and its checkmark only appears
+  // after a manual refresh. An episode also changes its series' progress and
+  // its place in the episode list, so refresh those from the series id.
+  container.invalidate(nextUpItemsProvider);
+  final seriesId = item.isSeries ? item.id : item.seriesId;
+  if (seriesId != null) {
+    container.invalidate(itemDetailProvider(seriesId));
+    container.invalidate(episodesProvider(seriesId));
+    container.invalidate(nextUpProvider(seriesId));
+  }
 }
