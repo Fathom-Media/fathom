@@ -1673,8 +1673,8 @@ class _RequestTile extends ConsumerWidget {
     };
   }
 
-  Future<bool> _confirm(BuildContext context, String title, String action,
-      {bool destructive = true}) async {
+  Future<bool> _confirm(
+      BuildContext context, String title, String action) async {
     final l = AppLocalizations.of(context);
     final ok = await confirm(context,
         title: title,
