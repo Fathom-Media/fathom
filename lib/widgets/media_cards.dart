@@ -554,7 +554,12 @@ class PosterTile extends StatelessWidget {
 }
 
 /// Landscape card with a progress bar (Continue Watching).
-class ContinueCard extends StatelessWidget {
+/// The landscape card used by Continue Watching and Next Up.
+///
+/// Carries the same item menu a poster does (long-press, right-click, or the
+/// hover hamburger): without it there was nowhere to reach "Remove from
+/// Continue Watching", which is the one action this row exists for.
+class ContinueCard extends ConsumerStatefulWidget {
   final BaseItemDto item;
   final VoidCallback? onTap;
   static const double width = 304;
@@ -562,7 +567,29 @@ class ContinueCard extends StatelessWidget {
   const ContinueCard({super.key, required this.item, this.onTap});
 
   @override
+  ConsumerState<ContinueCard> createState() => _ContinueCardState();
+}
+
+class _ContinueCardState extends ConsumerState<ContinueCard> {
+  bool _hover = false;
+
+  // Off TV only, exactly like the poster cards: on TV the card's D-pad path is
+  // left alone and the menu lives on the detail page.
+  bool get _canMenu => !isTvDevice;
+
+  void _openMenu(Offset at) => showItemActionsMenu(
+        context,
+        ref,
+        widget.item,
+        at: at,
+        fromGrid: true,
+        onOpenDetails: widget.onTap,
+      );
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final onTap = widget.onTap;
     final theme = Theme.of(context);
     final title = item.isEpisode ? (item.seriesName ?? item.name) : item.name;
     final subtitle = item.isEpisode
@@ -571,9 +598,17 @@ class ContinueCard extends StatelessWidget {
 
     return _CardSemantics(
       onTap: onTap,
+      child: MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+      onLongPressStart:
+          _canMenu ? (d) => _openMenu(d.globalPosition) : null,
+      onSecondaryTapDown:
+          _canMenu ? (d) => _openMenu(d.globalPosition) : null,
       child: HoverLift(
       child: SizedBox(
-        width: width,
+        width: ContinueCard.width,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -630,6 +665,19 @@ class ContinueCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (_canMenu)
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: AnimatedOpacity(
+                            opacity: _hover ? 1 : 0,
+                            duration: const Duration(milliseconds: 120),
+                            child: IgnorePointer(
+                              ignoring: !_hover,
+                              child: _CardMenuButton(onTap: _openMenu),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -652,6 +700,8 @@ class ContinueCard extends StatelessWidget {
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           ],
         ),
+      ),
+      ),
       ),
       ),
     );

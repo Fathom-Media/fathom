@@ -124,6 +124,25 @@ Future<void> showItemActionsMenu(
       _invalidateLists(container, item);
     }),
   ));
+  // Only for something actually sitting in Continue Watching. Live channels
+  // carry a position too, but they aren't in that row.
+  if (item.resumePositionTicks > 0 && item.type != 'TvChannel') {
+    actions.add(ContextMenuAction(
+      icon: Icons.remove_circle_outline_rounded,
+      label: l.actionRemoveFromContinueWatching,
+      onTap: () => _mutate(messenger, () async {
+        final s = container.read(sessionControllerProvider).asData?.value;
+        if (s == null) return;
+        await container.read(jellyfinClientProvider).clearResumePosition(
+              baseUrl: s.baseUrl,
+              userId: s.userId,
+              token: s.accessToken,
+              itemId: item.id,
+            );
+        _invalidateLists(container, item);
+      }),
+    ));
+  }
   actions.add(ContextMenuAction(
     icon: item.userData.isFavorite
         ? Icons.favorite_rounded

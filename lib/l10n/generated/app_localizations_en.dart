@@ -1663,6 +1663,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerBackToApp => 'Back to App';
 
   @override
+  String get actionRemoveFromContinueWatching =>
+      'Remove from Continue Watching';
+
+  @override
   String get actionShowDetails => 'Show Details';
 
   @override

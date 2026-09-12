@@ -472,6 +472,43 @@ Future<void> deletePlaylist({
     }
   }
 
+/// Clears an item's resume position, which is what takes it out of Continue
+  /// Watching: that row is simply the items whose position is above zero.
+  ///
+  /// The played flag is left alone, matching Jellyfin's own web client, so the
+  /// title is not silently marked watched and comes back if it's played again.
+  Future<void> clearResumePosition({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    required String itemId,
+  }) async {
+    const body = {'PlaybackPositionTicks': 0};
+    try {
+      await _dio.post(
+        '$baseUrl/UserItems/$itemId/UserData',
+        queryParameters: {'userId': userId},
+        data: body,
+        options: _authed(token),
+      );
+    } on DioException catch (e) {
+      // The route moved in 10.10; older servers only have the per-user one.
+      if (e.response?.statusCode == 404) {
+        try {
+          await _dio.post(
+            '$baseUrl/Users/$userId/Items/$itemId/UserData',
+            data: body,
+            options: _authed(token),
+          );
+          return;
+        } on DioException catch (e2) {
+          throw JellyfinException(_friendlyDioError(e2));
+        }
+      }
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
 /// Adds or removes an item from favorites.
   Future<void> setFavorite({
     required String baseUrl,

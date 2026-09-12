@@ -3136,6 +3136,12 @@ abstract class AppLocalizations {
   /// **'Back to App'**
   String get playerBackToApp;
 
+  /// Item menu action: drop the item from the Continue Watching row by clearing its resume position.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Continue Watching'**
+  String get actionRemoveFromContinueWatching;
+
   /// Context-menu row: open the item's detail page.
   ///
   /// In en, this message translates to:
