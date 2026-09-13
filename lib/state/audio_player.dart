@@ -1719,10 +1719,13 @@ class AudioController extends Notifier<AudioState> {
     if (prefs == null) return;
     try {
       final p = _player.platform as dynamic;
+      final on = prefs.replayGain != 'off';
+      unawaited(p.setProperty('replaygain', on ? prefs.replayGain : 'no'));
+      // Measured: mpv applies the fallback whenever its ReplayGain logic isn't
+      // active, so leaving a non-zero one set while levelling is off quietly
+      // attenuates everything, with the slider hidden and no way back.
       unawaited(p.setProperty(
-          'replaygain', prefs.replayGain == 'off' ? 'no' : prefs.replayGain));
-      unawaited(p.setProperty(
-          'replaygain-fallback', '${prefs.replayGainFallback}'));
+          'replaygain-fallback', on ? '${prefs.replayGainFallback}' : '0'));
       // Never let a positive gain clip: mpv lowers it instead.
       unawaited(p.setProperty('replaygain-clip', 'no'));
     } catch (_) {}
