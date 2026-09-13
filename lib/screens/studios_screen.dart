@@ -112,6 +112,8 @@ class _StudioItemsScreenState extends ConsumerState<StudioItemsScreen> {
         items: async,
         emptyTitle: l.browseNothingFromStudio(widget.studio),
         emptyIcon: Icons.business_rounded,
+        onRefresh: () => ref.invalidate(studioItemsProvider(
+            (studio: widget.studio, sortBy: _sortBy, sortOrder: _sortOrder))),
       ),
     );
   }

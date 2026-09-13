@@ -109,6 +109,7 @@ class ArtistAlbumsScreen extends ConsumerWidget {
         items: async,
         emptyTitle: l.browseNoAlbums,
         emptyIcon: Icons.album_rounded,
+        onRefresh: () => ref.invalidate(artistAlbumsProvider(artistId)),
       ),
     );
   }

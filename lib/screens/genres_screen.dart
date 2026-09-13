@@ -113,6 +113,8 @@ class _GenreItemsScreenState extends ConsumerState<GenreItemsScreen> {
         items: async,
         emptyTitle: l.browseNothingInGenre(widget.genre),
         emptyIcon: Icons.category_rounded,
+        onRefresh: () => ref.invalidate(genreItemsProvider(
+            (genre: widget.genre, sortBy: _sortBy, sortOrder: _sortOrder))),
       ),
     );
   }

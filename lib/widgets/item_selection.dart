@@ -63,6 +63,7 @@ class SelectionBar extends ConsumerStatefulWidget {
     required this.selection,
     required this.all,
     this.canDelete = false,
+    this.onChanged,
   });
 
   final ItemSelection selection;
@@ -72,6 +73,12 @@ class SelectionBar extends ConsumerStatefulWidget {
 
   /// Whether the account may delete media on the server.
   final bool canDelete;
+
+  /// Refreshes whatever the host grid reads from, after a bulk action. Home
+  /// rows and item details are invalidated here, but the grid's own source
+  /// varies (a paged local list in the library, a different provider per
+  /// screen elsewhere), and without this a deleted title stays on screen.
+  final VoidCallback? onChanged;
 
   @override
   ConsumerState<SelectionBar> createState() => _SelectionBarState();
@@ -111,6 +118,7 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     for (final item in chosen) {
       container.invalidate(itemDetailProvider(item.id));
     }
+    widget.onChanged?.call();
     if (failure != null && ok == 0) {
       showErrorOn(messenger, failure);
     } else {
@@ -152,6 +160,14 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     );
   }
 
+  void _addToPlaylist() {
+    final l = AppLocalizations.of(context);
+    final ids = [for (final i in widget.selection.items) i.id];
+    final label = l.selectionCount(ids.length);
+    widget.selection.stop();
+    showAddToPlaylistSheet(context, ref, itemIds: ids, label: label);
+  }
+
   Future<void> _delete() async {
     final l = AppLocalizations.of(context);
     final n = widget.selection.length;
@@ -180,67 +196,110 @@ class _SelectionBarState extends ConsumerState<SelectionBar> {
     final theme = Theme.of(context);
     final sel = widget.selection;
     final enabled = !_busy && !sel.isEmpty;
+    // Every action as one list, so the wide bar and the narrow overflow menu
+    // can't drift apart.
+    final actions = <({IconData icon, String label, VoidCallback? run})>[
+      (
+        icon: Icons.check_circle_outline_rounded,
+        label: l.detailMarkWatched,
+        run: enabled ? () => _setPlayed(true) : null
+      ),
+      (
+        icon: Icons.remove_done_rounded,
+        label: l.detailMarkUnwatched,
+        run: enabled ? () => _setPlayed(false) : null
+      ),
+      (
+        icon: Icons.favorite_border_rounded,
+        label: l.detailAddFavorite,
+        run: enabled ? () => _setFavorite(true) : null
+      ),
+      (
+        icon: Icons.playlist_add_rounded,
+        label: l.detailAddToPlaylist,
+        run: enabled ? _addToPlaylist : null
+      ),
+      if (widget.canDelete)
+        (
+          icon: Icons.delete_outline_rounded,
+          label: l.commonDelete,
+          run: enabled ? _delete : null
+        ),
+    ];
     return Material(
       color: theme.colorScheme.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-        child: Row(
-          children: [
-            IconButton(
-              tooltip: l.commonCancel,
-              icon: const Icon(Icons.close_rounded),
-              onPressed: _busy ? null : sel.stop,
-            ),
-            Text(l.selectionCount(sel.length),
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w600)),
-            const Spacer(),
-            if (_busy)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: AppSpinner.inline(),
-              ),
-            TextButton(
-              onPressed: _busy ? null : () => sel.selectAll(widget.all),
-              child: Text(l.selectionSelectAll),
-            ),
-            IconButton(
-              tooltip: l.detailMarkWatched,
-              icon: const Icon(Icons.check_circle_outline_rounded),
-              onPressed: enabled ? () => _setPlayed(true) : null,
-            ),
-            IconButton(
-              tooltip: l.detailMarkUnwatched,
-              icon: const Icon(Icons.remove_done_rounded),
-              onPressed: enabled ? () => _setPlayed(false) : null,
-            ),
-            IconButton(
-              tooltip: l.detailAddFavorite,
-              icon: const Icon(Icons.favorite_border_rounded),
-              onPressed: enabled ? () => _setFavorite(true) : null,
-            ),
-            IconButton(
-              tooltip: l.detailAddToPlaylist,
-              icon: const Icon(Icons.playlist_add_rounded),
-              onPressed: enabled
-                  ? () {
-                      final ids = [for (final i in sel.items) i.id];
-                      final label = l.selectionCount(ids.length);
-                      sel.stop();
-                      showAddToPlaylistSheet(context, ref,
-                          itemIds: ids, label: label);
-                    }
-                  : null,
-            ),
-            if (widget.canDelete)
+      child: LayoutBuilder(builder: (context, c) {
+        // Five icon buttons plus the count and Select All need roughly 600
+        // logical pixels; below that they were overflowing the row (measured
+        // 250px over at 360 wide), so the actions collapse into one menu.
+        final narrow = c.maxWidth < 620;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+          child: Row(
+            children: [
               IconButton(
-                tooltip: l.commonDelete,
-                icon: const Icon(Icons.delete_outline_rounded),
-                onPressed: enabled ? _delete : null,
+                tooltip: l.commonCancel,
+                icon: const Icon(Icons.close_rounded),
+                onPressed: _busy ? null : sel.stop,
               ),
-          ],
-        ),
-      ),
+              Flexible(
+                child: Text(l.selectionCount(sel.length),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+              ),
+              const Spacer(),
+              if (_busy)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: AppSpinner.inline(),
+                ),
+              if (narrow)
+                IconButton(
+                  tooltip: l.selectionSelectAll,
+                  icon: const Icon(Icons.select_all_rounded),
+                  onPressed: _busy ? null : () => sel.selectAll(widget.all),
+                )
+              else
+                TextButton(
+                  onPressed: _busy ? null : () => sel.selectAll(widget.all),
+                  child: Text(l.selectionSelectAll),
+                ),
+              if (narrow)
+                PopupMenuButton<VoidCallback?>(
+                  tooltip: l.commonMoreOptions,
+                  enabled: enabled,
+                  onSelected: (run) => run?.call(),
+                  itemBuilder: (context) => [
+                    for (final a in actions)
+                      PopupMenuItem<VoidCallback?>(
+                        value: a.run,
+                        enabled: a.run != null,
+                        child: Row(
+                          children: [
+                            Icon(a.icon, size: 20),
+                            const SizedBox(width: 12),
+                            Flexible(
+                              child: Text(a.label,
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                )
+              else
+                for (final a in actions)
+                  IconButton(
+                    tooltip: a.label,
+                    icon: Icon(a.icon),
+                    onPressed: a.run,
+                  ),
+            ],
+          ),
+        );
+      }),
     );
   }
 }

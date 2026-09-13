@@ -30,6 +30,8 @@ class PersonScreen extends ConsumerWidget {
               items: items,
               emptyIcon: Icons.person_rounded,
               emptyTitle: l.detailNoTitlesFound,
+              onRefresh: () =>
+                  ref.invalidate(personItemsProvider(person.id)),
             ),
           ),
         ],

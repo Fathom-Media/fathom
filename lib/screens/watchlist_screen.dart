@@ -45,6 +45,7 @@ class WatchlistScreen extends ConsumerWidget {
         items: items,
         emptyIcon: Icons.bookmark_border_rounded,
         emptyTitle: l.browseNoWatchlist,
+        onRefresh: () => ref.invalidate(watchlistProvider),
       ),
     );
   }

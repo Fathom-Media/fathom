@@ -450,6 +450,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         SelectionBar(
           selection: _selection,
           all: _items,
+          onChanged: _reload,
           canDelete: (user?.enableContentDeletion ?? false) ||
               (user?.isAdministrator ?? false) ||
               (session?.canDelete ?? false),

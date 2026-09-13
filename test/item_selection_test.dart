@@ -1,5 +1,8 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:fathom/l10n/generated/app_localizations.dart';
 import 'package:fathom/models/base_item.dart';
 import 'package:fathom/widgets/item_selection.dart';
 
@@ -56,4 +59,37 @@ void main() {
     s.stop();
     expect(notifications, 4);
   });
+
+  // The bar carries a count, Select All and five actions. At phone widths that
+  // was 250 logical pixels too wide, painting overflow stripes over a grid the
+  // moment you started selecting, so the actions collapse into one menu below
+  // 620 and the count can ellipsize.
+  for (final width in [360.0, 412.0, 600.0, 900.0, 1400.0]) {
+    testWidgets('the selection bar fits at ${width.toInt()} wide',
+        (tester) async {
+      tester.view.physicalSize = Size(width, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final selection = ItemSelection()..start(_item('a'));
+      await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Column(children: [
+              SelectionBar(
+                selection: selection,
+                all: const [],
+                canDelete: true,
+              ),
+            ]),
+          ),
+        ),
+      ));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

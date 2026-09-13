@@ -24,11 +24,16 @@ class ItemGridBody extends ConsumerStatefulWidget {
   final String emptyTitle;
   final IconData emptyIcon;
 
+  /// Re-reads whatever provider fed [items], after a bulk action changed it.
+  /// Without it, titles deleted from a selection stay on screen.
+  final VoidCallback? onRefresh;
+
   const ItemGridBody({
     super.key,
     required this.items,
     this.emptyTitle = 'Nothing here',
     this.emptyIcon = Icons.inbox_rounded,
+    this.onRefresh,
   });
 
   @override
@@ -104,6 +109,7 @@ class _ItemGridBodyState extends ConsumerState<ItemGridBody> {
               selection: _selection,
               all: list,
               canDelete: canDelete,
+              onChanged: widget.onRefresh,
             ),
             Expanded(child: grid),
           ],
