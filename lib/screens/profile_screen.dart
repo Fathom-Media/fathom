@@ -30,16 +30,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file =
-        (result != null && result.files.isNotEmpty) ? result.files.first : null;
-    final bytes = file?.bytes;
-    if (bytes == null) return;
+    final file = await FilePicker.pickFile(type: FileType.image);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
 
-    final ext = (file!.extension ?? 'jpg').toLowerCase();
+    final ext = (file.extension ?? 'jpg').toLowerCase();
     final mime = switch (ext) {
       'png' => 'image/png',
       'gif' => 'image/gif',

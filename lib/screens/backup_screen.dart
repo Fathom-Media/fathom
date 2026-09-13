@@ -61,22 +61,23 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         final dir = await getTemporaryDirectory();
         final path = '${dir.path}/$fileName';
         await File(path).writeAsString(jsonStr);
-        await Share.shareXFiles(
-          [XFile(path, mimeType: 'application/json', name: fileName)],
+        await SharePlus.instance.share(ShareParams(
+          files: [XFile(path, mimeType: 'application/json', name: fileName)],
           subject: l.backupExportSubject,
-        );
+        ));
       } else {
-        final chosen = await FilePicker.platform.saveFile(
+        // saveFile writes the bytes itself now and returns where they landed,
+        // so there's no separate File().writeAsString step (and no extension to
+        // patch up by hand).
+        final saved = await FilePicker.saveFile(
           dialogTitle: l.backupExportTitle,
           fileName: fileName,
+          bytes: utf8.encode(jsonStr),
           type: FileType.custom,
           allowedExtensions: const ['json'],
         );
-        if (chosen == null) return;
-        final path =
-            chosen.toLowerCase().endsWith('.json') ? chosen : '$chosen.json';
-        await File(path).writeAsString(jsonStr);
-        _snack(l.backupSavedTo(path));
+        if (saved == null) return;
+        _snack(l.backupSavedTo(saved.toFilePath()));
       }
     } catch (e) {
       _snack(l.backupFailed('$e'));
@@ -89,17 +90,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final l = AppLocalizations.of(context);
     setState(() => _busy = true);
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final f = await FilePicker.pickFile(
         dialogTitle: l.backupImportTitle,
         type: FileType.custom,
         allowedExtensions: const ['json'],
-        withData: true,
       );
-      if (result == null || result.files.isEmpty) return;
-      final f = result.files.first;
-      final content = f.bytes != null
-          ? utf8.decode(f.bytes!)
-          : await File(f.path!).readAsString();
+      if (f == null) return;
+      // A picked file reads its own bytes now, on every platform, so there's no
+      // withData flag and no path fallback for the platforms that ignored it.
+      final content = utf8.decode(await f.readAsBytes());
       final decoded = jsonDecode(content);
       if (!isValidBackup(decoded)) throw const FormatException('invalid');
       final data = Map<String, dynamic>.from(decoded as Map);

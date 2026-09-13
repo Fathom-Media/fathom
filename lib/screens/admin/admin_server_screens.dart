@@ -143,13 +143,10 @@ class _AdminBrandingState extends ConsumerState<AdminBrandingScreen> {
     final s = ref.read(sessionControllerProvider).asData?.value;
     if (s == null) return;
     final messenger = ScaffoldMessenger.of(context);
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file = picked?.files.firstOrNull;
-    if (file?.bytes == null) return;
-    final ext = (file!.extension ?? 'png').toLowerCase();
+    final file = await FilePicker.pickFile(type: FileType.image);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    final ext = (file.extension ?? 'png').toLowerCase();
     final contentType = ext == 'jpg' || ext == 'jpeg'
         ? 'image/jpeg'
         : (ext == 'webp' ? 'image/webp' : 'image/png');
@@ -158,7 +155,7 @@ class _AdminBrandingState extends ConsumerState<AdminBrandingScreen> {
       await ref.read(jellyfinClientProvider).uploadSplashscreen(
             baseUrl: s.baseUrl,
             token: s.accessToken,
-            bytes: file.bytes!,
+            bytes: bytes,
             contentType: contentType,
           );
       if (mounted) setState(() => _imgNonce++);

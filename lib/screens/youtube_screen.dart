@@ -100,13 +100,12 @@ class _SubscriptionsTab extends ConsumerWidget {
     // On mobile, accept any file and validate by parsing below; desktop keeps
     // the tidy csv/json filter.
     final isMobile = Platform.isAndroid || Platform.isIOS;
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await FilePicker.pickFile(
       type: isMobile ? FileType.any : FileType.custom,
       allowedExtensions: isMobile ? null : const ['csv', 'json'],
-      withData: true,
     );
-    final bytes = picked?.files.singleOrNull?.bytes;
-    if (bytes == null) return;
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
 
     List<YoutubeChannel> parsed;
     try {
@@ -133,7 +132,7 @@ class _SubscriptionsTab extends ConsumerWidget {
     final subs = ref.read(youtubeSubscriptionsProvider).asData?.value ??
         const <YoutubeChannel>[];
     if (subs.isEmpty) return;
-    final path = await FilePicker.platform.saveFile(
+    final path = await FilePicker.saveFile(
       dialogTitle: l.ytExportSubscriptions,
       fileName: 'fathom_subscriptions.json',
       bytes: utf8.encode(SubscriptionTransfer.exportNewPipeJson(subs)),

@@ -1350,7 +1350,7 @@ class _YoutubeDownloadFolders extends ConsumerWidget {
         ref.watch(youtubeDownloadDirProvider(YtDownloadKind.video)).asData?.value;
 
     Future<void> pick(bool audio) async {
-      final dir = await FilePicker.platform.getDirectoryPath(
+      final dir = await FilePicker.getDirectoryPath(
           dialogTitle:
               audio ? l.prefsAudioDownloadFolder : l.prefsVideoDownloadFolder);
       if (dir == null) return;
@@ -1404,8 +1404,7 @@ class _JellyfinDownloadFolder extends ConsumerWidget {
     final path = p.jellyfinDownloadPath;
 
     Future<void> pick() async {
-      final dir = await FilePicker.platform
-          .getDirectoryPath(dialogTitle: l.prefsDownloadLocationPick);
+      final dir = await FilePicker.getDirectoryPath(dialogTitle: l.prefsDownloadLocationPick);
       if (dir == null) return;
       c.edit((x) => x.copyWith(jellyfinDownloadPath: dir));
     }

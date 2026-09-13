@@ -26,7 +26,7 @@ class AppNotifications {
           linux: LinuxInitializationSettings(defaultActionName: 'Open'),
           android: AndroidInitializationSettings('@mipmap/ic_launcher'),
         );
-        await _plugin.initialize(settings);
+        await _plugin.initialize(settings: settings);
         _ready = true;
       } catch (_) {
         _ready = false;
@@ -65,7 +65,12 @@ class AppNotifications {
           priority: Priority.defaultPriority,
         ),
       );
-      await _plugin.show(_id++, title, body, details);
+      await _plugin.show(
+        id: _id++,
+        title: title,
+        body: body,
+        notificationDetails: details,
+      );
     } catch (_) {}
   }
 }
