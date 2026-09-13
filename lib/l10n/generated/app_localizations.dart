@@ -4162,6 +4162,66 @@ abstract class AppLocalizations {
   /// **'Favorites'**
   String get browseFavorites;
 
+  /// How many items are selected in a grid.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 selected} other{{count} selected}}'**
+  String selectionCount(int count);
+
+  /// Selects every item currently shown in the grid.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get selectionSelectAll;
+
+  /// Result message after marking a selection watched.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Marked 1 as watched} other{Marked {count} as watched}}'**
+  String selectionMarkedWatched(int count);
+
+  /// Result message after marking a selection unwatched.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Marked 1 as unwatched} other{Marked {count} as unwatched}}'**
+  String selectionMarkedUnwatched(int count);
+
+  /// Result message after favoriting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Added 1 to favorites} other{Added {count} to favorites}}'**
+  String selectionFavorited(int count);
+
+  /// Result message after unfavoriting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Removed 1 from favorites} other{Removed {count} from favorites}}'**
+  String selectionUnfavorited(int count);
+
+  /// Confirmation title for deleting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete 1 item?} other{Delete {count} items?}}'**
+  String selectionDeleteTitle(int count);
+
+  /// Confirmation body for deleting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the files from your server. It cannot be undone.'**
+  String get selectionDeleteBody;
+
+  /// Result message after deleting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Deleted 1 item} other{Deleted {count} items}}'**
+  String selectionDeleted(int count);
+
+  /// Item menu action: start selecting several items in the grid.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get actionSelect;
+
   /// Watchlist screen title and nav destination label.
   ///
   /// In en, this message translates to:

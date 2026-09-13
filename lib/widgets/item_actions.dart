@@ -42,6 +42,9 @@ Future<void> showItemActionsMenu(
   // Overrides the stored kind for a download (e.g. 'Recording' when the item is
   // reached from the recordings context), so it classifies correctly.
   String? downloadAsType,
+  /// Starts multi-select on the grid this item came from. Only grids that can
+  /// act on a whole selection pass it, so the row is absent elsewhere.
+  VoidCallback? onSelect,
 }) async {
   final l = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
@@ -104,6 +107,13 @@ Future<void> showItemActionsMenu(
       icon: Icons.info_outline_rounded,
       label: l.actionShowDetails,
       onTap: onOpenDetails,
+    ));
+  }
+  if (onSelect != null) {
+    actions.add(ContextMenuAction(
+      icon: Icons.checklist_rounded,
+      label: l.actionSelect,
+      onTap: onSelect,
     ));
   }
   actions.add(ContextMenuAction(

@@ -2252,6 +2252,93 @@ class AppLocalizationsEn extends AppLocalizations {
   String get browseFavorites => 'Favorites';
 
   @override
+  String selectionCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count selected',
+      one: '1 selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get selectionSelectAll => 'Select All';
+
+  @override
+  String selectionMarkedWatched(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Marked $count as watched',
+      one: 'Marked 1 as watched',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String selectionMarkedUnwatched(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Marked $count as unwatched',
+      one: 'Marked 1 as unwatched',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String selectionFavorited(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Added $count to favorites',
+      one: 'Added 1 to favorites',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String selectionUnfavorited(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Removed $count from favorites',
+      one: 'Removed 1 from favorites',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String selectionDeleteTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Delete $count items?',
+      one: 'Delete 1 item?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get selectionDeleteBody =>
+      'This removes the files from your server. It cannot be undone.';
+
+  @override
+  String selectionDeleted(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Deleted $count items',
+      one: 'Deleted 1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get actionSelect => 'Select';
+
+  @override
   String get browseWatchlist => 'Watchlist';
 
   @override

@@ -48,6 +48,10 @@ class HoverPosterArt extends ConsumerStatefulWidget {
   /// What the menu's "Show Details" runs. Defaults to [onTap]; the Downloads
   /// library sets it to open the detail page while [onTap] plays/drills in.
   final VoidCallback? onOpenDetails;
+
+  /// Adds a "Select" row to this card's menu, which puts the grid into
+  /// multi-select with this item already ticked.
+  final VoidCallback? onSelect;
   const HoverPosterArt(
       {super.key,
       this.item,
@@ -60,7 +64,8 @@ class HoverPosterArt extends ConsumerStatefulWidget {
       this.autofocus = false,
       this.contextActions = true,
       this.onMenu,
-      this.onOpenDetails})
+      this.onOpenDetails,
+      this.onSelect})
       : assert(item != null || art != null);
 
   @override
@@ -100,6 +105,7 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
       at: at,
       fromGrid: true,
       onOpenDetails: widget.onOpenDetails ?? widget.onTap,
+      onSelect: widget.onSelect,
     );
   }
 
@@ -519,8 +525,21 @@ class PosterTile extends StatelessWidget {
   /// on content, not the app bar.
   final bool autofocus;
 
-  const PosterTile(
-      {super.key, required this.item, this.onTap, this.autofocus = false});
+  /// While the grid is selecting, a tap ticks the tile instead of opening it,
+  /// and [selected] draws the tick. Null means the grid isn't selecting.
+  final bool? selected;
+
+  /// Starts multi-select from this tile's own menu.
+  final VoidCallback? onSelect;
+
+  const PosterTile({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.autofocus = false,
+    this.selected,
+    this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -528,14 +547,60 @@ class PosterTile extends StatelessWidget {
     final subtitle = item.isEpisode
         ? (item.seriesName ?? '')
         : (item.productionYear?.toString() ?? '');
+    final selecting = selected != null;
+    final ticked = selected ?? false;
     return _CardSemantics(
       onTap: onTap,
       child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-            child: HoverPosterArt(
-                item: item, onTap: onTap, autofocus: autofocus)),
+            child: Stack(
+          children: [
+            Positioned.fill(
+              child: HoverPosterArt(
+                  item: item,
+                  onTap: onTap,
+                  autofocus: autofocus,
+                  onSelect: onSelect,
+                  // No per-card menu mid-selection: the bar above the grid is
+                  // what acts on things now.
+                  contextActions: !selecting),
+            ),
+            if (selecting)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: ticked
+                          ? theme.colorScheme.primary.withValues(alpha: 0.28)
+                          : Colors.black.withValues(alpha: 0.28),
+                      border: ticked
+                          ? Border.all(
+                              color: theme.colorScheme.primary, width: 3)
+                          : null,
+                    ),
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(
+                          ticked
+                              ? Icons.check_circle_rounded
+                              : Icons.circle_outlined,
+                          color: ticked
+                              ? theme.colorScheme.primary
+                              : Colors.white70,
+                          size: 26,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        )),
         const SizedBox(height: 6),
         Text(item.name,
             maxLines: 1,

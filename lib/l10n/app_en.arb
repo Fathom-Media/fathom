@@ -2851,6 +2851,26 @@
   "@browseFavorites": {
     "description": "Favorites screen title, browse-bar link, and library filter chip."
   },
+  "selectionCount": "{count, plural, =1{1 selected} other{{count} selected}}",
+  "@selectionCount": { "description": "How many items are selected in a grid.", "placeholders": { "count": { "type": "int" } } },
+  "selectionSelectAll": "Select All",
+  "@selectionSelectAll": { "description": "Selects every item currently shown in the grid." },
+  "selectionMarkedWatched": "{count, plural, =1{Marked 1 as watched} other{Marked {count} as watched}}",
+  "@selectionMarkedWatched": { "description": "Result message after marking a selection watched.", "placeholders": { "count": { "type": "int" } } },
+  "selectionMarkedUnwatched": "{count, plural, =1{Marked 1 as unwatched} other{Marked {count} as unwatched}}",
+  "@selectionMarkedUnwatched": { "description": "Result message after marking a selection unwatched.", "placeholders": { "count": { "type": "int" } } },
+  "selectionFavorited": "{count, plural, =1{Added 1 to favorites} other{Added {count} to favorites}}",
+  "@selectionFavorited": { "description": "Result message after favoriting a selection.", "placeholders": { "count": { "type": "int" } } },
+  "selectionUnfavorited": "{count, plural, =1{Removed 1 from favorites} other{Removed {count} from favorites}}",
+  "@selectionUnfavorited": { "description": "Result message after unfavoriting a selection.", "placeholders": { "count": { "type": "int" } } },
+  "selectionDeleteTitle": "{count, plural, =1{Delete 1 item?} other{Delete {count} items?}}",
+  "@selectionDeleteTitle": { "description": "Confirmation title for deleting a selection.", "placeholders": { "count": { "type": "int" } } },
+  "selectionDeleteBody": "This removes the files from your server. It cannot be undone.",
+  "@selectionDeleteBody": { "description": "Confirmation body for deleting a selection." },
+  "selectionDeleted": "{count, plural, =1{Deleted 1 item} other{Deleted {count} items}}",
+  "@selectionDeleted": { "description": "Result message after deleting a selection.", "placeholders": { "count": { "type": "int" } } },
+  "actionSelect": "Select",
+  "@actionSelect": { "description": "Item menu action: start selecting several items in the grid." },
   "browseWatchlist": "Watchlist",
   "@browseWatchlist": {
     "description": "Watchlist screen title and nav destination label."
