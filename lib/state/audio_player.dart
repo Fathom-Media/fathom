@@ -364,6 +364,18 @@ class AudioController extends Notifier<AudioState> {
       // by, so a projected head unit actually gets our sound.
       if (Platform.isAndroid) unawaited(p.setProperty('ao', 'audiotrack'));
     } catch (_) {}
+    _applyReplayGain();
+    // Follow the setting live, so changing it doesn't need a restart or a
+    // track change to take effect.
+    ref.listen(preferencesProvider, (prev, next) {
+      final a = prev?.asData?.value;
+      final b = next.asData?.value;
+      if (b == null) return;
+      if (a?.replayGain != b.replayGain ||
+          a?.replayGainFallback != b.replayGainFallback) {
+        _applyReplayGain();
+      }
+    });
 
     final subPlaylist = _player.stream.playlist.listen((pl) {
       // Keep the visible queue in the player's real order (matters once shuffle
@@ -1695,6 +1707,25 @@ class AudioController extends Notifier<AudioState> {
     final to = newIndex < 0 ? 0 : (newIndex > len ? len : newIndex);
     if (to == oldIndex) return;
     await _player.move(oldIndex, to);
+  }
+
+  /// Volume-levels music from its ReplayGain tags. mpv does the work: it reads
+  /// REPLAYGAIN_TRACK_GAIN / REPLAYGAIN_ALBUM_GAIN and applies the gain, so
+  /// this is a property, not a filter chain. Files without the tags get
+  /// [Prefs.replayGainFallback] instead (0 dB, i.e. nothing, by default), which
+  /// is what keeps an untagged album from jumping out against a tagged one.
+  void _applyReplayGain() {
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    if (prefs == null) return;
+    try {
+      final p = _player.platform as dynamic;
+      unawaited(p.setProperty(
+          'replaygain', prefs.replayGain == 'off' ? 'no' : prefs.replayGain));
+      unawaited(p.setProperty(
+          'replaygain-fallback', '${prefs.replayGainFallback}'));
+      // Never let a positive gain clip: mpv lowers it instead.
+      unawaited(p.setProperty('replaygain-clip', 'no'));
+    } catch (_) {}
   }
 
   /// Append a track to the end of the queue, or start fresh if nothing plays.

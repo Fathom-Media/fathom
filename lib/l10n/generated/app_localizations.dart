@@ -946,6 +946,48 @@ abstract class AppLocalizations {
   /// **'Audio'**
   String get prefsHeaderAudio;
 
+  /// Setting: ReplayGain mode for music (off / per track / per album).
+  ///
+  /// In en, this message translates to:
+  /// **'Volume Levelling'**
+  String get prefsReplayGain;
+
+  /// Subtitle for the volume levelling setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Play every song at a similar loudness, using the levels stored in your files'**
+  String get prefsReplayGainSub;
+
+  /// Volume levelling option: no adjustment.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get prefsReplayGainOff;
+
+  /// Volume levelling option: level each song on its own.
+  ///
+  /// In en, this message translates to:
+  /// **'Per Track'**
+  String get prefsReplayGainTrack;
+
+  /// Volume levelling option: keep an album's own quiet and loud songs relative to each other.
+  ///
+  /// In en, this message translates to:
+  /// **'Per Album'**
+  String get prefsReplayGainAlbum;
+
+  /// Setting: gain applied to files that carry no ReplayGain tags.
+  ///
+  /// In en, this message translates to:
+  /// **'Untagged Music'**
+  String get prefsReplayGainFallback;
+
+  /// Subtitle for the untagged-music gain setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjustment for files with no levels stored in them. Leave at 0 dB to play them untouched.'**
+  String get prefsReplayGainFallbackSub;
+
   /// Settings section header: subtitle options.
   ///
   /// In en, this message translates to:

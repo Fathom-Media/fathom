@@ -457,6 +457,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsHeaderAudio => 'Audio';
 
   @override
+  String get prefsReplayGain => 'Volume Levelling';
+
+  @override
+  String get prefsReplayGainSub =>
+      'Play every song at a similar loudness, using the levels stored in your files';
+
+  @override
+  String get prefsReplayGainOff => 'Off';
+
+  @override
+  String get prefsReplayGainTrack => 'Per Track';
+
+  @override
+  String get prefsReplayGainAlbum => 'Per Album';
+
+  @override
+  String get prefsReplayGainFallback => 'Untagged Music';
+
+  @override
+  String get prefsReplayGainFallbackSub =>
+      'Adjustment for files with no levels stored in them. Leave at 0 dB to play them untouched.';
+
+  @override
   String get prefsHeaderSubtitles => 'Subtitles';
 
   @override

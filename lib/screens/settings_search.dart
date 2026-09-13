@@ -111,6 +111,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
 
   // Audio & Subtitles
   SettingResult(title: l.searchAudioLanguage, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['audio', 'language', 'dub', 'track', 'default audio']),
+  SettingResult(title: l.prefsReplayGain, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['replaygain', 'replay gain', 'volume', 'loudness', 'normalize', 'normalise', 'levelling', 'leveling', 'gain', 'music', 'quiet', 'loud']),
   SettingResult(title: l.searchSubtitleLanguage, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['subtitle', 'caption', 'cc', 'language', 'subs']),
   SettingResult(title: l.searchSubtitleSize, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['subtitle', 'caption', 'size', 'scale', 'font', 'text size']),
   SettingResult(title: l.searchSubtitleColor, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['subtitle', 'caption', 'color', 'colour', 'text color']),

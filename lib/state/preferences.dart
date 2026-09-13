@@ -42,6 +42,15 @@ class Prefs {
 
   // Playback
   final String audioLanguage; // ISO 639-2 (e.g. 'eng'); '' = server default
+
+  /// ReplayGain normalization for music: 'off', 'track', or 'album'. mpv reads
+  /// the REPLAYGAIN_* tags in the files and applies the gain itself; files
+  /// without tags fall back to [replayGainFallback].
+  final String replayGain;
+
+  /// Gain in dB applied to music with no ReplayGain tags, so an untagged
+  /// library isn't left conspicuously louder than a tagged one. 0 = untouched.
+  final double replayGainFallback;
   final String subtitleLanguage; // ISO 639-2; '' = none/off
   final double subtitleScale; // 0.5..2.0 relative subtitle size
   final int subtitleTextColor; // ARGB
@@ -315,6 +324,8 @@ class Prefs {
     this.upNextLeadSeconds = 20,
     this.upNextStyle = 'card',
     this.audioPassthrough = false,
+    this.replayGain = 'off',
+    this.replayGainFallback = 0,
     this.forceTvMode = false,
     this.startupScreen = 'home',
     this.homeBanner = 'carousel',
@@ -443,6 +454,8 @@ class Prefs {
     int? upNextLeadSeconds,
     String? upNextStyle,
     bool? audioPassthrough,
+    String? replayGain,
+    double? replayGainFallback,
     bool? forceTvMode,
     String? startupScreen,
     String? homeBanner,
@@ -566,6 +579,8 @@ class Prefs {
         upNextLeadSeconds: upNextLeadSeconds ?? this.upNextLeadSeconds,
         upNextStyle: upNextStyle ?? this.upNextStyle,
         audioPassthrough: audioPassthrough ?? this.audioPassthrough,
+        replayGain: replayGain ?? this.replayGain,
+        replayGainFallback: replayGainFallback ?? this.replayGainFallback,
         forceTvMode: forceTvMode ?? this.forceTvMode,
         startupScreen: startupScreen ?? this.startupScreen,
         homeBanner: homeBanner ?? this.homeBanner,
@@ -702,6 +717,8 @@ class Prefs {
         'upNextLeadSeconds': upNextLeadSeconds,
         'upNextStyle': upNextStyle,
         'audioPassthrough': audioPassthrough,
+        'replayGain': replayGain,
+        'replayGainFallback': replayGainFallback,
         'forceTvMode': forceTvMode,
         'startupScreen': startupScreen,
         'homeBanner': homeBanner,
@@ -800,6 +817,9 @@ class Prefs {
         amoled: j['amoled'] as bool? ?? false,
         showGreeting: j['showGreeting'] as bool? ?? true,
         audioLanguage: j['audioLanguage'] as String? ?? '',
+        replayGain: j['replayGain'] as String? ?? 'off',
+        replayGainFallback:
+            (j['replayGainFallback'] as num?)?.toDouble() ?? 0,
         subtitleLanguage: j['subtitleLanguage'] as String? ?? '',
         subtitleScale: (j['subtitleScale'] as num?)?.toDouble() ?? 1.0,
         subtitleTextColor:

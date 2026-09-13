@@ -996,6 +996,49 @@ class PreferencesScreen extends ConsumerWidget {
           onChanged: (v) => c.edit((x) => x.copyWith(audioLanguage: v)),
         ),
       ),
+      ListTile(
+        leading: const Icon(Icons.graphic_eq_rounded),
+        title: Text(l.prefsReplayGain),
+        subtitle: Text(l.prefsReplayGainSub),
+        trailing: _Dropdown(
+          value: p.replayGain,
+          options: {
+            'off': l.prefsReplayGainOff,
+            'track': l.prefsReplayGainTrack,
+            'album': l.prefsReplayGainAlbum,
+          },
+          onChanged: (v) => c.edit((x) => x.copyWith(replayGain: v)),
+        ),
+      ),
+      if (p.replayGain != 'off')
+        ListTile(
+          leading: const Icon(Icons.tune_rounded),
+          title: Text(l.prefsReplayGainFallback),
+          subtitle: Text(l.prefsReplayGainFallbackSub),
+          trailing: SizedBox(
+            width: 190,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: p.replayGainFallback,
+                    min: -10,
+                    max: 10,
+                    divisions: 40,
+                    label: '${p.replayGainFallback.toStringAsFixed(1)} dB',
+                    onChanged: (v) =>
+                        c.edit((x) => x.copyWith(replayGainFallback: v)),
+                  ),
+                ),
+                SizedBox(
+                  width: 54,
+                  child: Text('${p.replayGainFallback.toStringAsFixed(1)} dB',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ),
+              ],
+            ),
+          ),
+        ),
       SettingsSectionHeader(l.prefsHeaderSubtitles),
       ListTile(
         leading: const Icon(Icons.closed_caption_rounded),

@@ -489,6 +489,20 @@
   "@prefsHeaderAudio": {
     "description": "Settings section header: audio options."
   },
+  "prefsReplayGain": "Volume Levelling",
+  "@prefsReplayGain": { "description": "Setting: ReplayGain mode for music (off / per track / per album)." },
+  "prefsReplayGainSub": "Play every song at a similar loudness, using the levels stored in your files",
+  "@prefsReplayGainSub": { "description": "Subtitle for the volume levelling setting." },
+  "prefsReplayGainOff": "Off",
+  "@prefsReplayGainOff": { "description": "Volume levelling option: no adjustment." },
+  "prefsReplayGainTrack": "Per Track",
+  "@prefsReplayGainTrack": { "description": "Volume levelling option: level each song on its own." },
+  "prefsReplayGainAlbum": "Per Album",
+  "@prefsReplayGainAlbum": { "description": "Volume levelling option: keep an album's own quiet and loud songs relative to each other." },
+  "prefsReplayGainFallback": "Untagged Music",
+  "@prefsReplayGainFallback": { "description": "Setting: gain applied to files that carry no ReplayGain tags." },
+  "prefsReplayGainFallbackSub": "Adjustment for files with no levels stored in them. Leave at 0 dB to play them untouched.",
+  "@prefsReplayGainFallbackSub": { "description": "Subtitle for the untagged-music gain setting." },
   "prefsHeaderSubtitles": "Subtitles",
   "@prefsHeaderSubtitles": {
     "description": "Settings section header: subtitle options."
