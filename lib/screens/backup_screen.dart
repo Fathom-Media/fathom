@@ -67,17 +67,23 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         ));
       } else {
         // saveFile writes the bytes itself now and returns where they landed,
-        // so there's no separate File().writeAsString step (and no extension to
-        // patch up by hand).
+        // so there's no separate File().writeAsString step. It takes `type` and
+        // `allowedExtensions` but never passes them to the platform, so the
+        // extension isn't enforced: a filename typed without .json would save
+        // as-is and then be invisible to the .json-filtered import picker.
+        // Hence the mime type (a hint some dialogs honour) and the rename.
         final saved = await FilePicker.saveFile(
           dialogTitle: l.backupExportTitle,
           fileName: fileName,
           bytes: utf8.encode(jsonStr),
-          type: FileType.custom,
-          allowedExtensions: const ['json'],
+          mimeType: 'application/json',
         );
         if (saved == null) return;
-        _snack(l.backupSavedTo(saved.toFilePath()));
+        var path = saved.scheme == 'file' ? saved.toFilePath() : saved.path;
+        if (saved.scheme == 'file' && !path.toLowerCase().endsWith('.json')) {
+          path = (await File(path).rename('$path.json')).path;
+        }
+        _snack(l.backupSavedTo(path));
       }
     } catch (e) {
       _snack(l.backupFailed('$e'));
