@@ -574,7 +574,7 @@ class ExtraCard extends StatelessWidget {
         ? null
         : (item.runTimeTicks! / 600000000).round();
     final subtitle = [
-      if (kind != null) kind!,
+      ?kind,
       if (minutes != null && minutes > 0) fmtRuntime(minutes),
     ].join(' · ');
     return _CardSemantics(

@@ -179,7 +179,7 @@ Future<void> syncPlaySeek({
     'When': whenIso,
     'PositionTicks': positionTicks,
     'IsPlaying': isPlaying,
-    if (playlistItemId != null) 'PlaylistItemId': playlistItemId,
+    'PlaylistItemId': ?playlistItemId,
   });
 
 /// Report that this client is ready to resume at [positionTicks].
@@ -194,7 +194,7 @@ Future<void> syncPlaySeek({
     'When': whenIso,
     'PositionTicks': positionTicks,
     'IsPlaying': isPlaying,
-    if (playlistItemId != null) 'PlaylistItemId': playlistItemId,
+    'PlaylistItemId': ?playlistItemId,
   });
 
 /// Report this client's measured round-trip ping (ms) so the server can

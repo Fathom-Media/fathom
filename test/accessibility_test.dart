@@ -34,7 +34,7 @@ void main() {
     await tester.pump();
     expect(
       tester.getSemantics(find.text('Arrival')),
-      containsSemantics(label: 'Arrival\n2016', isButton: true, hasTapAction: true),
+      isSemantics(label: 'Arrival\n2016', isButton: true, hasTapAction: true),
     );
     handle.dispose();
   });
@@ -53,7 +53,7 @@ void main() {
     await tester.pump();
     expect(
       tester.getSemantics(find.byType(SpinWheel)),
-      containsSemantics(
+      isSemantics(
         label: 'Movie Night Wheel with 2 titles: Arrival, Heat',
         isButton: true,
         hasTapAction: true,
