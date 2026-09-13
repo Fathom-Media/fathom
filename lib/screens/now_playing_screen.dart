@@ -1897,7 +1897,12 @@ class _YtQueueSheet extends ConsumerWidget {
               child: ReorderableListView.builder(
                 shrinkWrap: true,
                 itemCount: queue.length,
-                onReorder: qn.reorder,
+                // onReorderItem, not the deprecated onReorder: reorder()
+                // removes the item and then inserts at the index it's given,
+                // so it needs the index with the lifted item already accounted
+                // for. onReorder passes the pre-removal one, which dropped a
+                // video dragged downwards one slot too far.
+                onReorderItem: qn.reorder,
                 itemBuilder: (context, i) {
                   final v = queue[i];
                   return ListTile(
