@@ -42,6 +42,23 @@ Two options, same build either way:
 
 Windows will likely warn that the app is from an unrecognized publisher the first time (it is not code-signed); choose "More info" then "Run anyway."
 
+## Nix
+
+Fathom ships a flake, so on NixOS (or anywhere with Nix and flakes enabled) you can run it without downloading a release:
+
+```bash
+nix run github:Fathom-Media/fathom
+```
+
+Or build it and keep the result:
+
+```bash
+nix build github:Fathom-Media/fathom
+./result/bin/fathom
+```
+
+It builds for `x86_64-linux` and `aarch64-linux`, pulls in mpv itself, and installs the desktop entry and icons like any other package. There is a dev shell too (`nix develop`) with the right Flutter and Dart for building from source.
+
 ## Android
 
 Download the APK from [Releases](https://github.com/Fathom-Media/fathom/releases) (named like `Fathom-0.12.0.apk`) and open it. Android asks you to allow installing unknown apps the first time; grant it and confirm. Fathom runs on phones and tablets, and on Android TV, where the interface is D-pad friendly. Android TV support is experimental for now and still being refined.
