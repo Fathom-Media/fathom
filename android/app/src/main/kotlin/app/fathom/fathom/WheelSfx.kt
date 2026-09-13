@@ -44,6 +44,12 @@ class WheelSfx(context: Context, messenger: BinaryMessenger, loader: FlutterLoad
                     val asset = call.argument<String>("asset")
                     if (asset == null) {
                         result.error("args", "asset required", null)
+                    } else if (sounds.containsKey(asset)) {
+                        // Already in the pool. The wheel screen loads on every
+                        // visit, and each load is a fresh sample: without this
+                        // they piled up until the pool refused more and the
+                        // ticks went quiet.
+                        result.success(null)
                     } else {
                         try {
                             val key = loader.getLookupKeyForAsset(asset)
@@ -68,8 +74,11 @@ class WheelSfx(context: Context, messenger: BinaryMessenger, loader: FlutterLoad
                         result.success(true)
                     }
                 }
-                "dispose" -> {
-                    pool.release()
+                // Frees the samples without tearing down the pool: it belongs
+                // to the activity, and releasing it would leave every later
+                // load and play silently dead for the rest of the session.
+                "unload" -> {
+                    for (id in sounds.values) pool.unload(id)
                     sounds.clear()
                     ready.clear()
                     result.success(null)
