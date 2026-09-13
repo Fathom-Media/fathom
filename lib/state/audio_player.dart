@@ -173,6 +173,16 @@ class AudioController extends Notifier<AudioState> {
   // unpause (which can leave mpv trying to resume a dead connection and
   // replaying stale buffered data instead of continuing live).
   bool _radioNeedsReconnect = false;
+  // A stream that failed to come back gets retried on a growing delay. mpv
+  // stops reporting errors once it gives up, so "the next error will retry"
+  // (which this used to rely on) means nothing happens at all: the station
+  // sits paused until the user notices.
+  Timer? _radioRetry;
+  int _radioRetryAttempt = 0;
+  // True while playback is paused by something transient (a recording app, a
+  // call, a notification). Radio reconnects rather than unpauses when the
+  // interruption ends, since a live stream can't resume where it stopped.
+  bool _pausedByInterruption = false;
   // Live edge in playback time: advances by wall-clock every tick, so pausing or
   // rewinding leaves playback behind it. Reset on tune / go-live.
   Duration _radioEdge = Duration.zero;
@@ -348,7 +358,28 @@ class AudioController extends Notifier<AudioState> {
         // the phone speaker. We don't auto-resume on the tail: a disconnect is
         // deliberate, so playback stays paused until the user restarts it.
         _interruptSub = session.interruptionEventStream.listen((event) {
-          if (event.begin && _player.state.playing) _player.pause();
+          if (event.begin) {
+            if (!_player.state.playing) return;
+            // A transient interruption (a recording app taking the mic, a call,
+            // a notification) says to come back afterwards; an unknown one is a
+            // deliberate handover like a Bluetooth or Android Auto disconnect,
+            // where resuming would blast out of the phone speaker.
+            _pausedByInterruption = event.type != AudioInterruptionType.unknown;
+            Diagnostics.instance.add('radio',
+                'interrupted (${event.type.name}), resume=$_pausedByInterruption');
+            _player.pause();
+            return;
+          }
+          if (!_pausedByInterruption) return;
+          _pausedByInterruption = false;
+          Diagnostics.instance.add('radio', 'interruption over, resuming');
+          if (state.isRadio) {
+            // The connection is long dead by now (the log shows the server
+            // dropping it about ten seconds in), so take it from the top.
+            unawaited(_reconnectRadio(force: true));
+          } else if (state.hasTrack) {
+            unawaited(_player.play());
+          }
         });
       }).catchError((_) {});
     }
@@ -450,11 +481,17 @@ class AudioController extends Notifier<AudioState> {
     final subRadioPlaying = _player.stream.playing.listen((playing) {
       if (!state.isRadio) return;
       Diagnostics.instance.add('radio', 'playing=$playing');
-      if (playing) _radioNeedsReconnect = false;
     });
     final subRadioBuffering = _player.stream.buffering.listen((buffering) {
       if (state.isRadio) {
         Diagnostics.instance.add('radio', 'buffering=$buffering');
+        // Buffering ending with the player playing is the first moment audio
+        // is really flowing; `playing` alone goes true while mpv is still
+        // trying a dead connection.
+        if (!buffering && _player.state.playing) {
+          _radioNeedsReconnect = false;
+          _radioRecovered();
+        }
       }
     });
     _progressTimer = Timer.periodic(const Duration(seconds: 10), (_) {
@@ -500,6 +537,7 @@ class AudioController extends Notifier<AudioState> {
       _progressTimer?.cancel();
       _radioIcyTimer?.cancel();
       _radioTick?.cancel();
+      _radioRetry?.cancel();
       _noisySub?.cancel();
       _interruptSub?.cancel();
       _radioErrorSub?.cancel();
@@ -773,6 +811,8 @@ class AudioController extends Notifier<AudioState> {
     Diagnostics.instance.add('radio', 'tuning in: ${s.name}');
     _radioIcyTimer?.cancel();
     _radioTick?.cancel();
+    _radioRetry?.cancel();
+    _radioRetryAttempt = 0;
     _reportStopped(); // no Jellyfin scrobble for radio
     _reportedId = null;
     _radioNeedsReconnect = false;
@@ -840,6 +880,8 @@ class AudioController extends Notifier<AudioState> {
   Future<void> stopRadio() async {
     _radioIcyTimer?.cancel();
     _radioTick?.cancel();
+    _radioRetry?.cancel();
+    _radioRetryAttempt = 0;
     _radioNeedsReconnect = false;
     await _player.stop();
     state = state.copyWith(
@@ -1126,13 +1168,27 @@ class AudioController extends Notifier<AudioState> {
   /// stale buffered audio from earlier in the session rather than continuing
   /// live. Debounced, since a flaky connection can fire several error events
   /// in a row.
-  Future<void> _reconnectRadio() async {
+  Future<void> _reconnectRadio({bool force = false}) async {
     final s = state.radioStation;
     if (s == null) return;
+    // Not while something else holds the audio: reconnecting mid-recording
+    // would take the focus back and play over whatever interrupted us. The
+    // interruption's own tail resumes instead.
+    if (_pausedByInterruption) {
+      Diagnostics.instance.add('radio', 'reconnect deferred: interrupted');
+      _radioNeedsReconnect = true;
+      return;
+    }
     final now = DateTime.now();
     final last = _radioLastReconnectAttempt;
-    if (last != null && now.difference(last) < const Duration(seconds: 3)) {
+    if (!force &&
+        last != null &&
+        now.difference(last) < const Duration(seconds: 3)) {
+      // A flaky stream fires a burst of errors; only the first should act. The
+      // rest used to be dropped entirely, which is how a failed attempt became
+      // the last one ever.
       Diagnostics.instance.add('radio', 'reconnect skipped: debounced');
+      _scheduleRadioRetry();
       return;
     }
     _radioLastReconnectAttempt = now;
@@ -1146,10 +1202,49 @@ class AudioController extends Notifier<AudioState> {
       _applyVolume();
       Diagnostics.instance.add('radio', 'reconnect: open() returned');
     } catch (e) {
-      // Still offline, or the stream is genuinely down for now: another error
-      // event will retry this, or the user can hit Play themselves.
       Diagnostics.instance.add('radio', 'reconnect failed: $e');
     }
+    // open() returning proves nothing: a DNS failure surfaces as an error event
+    // afterwards, not an exception. Line up the next attempt, and cancel it
+    // once audio is actually flowing (see the buffering listener).
+    _scheduleRadioRetry();
+  }
+
+  /// Queues another reconnect on a growing delay, until playback is confirmed
+  /// flowing again. Without this a station that failed to come back stayed
+  /// silently paused, because mpv stops reporting errors once it gives up.
+  void _scheduleRadioRetry() {
+    if (!state.isRadio || state.radioStation == null) return;
+    _radioRetry?.cancel();
+    // 20 tries over about twenty minutes: long enough to ride out a tunnel or
+    // a router reboot, short of retrying forever on a station that's gone.
+    if (_radioRetryAttempt >= 20) {
+      Diagnostics.instance.add('radio', 'reconnect: giving up for now');
+      return;
+    }
+    const steps = [3, 5, 10, 20, 30, 60];
+    final delay = Duration(
+        seconds: steps[_radioRetryAttempt.clamp(0, steps.length - 1)]);
+    _radioRetryAttempt++;
+    Diagnostics.instance.add(
+        'radio', 'reconnect retry #$_radioRetryAttempt in ${delay.inSeconds}s');
+    _radioRetry = Timer(delay, () {
+      if (!state.isRadio || _pausedByInterruption) return;
+      if (_player.state.playing && !_player.state.buffering) {
+        _radioRetryAttempt = 0;
+        return;
+      }
+      unawaited(_reconnectRadio(force: true));
+    });
+  }
+
+  /// Playback is flowing again: stop retrying and reset the backoff.
+  void _radioRecovered() {
+    if (_radioRetry == null && _radioRetryAttempt == 0) return;
+    Diagnostics.instance.add('radio', 'reconnected, back to live');
+    _radioRetry?.cancel();
+    _radioRetry = null;
+    _radioRetryAttempt = 0;
   }
 
   /// Rewind/skip within the buffered window (seekable streams only). Negative to
