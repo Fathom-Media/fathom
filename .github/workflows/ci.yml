@@ -16,7 +16,9 @@ jobs:
         with:
           # Pinned to the maintainer's local version so CI's analyzer matches
           # local (floating `stable` pulled newer lints/deprecations and broke).
-          flutter-version: 3.44.8
+          # Keep this in step when the local SDK moves: a stale pin is what let
+          # a dependency that needs a newer Dart resolve locally and fail here.
+          flutter-version: 3.47.2
           cache: true
 
       - name: Install libmpv
