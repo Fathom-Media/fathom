@@ -20,6 +20,7 @@ import '../state/admin_providers.dart';
 import '../models/media_segment.dart';
 import '../models/session.dart';
 import '../services/diagnostics.dart';
+import '../services/fold.dart';
 import '../services/tv_mode.dart';
 import '../widgets/window_frame.dart';
 import '../widgets/cast_button.dart';
@@ -252,15 +253,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _enterImmersiveLandscape() {
     if (!_isMobile) return;
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    _lockLandscape(true);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  // Whether the landscape lock is currently asked for, so a fold/unfold only
+  // talks to the platform when the answer actually changes.
+  bool? _landscapeLocked;
+
+  /// Android 12 and later IGNORE an orientation request from a resizable app on
+  /// a large screen, and offer the user a manual rotate button instead: asking
+  /// for landscape on an unfolded foldable produced exactly that button, and
+  /// video played portrait with black bars until it was tapped. So the lock is
+  /// for phone-sized screens only; a tablet or an unfolded foldable is left to
+  /// auto-rotate, which is both what the system wants and what makes tabletop
+  /// posture reachable by just turning the device.
+  void _lockLandscape(bool want) {
+    if (!_isMobile || _landscapeLocked == want) return;
+    _landscapeLocked = want;
+    SystemChrome.setPreferredOrientations(want
+        ? const [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]
+        : const []);
   }
 
   void _restoreSystemUi() {
     if (!_isMobile) return;
+    _landscapeLocked = null;
     // Empty list = no lock (restore whatever the app allowed before), and bring
     // the status/nav bars back edge-to-edge.
     SystemChrome.setPreferredOrientations(const []);
@@ -1619,6 +1637,108 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ? _LiveRecBadge(programId: program.id)
         : null;
 
+    // Tabletop: half-folded with the crease across the middle, so the top half
+    // stands up like a screen and the bottom lies flat. The picture goes above
+    // the crease and the controls below it, instead of the controls sitting on
+    // the picture. Only on a phone-sized foldable; everywhere else (and when
+    // the device reports no fold, which happens even on one that has one) this
+    // is false and the layout is exactly as it was.
+    final fold = FoldInfo.of(context);
+    final tabletop = _isMobile && !_inPip && (fold?.isTabletop ?? false);
+    // Folding changes the screen size under the player, so the lock is decided
+    // per build rather than once on entry.
+    if (!_inPip) {
+      _lockLandscape(MediaQuery.sizeOf(context).shortestSide < 600);
+    }
+    final crease = fold?.position ?? 0;
+    final playerControls = FathomPlayerControls(
+    player: _player,
+    // In tabletop the controls own the bottom half, so there's nothing for
+    // them to get out of the way of: fading out would just leave a black
+    // slab under the picture.
+    autoHide: !tabletop,
+    trickItemId: widget.item.id,
+    title: _title,
+    channelNumber:
+        isLive ? widget.item.channelNumber : null,
+    isLive: widget.item.isLiveChannel,
+    barStyle: prefs?.playerBarStyle ?? 'glass',
+    // On a phone the route is already fullscreen and we
+    // force landscape, so hide the redundant fullscreen
+    // control (and its double-tap gesture).
+    showFullscreen: !_isMobile,
+    // Left-swipe brightness / right-swipe volume, phone only.
+    touchGestures: _isMobile,
+    // Hide the generic spinner while a SyncPlay cue is
+    // shown — the sync glyph is the status indicator then,
+    // and two overlapping spinners just fight for space.
+    loading: !_isPlaying && _syncCue == null,
+    onBack: () => Navigator.of(context).maybePop(),
+    onSeekBy: _seekBy,
+    onJumpToLive: isLive ? _jumpToLive : null,
+    onSubtitles: _showSubtitleMenu,
+    onAudio: _showAudioMenu,
+    // Speed and Quality are meaningless on a live stream
+    // (it always plays at 1x, and there's no transcode
+    // ladder), so both are hidden there.
+    onSpeed: widget.item.isLiveChannel
+        ? null
+        : _showSpeedMenu,
+    onQuality: widget.item.isLiveChannel
+        ? null
+        : _showQualityMenu,
+    qualityLabel: qualityLabel,
+    onChapters: widget.item.chapters.isNotEmpty
+        ? _showChapters
+        : null,
+    onSleepTimer: () => showSleepTimerSheet(context,
+        endOfItemLabel: widget.item.isLiveChannel
+            ? null
+            : widget.item.isEpisode
+                ? AppLocalizations.of(context)
+                    .sleepTimerEndOfEpisode
+                : AppLocalizations.of(context)
+                    .sleepTimerEndOfVideo),
+    statsPlayMethod: _playMethodLabel(l),
+    statsOpen: _statsOpen,
+    markers: [
+      for (final c in widget.item.chapters)
+        (position: c.start, label: c.name ?? l.playerChapter),
+      for (final seg in _segments)
+        (position: seg.start, label: seg.categoryLabel(l)),
+    ],
+    recordButton: (widget.item.isLiveChannel &&
+            widget.item.currentProgram != null)
+        ? LiveRecordButton(
+            programId: widget.item.currentProgram!.id)
+        : null,
+    onToggleMute: _toggleMute,
+    trickplay: _trickplay,
+    trickplayWidth: _trickWidth,
+    baseUrl: session?.baseUrl,
+    client: ref.read(jellyfinClientProvider),
+    headers: ref.read(imageHeadersProvider),
+    showThumbnailPreview:
+        prefs?.previewThumbnailsWhileSeeking ?? true,
+    infoPanel: _tvInfoPanel(),
+    liveBottomInfo: liveBottomInfo,
+    overlayBadge: liveRecBadge,
+    // No picture-in-picture on TV: the mini-player is a
+    // phone/desktop paradigm and isn't reachable on a TV, so
+    // the button is dropped there (kept elsewhere).
+    onMinimize: isTvDevice ? null : _minimize,
+    onVisibilityChanged: (v) {
+      if (mounted) setState(() => _chromeVisible = v);
+    },
+    onPrevious: _epIndex > 0
+        ? () => _playEpisodeAt(_epIndex - 1)
+        : null,
+    onNext:
+        (_epIndex >= 0 && _epIndex < _episodes.length - 1)
+            ? () => _playEpisodeAt(_epIndex + 1)
+            : null,
+  );
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: _error != null
@@ -1633,7 +1753,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 bindings: _buildShortcuts(context),
                 child: Stack(
                   children: [
-                    Positioned.fill(
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      // Above the crease in tabletop, the whole screen otherwise.
+                      bottom: tabletop
+                          ? MediaQuery.sizeOf(context).height - crease
+                          : 0,
                       child: Video(
                         controller: _controller,
                         fit: fit,
@@ -1661,93 +1788,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         // (toggleFullscreen/isFullscreen) resolve correctly.
                         // In a system PiP window, show just the video (the OS
                         // draws its own play/pause), so hide our chrome.
-                        controls: (state) => _wrapControls(_inPip
-                            ? const SizedBox.shrink()
-                            : FathomPlayerControls(
-                          player: _player,
-                          trickItemId: widget.item.id,
-                          title: _title,
-                          channelNumber:
-                              isLive ? widget.item.channelNumber : null,
-                          isLive: widget.item.isLiveChannel,
-                          barStyle: prefs?.playerBarStyle ?? 'glass',
-                          // On a phone the route is already fullscreen and we
-                          // force landscape, so hide the redundant fullscreen
-                          // control (and its double-tap gesture).
-                          showFullscreen: !_isMobile,
-                          // Left-swipe brightness / right-swipe volume, phone only.
-                          touchGestures: _isMobile,
-                          // Hide the generic spinner while a SyncPlay cue is
-                          // shown — the sync glyph is the status indicator then,
-                          // and two overlapping spinners just fight for space.
-                          loading: !_isPlaying && _syncCue == null,
-                          onBack: () => Navigator.of(context).maybePop(),
-                          onSeekBy: _seekBy,
-                          onJumpToLive: isLive ? _jumpToLive : null,
-                          onSubtitles: _showSubtitleMenu,
-                          onAudio: _showAudioMenu,
-                          // Speed and Quality are meaningless on a live stream
-                          // (it always plays at 1x, and there's no transcode
-                          // ladder), so both are hidden there.
-                          onSpeed: widget.item.isLiveChannel
-                              ? null
-                              : _showSpeedMenu,
-                          onQuality: widget.item.isLiveChannel
-                              ? null
-                              : _showQualityMenu,
-                          qualityLabel: qualityLabel,
-                          onChapters: widget.item.chapters.isNotEmpty
-                              ? _showChapters
-                              : null,
-                          onSleepTimer: () => showSleepTimerSheet(context,
-                              endOfItemLabel: widget.item.isLiveChannel
-                                  ? null
-                                  : widget.item.isEpisode
-                                      ? AppLocalizations.of(context)
-                                          .sleepTimerEndOfEpisode
-                                      : AppLocalizations.of(context)
-                                          .sleepTimerEndOfVideo),
-                          statsPlayMethod: _playMethodLabel(l),
-                          statsOpen: _statsOpen,
-                          markers: [
-                            for (final c in widget.item.chapters)
-                              (position: c.start, label: c.name ?? l.playerChapter),
-                            for (final seg in _segments)
-                              (position: seg.start, label: seg.categoryLabel(l)),
-                          ],
-                          recordButton: (widget.item.isLiveChannel &&
-                                  widget.item.currentProgram != null)
-                              ? LiveRecordButton(
-                                  programId: widget.item.currentProgram!.id)
-                              : null,
-                          onToggleMute: _toggleMute,
-                          trickplay: _trickplay,
-                          trickplayWidth: _trickWidth,
-                          baseUrl: session?.baseUrl,
-                          client: ref.read(jellyfinClientProvider),
-                          headers: ref.read(imageHeadersProvider),
-                          showThumbnailPreview:
-                              prefs?.previewThumbnailsWhileSeeking ?? true,
-                          infoPanel: _tvInfoPanel(),
-                          liveBottomInfo: liveBottomInfo,
-                          overlayBadge: liveRecBadge,
-                          // No picture-in-picture on TV: the mini-player is a
-                          // phone/desktop paradigm and isn't reachable on a TV, so
-                          // the button is dropped there (kept elsewhere).
-                          onMinimize: isTvDevice ? null : _minimize,
-                          onVisibilityChanged: (v) {
-                            if (mounted) setState(() => _chromeVisible = v);
-                          },
-                          onPrevious: _epIndex > 0
-                              ? () => _playEpisodeAt(_epIndex - 1)
-                              : null,
-                          onNext:
-                              (_epIndex >= 0 && _epIndex < _episodes.length - 1)
-                                  ? () => _playEpisodeAt(_epIndex + 1)
-                                  : null,
-                        )),
+                        controls: (state) => _wrapControls(
+                            (_inPip || tabletop)
+                                ? const SizedBox.shrink()
+                                : playerControls),
                       ),
                     ),
+                    // Tabletop only: the controls get the flat half to
+                    // themselves, on black, where they're under your hands and
+                    // no longer covering the picture.
+                    if (tabletop)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: crease,
+                        bottom: 0,
+                        child: ColoredBox(
+                          color: Colors.black,
+                          child: playerControls,
+                        ),
+                      ),
                     // SyncPlay status cue (waiting/aligning, or SkipToSync).
                     if (!_inPip)
                       Positioned.fill(child: _SyncCueOverlay(cue: _syncCue)),
