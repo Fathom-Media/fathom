@@ -128,6 +128,9 @@ class BaseItemDto {
   /// DeletedScene, Interview, Scene, Sample, Clip, Featurette, Short,
   /// ThemeSong, ThemeVideo. Null on ordinary library items.
   final String? extraType;
+  /// When the item arrived in the library. For a weekly show this is the day
+  /// after each episode airs, which is how Continue Watching spots a new one.
+  final DateTime? dateCreated;
   final bool isFolder;
   final String? officialRating;
   final double? communityRating; // IMDb-style, 0-10
@@ -176,6 +179,7 @@ class BaseItemDto {
     this.genres = const [],
     this.mediaType,
     this.extraType,
+    this.dateCreated,
     this.isFolder = false,
     this.officialRating,
     this.communityRating,
@@ -292,6 +296,7 @@ class BaseItemDto {
       genres: (json['Genres'] as List?)?.cast<String>() ?? const [],
       mediaType: json['MediaType'] as String?,
       extraType: json['ExtraType'] as String?,
+      dateCreated: DateTime.tryParse((json['DateCreated'] as String?) ?? ''),
       isFolder: json['IsFolder'] as bool? ?? false,
       officialRating: json['OfficialRating'] as String?,
       communityRating: (json['CommunityRating'] as num?)?.toDouble(),

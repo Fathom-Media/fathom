@@ -44,7 +44,7 @@ extension JellyfinLibraryApi on JellyfinClient {
       query: {
         'UserId': userId,
         'Limit': '$limit',
-        'Fields': 'PrimaryImageAspectRatio,Overview',
+        'Fields': 'PrimaryImageAspectRatio,Overview,DateCreated',
         'EnableImageTypes': 'Primary,Backdrop,Thumb,Logo',
       },
     );
@@ -60,11 +60,14 @@ extension JellyfinLibraryApi on JellyfinClient {
     required String userId,
     required String token,
     int limit = 60,
+    /// Only this show's episodes.
+    String? seriesId,
   }) async {
     final res = await getItems(
       baseUrl: baseUrl,
       userId: userId,
       token: token,
+      parentId: seriesId,
       filters: 'IsPlayed',
       includeItemTypes: 'Episode',
       recursive: true,

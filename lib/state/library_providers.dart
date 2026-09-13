@@ -114,9 +114,46 @@ final continueWatchingProvider =
     userId: session.userId,
     token: session.accessToken,
   );
+  // The recent history is a count of episodes, so marking a season watched
+  // pushes every other show out of it: on a real server one afternoon of Mark
+  // Watched dropped Batman, INVINCIBLE and The Twilight Zone off the row. Any
+  // show it doesn't cover gets its own last finished episode instead.
+  final known = {for (final ep in finished) ep.seriesId};
+  final missing = {
+    for (final ep in [...resume, ...nextUp])
+      if (ep.seriesId != null && !known.contains(ep.seriesId)) ep.seriesId!,
+  };
+  final older = await Future.wait([
+    for (final seriesId in missing)
+      client
+          .getRecentlyFinishedEpisodes(
+            baseUrl: session.baseUrl,
+            userId: session.userId,
+            token: session.accessToken,
+            seriesId: seriesId,
+            limit: 1,
+          )
+          .catchError((_) => const <BaseItemDto>[]),
+  ]);
   return mergeContinueWatching(
-      resume: resume, nextUp: nextUp, finished: finished, dismissed: dismissed);
+    resume: resume,
+    nextUp: nextUp,
+    finished: [...finished, for (final list in older) ...list],
+    dismissed: dismissed,
+    now: DateTime.now(),
+  );
 });
+
+/// How long a newly arrived episode counts as new: long enough to cover a
+/// show you watch a week or two behind, short enough that a months-old arrival
+/// doesn't jump the queue.
+const newEpisodeWindow = Duration(days: 30);
+
+/// Whether a waiting episode reached the library recently.
+bool isFreshArrival(BaseItemDto episode, DateTime now) {
+  final created = episode.dateCreated;
+  return created != null && now.difference(created) <= newEpisodeWindow;
+}
 
 /// The key a Continue Watching entry is dismissed under: the show for an
 /// episode, so removing one episode takes the whole show off the row, and the
@@ -130,7 +167,9 @@ List<BaseItemDto> mergeContinueWatching({
   required List<BaseItemDto> nextUp,
   required List<BaseItemDto> finished,
   Map<String, DateTime> dismissed = const {},
+  DateTime? now,
 }) {
+  final clock = now ?? DateTime.now();
   // Removed from the row, and not watched since: stay off it.
   bool hidden(String key, DateTime? latest) {
     final at = dismissed[key];
@@ -175,11 +214,9 @@ List<BaseItemDto> mergeContinueWatching({
     final waiting = nextBySeries[id];
     final done = lastFinished[id];
     final started = inProgress?.userData.lastPlayedDate;
-    // A show that's only waiting joins this row if your recent history shows
-    // you've actually been watching it. Next Up offers every show you ever
-    // finished an episode of, and those can't be taken out of this row: the
-    // Remove action clears a resume point, and a waiting episode has none. So
-    // they'd be clutter with no way out. They still appear in the Next Up row.
+    // A show that's only waiting joins this row if your history shows you've
+    // actually been watching it. Next Up offers every show you ever finished
+    // an episode of; the rest still appear in the Next Up row.
     if (inProgress == null && done == null) continue;
     // Show the half-watched episode only if you touched it after the last one
     // you finished. A real library had a Twilight Zone episode left half-way
@@ -190,9 +227,28 @@ List<BaseItemDto> mergeContinueWatching({
             done == null ||
             (started != null && started.isAfter(done)));
     final chosen = showInProgress ? inProgress : waiting!;
-    final latest = [started, done]
+    DateTime? newest(Iterable<DateTime?> dates) => dates
         .whereType<DateTime>()
         .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+    final lastSeen = newest([started, done]);
+    // A new episode of a show you've been watching ranks by when it arrived,
+    // so Season 4 of something you finished in March goes to the front the
+    // day it appears. The next episode of a show you drifted away from arrived
+    // with the rest of its season, long ago, so it gets no boost.
+    final arrived = !showInProgress &&
+            waiting != null &&
+            lastSeen != null &&
+            isFreshArrival(waiting, clock)
+        ? waiting.dateCreated
+        : null;
+    final latest = newest([lastSeen, arrived]);
+    // Waiting for more than a year with nothing new: you've moved on. The
+    // same cut-off Jellyfin's own Next Up uses by default.
+    if (!showInProgress &&
+        latest != null &&
+        clock.difference(latest) > const Duration(days: 365)) {
+      continue;
+    }
     if (hidden(id, latest)) continue;
     entries.add((item: chosen, at: latest, order: order++));
   }
@@ -293,6 +349,9 @@ final nextUpItemsProvider =
     baseUrl: session.baseUrl,
     userId: session.userId,
     token: session.accessToken,
+    // Continue Watching draws on this list too, and a show with a new episode
+    // shouldn't miss the row because Next Up cut off at twenty.
+    limit: 50,
   );
 });
 
