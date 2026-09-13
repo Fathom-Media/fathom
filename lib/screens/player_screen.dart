@@ -253,7 +253,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _enterImmersiveLandscape() {
     if (!_isMobile) return;
-    _lockLandscape(true);
+    // Only the system bars here. Whether to ask for landscape depends on the
+    // screen size, which isn't readable yet from initState, and asking
+    // unconditionally made a tablet or unfolded foldable rotate and then
+    // rotate back as the first build withdrew it. build() decides the lock.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
