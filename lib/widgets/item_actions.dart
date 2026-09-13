@@ -6,6 +6,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../models/base_item.dart';
 import '../state/downloads.dart';
 import '../state/library_providers.dart';
+import '../state/preferences.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../state/watchlist.dart';
@@ -45,6 +46,9 @@ Future<void> showItemActionsMenu(
   /// Starts multi-select on the grid this item came from. Only grids that can
   /// act on a whole selection pass it, so the row is absent elsewhere.
   VoidCallback? onSelect,
+  /// Opened from a Continue Watching card, where every entry can be removed,
+  /// including a waiting episode that has no resume point of its own.
+  bool inContinueWatching = false,
 }) async {
   final l = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
@@ -134,21 +138,32 @@ Future<void> showItemActionsMenu(
       _invalidateLists(container, item);
     }),
   ));
-  // Only for something actually sitting in Continue Watching. Live channels
-  // carry a position too, but they aren't in that row.
-  if (item.resumePositionTicks > 0 && item.type != 'TvChannel') {
+  // From the row itself, anything in it can go. Elsewhere, only something that
+  // actually has a resume point (live channels carry a position too, but they
+  // aren't in that row).
+  final canRemoveFromRow = inContinueWatching ||
+      (item.resumePositionTicks > 0 && item.type != 'TvChannel');
+  if (canRemoveFromRow) {
     actions.add(ContextMenuAction(
       icon: Icons.remove_circle_outline_rounded,
       label: l.actionRemoveFromContinueWatching,
       onTap: () => _mutate(messenger, () async {
         final s = container.read(sessionControllerProvider).asData?.value;
         if (s == null) return;
-        await container.read(jellyfinClientProvider).clearResumePosition(
-              baseUrl: s.baseUrl,
-              userId: s.userId,
-              token: s.accessToken,
-              itemId: item.id,
-            );
+        // Clear the server's resume point where there is one, so Jellyfin's
+        // own apps agree the title isn't in progress any more.
+        if (item.resumePositionTicks > 0) {
+          await container.read(jellyfinClientProvider).clearResumePosition(
+                baseUrl: s.baseUrl,
+                userId: s.userId,
+                token: s.accessToken,
+                itemId: item.id,
+              );
+        }
+        // And remember the removal. Clearing a resume point alone wasn't
+        // enough once the row merged in Next Up: the show came straight back
+        // as its waiting episode, so Remove looked like it did nothing.
+        await _dismissFromContinueWatching(container, s.userId, item);
         _invalidateLists(container, item);
       }),
     ));
@@ -328,6 +343,26 @@ Future<void> _confirmAndDelete(
   } catch (e) {
     showErrorOn(messenger, e);
   }
+}
+
+/// Takes a show (or film) off the Continue Watching row until it's watched
+/// again. Keeps the most recent 200, so a long-lived account's list can't grow
+/// without bound.
+Future<void> _dismissFromContinueWatching(
+    ProviderContainer container, String userId, BaseItemDto item) async {
+  final key = '$userId|${continueWatchingKey(item)}';
+  final now = DateTime.now().toUtc().toIso8601String();
+  await container.read(preferencesProvider.notifier).edit((p) {
+    final next = {...p.continueWatchingDismissed, key: now};
+    if (next.length > 200) {
+      final newest = next.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      next
+        ..clear()
+        ..addEntries(newest.take(200));
+    }
+    return p.copyWith(continueWatchingDismissed: next);
+  });
 }
 
 void _invalidateLists(ProviderContainer container, BaseItemDto item) {

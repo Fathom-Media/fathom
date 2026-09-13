@@ -716,9 +716,17 @@ class ExtraCard extends StatelessWidget {
 class ContinueCard extends ConsumerStatefulWidget {
   final BaseItemDto item;
   final VoidCallback? onTap;
+  /// Sits in the Continue Watching row (not Next Up), so its menu offers
+  /// Remove even for a waiting episode.
+  final bool inContinueWatching;
   static const double width = 304;
 
-  const ContinueCard({super.key, required this.item, this.onTap});
+  const ContinueCard({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.inContinueWatching = false,
+  });
 
   @override
   ConsumerState<ContinueCard> createState() => _ContinueCardState();
@@ -738,6 +746,7 @@ class _ContinueCardState extends ConsumerState<ContinueCard> {
         at: at,
         fromGrid: true,
         onOpenDetails: widget.onTap,
+        inContinueWatching: widget.inContinueWatching,
       );
 
   @override

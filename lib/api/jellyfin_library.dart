@@ -18,7 +18,7 @@ extension JellyfinLibraryApi on JellyfinClient {
     required String token,
     int limit = 20,
   }) async {
-    return _getItems(
+    final items = await _getItems(
       '$baseUrl/Users/$userId/Items/Resume',
       token,
       query: {
@@ -28,6 +28,7 @@ extension JellyfinLibraryApi on JellyfinClient {
         'EnableImageTypes': 'Primary,Backdrop,Thumb,Logo',
       },
     );
+    return items;
   }
 
 /// The user's global Next Up queue (next episodes across all series).
@@ -47,6 +48,31 @@ extension JellyfinLibraryApi on JellyfinClient {
         'EnableImageTypes': 'Primary,Backdrop,Thumb,Logo',
       },
     );
+  }
+
+  /// Episodes you finished, newest first. Each carries the date it was
+  /// played, which is the only reliable "when did I last watch this show":
+  /// measured on a 12.0 server, the series items' own LastPlayedDate is always
+  /// empty, and the Next Up and resume endpoints return orders that don't
+  /// follow viewing at all.
+  Future<List<BaseItemDto>> getRecentlyFinishedEpisodes({
+    required String baseUrl,
+    required String userId,
+    required String token,
+    int limit = 60,
+  }) async {
+    final res = await getItems(
+      baseUrl: baseUrl,
+      userId: userId,
+      token: token,
+      filters: 'IsPlayed',
+      includeItemTypes: 'Episode',
+      recursive: true,
+      sortBy: 'DatePlayed',
+      sortOrder: 'Descending',
+      limit: limit,
+    );
+    return res.items;
   }
 
 /// "Recently Added" — newest items, optionally scoped to one library.

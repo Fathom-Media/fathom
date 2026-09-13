@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/base_item.dart';
 import '../models/guide_data.dart';
 import '../models/user_dto.dart';
+import 'preferences.dart';
 import 'providers.dart';
 import 'session_controller.dart';
 import '../api/jellyfin_client.dart';
@@ -62,12 +63,166 @@ final resumeItemsProvider =
   final session = ref.watch(sessionControllerProvider).asData?.value;
   if (session == null) return const [];
   final client = ref.watch(jellyfinClientProvider);
-  return client.getResumeItems(
+  final items = await client.getResumeItems(
     baseUrl: session.baseUrl,
     userId: session.userId,
     token: session.accessToken,
   );
+  return collapseResumeBySeries(items);
 });
+
+/// Continue Watching the way Netflix and Plex do it: one entry per show,
+/// whether you stopped in the middle of an episode or finished one and the
+/// next is waiting, ordered by when you actually last watched.
+///
+/// Built from three server lists because none of them is enough alone, all
+/// measured on a real 12.0 server:
+/// * the resume list only holds things you stopped part-way through, so a
+///   show you finish episode by episode never appears in it;
+/// * Next Up has the waiting episodes, but in an order that put the show
+///   watched last night ninth of fifteen;
+/// * neither a series nor a waiting episode carries a last-watched date, but a
+///   finished episode does, so the recently finished list is what ranks shows.
+///
+/// Watches the resume and Next Up providers, so every place that already
+/// refreshes those (playback ending, Mark Watched, pull to refresh) refreshes
+/// this row too.
+final continueWatchingProvider =
+    FutureProvider.autoDispose<List<BaseItemDto>>((ref) async {
+  final session = ref.watch(sessionControllerProvider).asData?.value;
+  if (session == null) return const [];
+  final client = ref.watch(jellyfinClientProvider);
+  // Only the dismissals, flattened to a string so the comparison is by value:
+  // watching all of Prefs would refetch this row on every volume change.
+  final dismissedRaw = ref.watch(preferencesProvider.select((p) {
+    final m = p.asData?.value.continueWatchingDismissed ?? const {};
+    return (m.entries.map((e) => '${e.key}=${e.value}').toList()..sort())
+        .join(';');
+  }));
+  final prefix = '${session.userId}|';
+  final dismissed = <String, DateTime>{
+    for (final pair in dismissedRaw.split(';'))
+      if (pair.startsWith(prefix) && pair.contains('='))
+        pair.substring(prefix.length, pair.indexOf('=')):
+            DateTime.tryParse(pair.substring(pair.indexOf('=') + 1)) ??
+                DateTime.fromMillisecondsSinceEpoch(0),
+  };
+  final resume = await ref.watch(resumeItemsProvider.future);
+  final nextUp = await ref.watch(nextUpItemsProvider.future);
+  final finished = await client.getRecentlyFinishedEpisodes(
+    baseUrl: session.baseUrl,
+    userId: session.userId,
+    token: session.accessToken,
+  );
+  return mergeContinueWatching(
+      resume: resume, nextUp: nextUp, finished: finished, dismissed: dismissed);
+});
+
+/// The key a Continue Watching entry is dismissed under: the show for an
+/// episode, so removing one episode takes the whole show off the row, and the
+/// title itself for a film.
+String continueWatchingKey(BaseItemDto item) => item.seriesId ?? item.id;
+
+/// The ordering and choice behind [continueWatchingProvider], kept pure so it
+/// can be tested against real data.
+List<BaseItemDto> mergeContinueWatching({
+  required List<BaseItemDto> resume,
+  required List<BaseItemDto> nextUp,
+  required List<BaseItemDto> finished,
+  Map<String, DateTime> dismissed = const {},
+}) {
+  // Removed from the row, and not watched since: stay off it.
+  bool hidden(String key, DateTime? latest) {
+    final at = dismissed[key];
+    return at != null && (latest == null || !latest.isAfter(at));
+  }
+
+  // The most recent finished episode per show.
+  final lastFinished = <String, DateTime>{};
+  for (final ep in finished) {
+    final id = ep.seriesId;
+    final at = ep.userData.lastPlayedDate;
+    if (id == null || at == null) continue;
+    final seen = lastFinished[id];
+    if (seen == null || at.isAfter(seen)) lastFinished[id] = at;
+  }
+
+  final resumeBySeries = <String, BaseItemDto>{};
+  final standalone = <BaseItemDto>[];
+  for (final item in resume) {
+    final id = item.seriesId;
+    if (id == null) {
+      standalone.add(item);
+    } else {
+      resumeBySeries.putIfAbsent(id, () => item);
+    }
+  }
+  final nextBySeries = <String, BaseItemDto>{};
+  for (final item in nextUp) {
+    final id = item.seriesId;
+    if (id != null) nextBySeries.putIfAbsent(id, () => item);
+  }
+
+  final entries = <({BaseItemDto item, DateTime? at, int order})>[];
+  var order = 0;
+  for (final item in standalone) {
+    final at = item.userData.lastPlayedDate;
+    if (hidden(item.id, at)) continue;
+    entries.add((item: item, at: at, order: order++));
+  }
+  for (final id in {...resumeBySeries.keys, ...nextBySeries.keys}) {
+    final inProgress = resumeBySeries[id];
+    final waiting = nextBySeries[id];
+    final done = lastFinished[id];
+    final started = inProgress?.userData.lastPlayedDate;
+    // A show that's only waiting joins this row if your recent history shows
+    // you've actually been watching it. Next Up offers every show you ever
+    // finished an episode of, and those can't be taken out of this row: the
+    // Remove action clears a resume point, and a waiting episode has none. So
+    // they'd be clutter with no way out. They still appear in the Next Up row.
+    if (inProgress == null && done == null) continue;
+    // Show the half-watched episode only if you touched it after the last one
+    // you finished. A real library had a Twilight Zone episode left half-way
+    // in September 2025 while Season 3 was being finished in March 2026; the
+    // row should say where you are, not where you once stopped.
+    final showInProgress = inProgress != null &&
+        (waiting == null ||
+            done == null ||
+            (started != null && started.isAfter(done)));
+    final chosen = showInProgress ? inProgress : waiting!;
+    final latest = [started, done]
+        .whereType<DateTime>()
+        .fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+    if (hidden(id, latest)) continue;
+    entries.add((item: chosen, at: latest, order: order++));
+  }
+
+  // Newest first. Anything with no known date keeps its place after the dated
+  // ones rather than being shuffled by a guess.
+  entries.sort((a, b) {
+    if (a.at == null && b.at == null) return a.order.compareTo(b.order);
+    if (a.at == null) return 1;
+    if (b.at == null) return -1;
+    return b.at!.compareTo(a.at!);
+  });
+  return [for (final e in entries) e.item];
+}
+
+/// One entry per series in Continue Watching, keeping the most recent.
+///
+/// Jellyfin lists every part-watched episode, which turns the row into a
+/// shelf: a real library produced eleven entries from two cartoon series,
+/// each a minute or so into a six-minute short, burying the four other things
+/// in there. Films and one-offs are untouched, and the server's order (most
+/// recently played first) is preserved, so the kept episode is simply the
+/// first one seen for its series.
+List<BaseItemDto> collapseResumeBySeries(List<BaseItemDto> items) {
+  final seen = <String>{};
+  return [
+    for (final item in items)
+      if (item.seriesId == null || seen.add(item.seriesId!)) item,
+  ];
+}
 
 /// Full details for a cast/crew member (biography, images).
 final personDetailProvider = FutureProvider.autoDispose
@@ -147,21 +302,48 @@ final nextUpItemsProvider =
 final heroItemsProvider =
     FutureProvider.autoDispose<List<BaseItemDto>>((ref) async {
   final results = await Future.wait([
-    ref.watch(resumeItemsProvider.future),
-    ref.watch(nextUpItemsProvider.future),
+    ref.watch(continueWatchingProvider.future),
     ref.watch(latestItemsProvider.future),
   ]);
+  return heroMix(watching: results[0], added: results[1]);
+});
+
+/// What the Home banner rotates through: the few things you're actually in
+/// the middle of, then what's new.
+///
+/// It used to take eight straight from the resume and Next Up lists, which on
+/// a real library meant a film from July and three year-old cartoon shorts led
+/// the biggest slot on the screen while the show watched the night before
+/// didn't appear at all. It now reads the same merged, recency-ordered list as
+/// the Continue Watching row, so the two can never disagree, and it stops
+/// after [watchingSlots] of those: past that the banner would only repeat the
+/// row sitting directly under it, where fresh additions give the carousel a
+/// reason to exist.
+List<BaseItemDto> heroMix({
+  required List<BaseItemDto> watching,
+  required List<BaseItemDto> added,
+  int watchingSlots = 3,
+  // Matches what the carousel shows: FeaturedHero takes six.
+  int total = 6,
+}) {
   final seen = <String>{};
   final out = <BaseItemDto>[];
-  for (final list in results) {
-    for (final item in list) {
-      if (seen.add(item.id)) out.add(item);
-      if (out.length >= 8) break;
+  void take(Iterable<BaseItemDto> from, int upTo) {
+    for (final item in from) {
+      if (out.length >= upTo) return;
+      // A series episode and its show can both surface; one card per show.
+      final key = item.seriesId ?? item.id;
+      if (seen.add(key)) out.add(item);
     }
-    if (out.length >= 8) break;
   }
+
+  take(watching, watchingSlots);
+  take(added, total);
+  // A thin library with little new: let what you're watching fill the rest
+  // rather than show a half-empty banner.
+  take(watching, total);
   return out;
-});
+}
 
 final latestItemsProvider =
     FutureProvider.autoDispose<List<BaseItemDto>>((ref) async {

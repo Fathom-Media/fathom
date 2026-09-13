@@ -6,12 +6,18 @@ class UserItemData {
   final bool isFavorite;
   final int unplayedItemCount; // unwatched children (series/season)
 
+  /// When this was last played, as the server recorded it. Continue Watching
+  /// comes back in an order that buries the thing you're actually watching, and
+  /// its endpoint takes no sort parameters, so the row is sorted on this.
+  final DateTime? lastPlayedDate;
+
   const UserItemData({
     this.playedPercentage = 0,
     this.playbackPositionTicks = 0,
     this.played = false,
     this.isFavorite = false,
     this.unplayedItemCount = 0,
+    this.lastPlayedDate,
   });
 
   factory UserItemData.fromJson(Map<String, dynamic> json) => UserItemData(
@@ -21,6 +27,8 @@ class UserItemData {
         played: json['Played'] as bool? ?? false,
         isFavorite: json['IsFavorite'] as bool? ?? false,
         unplayedItemCount: (json['UnplayedItemCount'] as num?)?.toInt() ?? 0,
+        lastPlayedDate: DateTime.tryParse(
+            (json['LastPlayedDate'] as String?) ?? ''),
       );
 }
 

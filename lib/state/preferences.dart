@@ -123,6 +123,13 @@ class Prefs {
   final List<String> navOrder; // order of the sidebar destinations (empty = default)
   final List<String> navHidden; // sidebar destination ids the user hid
   final Map<String, int> keyBindings; // player shortcut overrides
+
+  /// Shows (and films) taken off Continue Watching, keyed "userId|id" with the
+  /// time it was removed. The row skips them until there's viewing newer than
+  /// that, so watching the show again brings it back by itself. Needed because
+  /// that row merges in waiting episodes, which have no resume point for a
+  /// server-side removal to clear.
+  final Map<String, String> continueWatchingDismissed;
   final String playerFit; // 'contain' | 'cover' | 'fill'
   final String playerBarStyle; // 'none' | 'glass' | 'dark' — control-bar chrome
   final String libraryViewMode; // 'grid' | 'list'
@@ -344,6 +351,7 @@ class Prefs {
     this.navOrder = const [],
     this.navHidden = const [],
     this.keyBindings = const {},
+    this.continueWatchingDismissed = const {},
     this.playerFit = 'contain',
     this.playerBarStyle = 'glass',
     this.libraryViewMode = 'grid',
@@ -469,6 +477,7 @@ class Prefs {
     List<String>? navOrder,
     List<String>? navHidden,
     Map<String, int>? keyBindings,
+    Map<String, String>? continueWatchingDismissed,
     String? playerFit,
     String? playerBarStyle,
     String? libraryViewMode,
@@ -595,6 +604,8 @@ class Prefs {
         navOrder: navOrder ?? this.navOrder,
         navHidden: navHidden ?? this.navHidden,
         keyBindings: keyBindings ?? this.keyBindings,
+        continueWatchingDismissed:
+            continueWatchingDismissed ?? this.continueWatchingDismissed,
         playerFit: playerFit ?? this.playerFit,
         playerBarStyle: playerBarStyle ?? this.playerBarStyle,
         libraryViewMode: libraryViewMode ?? this.libraryViewMode,
@@ -732,6 +743,7 @@ class Prefs {
         'navOrder': navOrder,
         'navHidden': navHidden,
         'keyBindings': keyBindings.map((k, v) => MapEntry(k, v)),
+        'continueWatchingDismissed': continueWatchingDismissed,
         'playerFit': playerFit,
         'playerBarStyle': playerBarStyle,
         'libraryViewMode': libraryViewMode,
@@ -863,6 +875,9 @@ class Prefs {
         navHidden: (j['navHidden'] as List?)?.cast<String>() ?? const [],
         keyBindings: (j['keyBindings'] as Map?)
                 ?.map((k, v) => MapEntry('$k', (v as num).toInt())) ??
+            const {},
+        continueWatchingDismissed: (j['continueWatchingDismissed'] as Map?)
+                ?.map((k, v) => MapEntry('$k', '$v')) ??
             const {},
         playerFit: j['playerFit'] as String? ?? 'contain',
         playerBarStyle: j['playerBarStyle'] as String? ?? 'glass',
