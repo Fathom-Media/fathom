@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../api/jellyfin_client.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../../models/session.dart';
 import '../../state/providers.dart';
 import '../../state/session_controller.dart';
 import '../../widgets/error_view.dart';
@@ -22,10 +24,14 @@ abstract class ConfigEditorState<T extends ConsumerStatefulWidget>
   String title(AppLocalizations l);
 
   /// Reads the config section to edit.
-  Future<Map<String, dynamic>> load(dynamic client, dynamic session);
+  ///
+  /// Typed, and subclasses inherit the types: the client's methods are
+  /// extensions, which a dynamic call can't reach at runtime.
+  Future<Map<String, dynamic>> load(JellyfinClient client, Session session);
 
   /// Writes the edited config section back.
-  Future<void> save(dynamic client, dynamic session, Map<String, dynamic> cfg);
+  Future<void> save(
+      JellyfinClient client, Session session, Map<String, dynamic> cfg);
 
   /// The editor fields, bound to [draft].
   List<Widget> fields(BuildContext context);

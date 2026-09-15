@@ -596,6 +596,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _resumeAfterReclaim() {
     _session = ref.read(sessionControllerProvider).asData?.value;
     _client = ref.read(jellyfinClientProvider);
+    _container = ProviderScope.containerOf(context, listen: false);
     _started = true;
     _isPlaying = _player.state.playing;
     _progressTimer?.cancel();
@@ -653,6 +654,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final l = AppLocalizations.of(context);
     _session = session;
     _client = client;
+    _container = ProviderScope.containerOf(context, listen: false);
     unawaited(_loadSiblingEpisodes());
 
     // Don't let background music play under the video.
@@ -765,8 +767,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 '${startPrefs?.hardwareDecoding ?? true} '
                 'url=${redactUrl(url)}');
       }
+      final resumeTicks = widget.resume && !widget.item.isLiveChannel
+          ? await _currentResumeTicks(client, session, url)
+          : 0;
+      _resumeTicks = resumeTicks;
+      // Where to start:
+      // - FOLLOWER: the group's current position.
+      // - INITIATOR in a group, and solo playback: our resume point, which an
+      //   initiator also broadcasts as the queue's StartPositionTicks, so every
+      //   member's transcode simply begins there with no mid-stream cold-seek
+      //   (which is what thrashed the group).
+      Duration startAt = Duration(microseconds: resumeTicks ~/ 10);
+      if (syncing && syncSession.groupStartPosition > Duration.zero) {
+        startAt = syncSession.groupStartPosition;
+      }
+      if (startAt > Duration.zero) {
+        _suppressGroup(); // starting mid-file isn't a user seek; don't broadcast
+      }
       _playUrl = url;
-      await _player.open(Media(url), play: !syncing);
+      await _openAt(url, startAt, play: !syncing);
 
       final prefs = ref.read(preferencesProvider).asData?.value;
       if (prefs != null && prefs.subtitleScale != 1.0) {
@@ -817,29 +836,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             : l.playerVideoSlowStart);
       });
 
-      final resumeTicks =
-          widget.resume ? widget.item.resumePositionTicks : 0;
-      // Where to start:
-      // - FOLLOWER: the group's current position.
-      // - INITIATOR in a group: from the BEGINNING (0). Broadcasting a deep
-      //   resume point makes every follower cold-seek a fresh stream to that
-      //   spot, which they can't do fast enough — the group then thrashes and
-      //   resets (the observed Seek-to-0). Starting at 0 keeps everyone aligned;
-      //   anyone can seek together once playing.
-      // - SOLO (not in a group): our own resume point.
-      // A FOLLOWER joins at the group's current position; an INITIATOR (and solo
-      // playback) start at our resume point and BROADCAST it as the queue's
-      // StartPositionTicks — so every member's transcode simply begins there,
-      // with no mid-stream cold-seek (which is what thrashed the group).
-      Duration startAt = Duration(microseconds: resumeTicks ~/ 10);
-      if (syncing && syncSession.groupStartPosition > Duration.zero) {
-        startAt = syncSession.groupStartPosition;
-      }
-      if (startAt > Duration.zero) {
-        _suppressGroup(); // this seek isn't a user action; don't broadcast it
-        await _seekWhenReady(startAt);
-      }
-
       _started = true;
       // Telling the server "I started" is bookkeeping for resume-sync, not part
       // of playback. Its failure must never surface as a playback error — a
@@ -880,8 +876,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  // Typed, never dynamic: the client's methods are extensions (one per API
+  // area), and an extension method called on a dynamic value doesn't exist at
+  // runtime. As dynamic, this threw NoSuchMethodError on every play, the catch
+  // below hid it, and the server never saved a resume point.
   Future<void> _reportStartQuietly(
-      dynamic client, dynamic session, int resumeTicks) async {
+      JellyfinClient client, Session session, int resumeTicks) async {
     try {
       await client.reportPlaybackStart(
         baseUrl: session.baseUrl,
@@ -957,12 +957,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     try {
       final url = await _videoUrlForQuality();
       _playUrl = url;
-      await _player.open(Media(url));
-      _appliedTracks = false;
       if (pos > Duration.zero) {
         _suppressGroup(); // reopening at the same spot isn't a group seek
-        await _seekWhenReady(pos);
       }
+      await _openAt(url, pos);
+      _appliedTracks = false;
     } catch (e) {
       if (mounted) setState(() => _error = l.playerQualityChangeFailed('$e'));
     }
@@ -970,18 +969,49 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Seeks once the demuxer reports a duration past the target, so mpv doesn't
   /// drop an early seek issued before the media is loaded.
-  Future<void> _seekWhenReady(Duration target) async {
+  /// The resume point this playback started from, for the transcode fallback.
+  int _resumeTicks = 0;
+
+  /// Where to resume, asked of the server rather than read off the item that
+  /// was tapped. That item comes from a card or a detail page loaded before
+  /// the last playback's Stopped report reached the server, so it lagged a
+  /// session behind: the third play resumed where the first one stopped. The
+  /// server's copy is also right after watching on another device. Falls back
+  /// to the item's own value for a downloaded file or an unreachable server.
+  Future<int> _currentResumeTicks(
+      JellyfinClient client, Session session, String url) async {
+    final known = widget.item.resumePositionTicks;
+    if (!url.startsWith('http')) return known;
     try {
-      if (_player.state.duration <= target) {
-        await _player.stream.duration
-            .firstWhere((d) => d > target)
-            .timeout(const Duration(seconds: 15));
-      }
-      if (_disposed) return;
-      await _player.seek(target);
+      final fresh = await client
+          .getItem(
+            baseUrl: session.baseUrl,
+            userId: session.userId,
+            token: session.accessToken,
+            itemId: widget.item.id,
+          )
+          .timeout(const Duration(seconds: 3));
+      return fresh.resumePositionTicks;
     } catch (_) {
-      // Duration never arrived (odd media) — leave playback at the start.
+      return known;
     }
+  }
+
+  /// Opens [url] starting at [at] (or the beginning when zero).
+  ///
+  /// The position goes to mpv with the file, not as a seek afterwards. On
+  /// Android a seek sent right after open raced mpv's own load: a real resume
+  /// landed on the saved spot and then snapped back to 0 a quarter of a second
+  /// later, with nothing in Fathom asking it to. Desktop won the race, which is
+  /// why resume only broke on phones.
+  ///
+  /// Also records [at] as the last position seen, so arriving there isn't read
+  /// as a jump and broadcast to a SyncPlay group as somebody's seek, however
+  /// long the open takes.
+  Future<void> _openAt(String url, Duration at, {bool play = true}) {
+    _lastPos = at;
+    return _player.open(Media(url, start: at > Duration.zero ? at : null),
+        play: play);
   }
 
   /// How the current stream is being delivered, for the stats overlay. Fathom
@@ -1023,12 +1053,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         forceTranscode: true,
       );
       _playUrl = url;
-      await _player.open(Media(url));
-      final resumeTicks = widget.item.resumePositionTicks;
+      final resumeTicks = _resumeTicks;
       if (resumeTicks > 0) {
         _suppressGroup(); // transcode-fallback resume isn't a group seek
-        await _seekWhenReady(Duration(microseconds: resumeTicks ~/ 10));
       }
+      await _openAt(url, Duration(microseconds: resumeTicks ~/ 10));
       _loadTimer?.cancel();
       _loadTimer = Timer(const Duration(seconds: 30), () {
         if (mounted && !_isPlaying) {
@@ -1322,6 +1351,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// runs from deactivate() and again from dispose(), and must not double-post.
   bool _released = false;
 
+  /// Captured while mounted: the refresh below runs after the screen is gone.
+  ProviderContainer? _container;
+
+  /// Refreshes everything showing this item's progress once the server has
+  /// the stopping position. The screens refresh as soon as the player closes,
+  /// which is before this report lands, so on their own they fetched the
+  /// position from the playback before.
+  static void _refreshAfterStop(ProviderContainer? container, BaseItemDto item) {
+    if (container == null || item.isLiveChannel) return;
+    container
+      ..invalidate(itemDetailProvider(item.id))
+      ..invalidate(resumeItemsProvider)
+      ..invalidate(nextUpItemsProvider);
+    final seriesId = item.seriesId;
+    if (seriesId != null) {
+      container
+        ..invalidate(itemDetailProvider(seriesId))
+        ..invalidate(episodesProvider(seriesId))
+        ..invalidate(nextUpProvider(seriesId));
+    }
+  }
+
   void _releaseServerSide() {
     if (_released) return;
     _released = true;
@@ -1334,14 +1385,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_started) {
       // The live ids are what tell the server which session ended; without
       // them it leaves the tuner and the transcode running.
-      unawaited(client.reportPlaybackStopped(
-        baseUrl: session.baseUrl,
-        token: session.accessToken,
-        itemId: widget.item.id,
-        positionTicks: positionTicks,
-        liveStreamId: liveStreamId,
-        playSessionId: _livePlaySessionId,
-      ));
+      final container = _container;
+      final item = widget.item;
+      unawaited(client
+          .reportPlaybackStopped(
+            baseUrl: session.baseUrl,
+            token: session.accessToken,
+            itemId: item.id,
+            positionTicks: positionTicks,
+            liveStreamId: liveStreamId,
+            playSessionId: _livePlaySessionId,
+          )
+          .then((_) => _refreshAfterStop(container, item)));
     }
     if (liveStreamId != null) {
       unawaited(client.closeLiveStream(

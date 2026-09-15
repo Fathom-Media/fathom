@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../api/jellyfin_client.dart';
+import '../models/session.dart';
 import '../state/admin_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
@@ -86,7 +88,9 @@ class _UserEditScreenState extends ConsumerState<UserEditScreen> {
     _load();
   }
 
-  ({dynamic session, dynamic client})? _ctx() {
+  // Typed: the client's methods are extensions, which a dynamic call can't
+  // reach at runtime.
+  ({Session session, JellyfinClient client})? _ctx() {
     final s = ref.read(sessionControllerProvider).asData?.value;
     if (s == null) return null;
     return (session: s, client: ref.read(jellyfinClientProvider));
