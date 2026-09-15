@@ -1,0 +1,136 @@
+name: Bug Report
+description: Something in Fathom is broken or not working the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Only a few fields are required, but the more you fill in, the faster it gets fixed.
+
+        **The most useful thing you can add is a diagnostic log.** In Fathom, open **Settings > System > Diagnostics**, turn on **Diagnostic Logging**, make the problem happen, then tap **Copy Diagnostics** and paste it below. Credentials are removed from the log automatically.
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux
+        - Windows
+        - Android
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install Type
+      options:
+        - Linux AppImage
+        - Linux, built from source
+        - Windows installer (.exe)
+        - Windows zip
+        - Android phone
+        - Android tablet or foldable
+        - Android TV or Google TV
+        - Android Auto
+        - Other
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Fathom Version
+      description: Shown in **Settings > Updates**.
+      placeholder: "e.g. 0.13.0-dev03"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What Happened
+      description: What went wrong, and what did you expect to happen instead? Include any error message exactly as shown.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How to make it happen, if you know.
+      placeholder: |
+        1. Open a movie from the library
+        2. Press Play
+        3. Open the subtitle menu and choose English
+        4. No subtitles appear
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostic Log
+      description: |
+        Strongly recommended: most problems can't be tracked down without one. **Settings > System > Diagnostics**: turn on Diagnostic Logging, make the problem happen, tap Copy Diagnostics, and paste it here.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS
+      placeholder: "e.g. Arch Linux with KDE / Windows 11 / Pixel 9 on Android 16 / Chromecast with Google TV"
+    validations:
+      required: false
+
+  - type: input
+    id: server
+    attributes:
+      label: Jellyfin Server Version
+      description: Shown in the Jellyfin dashboard.
+      placeholder: "e.g. 10.11.3"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Movies and shows
+        - Subtitles or audio tracks
+        - Music
+        - Live TV and DVR
+        - Internet radio
+        - YouTube
+        - Seerr requests
+        - Casting
+        - SyncPlay (watch together)
+        - Downloads and offline
+        - Home, browsing, or search
+        - Server administration
+        - Settings, backup, or updates
+        - Installing or launching
+        - Something else
+    validations:
+      required: false
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Media Details
+      description: |
+        For playback, subtitle, or audio problems: the file's container and codecs from its media info in Jellyfin, and for subtitles the format (SRT, ASS, PGS, VobSub) and whether they're built into the file or a separate file.
+      placeholder: "e.g. MKV, HEVC 10-bit, EAC3 5.1, PGS subtitles built into the file"
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or Video
+      description: Often the fastest way to show a visual problem. Drag files into this box.
+    validations:
+      required: false
