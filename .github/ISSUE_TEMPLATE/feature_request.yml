@@ -1,0 +1,79 @@
+name: Feature Request
+description: Suggest something new for Fathom, or a change to how something works.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Describing the problem you want solved helps more than describing a specific button or screen, since there's often a way to solve it that fits the rest of the app better. It's also worth a quick look at the [roadmap](https://github.com/Fathom-Media/fathom/blob/main/ROADMAP.md) and [existing issues](https://github.com/Fathom-Media/fathom/issues?q=is%3Aissue) first.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The Problem
+      description: What are you trying to do, and what gets in the way today?
+      placeholder: "e.g. When I finish an episode late at night I want playback to stop on its own, but it keeps going to the next episode."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Your Idea
+      description: How would you like it to work?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: Platforms
+      description: Where would you use it? Choose all that apply.
+      multiple: true
+      options:
+        - Linux
+        - Windows
+        - Android phone or tablet
+        - Android TV or Google TV
+        - Android Auto
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Movies and shows
+        - Subtitles or audio tracks
+        - Music
+        - Live TV and DVR
+        - Internet radio
+        - YouTube
+        - Seerr requests
+        - Casting
+        - SyncPlay (watch together)
+        - Downloads and offline
+        - Home, browsing, or search
+        - Server administration
+        - Settings, backup, or updates
+        - A new platform or package
+        - Something else
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Other Apps or Workarounds
+      description: Does another app (Jellyfin web, Findroid, Plex, Kodi) do this well? Is there anything you do today to get around it?
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything Else
+      description: Mockups, screenshots, or links. Drag files into this box.
+    validations:
+      required: false
