@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -84,6 +85,12 @@ class FathomPlayerControls extends StatefulWidget {
 
   /// Ticks drawn on the seek bar. Empty draws none.
   final List<PlayerMarker> markers;
+
+  /// The video's chapters, in order. The seek bar splits into a segment per
+  /// chapter, scrubbing names the chapter under the pointer, and the current
+  /// one sits beside the transport in a pill that opens [onChapters], the way
+  /// YouTube shows them. Empty shows none of that.
+  final List<PlayerMarker> chapters;
 
   /// How far the skip buttons jump. Defaulted to the industry-standard 10/30,
   /// which is what the Jellyfin player uses; only the YouTube player overrides
@@ -196,6 +203,7 @@ class FathomPlayerControls extends StatefulWidget {
     this.trickplay,
     this.trickplayWidth,
     this.markers = const [],
+    this.chapters = const [],
     this.seekBackSeconds = 10,
     this.seekForwardSeconds = 30,
     this.baseUrl,
@@ -855,6 +863,8 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                             trickplayWidth:
                                 widget.isLive ? null : widget.trickplayWidth,
                             markers: widget.isLive ? const [] : widget.markers,
+                            chapters:
+                                widget.isLive ? const [] : widget.chapters,
                             baseUrl: widget.baseUrl,
                             itemId: widget.trickItemId ?? '',
                             client: widget.client,
@@ -969,6 +979,20 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                               onInteract: _show,
                               compact: true,
                             ),
+                          if (!widget.isLive && widget.chapters.isNotEmpty)
+                            Flexible(
+                              flex: 3,
+                              child: _ChapterPill(
+                                player: _p,
+                                chapters: widget.chapters,
+                                onTap: widget.onChapters == null
+                                    ? null
+                                    : () {
+                                        widget.onChapters!();
+                                        _show();
+                                      },
+                              ),
+                            ),
                           const Spacer(),
                           if (widget.onPrevious != null)
                             _BarButton(
@@ -1072,6 +1096,20 @@ class _FathomPlayerControlsState extends State<FathomPlayerControls>
                             onToggleMute: widget.onToggleMute,
                             onInteract: _show,
                             compact: compactVolume,
+                          ),
+                        if (!widget.isLive && widget.chapters.isNotEmpty)
+                          Flexible(
+                            flex: 3,
+                            child: _ChapterPill(
+                              player: _p,
+                              chapters: widget.chapters,
+                              onTap: widget.onChapters == null
+                                  ? null
+                                  : () {
+                                      widget.onChapters!();
+                                      _show();
+                                    },
+                            ),
                           ),
                         const Spacer(),
                         // Right cluster: Previous/Next lead it, then the
@@ -1700,6 +1738,7 @@ class _FathomSeekBar extends StatefulWidget {
   final JellyfinClient? client;
   final Map<String, String>? headers;
   final List<PlayerMarker> markers;
+  final List<PlayerMarker> chapters;
 
   /// When false, the hover scrub-preview bubble is suppressed (user setting).
   final bool showThumbnailPreview;
@@ -1715,6 +1754,7 @@ class _FathomSeekBar extends StatefulWidget {
     required this.client,
     required this.headers,
     this.markers = const [],
+    this.chapters = const [],
     this.showThumbnailPreview = true,
   });
 
@@ -1764,7 +1804,7 @@ class _FathomSeekBarState extends State<_FathomSeekBar> {
             return MouseRegion(
               opaque: false,
               onHover: (e) {
-                if (info == null) return;
+                if (info == null && widget.chapters.isEmpty) return;
                 setState(() {
                   _hoverX = e.localPosition.dx.clamp(0.0, w);
                   _hoverFrac = (e.localPosition.dx / w).clamp(0.0, 1.0);
@@ -1802,38 +1842,61 @@ class _FathomSeekBarState extends State<_FathomSeekBar> {
                     clipBehavior: Clip.none,
                     alignment: Alignment.center,
                     children: [
-                      // Base track.
-                      Container(
+                      // Base, buffered and played, cut into one segment per
+                      // chapter like YouTube's bar. The gaps are real gaps
+                      // (clipped out), so the video shows through them.
+                      SizedBox(
+                        width: w,
                         height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                      // Buffered. Anchored left with an explicit width: a
-                      // FractionallySizedBox sizes to its fraction and the
-                      // center-aligned Stack then centred it, so the fill grew
-                      // out from the middle instead of from the start.
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          width: w * bufFrac,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.38),
-                            borderRadius: BorderRadius.circular(3),
+                        child: ClipPath(
+                          clipper: _ChapterGaps(
+                            fractions: [
+                              if (durMs > 0)
+                                for (final c in widget.chapters)
+                                  if (c.position > Duration.zero &&
+                                      c.position < dur)
+                                    c.position.inMilliseconds / durMs,
+                            ],
                           ),
-                        ),
-                      ),
-                      // Played.
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          width: w * playedFrac,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: widget.accent,
-                            borderRadius: BorderRadius.circular(3),
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Base track.
+                              Container(
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.22),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                              ),
+                              // Buffered. Anchored left with an explicit width: a
+                              // FractionallySizedBox sizes to its fraction and the
+                              // center-aligned Stack then centred it, so the fill grew
+                              // out from the middle instead of from the start.
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  width: w * bufFrac,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.38),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
+                              ),
+                              // Played.
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Container(
+                                  width: w * playedFrac,
+                                  height: 5,
+                                  decoration: BoxDecoration(
+                                    color: widget.accent,
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -1880,6 +1943,64 @@ class _FathomSeekBarState extends State<_FathomSeekBar> {
                           ),
                         ),
                       ),
+                      // Chapter bubble: the chapter under the pointer while
+                      // hovering, or under your finger while dragging. Only
+                      // where there's no trickplay thumbnail to carry a label.
+                      if (widget.chapters.isNotEmpty &&
+                          durMs > 0 &&
+                          (_dragFrac != null || _hoverFrac != null) &&
+                          !(widget.showThumbnailPreview &&
+                              info != null &&
+                              _dragFrac == null))
+                        Builder(builder: (context) {
+                          final frac = _dragFrac ?? _hoverFrac!;
+                          final at = dur * frac;
+                          final title = chapterAt(widget.chapters, at)?.label;
+                          const bubbleW = 220.0;
+                          return Positioned(
+                            bottom: 26,
+                            left: (frac * w - bubbleW / 2)
+                                .clamp(-8.0, (w - bubbleW + 8.0).clamp(-8.0, w)),
+                            width: bubbleW,
+                            child: IgnorePointer(
+                              child: Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.78),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (title != null)
+                                        Text(
+                                          title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600),
+                                        ),
+                                      Text(
+                                        fmtTime(at),
+                                        style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 12,
+                                            fontFeatures: [
+                                              FontFeature.tabularFigures()
+                                            ]),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
                       // Trickplay preview bubble.
                       if (widget.showThumbnailPreview &&
                           info != null &&
@@ -1916,6 +2037,109 @@ class _FathomSeekBarState extends State<_FathomSeekBar> {
         );
       },
     );
+  }
+}
+
+/// The chapter playing at [at]: the last one that has started. Null before the
+/// first one starts (a video whose first chapter isn't at 0:00).
+PlayerMarker? chapterAt(List<PlayerMarker> chapters, Duration at) {
+  PlayerMarker? found;
+  for (final c in chapters) {
+    if (c.position <= at) {
+      found = c;
+    } else {
+      break;
+    }
+  }
+  return found;
+}
+
+/// Cuts a 2px gap into the seek bar at each chapter start.
+class _ChapterGaps extends CustomClipper<Path> {
+  const _ChapterGaps({required this.fractions});
+
+  /// Where each chapter after the first starts, 0..1 along the bar.
+  final List<double> fractions;
+
+  static const double gap = 2;
+
+  @override
+  Path getClip(Size size) {
+    final bar = Path()..addRect(Offset.zero & size);
+    if (fractions.isEmpty) return bar;
+    final gaps = Path();
+    for (final f in fractions) {
+      final x = (f * size.width).clamp(0.0, size.width);
+      gaps.addRect(Rect.fromLTWH(x - gap / 2, 0, gap, size.height));
+    }
+    return Path.combine(PathOperation.difference, bar, gaps);
+  }
+
+  @override
+  bool shouldReclip(_ChapterGaps old) => !listEquals(old.fractions, fractions);
+}
+
+/// The current chapter's title beside the transport, YouTube's chapter pill.
+/// Follows playback, and opens the chapter list when tapped.
+class _ChapterPill extends StatelessWidget {
+  const _ChapterPill({
+    required this.player,
+    required this.chapters,
+    required this.onTap,
+  });
+
+  final Player player;
+  final List<PlayerMarker> chapters;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      // Too narrow to say anything useful: leave the room to the buttons.
+      if (c.maxWidth < 72) return const SizedBox.shrink();
+      return StreamBuilder<Duration>(
+        stream: player.stream.position,
+        initialData: player.state.position,
+        builder: (context, snap) {
+          final title =
+              chapterAt(chapters, snap.data ?? Duration.zero)?.label;
+          if (title == null) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Material(
+              color: Colors.white.withValues(alpha: 0.14),
+              shape: const StadiumBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 7, 8, 7),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      if (onTap != null)
+                        const Icon(Icons.chevron_right_rounded,
+                            color: Colors.white, size: 18),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    });
   }
 }
 

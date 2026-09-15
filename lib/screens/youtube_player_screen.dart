@@ -1085,9 +1085,11 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         statsOpen: _statsOpen,
         seekBackSeconds: widget.seekBackSeconds,
         seekForwardSeconds: widget.seekForwardSeconds,
+        // Chapters split the bar and get the pill; the ticks are SponsorBlock's.
+        chapters: [
+          for (final c in widget.chapters) (position: c.start, label: c.title),
+        ],
         markers: [
-          for (final c in widget.chapters)
-            (position: c.start, label: c.title),
           for (final s in _sponsors)
             (position: s.start, label: l.playerSkipSegment(s.category.label)),
         ],
