@@ -11,6 +11,7 @@ import '../models/youtube_channel.dart';
 import '../models/youtube_comment.dart';
 import '../models/youtube_watch.dart';
 import '../services/tv_mode.dart';
+import '../services/fold.dart';
 import '../state/preferences.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/context_menu.dart';
@@ -261,6 +262,10 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
       );
     }
 
+    // Read here, not inside the page: the Scaffold strips the status bar
+    // padding from its body's MediaQuery.
+    final pageTop = MediaQuery.paddingOf(context).top +
+        (Theme.of(context).appBarTheme.toolbarHeight ?? kToolbarHeight);
     return Scaffold(
       // No title here: it sits under the player, so repeating it just wastes
       // the row and truncates.
@@ -268,6 +273,7 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
       body: details.when(
         loading: () => _Body(
           player: player,
+          pageTop: pageTop,
           details: null,
           theater: _theater,
           descExpanded: _descExpanded,
@@ -286,6 +292,7 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
         ),
         data: (d) => _Body(
           player: player,
+          pageTop: pageTop,
           details: d,
           theater: _theater,
           descExpanded: _descExpanded,
@@ -398,6 +405,9 @@ const double _railWidth = 440;
 
 class _Body extends StatelessWidget {
   final Widget player;
+  /// Where the page starts on screen, below the status bar and app bar, so a
+  /// fold reported in screen coordinates can be placed within the page.
+  final double pageTop;
   final YoutubeWatchDetails? details;
 
   /// Theater mode hides the rail and enlarges the player.
@@ -423,6 +433,7 @@ class _Body extends StatelessWidget {
 
   const _Body({
     required this.player,
+    this.pageTop = 0,
     required this.details,
     this.theater = false,
     required this.descExpanded,
@@ -467,8 +478,16 @@ class _Body extends StatelessWidget {
       // swallow the title and channel row.
       const videoMargin = 16.0;
       final videoWidth = contentWidth - videoMargin * 2;
-      final playerHeight = math.min(
-          videoWidth * 9 / 16, box.maxHeight * (theater ? 0.82 : 0.6));
+      // Tabletop: the video fills the standing half, down to just above the
+      // crease, and the title, comments and Up Next scroll on the flat half,
+      // the way YouTube's own app does it. The page sits under the app bar, so
+      // the crease (in screen coordinates) is moved into the page's own.
+      final fold = tabletopFold(context);
+      final creaseInPage = fold == null ? null : fold.position - pageTop;
+      final playerHeight = creaseInPage != null && creaseInPage > 120
+          ? creaseInPage - 16 - 8
+          : math.min(
+              videoWidth * 9 / 16, box.maxHeight * (theater ? 0.82 : 0.6));
 
       // The player is pinned OUTSIDE the scroll view on purpose: a Scrollable
       // gives mouse pointers a 1px drag slop, so it wins the gesture arena and

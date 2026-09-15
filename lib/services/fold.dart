@@ -1,6 +1,10 @@
 import 'dart:ui' show DisplayFeatureState, DisplayFeatureType;
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+
+import 'tv_mode.dart';
 
 /// Which way the crease runs across the screen.
 enum FoldAxis {
@@ -85,4 +89,16 @@ class FoldInfo {
     }
     return null;
   }
+}
+
+/// The fold, when [context] is a phone or tablet held in tabletop posture;
+/// null everywhere else, including desktop (a window can't be half-folded)
+/// and TV.
+FoldInfo? tabletopFold(BuildContext context) {
+  final mobile =
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  if (!mobile || isTvDevice) return null;
+  final fold = FoldInfo.of(context);
+  return (fold?.isTabletop ?? false) ? fold : null;
 }

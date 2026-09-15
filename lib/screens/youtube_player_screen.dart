@@ -23,6 +23,7 @@ import '../widgets/window_frame.dart';
 import '../services/live_players.dart';
 import '../services/sponsorblock.dart';
 import '../services/tv_mode.dart';
+import '../services/fold.dart';
 import '../models/youtube_caption.dart';
 import '../models/youtube_chapter.dart';
 import '../models/youtube_download.dart';
@@ -1047,7 +1048,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     // owns the keyboard, and stealing focus would break scrolling and search.
     final video = Video(
       controller: _controller,
-      controls: (state) => FathomPlayerControls(
+      controls: (state) => _TabletopFullscreen(
+          controller: _controller,
+          controls: (split) => FathomPlayerControls(
         player: _player,
         title: _titleText(l),
         isLive: _isLive,
@@ -1058,8 +1061,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         // two skip buttons parked over the middle of the video are exactly what
         // you don't want while watching it, and every other player fades them.
         // The pointer being off the video most of the time is the argument FOR
-        // this: moving back over it brings them straight back.
-        autoHide: true,
+        // this: moving back over it brings them straight back. Except split at
+        // a fold, where they have the flat half to themselves.
+        autoHide: !split,
         showTopBar: !widget.embedded,
         onBack: widget.onBack ?? () => Navigator.of(context).maybePop(),
         onSeekBy: _seekBy,
@@ -1087,7 +1091,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
           for (final s in _sponsors)
             (position: s.start, label: l.playerSkipSegment(s.category.label)),
         ],
-      ),
+      )),
       // Fullscreen orientation follows the video: a 9:16 Short goes immersive
       // portrait instead of being rotated into a landscape letterbox. Normal
       // (wider-than-tall) videos and Android TV keep landscape; desktop uses
@@ -1140,11 +1144,30 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     // The desktop keyboard shortcuts + autofocus wrapper would intercept the
     // arrows for volume/seek and defeat that, so skip them on TV.
     if (isTvDevice) return video;
+    // Standalone (a trailer, a download) the player is the whole screen, so in
+    // tabletop it takes the half above the crease. Embedded, the watch page
+    // sizes it. Always the same Stack, folded or not: moving the live Video to
+    // a different spot in the tree is something media_kit can't survive.
+    final fold = widget.embedded ? null : tabletopFold(context);
+    final screenHeight = MediaQuery.sizeOf(context).height;
     return CallbackShortcuts(
       bindings: _shortcuts(context),
       child: Focus(
         autofocus: !widget.embedded,
-        child: video,
+        child: ColoredBox(
+          color: Colors.black,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: fold == null ? 0 : screenHeight - fold.position,
+                child: video,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1326,6 +1349,59 @@ class _YoutubeDownloadPlayerScreenState
           thumbnailUrl: _thumbnailUrl,
         ),
       ),
+    );
+  }
+}
+
+/// Fullscreen in tabletop: the video on the standing half, the controls on
+/// black on the flat half, the same as the Jellyfin player.
+///
+/// media_kit's fullscreen is its own page with the video filling it, and only
+/// the controls are ours to build. So in tabletop the controls cover that page
+/// and draw a second view of the same video above the crease; media_kit's own
+/// fullscreen works the same way, a second view over the page's. Everywhere
+/// else (not fullscreen, not folded) it's just the controls.
+class _TabletopFullscreen extends StatelessWidget {
+  const _TabletopFullscreen({required this.controller, required this.controls});
+
+  final VideoController controller;
+  final Widget Function(bool split) controls;
+
+  @override
+  Widget build(BuildContext context) {
+    final fold = isFullscreen(context) ? tabletopFold(context) : null;
+    final split = fold != null;
+    final height = MediaQuery.sizeOf(context).height;
+    return Stack(
+      children: [
+        if (split) ...[
+          const Positioned.fill(child: ColoredBox(color: Colors.black)),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: height - fold.position,
+            child: Video(
+              controller: controller,
+              controls: NoVideoControls,
+              // The page's own view already holds the wakelock and handles
+              // going to the background; a second one doing it too would fight.
+              wakelock: false,
+              pauseUponEnteringBackgroundMode: false,
+            ),
+          ),
+        ],
+        // Keyed so the controls keep their state when the fold changes which
+        // children come before them.
+        Positioned(
+          key: const ValueKey('controls'),
+          left: 0,
+          right: 0,
+          top: split ? fold.position : 0,
+          bottom: 0,
+          child: controls(split),
+        ),
+      ],
     );
   }
 }

@@ -89,4 +89,39 @@ void main() {
     expect(find.text('horizontal @426.0 tabletop=false book=false'),
         findsOneWidget);
   });
+
+  group('tabletopFold', () {
+    Widget probe(List<DisplayFeature> features) => MediaQuery(
+          data: MediaQueryData(
+              size: const Size(883, 852), displayFeatures: features),
+          child: Builder(
+            builder: (context) => Text(
+              tabletopFold(context)?.position.toString() ?? 'none',
+              textDirection: TextDirection.ltr,
+            ),
+          ),
+        );
+    final tabletop = [
+      _fold(const Rect.fromLTRB(0, 426, 883, 426),
+          DisplayFeatureState.postureHalfOpened),
+    ];
+
+    testWidgets('a half-folded phone reports its crease', (tester) async {
+      await tester.pumpWidget(probe(tabletop));
+      expect(find.text('426.0'), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+    testWidgets('a flat phone is not in tabletop', (tester) async {
+      await tester.pumpWidget(probe([
+        _fold(const Rect.fromLTRB(0, 426, 883, 426), DisplayFeatureState.postureFlat),
+      ]));
+      expect(find.text('none'), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.android));
+
+    testWidgets('desktop never is, whatever it reports', (tester) async {
+      await tester.pumpWidget(probe(tabletop));
+      expect(find.text('none'), findsOneWidget);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
+  });
 }
+
