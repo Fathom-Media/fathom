@@ -236,6 +236,17 @@ class AdminBackupsScreen extends ConsumerWidget {
         ),
       ),
     ));
+    // What exists now, so a new backup can be recognised if the request
+    // itself doesn't survive.
+    final before = <String>{};
+    try {
+      for (final b in await client.getBackups(
+              baseUrl: s.baseUrl, token: s.accessToken) ??
+          const <Map<String, dynamic>>[]) {
+        before.add('${b['Path']}');
+      }
+    } catch (_) {}
+    final started = DateTime.now();
     try {
       await client.createBackup(
         baseUrl: s.baseUrl,
@@ -247,10 +258,41 @@ class AdminBackupsScreen extends ConsumerWidget {
       navigator.pop();
       showSnackOn(messenger, l.adminBackupCreated, kind: SnackKind.success);
     } catch (e) {
+      // The request stays open until the backup is written. A reverse proxy in
+      // front of the server usually cuts it far sooner (nginx after 60
+      // seconds, Cloudflare after 100) while the server carries on, so an
+      // error that took a while isn't a failure: keep waiting for the backup
+      // to show up instead of reporting one and inviting a second backup.
+      final finished = DateTime.now().difference(started) >=
+              const Duration(seconds: 30) &&
+          await _waitForNewBackup(client, s.baseUrl, s.accessToken, before);
       navigator.pop();
-      showErrorOn(messenger, e);
+      if (finished) {
+        showSnackOn(messenger, l.adminBackupCreated, kind: SnackKind.success);
+      } else {
+        showErrorOn(messenger, e);
+      }
     }
     container.invalidate(adminBackupsProvider);
+  }
+
+  /// Checks the backup list every 15 seconds, for up to two hours, until one
+  /// that wasn't in [before] appears.
+  static Future<bool> _waitForNewBackup(JellyfinClient client, String baseUrl,
+      String token, Set<String> before) async {
+    final deadline = DateTime.now().add(const Duration(hours: 2));
+    while (DateTime.now().isBefore(deadline)) {
+      try {
+        final now = await client.getBackups(baseUrl: baseUrl, token: token);
+        if ((now ?? const []).any((b) => !before.contains('${b['Path']}'))) {
+          return true;
+        }
+      } catch (_) {
+        // A server busy writing a large backup can be slow to answer.
+      }
+      await Future<void>.delayed(const Duration(seconds: 15));
+    }
+    return false;
   }
 
   Future<void> _restore(
@@ -284,8 +326,11 @@ class AdminBackupsScreen extends ConsumerWidget {
 
     // The server goes down to restore and comes back when it's done. Wait for
     // it the way the dashboard does, by asking until it answers again. The
-    // dialog can be hidden; the restore carries on regardless.
-    var waiting = true;
+    // dialog only reports progress: closing it (Close, Back, or Esc) hides it,
+    // the wait carries on, and the message still arrives when the server is
+    // back. Whether it's open is tracked from the dialog itself, so the wait
+    // never pops some other screen that has taken its place.
+    var dialogOpen = true;
     unawaited(showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -300,26 +345,20 @@ class AdminBackupsScreen extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              waiting = false;
-              Navigator.pop(ctx);
-            },
+            onPressed: () => Navigator.pop(ctx),
             child: Text(l.commonClose),
           ),
         ],
       ),
-    ));
+    ).whenComplete(() => dialogOpen = false));
     // Give it time to actually go down first, so a server still finishing the
     // request isn't mistaken for one that has already come back.
     await Future<void>.delayed(const Duration(seconds: 30));
-    while (waiting) {
+    final deadline = DateTime.now().add(const Duration(hours: 1));
+    while (DateTime.now().isBefore(deadline)) {
       if (await client.pingServer(s.baseUrl)) {
-        if (waiting) {
-          waiting = false;
-          navigator.pop();
-          showSnackOn(messenger, l.adminBackupRestored,
-              kind: SnackKind.success);
-        }
+        if (dialogOpen) navigator.pop();
+        showSnackOn(messenger, l.adminBackupRestored, kind: SnackKind.success);
         break;
       }
       await Future<void>.delayed(const Duration(seconds: 10));

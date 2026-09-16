@@ -84,7 +84,7 @@ Because Fathom is sideloaded rather than installed from the Play Store, the firs
 
 Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, backups, and plugins. Each plugin's configuration is an in-app form (toggles, fields, and add/remove lists), with a raw-JSON option if you prefer, and plugin logos show in the list.
 
-**Backups** (Jellyfin 12 and newer): create a backup of the server, choosing whether to include metadata, subtitles, and trickplay images alongside the database, see what each backup holds and the server version it was made on, and restore one. Backups are stored on the server itself. Restoring restarts the server and replaces everything changed since the backup was made, and should only be done onto the same Jellyfin version the backup came from.
+**Backups** (on servers that offer them): create a backup of the server, choosing whether to include metadata, subtitles, and trickplay images alongside the database, see what each backup holds and the server version it was made on, and restore one. Backups are stored on the server itself. Restoring restarts the server and replaces everything changed since the backup was made, and should only be done onto the same Jellyfin version the backup came from.
 
 ## Personalization
 
