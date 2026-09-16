@@ -1,51 +1,69 @@
 # Roadmap
 
-What's done, what's planned, what's parked. Fathom is in beta (v0.9.0); the core client is built and the current focus is release and reach.
+What's done, what's next, and what's parked. The client is feature-complete for day-to-day use; the road to 1.0 is about stability and trust rather than new features.
 
-## Phase 0 — Foundation ✅ DONE
+## Road to 1.0
 
-- [x] Connect to a Jellyfin server, sign in, and switch between multiple accounts
+- [ ] **0.13.0 stable**: release what is on `dev` to `main`, then give it real use.
+- [ ] **Real-server tests**: run the core flows (sign in, browse, play, resume, mark watched, subtitles) in CI against real Jellyfin servers, old and current, so a break is caught by a failing check rather than by a user.
+- [ ] **Decide 1.0's scope**: Linux, Windows, and Android phones and tablets are in. Android TV is either finished or stays marked experimental.
+- [ ] **Translations**: open community translation, or ship 1.0 in English with translations welcome by pull request.
+- [ ] **1.0.0 release candidate**: bug fixes only, for a few weeks.
+- [ ] **1.0.0**
+
+## Done
+
+### Foundation
+
+- [x] Connect to a Jellyfin server, sign in (including Quick Connect), and keep several accounts or servers signed in at once
 - [x] Home, libraries, search, and rich detail pages
+- [x] Follows current Jellyfin releases, including Jellyfin 12, with fallbacks that keep older servers working
 
-## Phase 1 — Movies, TV, and music ✅ DONE
+### Movies, TV, and music
 
-- [x] mpv-grade playback: direct play, transcode fallback, hardware decoding, proper subtitle and audio track handling
-- [x] Resume, Next Up, next and previous episode, skip intro and credits, chapters, trickplay previews on the scrubber
-- [x] Music: albums, a play queue, now playing, shuffle and repeat, synced lyrics, scrobbling
+- [x] mpv-grade playback: direct play, transcode fallback, hardware decoding, audio passthrough, and a Playback Info overlay
+- [x] Resume, Next Up, next and previous episode, skip intro, recap, and credits, an Up Next prompt, chapters, and trickplay previews on the scrubber
+- [x] Every kind of subtitle: text, picture-based (PGS, VobSub), and subtitle files beside the video, with readable track names and online subtitle search through the server
+- [x] A Continue Watching row that follows what you actually watch, one card per show
+- [x] Extras, favorites, a watchlist, person pages, collections, and the Movie Night Wheel
+- [x] Music: albums, a play queue, now playing, shuffle and repeat, synced lyrics, ReplayGain, and scrobbling
+- [x] Offline downloads that behave like a real library
 
-## Phase 2 — Live TV, YouTube, and integrations ✅ DONE
+### Live TV, YouTube, and integrations
 
 - [x] Live TV, an EPG guide, and DVR with series rules
-- [x] Built-in ad-free YouTube client: search, subscriptions, playlists, comments, chapters, a play queue, SponsorBlock, DeArrow, and downloads
-- [x] Seerr requests, ratings (Rotten Tomatoes, IMDb, community, and MDBList sources), watch together (SyncPlay), and server administration
+- [x] Built-in ad-free YouTube client: search, subscriptions, playlists, comments, chapters, Shorts, a play queue, background audio, SponsorBlock, DeArrow, and downloads
+- [x] Internet radio with live time-shift
+- [x] Seerr requests, ratings (Rotten Tomatoes, IMDb, community, and MDBList sources), watch together (SyncPlay), and casting to Chromecast and Google TV
+- [x] Server administration: users, libraries, scheduled tasks, sessions, transcoding, networking, branding, Live TV, and plugins
 
-## Phase 3 — Player and interface ✅ DONE
+### Player and interface
 
-- [x] One shared player across Jellyfin and YouTube
-- [x] Picture-in-picture mini player and a pop-out, always-on-top desktop window
-- [x] A control bar you can style, remappable keyboard shortcuts, themes, and a searchable settings screen
+- [x] One shared player across Jellyfin and YouTube, with a picture-in-picture mini player and a pop-out window
+- [x] A control bar you can style, remappable keyboard shortcuts, themes, a sleep timer, and a searchable settings screen
+- [x] Layouts for foldable phones (tabletop) and screen reader support
 - [x] Full interface internationalization (English source of truth, Weblate-ready)
 
-## Phase 4 — Release and reach
+### Release and reach
 
-- [x] Self-contained Linux AppImage
-- [x] Self-contained Windows build (portable zip)
-- [x] In-app updates (Linux and Windows), with a stable or beta channel
-- [ ] AUR package for Arch
-- [ ] Flathub submission
-- [ ] Community translations via Weblate
-- [ ] Android app
+- [x] Self-contained Linux AppImage (x86_64 and aarch64)
+- [x] Windows installer and portable zip
+- [x] Android app for phones, tablets, and foldables, with Android Auto
+- [x] Nix flake
+- [x] In-app updates with a Stable or Dev channel
+- [ ] Android TV (available, still experimental)
 - [ ] macOS and iOS builds (pending Mac hardware and a paid Apple Developer account)
 
-## Phase 5 — Planned features
+## Next
 
+- [ ] Server backups from the admin screens
+- [ ] A listening and watching stats screen for servers with the Playback Reporting plugin
+- [ ] Collections you can create and edit, not just browse
+- [ ] Styled ASS subtitles (anime fonts, colours, and positioning)
 - [ ] YouTube channel video sorting (Latest, Popular, Oldest)
-- [ ] A dedicated portrait Shorts viewer
-- [ ] Scrubber markers for chapters, intro, and credits
-- [ ] YouTube background and audio-only playback
 
 ## Parked
 
-- Chromecast, DLNA, and AirPlay casting: not viable on Linux with Flutter, and "Play on device" remote control already covers the use case
+- DLNA and AirPlay casting: Chromecast covers most homes, and "Play on device" remote control covers the rest
 - YouTube watch-together (SyncPlay for YouTube): tiny audience and fragile against YouTube changes
-- A full phone-style Shorts swipe feed: over-engineered for a desktop, mouse-first app
+- Distribution packages (AUR, Flathub, .deb): the AppImage, Windows, Android, and Nix builds cover every supported platform for now

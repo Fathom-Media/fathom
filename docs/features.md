@@ -6,7 +6,9 @@
 - **Browse by anything**: genres, studios, artists, and a page for every person, so a cast member's other work is one tap away. Trailers play in the app rather than sending you to a browser.
 - **Extras**: a title's bonus material (behind the scenes, deleted scenes, interviews, featurettes, and trailer files held on your server) appears as its own row on the detail page, and plays in the normal player.
 - **Favorites and Watchlist**: two separate personal lists, one for what you love, one for what you still want to watch. Toggle either from an item's detail page or its context menu (long-press, right-click, or the overflow button, they all open the same menu).
-- **Tidy up Continue Watching**: something you started and will not finish can be dropped from the row through the same context menu. It only clears the resume position, so the title is not marked watched and comes back if you play it again.
+- **Continue Watching that follows what you watch**: one card per show, whether you stopped part-way through an episode or finished one and the next is waiting, ordered by what you actually watched most recently. A half-watched episode you abandoned long ago gives way to where you really are in the show, and a new episode of a show you were caught up on goes near the front the day it arrives.
+- **Tidy up Continue Watching**: **Remove from Continue Watching** in a card's context menu takes that show or film off the row until you watch it again. If it had a resume point, that is cleared on the server too, so Jellyfin's other apps agree. Nothing is marked watched.
+- **Home banner**: the banner at the top of Home mixes a few things you are in the middle of with what was added recently.
 - **Movie Night Wheel**: when nobody can decide, spin for it. Fill the wheel from your library or type titles in, then pick a mode: Last One Standing knocks a title out on every spin, Single Spin takes the first result, and Best of 3 wants a title to win twice. It is reachable from the Watchlist, and from a SyncPlay session so a group can decide together.
 - **Music**: albums, a play queue, now playing, shuffle and repeat, synced lyrics with an online fallback, and scrobbling. The now-playing screen flips between artwork and lyrics.
 - **Live TV and DVR**: a channel list, an EPG guide, recording with series rules, and tuner and guide-provider setup.
@@ -20,6 +22,14 @@ The same player drives Jellyfin and [YouTube](youtube.md): one control bar, one 
 - **Up Next**: for an episode that has a next one, an Up Next card or compact Netflix-style pill appears during the credits and rolls into the next episode. Pick the style, and how long it waits before auto-skipping (the whole credits or a short countdown), under **Settings → Playback**, or leave Autoplay off and use its Play Now button.
 - **Audio passthrough (desktop)**: bitstream Dolby Digital, DTS, and Dolby Atmos straight to an AV receiver instead of decoding to stereo.
 - **Tune it to taste**: video fit, playback speed, a control bar you can style (glass, dark, or plain), remappable keyboard shortcuts, and scrub-preview thumbnails.
+- **Foldable phones**: half-fold the phone with the crease across the screen (tabletop) and the video takes the standing half, with the controls on the flat half. The YouTube player does the same, in its watch page and in fullscreen.
+
+### Subtitles and audio tracks
+
+- **Every kind of subtitle**: text subtitles (SRT, ASS, WebVTT, MP4 text) are drawn by Fathom in the size, colour, and background you set under **Settings → Audio & Subtitles**. Picture-based subtitles from discs (Blu-ray PGS, DVD VobSub, DVB) are drawn by the player itself, since they are images rather than text.
+- **Subtitles beside the video**: a subtitle file stored next to the video on your server, including one a subtitle plugin downloaded, shows in the subtitle menu and loads when you pick it.
+- **Tracks you can tell apart**: subtitle and audio tracks are named from what the server knows about them, for example **English (Forced, SRT)**, **English (Picture, PGS)**, **English (External, SRT)**, or **English (DTS-HD MA 5.1)**. Tracks that would otherwise look the same are numbered. A forced track only captions foreign-language dialogue, so it stays quiet during the rest.
+- **Search Subtitles Online**: the last row of the subtitle menu searches the subtitle provider installed on your Jellyfin server (such as the OpenSubtitles plugin) and adds the one you pick straight to the video. Matches for your exact file come first. It searches your preferred subtitle language, or your device's language if you have not set one, and **Change Language** searches another. It needs a subtitle provider plugin on the server, and is shown to administrators and to accounts allowed to manage subtitles.
 
 ### Playback Info
 
@@ -72,7 +82,9 @@ Because Fathom is sideloaded rather than installed from the Play Store, the firs
 
 ## Server administration
 
-Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, and plugins. Each plugin's configuration is an in-app form (toggles, fields, and add/remove lists), with a raw-JSON option if you prefer, and plugin logos show in the list.
+Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, backups, and plugins. Each plugin's configuration is an in-app form (toggles, fields, and add/remove lists), with a raw-JSON option if you prefer, and plugin logos show in the list.
+
+**Backups** (Jellyfin 12 and newer): create a backup of the server, choosing whether to include metadata, subtitles, and trickplay images alongside the database, see what each backup holds and the server version it was made on, and restore one. Backups are stored on the server itself. Restoring restarts the server and replaces everything changed since the backup was made, and should only be done onto the same Jellyfin version the backup came from.
 
 ## Personalization
 
