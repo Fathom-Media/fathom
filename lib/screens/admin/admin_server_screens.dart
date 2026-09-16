@@ -323,6 +323,21 @@ class _AdminPlaybackState extends ConfigEditorState<AdminPlaybackScreen> {
     ref.invalidate(adminEncodingConfigProvider);
   }
 
+  /// How this server spells "no hardware acceleration" and "automatic encoder
+  /// preset". Jellyfin 10.10 turned both settings into fixed lists, spelled
+  /// `none` and `auto` (still so on 12.1); older servers stored an empty
+  /// string. Offering the wrong spelling makes the dropdown write a value the
+  /// server rejects, so it follows whatever the server sent. Read once, from
+  /// the loaded settings, before any edit can change them.
+  late final String _noAcceleration =
+      _unsetSpelling('HardwareAccelerationType', 'none');
+  late final String _autoPreset = _unsetSpelling('EncoderPreset', 'auto');
+
+  String _unsetSpelling(String key, String modern) {
+    final loaded = draft?[key];
+    return (loaded == null || '$loaded'.isEmpty) ? '' : modern;
+  }
+
   /// Ensures the nested TrickplayOptions object exists and is mutable, then
   /// returns it so the trickplay fields can bind to it.
   Map<String, dynamic> _trickplay() {
@@ -372,7 +387,7 @@ class _AdminPlaybackState extends ConfigEditorState<AdminPlaybackScreen> {
     return [
       sectionLabel(l.adminSectionHardwareAccel),
       dropdownField('HardwareAccelerationType', l.adminAcceleration, {
-        '': l.adminAccelNone,
+        _noAcceleration: l.adminAccelNone,
         'amf': 'AMD AMF',
         'nvenc': 'Nvidia NVENC',
         'qsv': 'Intel QuickSync',
@@ -388,7 +403,7 @@ class _AdminPlaybackState extends ConfigEditorState<AdminPlaybackScreen> {
       switchField('AllowAv1Encoding', l.adminAllowAv1Encoding),
       sectionLabel(l.adminSectionEncoding),
       dropdownField('EncoderPreset', l.adminEncoderPreset, {
-        '': l.adminPresetAuto,
+        _autoPreset: l.adminPresetAuto,
         'ultrafast': 'ultrafast',
         'superfast': 'superfast',
         'veryfast': 'veryfast',
