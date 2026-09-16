@@ -93,5 +93,32 @@ void main() {
         reason: 'Put VerticalVolumeButton(floating: true) in the row instead:'
             '\n${aligned.join('\n')}');
   });
+
+  test('the old per-user Jellyfin routes are only ever a fallback', () {
+    // Jellyfin 12 dropped the whole /Users/{userId}/... family from its API
+    // (checked against a 12.1 server's own spec): /Items?userId= replaces
+    // /Users/{id}/Items, /UserViews replaces /Users/{id}/Views, and so on. The
+    // old ones still answer today, so nothing breaks, but they can go at any
+    // release. They belong only in a fallback for older servers.
+    // Only the routes 12 actually dropped: /Users/{id} itself and its Policy
+    // are still part of the API.
+    final gone = RegExp(r'\$baseUrl/Users/\$userId/'
+        r'(Views|Items|PlayedItems|FavoriteItems|Password|Images)');
+    final offenders = <String>[];
+    for (final f in _sources()) {
+      final lines = f.readAsStringSync().split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        if (!gone.hasMatch(lines[i])) continue;
+        final context = lines.sublist(i < 8 ? 0 : i - 8, i + 1).join('\n');
+        final isFallback = context.contains('legacyUrl') ||
+            context.contains('on DioException') ||
+            context.contains('older servers');
+        if (!isFallback) offenders.add('${f.path}:${i + 1}');
+      }
+    }
+    expect(offenders, isEmpty,
+        reason: 'Call the documented route and pass this one as legacyUrl:\n'
+            '${offenders.join('\n')}');
+  });
 }
 

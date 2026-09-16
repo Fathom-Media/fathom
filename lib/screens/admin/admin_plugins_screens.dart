@@ -105,7 +105,9 @@ class _InstalledPlugins extends ConsumerWidget {
                           _pluginCatalogImageUrl(pkgs, guid: id, name: name),
                       serverUrl: session != null && id.isNotEmpty
                           ? client.pluginImageUrl(
-                              baseUrl: session.baseUrl, pluginId: id)
+                              baseUrl: session.baseUrl,
+                              pluginId: id,
+                              version: p['Version'] as String?)
                           : null,
                       headers: headers,
                       height: 40,
@@ -643,7 +645,10 @@ class _AdminInstalledPluginState
                     guid: _id,
                     name: _name),
                 serverUrl: s != null && _id.isNotEmpty
-                    ? client.pluginImageUrl(baseUrl: s.baseUrl, pluginId: _id)
+                    ? client.pluginImageUrl(
+                        baseUrl: s.baseUrl,
+                        pluginId: _id,
+                        version: widget.plugin['Version'] as String?)
                     : null,
                 headers: headers,
                 height: 84,

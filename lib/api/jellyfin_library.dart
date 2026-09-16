@@ -8,7 +8,9 @@ extension JellyfinLibraryApi on JellyfinClient {
     required String userId,
     required String token,
   }) async {
-    return _getItems('$baseUrl/Users/$userId/Views', token);
+    return _getItems('$baseUrl/UserViews', token,
+        query: {'userId': userId},
+        legacyUrl: '$baseUrl/Users/$userId/Views');
   }
 
 /// "Continue Watching" — partially played video items.
@@ -19,9 +21,11 @@ extension JellyfinLibraryApi on JellyfinClient {
     int limit = 20,
   }) async {
     final items = await _getItems(
-      '$baseUrl/Users/$userId/Items/Resume',
+      '$baseUrl/UserItems/Resume',
       token,
+      legacyUrl: '$baseUrl/Users/$userId/Items/Resume',
       query: {
+        'userId': userId,
         'Limit': '$limit',
         'MediaTypes': 'Video',
         'Fields': 'PrimaryImageAspectRatio,Overview',
@@ -87,9 +91,11 @@ extension JellyfinLibraryApi on JellyfinClient {
     int limit = 20,
   }) async {
     return _getItems(
-      '$baseUrl/Users/$userId/Items/Latest',
+      '$baseUrl/Items/Latest',
       token,
+      legacyUrl: '$baseUrl/Users/$userId/Items/Latest',
       query: {
+        'userId': userId,
         'Limit': '$limit',
         'Fields': 'Overview,PrimaryImageAspectRatio',
         'EnableImageTypes': 'Primary,Backdrop,Thumb,Logo',
@@ -103,13 +109,20 @@ Future<List<BaseItemDto>> _getItems(
     String token, {
     Map<String, dynamic>? query,
     String? typeOverride,
+    // The per-user route to try on a server that hasn't got [url]; see
+    // requestWithFallback.
+    String? legacyUrl,
+    Map<String, dynamic>? legacyQuery,
   }) async {
     try {
-      final res = await _dio.get(
-        url,
-        queryParameters: query,
-        options: _authed(token),
-      );
+      final res = legacyUrl == null
+          ? await _dio.get(url, queryParameters: query, options: _authed(token))
+          : await requestWithFallback('GET',
+              url: url,
+              legacyUrl: legacyUrl,
+              token: token,
+              query: query,
+              legacyQuery: legacyQuery);
       final data = res.data;
       final rawList = data is List
           ? data
@@ -148,9 +161,13 @@ Future<List<BaseItemDto>> _getItems(
     int limit = 100,
   }) async {
     try {
-      final res = await _dio.get(
-        '$baseUrl/Users/$userId/Items',
-        queryParameters: {
+      final res = await requestWithFallback(
+        'GET',
+        url: '$baseUrl/Items',
+        legacyUrl: '$baseUrl/Users/$userId/Items',
+        token: token,
+        query: {
+          'userId': userId,
           'ParentId': ?parentId,
           'SearchTerm': ?searchTerm,
           'IncludeItemTypes': ?includeItemTypes,
@@ -169,7 +186,6 @@ Future<List<BaseItemDto>> _getItems(
           'ImageTypeLimit': '1',
           'EnableImageTypes': 'Primary,Backdrop,Thumb',
         },
-        options: _authed(token),
       );
       final data = Map<String, dynamic>.from(res.data as Map);
       final items = (data['Items'] as List? ?? const [])
@@ -196,9 +212,11 @@ Future<List<BaseItemDto>> _getItems(
   }) {
     if (ids.isEmpty) return Future.value(const []);
     return _getItems(
-      '$baseUrl/Users/$userId/Items',
+      '$baseUrl/Items',
       token,
+      legacyUrl: '$baseUrl/Users/$userId/Items',
       query: {
+        'userId': userId,
         'Ids': ids.join(','),
         'Fields': 'Genres,Overview,RemoteTrailers,ProductionYear',
         'EnableUserData': 'true',
@@ -232,9 +250,11 @@ Future<List<BaseItemDto>> _getItems(
     required String token,
   }) {
     return _getItems(
-      '$baseUrl/Users/$userId/Items',
+      '$baseUrl/Items',
       token,
+      legacyUrl: '$baseUrl/Users/$userId/Items',
       query: {
+        'userId': userId,
         'IncludeItemTypes': 'Playlist',
         'Recursive': 'true',
         'SortBy': 'SortName',
@@ -444,9 +464,12 @@ Future<void> deletePlaylist({
     required String itemId,
   }) async {
     try {
-      final res = await _dio.get(
-        '$baseUrl/Users/$userId/Items/$itemId',
-        options: _authed(token),
+      final res = await requestWithFallback(
+        'GET',
+        url: '$baseUrl/Items/$itemId',
+        legacyUrl: '$baseUrl/Users/$userId/Items/$itemId',
+        token: token,
+        query: {'userId': userId},
       );
       return BaseItemDto.fromJson(Map<String, dynamic>.from(res.data as Map));
     } on DioException catch (e) {
@@ -464,9 +487,12 @@ Future<void> deletePlaylist({
     required String itemId,
   }) async {
     try {
-      final res = await _dio.get(
-        '$baseUrl/Users/$userId/Items/$itemId',
-        options: _authed(token),
+      final res = await requestWithFallback(
+        'GET',
+        url: '$baseUrl/Items/$itemId',
+        legacyUrl: '$baseUrl/Users/$userId/Items/$itemId',
+        token: token,
+        query: {'userId': userId},
       );
       return Map<String, dynamic>.from(res.data as Map);
     } catch (_) {
@@ -534,13 +560,14 @@ Future<void> deletePlaylist({
     required String itemId,
     required bool played,
   }) async {
-    final url = '$baseUrl/Users/$userId/PlayedItems/$itemId';
     try {
-      if (played) {
-        await _dio.post(url, options: _authed(token));
-      } else {
-        await _dio.delete(url, options: _authed(token));
-      }
+      await requestWithFallback(
+        played ? 'POST' : 'DELETE',
+        url: '$baseUrl/UserPlayedItems/$itemId',
+        legacyUrl: '$baseUrl/Users/$userId/PlayedItems/$itemId',
+        token: token,
+        query: {'userId': userId},
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -645,13 +672,14 @@ Future<void> deletePlaylist({
     required String itemId,
     required bool favorite,
   }) async {
-    final url = '$baseUrl/Users/$userId/FavoriteItems/$itemId';
     try {
-      if (favorite) {
-        await _dio.post(url, options: _authed(token));
-      } else {
-        await _dio.delete(url, options: _authed(token));
-      }
+      await requestWithFallback(
+        favorite ? 'POST' : 'DELETE',
+        url: '$baseUrl/UserFavoriteItems/$itemId',
+        legacyUrl: '$baseUrl/Users/$userId/FavoriteItems/$itemId',
+        token: token,
+        query: {'userId': userId},
+      );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }

@@ -87,15 +87,18 @@ Future<void> deleteUser({
     String? newPassword,
   }) async {
     try {
-      await _dio.post(
-        '$baseUrl/Users/$userId/Password',
+      await requestWithFallback(
+        'POST',
+        url: '$baseUrl/Users/Password',
+        legacyUrl: '$baseUrl/Users/$userId/Password',
+        token: token,
+        query: {'userId': userId},
         data: newPassword == null
             ? {'ResetPassword': true}
             : {
                 'CurrentPw': ?currentPassword,
                 'NewPw': newPassword,
               },
-        options: _authed(token),
       );
     } on DioException catch (e) {
       // A 400 here almost always means the server's password validation
@@ -173,8 +176,18 @@ Future<List<Map<String, dynamic>>> getVirtualFolders({
   }
 
 /// URL for an installed plugin's thumbnail image.
-  String pluginImageUrl({required String baseUrl, required String pluginId}) =>
-      '$baseUrl/Plugins/$pluginId/Image';
+  ///
+  /// Jellyfin 12 documents this per version (`/Plugins/{id}/{version}/Image`);
+  /// the version-less route it replaced is gone from the API. Falls back to
+  /// the old shape when the caller has no version to hand.
+  String pluginImageUrl({
+    required String baseUrl,
+    required String pluginId,
+    String? version,
+  }) =>
+      (version == null || version.isEmpty)
+          ? '$baseUrl/Plugins/$pluginId/Image'
+          : '$baseUrl/Plugins/$pluginId/$version/Image';
 
 /// A plugin's own configuration object (admin only). Throws if the plugin has
   /// no editable configuration.

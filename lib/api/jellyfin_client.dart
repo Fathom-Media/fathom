@@ -122,4 +122,41 @@ String _friendlyDioError(DioException e, {bool connecting = false}) {
         return 'Something went wrong talking to the server.';
     }
   }
+  /// Calls a route Jellyfin 12 documents, falling back to the per-user route
+  /// older servers use.
+  ///
+  /// Jellyfin 12 dropped the whole `/Users/{userId}/...` family from its API
+  /// (measured against a 12.1 server's own spec): `/Items?userId=` replaces
+  /// `/Users/{id}/Items`, `/UserViews` replaces `/Users/{id}/Views`, and so on.
+  /// The old routes still answer on 12.1, but they are no longer part of the
+  /// API, so they can go at any point. Fathom asks for the documented one and
+  /// only drops back when a server hasn't got it, which keeps 10.x working.
+  Future<Response<dynamic>> requestWithFallback(
+    String method, {
+    required String url,
+    required String legacyUrl,
+    required String token,
+    Map<String, dynamic>? query,
+    Map<String, dynamic>? legacyQuery,
+    Object? data,
+  }) async {
+    Future<Response<dynamic>> send(String at, Map<String, dynamic>? q) =>
+        _dio.request(
+          at,
+          data: data,
+          queryParameters: q,
+          options: Options(
+            method: method,
+            headers: {'Authorization': authHeader(token: token)},
+          ),
+        );
+    try {
+      return await send(url, query);
+    } on DioException catch (e) {
+      final code = e.response?.statusCode;
+      if (code != 404 && code != 405) rethrow;
+      return send(legacyUrl, legacyQuery ?? query);
+    }
+  }
+
 }

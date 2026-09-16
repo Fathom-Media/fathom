@@ -70,10 +70,14 @@ extension JellyfinLiveTvApi on JellyfinClient {
     required String programId,
   }) async {
     try {
-      final defaults = await _dio.get(
-        '$baseUrl/LiveTv/SeriesTimers/Defaults',
-        queryParameters: {'programId': programId},
-        options: _authed(token),
+      // /LiveTv/Timers/Defaults is what 12 documents; the SeriesTimers one it
+      // replaced is gone from the API but still answers on older servers.
+      final defaults = await requestWithFallback(
+        'GET',
+        url: '$baseUrl/LiveTv/Timers/Defaults',
+        legacyUrl: '$baseUrl/LiveTv/SeriesTimers/Defaults',
+        token: token,
+        query: {'programId': programId},
       );
       await _dio.post(
         '$baseUrl/LiveTv/SeriesTimers',

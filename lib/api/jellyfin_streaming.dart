@@ -680,12 +680,20 @@ Future<void> _postPlayState(
     int? size,
   }) {
     if (tag == null) return null;
-    final params = <String, String>{'tag': tag, 'quality': '90'};
+    // /UserImage is what Jellyfin 12 documents; the per-user route it replaced
+    // is gone from the API. An image URL can't fall back after the fact (it's
+    // handed to the image loader), so the newer one is used outright: it has
+    // been there since 10.10.
+    final params = <String, String>{
+      'userId': userId,
+      'tag': tag,
+      'quality': '90'
+    };
     if (size != null) params['fillHeight'] = '$size';
     final q = params.entries
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
         .join('&');
-    return '$baseUrl/Users/$userId/Images/Primary?$q';
+    return '$baseUrl/UserImage?$q';
   }
 
 /// Upload a user's avatar. Jellyfin expects the image bytes base64-encoded in
@@ -699,16 +707,29 @@ Future<void> _postPlayState(
   }) async {
     try {
       final b64 = base64Encode(bytes);
-      await _dio.post(
-        '$baseUrl/Users/$userId/Images/Primary',
-        data: b64,
-        options: Options(
-          headers: {
+      try {
+        await _dio.post(
+          '$baseUrl/UserImage',
+          data: b64,
+          queryParameters: {'userId': userId},
+          options: Options(headers: {
             'Authorization': authHeader(token: token),
             'Content-Type': contentType,
-          },
-        ),
-      );
+          }),
+        );
+      } on DioException catch (e) {
+        if (e.response?.statusCode != 404 && e.response?.statusCode != 405) {
+          rethrow;
+        }
+        await _dio.post(
+          '$baseUrl/Users/$userId/Images/Primary',
+          data: b64,
+          options: Options(headers: {
+            'Authorization': authHeader(token: token),
+            'Content-Type': contentType,
+          }),
+        );
+      }
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
     }
@@ -720,9 +741,12 @@ Future<void> deleteUserImage({
     required String userId,
   }) async {
     try {
-      await _dio.delete(
-        '$baseUrl/Users/$userId/Images/Primary',
-        options: _authed(token),
+      await requestWithFallback(
+        'DELETE',
+        url: '$baseUrl/UserImage',
+        legacyUrl: '$baseUrl/Users/$userId/Images/Primary',
+        token: token,
+        query: {'userId': userId},
       );
     } on DioException catch (e) {
       throw JellyfinException(_friendlyDioError(e));
