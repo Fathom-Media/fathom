@@ -3929,7 +3929,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get adminBackupsUnsupported =>
-      'Backups need Jellyfin 12 or newer. This server does not offer them.';
+      'This server does not offer backups. They need a newer version of Jellyfin.';
 
   @override
   String get adminBackupCreate => 'Create Backup';
@@ -4886,6 +4886,130 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get adminAccessAllDevices => 'Access All Devices';
+
+  @override
+  String get adminForceRemoteTranscoding =>
+      'Force Transcoding of Remote Sources';
+
+  @override
+  String get adminForceRemoteTranscodingSub => 'Such as Live TV';
+
+  @override
+  String get adminSectionDeletion => 'Allow Media Deletion From';
+
+  @override
+  String get adminDeleteFromAll => 'All Libraries';
+
+  @override
+  String get adminSectionSyncPlay => 'SyncPlay';
+
+  @override
+  String get adminSyncPlayAccess => 'SyncPlay Access';
+
+  @override
+  String get adminSyncPlayCreateAndJoin => 'Create and Join Groups';
+
+  @override
+  String get adminSyncPlayJoin => 'Join Groups Only';
+
+  @override
+  String get adminSyncPlayNone => 'Disabled for This User';
+
+  @override
+  String get adminSectionSignIn => 'Sign-In';
+
+  @override
+  String get adminAuthProvider => 'Authentication Provider';
+
+  @override
+  String get adminPasswordResetProvider => 'Password Reset Provider';
+
+  @override
+  String get adminDeviceAccessHelp =>
+      'This only applies to devices that can be uniquely identified, and does not block browser access. Limiting devices stops this user signing in on a new device until it is approved here.';
+
+  @override
+  String get adminChannelAccessHelp => 'Choose the channels this user can see.';
+
+  @override
+  String get adminRatingHelp =>
+      'Content rated higher than this is hidden from this user.';
+
+  @override
+  String get adminBlockUnratedHelp =>
+      'Hide items of these kinds that have no rating, or a rating the server does not recognise.';
+
+  @override
+  String get adminUnratedBooks => 'Books';
+
+  @override
+  String get adminUnratedChannels => 'Channels';
+
+  @override
+  String get adminUnratedLiveTv => 'Live TV';
+
+  @override
+  String get adminUnratedMovies => 'Movies';
+
+  @override
+  String get adminUnratedMusic => 'Music';
+
+  @override
+  String get adminUnratedTrailers => 'Trailers';
+
+  @override
+  String get adminUnratedShows => 'Shows';
+
+  @override
+  String get adminUnratedOther => 'Other';
+
+  @override
+  String get adminAllowedTags => 'Allow Items With Tags';
+
+  @override
+  String get adminAllowedTagsHelp =>
+      'Only show media with at least one of these tags.';
+
+  @override
+  String get adminBlockedTags => 'Block Items With Tags';
+
+  @override
+  String get adminBlockedTagsHelp =>
+      'Hide media with at least one of these tags.';
+
+  @override
+  String get adminAddTag => 'Add Tag';
+
+  @override
+  String get adminTag => 'Tag';
+
+  @override
+  String get adminAccessSchedule => 'Access Schedule';
+
+  @override
+  String get adminAccessScheduleHelp =>
+      'Limit this user to certain days and hours. With no schedule, access is not limited.';
+
+  @override
+  String get adminAddSchedule => 'Add Schedule';
+
+  @override
+  String get adminScheduleDay => 'Day';
+
+  @override
+  String get adminScheduleStart => 'Start Time';
+
+  @override
+  String get adminScheduleEnd => 'End Time';
+
+  @override
+  String get adminEveryDay => 'Every Day';
+
+  @override
+  String get adminWeekdays => 'Weekdays';
+
+  @override
+  String get adminWeekends => 'Weekends';
 
   @override
   String get adminAccessAllChannels => 'Access All Channels';

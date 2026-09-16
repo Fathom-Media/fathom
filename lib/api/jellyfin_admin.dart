@@ -122,6 +122,29 @@ Future<List<Map<String, dynamic>>> getVirtualFolders({
     required String token,
   }) => _getList('$baseUrl/Library/VirtualFolders', token);
 
+  /// The login methods the server offers for a user (admin only). Usually
+  /// just the built-in one; plugins such as LDAP add more.
+  Future<List<Map<String, dynamic>>> getAuthProviders({
+    required String baseUrl,
+    required String token,
+  }) =>
+      _getList('$baseUrl/Auth/Providers', token);
+
+  /// The password reset methods the server offers (admin only).
+  Future<List<Map<String, dynamic>>> getPasswordResetProviders({
+    required String baseUrl,
+    required String token,
+  }) =>
+      _getList('$baseUrl/Auth/PasswordResetProviders', token);
+
+  /// Channels provided by server plugins, which a user's access can be
+  /// limited to. Most servers have none.
+  Future<List<Map<String, dynamic>>> getChannelsForAccess({
+    required String baseUrl,
+    required String token,
+  }) =>
+      _getList('$baseUrl/Channels', token, itemsKey: 'Items');
+
 /// Client devices that have connected to the server (admin only).
   Future<List<Map<String, dynamic>>> getDevices({
     required String baseUrl,

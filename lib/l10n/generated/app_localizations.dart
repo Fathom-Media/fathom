@@ -6937,7 +6937,7 @@ abstract class AppLocalizations {
   /// Shown when the server has no backup API.
   ///
   /// In en, this message translates to:
-  /// **'Backups need Jellyfin 12 or newer. This server does not offer them.'**
+  /// **'This server does not offer backups. They need a newer version of Jellyfin.'**
   String get adminBackupsUnsupported;
 
   /// Button and dialog title: make a new server backup.
@@ -8745,6 +8745,240 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Access All Devices'**
   String get adminAccessAllDevices;
+
+  /// Toggle: always transcode remote media sources such as Live TV for this user.
+  ///
+  /// In en, this message translates to:
+  /// **'Force Transcoding of Remote Sources'**
+  String get adminForceRemoteTranscoding;
+
+  /// Subtitle under the force remote transcoding toggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Such as Live TV'**
+  String get adminForceRemoteTranscodingSub;
+
+  /// Section header: which libraries a user may delete media from.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow Media Deletion From'**
+  String get adminSectionDeletion;
+
+  /// Toggle: the user may delete media from every library.
+  ///
+  /// In en, this message translates to:
+  /// **'All Libraries'**
+  String get adminDeleteFromAll;
+
+  /// Section header for a user's watch-together permissions.
+  ///
+  /// In en, this message translates to:
+  /// **'SyncPlay'**
+  String get adminSectionSyncPlay;
+
+  /// Dropdown label: what a user may do with SyncPlay groups.
+  ///
+  /// In en, this message translates to:
+  /// **'SyncPlay Access'**
+  String get adminSyncPlayAccess;
+
+  /// SyncPlay access option.
+  ///
+  /// In en, this message translates to:
+  /// **'Create and Join Groups'**
+  String get adminSyncPlayCreateAndJoin;
+
+  /// SyncPlay access option.
+  ///
+  /// In en, this message translates to:
+  /// **'Join Groups Only'**
+  String get adminSyncPlayJoin;
+
+  /// SyncPlay access option.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled for This User'**
+  String get adminSyncPlayNone;
+
+  /// Section header for a user's authentication and password reset providers.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-In'**
+  String get adminSectionSignIn;
+
+  /// Dropdown label: how this user signs in.
+  ///
+  /// In en, this message translates to:
+  /// **'Authentication Provider'**
+  String get adminAuthProvider;
+
+  /// Dropdown label: how this user resets a forgotten password.
+  ///
+  /// In en, this message translates to:
+  /// **'Password Reset Provider'**
+  String get adminPasswordResetProvider;
+
+  /// Help under the device access list.
+  ///
+  /// In en, this message translates to:
+  /// **'This only applies to devices that can be uniquely identified, and does not block browser access. Limiting devices stops this user signing in on a new device until it is approved here.'**
+  String get adminDeviceAccessHelp;
+
+  /// Help under the channel access list.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the channels this user can see.'**
+  String get adminChannelAccessHelp;
+
+  /// Help under the maximum parental rating dropdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Content rated higher than this is hidden from this user.'**
+  String get adminRatingHelp;
+
+  /// Help above the block unrated item types.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide items of these kinds that have no rating, or a rating the server does not recognise.'**
+  String get adminBlockUnratedHelp;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Books'**
+  String get adminUnratedBooks;
+
+  /// Unrated item type: plugin channel content.
+  ///
+  /// In en, this message translates to:
+  /// **'Channels'**
+  String get adminUnratedChannels;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Live TV'**
+  String get adminUnratedLiveTv;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Movies'**
+  String get adminUnratedMovies;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Music'**
+  String get adminUnratedMusic;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Trailers'**
+  String get adminUnratedTrailers;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Shows'**
+  String get adminUnratedShows;
+
+  /// Unrated item type: anything not covered by the other types. Only shown when a user already blocks it, so it can be cleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get adminUnratedOther;
+
+  /// Section header: tags a user's content must carry.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow Items With Tags'**
+  String get adminAllowedTags;
+
+  /// Help for allowed tags.
+  ///
+  /// In en, this message translates to:
+  /// **'Only show media with at least one of these tags.'**
+  String get adminAllowedTagsHelp;
+
+  /// Section header: tags that hide content from a user.
+  ///
+  /// In en, this message translates to:
+  /// **'Block Items With Tags'**
+  String get adminBlockedTags;
+
+  /// Help for blocked tags.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide media with at least one of these tags.'**
+  String get adminBlockedTagsHelp;
+
+  /// Button and dialog title: add a tag.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Tag'**
+  String get adminAddTag;
+
+  /// Text field label for a tag.
+  ///
+  /// In en, this message translates to:
+  /// **'Tag'**
+  String get adminTag;
+
+  /// Section header: hours a user may use the server.
+  ///
+  /// In en, this message translates to:
+  /// **'Access Schedule'**
+  String get adminAccessSchedule;
+
+  /// Help for access schedules.
+  ///
+  /// In en, this message translates to:
+  /// **'Limit this user to certain days and hours. With no schedule, access is not limited.'**
+  String get adminAccessScheduleHelp;
+
+  /// Button and dialog title: add an access schedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Schedule'**
+  String get adminAddSchedule;
+
+  /// Dropdown label: day or days a schedule applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'Day'**
+  String get adminScheduleDay;
+
+  /// Dropdown label: when a schedule's access begins.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Time'**
+  String get adminScheduleStart;
+
+  /// Dropdown label: when a schedule's access ends.
+  ///
+  /// In en, this message translates to:
+  /// **'End Time'**
+  String get adminScheduleEnd;
+
+  /// Access schedule day option.
+  ///
+  /// In en, this message translates to:
+  /// **'Every Day'**
+  String get adminEveryDay;
+
+  /// Access schedule day option.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekdays'**
+  String get adminWeekdays;
+
+  /// Access schedule day option.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekends'**
+  String get adminWeekends;
 
   /// Toggle label: grant access to all channels.
   ///
