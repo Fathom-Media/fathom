@@ -79,4 +79,19 @@ void main() {
       reason: 'Type it as JellyfinClient:\n${untyped.join('\n')}',
     );
   });
+
+  test('the volume button is never aligned inside a shrinking row', () {
+    // A FittedBox sizes to its child, so an Align(centerRight) in a Stack
+    // there collapses to the button's own width and lands on top of Play.
+    // The layout that works everywhere is the button as the last item in the
+    // row, floating, with an equal gap reserved on the left.
+    final aligned = _hits(
+        RegExp(r'Align\(\s*alignment: Alignment\.centerRight,'
+            r'\s*child: VerticalVolumeButton'),
+        except: '(no exceptions)');
+    expect(aligned, isEmpty,
+        reason: 'Put VerticalVolumeButton(floating: true) in the row instead:'
+            '\n${aligned.join('\n')}');
+  });
 }
+

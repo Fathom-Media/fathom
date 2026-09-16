@@ -1665,18 +1665,19 @@ class _YoutubeNowPlaying extends ConsumerWidget {
               const SizedBox(height: 20),
               _YtScrub(player: player),
               const SizedBox(height: 8),
-              // scaleDown so the reserved volume slot below never overflows on
-              // a narrow phone, matching the music layout (#40).
+              // scaleDown so the controls shrink together rather than
+              // overflowing on a narrow phone, matching the music layout (#40).
               FittedBox(
                 fit: BoxFit.scaleDown,
-                child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Transport clusters in the center; volume floats at the right
-                  // edge and expands leftward, matching the music layout.
-                  Row(
+                // Transport in the true center and volume at the right edge,
+                // balanced by an equal gap on the left, exactly as the music
+                // layout does it. This was a Stack with an Align(centerRight),
+                // which inside a FittedBox collapses to the button's own width
+                // and sits on top of Play.
+                child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (!isTvDevice) const SizedBox(width: 48),
                       IconButton(
                         tooltip: AppLocalizations.of(context).browseShuffle,
                         icon: const Icon(Icons.shuffle_rounded),
@@ -1724,20 +1725,11 @@ class _YoutubeNowPlaying extends ConsumerWidget {
                             : null,
                         onPressed: controller.cycleRepeat,
                       ),
-                      // Reserves the collapsed volume icon's own footprint so
-                      // it lands in empty space instead of on top of repeat
-                      // (#40), matching the music layout.
-                      if (!isTvDevice) const SizedBox(width: 48),
+                      // No volume on TV, the remote owns it.
+                      if (!isTvDevice)
+                        VerticalVolumeButton(player: player, floating: true),
                     ],
                   ),
-                  // No volume on TV, the remote owns it.
-                  if (!isTvDevice)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: VerticalVolumeButton(player: player),
-                    ),
-                ],
-                ),
               ),
             ],
           );
