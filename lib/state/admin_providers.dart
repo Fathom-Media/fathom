@@ -49,6 +49,16 @@ final adminEncodingConfigProvider =
       baseUrl: s.baseUrl, token: s.accessToken, key: 'encoding');
 });
 
+/// The server's backups; null when it has no backup API (before Jellyfin 12).
+final adminBackupsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>?>((ref) async {
+  final s = ref.watch(sessionControllerProvider).asData?.value;
+  if (s == null) return const [];
+  return ref
+      .watch(jellyfinClientProvider)
+      .getBackups(baseUrl: s.baseUrl, token: s.accessToken);
+});
+
 final adminApiKeysProvider = FutureProvider.autoDispose<_JsonList>((ref) async {
   final s = ref.watch(sessionControllerProvider).asData?.value;
   if (s == null) return const [];

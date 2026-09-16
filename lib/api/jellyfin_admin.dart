@@ -547,6 +547,75 @@ Future<Map<String, dynamic>> getNamedConfiguration({
     }
   }
 
+/// The server's backups, newest first (admin only). Null when the server has
+  /// no backup API: it arrived in Jellyfin 12, and older servers answer 404.
+  Future<List<Map<String, dynamic>>?> getBackups({
+    required String baseUrl,
+    required String token,
+  }) async {
+    try {
+      final res = await _dio.get('$baseUrl/Backup', options: _authed(token));
+      final list = [
+        for (final e in (res.data as List? ?? const []).whereType<Map>())
+          Map<String, dynamic>.from(e),
+      ];
+      list.sort((a, b) =>
+          '${b['DateCreated'] ?? ''}'.compareTo('${a['DateCreated'] ?? ''}'));
+      return list;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Makes a backup (admin only). The database is always included; the other
+  /// parts are optional, as in the web dashboard. The request only returns
+  /// once the backup is written, which on a large library takes minutes, so it
+  /// gets a far longer wait than an ordinary call.
+  Future<void> createBackup({
+    required String baseUrl,
+    required String token,
+    bool metadata = false,
+    bool subtitles = false,
+    bool trickplay = false,
+  }) async {
+    try {
+      await _dio.post(
+        '$baseUrl/Backup/Create',
+        data: {
+          'Metadata': metadata,
+          'Subtitles': subtitles,
+          'Trickplay': trickplay,
+          'Database': true,
+        },
+        options: _authed(token).copyWith(
+          receiveTimeout: const Duration(hours: 2),
+          sendTimeout: const Duration(minutes: 1),
+        ),
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+/// Starts restoring a backup (admin only). The server restarts to apply it
+  /// and is unreachable until it's done.
+  Future<void> restoreBackup({
+    required String baseUrl,
+    required String token,
+    required String archivePath,
+  }) async {
+    try {
+      await _dio.post(
+        '$baseUrl/Backup/Restore',
+        data: {'ArchiveFileName': archivePath},
+        options: _authed(token),
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
 /// API keys granted to apps (admin only).
   Future<List<Map<String, dynamic>>> getApiKeys({
     required String baseUrl,

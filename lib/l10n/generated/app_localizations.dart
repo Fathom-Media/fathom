@@ -6910,6 +6910,162 @@ abstract class AppLocalizations {
   /// **'Remote access, published URL, ports'**
   String get adminNetworkingSubtitle;
 
+  /// Admin screen title: server backups.
+  ///
+  /// In en, this message translates to:
+  /// **'Backups'**
+  String get adminBackupsTitle;
+
+  /// Admin hub subtitle for the Backups screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Create and restore snapshots of the server'**
+  String get adminBackupsSubtitle;
+
+  /// Intro text at the top of the Backups screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Create and restore snapshots of your server. A backup can include the database, metadata, subtitles, and trickplay images, and is stored on the server.'**
+  String get adminBackupsHelp;
+
+  /// Empty state on the Backups screen.
+  ///
+  /// In en, this message translates to:
+  /// **'No backups yet'**
+  String get adminBackupsNone;
+
+  /// Shown when the server has no backup API.
+  ///
+  /// In en, this message translates to:
+  /// **'Backups need Jellyfin 12 or newer. This server does not offer them.'**
+  String get adminBackupsUnsupported;
+
+  /// Button and dialog title: make a new server backup.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Backup'**
+  String get adminBackupCreate;
+
+  /// Note in the Create Backup dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Depending on the size of your library, a backup can take a while.'**
+  String get adminBackupDisclaimer;
+
+  /// Backup content option: the server database. Always included.
+  ///
+  /// In en, this message translates to:
+  /// **'Database'**
+  String get adminBackupDatabase;
+
+  /// Backup content option: metadata such as artwork and NFO data.
+  ///
+  /// In en, this message translates to:
+  /// **'Metadata'**
+  String get adminBackupMetadata;
+
+  /// Backup content option: subtitles stored by the server.
+  ///
+  /// In en, this message translates to:
+  /// **'Subtitles'**
+  String get adminBackupSubtitles;
+
+  /// Backup content option: trickplay scrubbing images.
+  ///
+  /// In en, this message translates to:
+  /// **'Trickplay'**
+  String get adminBackupTrickplay;
+
+  /// Title of the dialog shown while a backup is being written.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup in progress'**
+  String get adminBackupInProgress;
+
+  /// Confirmation after a backup finishes.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup created'**
+  String get adminBackupCreated;
+
+  /// Title of the warning shown when creating a backup while tasks run.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled tasks are running'**
+  String get adminBackupTasksRunning;
+
+  /// Warning body listing running scheduled tasks.
+  ///
+  /// In en, this message translates to:
+  /// **'It is best to wait for these to finish, or stop them, before backing up:\n\n{tasks}'**
+  String adminBackupTasksRunningBody(String tasks);
+
+  /// Title of the sheet showing one backup's details.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup Details'**
+  String get adminBackupDetails;
+
+  /// Label for where a backup is stored on the server.
+  ///
+  /// In en, this message translates to:
+  /// **'Path'**
+  String get adminBackupPath;
+
+  /// Label for the Jellyfin version a backup was made on.
+  ///
+  /// In en, this message translates to:
+  /// **'Server Version'**
+  String get adminBackupServerVersion;
+
+  /// Label for what a backup contains.
+  ///
+  /// In en, this message translates to:
+  /// **'Includes'**
+  String get adminBackupIncludes;
+
+  /// Confirmation after copying a backup's path.
+  ///
+  /// In en, this message translates to:
+  /// **'Path copied'**
+  String get adminBackupPathCopied;
+
+  /// Action: restore the server from a backup.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get adminBackupRestore;
+
+  /// Confirmation title before restoring a backup.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore This Backup?'**
+  String get adminBackupRestoreTitle;
+
+  /// Warning before restoring a backup.
+  ///
+  /// In en, this message translates to:
+  /// **'The server restarts and is unusable until the restore finishes, and anything added or changed since this backup was made is lost.\n\nOnly restore a backup onto the same Jellyfin version it was made on ({version}). Restoring onto a different version is unsupported and can leave the server unusable.'**
+  String adminBackupRestoreBody(String version);
+
+  /// Title of the dialog shown while the server restores.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore in progress'**
+  String get adminBackupRestoring;
+
+  /// Body of the restore progress dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the server to come back. This can take several minutes.'**
+  String get adminBackupRestoringBody;
+
+  /// Confirmation when the server is back after a restore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore complete'**
+  String get adminBackupRestored;
+
   /// Admin section title: API keys (app access tokens).
   ///
   /// In en, this message translates to:

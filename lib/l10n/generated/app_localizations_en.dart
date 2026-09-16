@@ -3914,6 +3914,93 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminNetworkingSubtitle => 'Remote access, published URL, ports';
 
   @override
+  String get adminBackupsTitle => 'Backups';
+
+  @override
+  String get adminBackupsSubtitle =>
+      'Create and restore snapshots of the server';
+
+  @override
+  String get adminBackupsHelp =>
+      'Create and restore snapshots of your server. A backup can include the database, metadata, subtitles, and trickplay images, and is stored on the server.';
+
+  @override
+  String get adminBackupsNone => 'No backups yet';
+
+  @override
+  String get adminBackupsUnsupported =>
+      'Backups need Jellyfin 12 or newer. This server does not offer them.';
+
+  @override
+  String get adminBackupCreate => 'Create Backup';
+
+  @override
+  String get adminBackupDisclaimer =>
+      'Depending on the size of your library, a backup can take a while.';
+
+  @override
+  String get adminBackupDatabase => 'Database';
+
+  @override
+  String get adminBackupMetadata => 'Metadata';
+
+  @override
+  String get adminBackupSubtitles => 'Subtitles';
+
+  @override
+  String get adminBackupTrickplay => 'Trickplay';
+
+  @override
+  String get adminBackupInProgress => 'Backup in progress';
+
+  @override
+  String get adminBackupCreated => 'Backup created';
+
+  @override
+  String get adminBackupTasksRunning => 'Scheduled tasks are running';
+
+  @override
+  String adminBackupTasksRunningBody(String tasks) {
+    return 'It is best to wait for these to finish, or stop them, before backing up:\n\n$tasks';
+  }
+
+  @override
+  String get adminBackupDetails => 'Backup Details';
+
+  @override
+  String get adminBackupPath => 'Path';
+
+  @override
+  String get adminBackupServerVersion => 'Server Version';
+
+  @override
+  String get adminBackupIncludes => 'Includes';
+
+  @override
+  String get adminBackupPathCopied => 'Path copied';
+
+  @override
+  String get adminBackupRestore => 'Restore';
+
+  @override
+  String get adminBackupRestoreTitle => 'Restore This Backup?';
+
+  @override
+  String adminBackupRestoreBody(String version) {
+    return 'The server restarts and is unusable until the restore finishes, and anything added or changed since this backup was made is lost.\n\nOnly restore a backup onto the same Jellyfin version it was made on ($version). Restoring onto a different version is unsupported and can leave the server unusable.';
+  }
+
+  @override
+  String get adminBackupRestoring => 'Restore in progress';
+
+  @override
+  String get adminBackupRestoringBody =>
+      'Waiting for the server to come back. This can take several minutes.';
+
+  @override
+  String get adminBackupRestored => 'Restore complete';
+
+  @override
   String get adminApiKeysTitle => 'API Keys';
 
   @override

@@ -3,6 +3,7 @@
 library;
 
 export 'admin/admin_api_keys_screen.dart';
+export 'admin/admin_backups_screen.dart';
 export 'admin/admin_devices_screen.dart';
 export 'admin/admin_livetv_screens.dart';
 export 'admin/admin_logs_screens.dart';

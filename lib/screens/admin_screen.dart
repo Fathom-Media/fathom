@@ -132,6 +132,8 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
               l.adminActivitySubtitle, '/admin/activity'),
           _tile(context, Icons.description_outlined, l.adminLogsTitle,
               l.adminLogsSubtitle, '/admin/logs'),
+          _tile(context, Icons.inventory_2_outlined, l.adminBackupsTitle,
+              l.adminBackupsSubtitle, '/admin/backups'),
           _tile(context, Icons.dns_rounded, l.adminSystemTitle,
               l.adminSystemSubtitle, '/admin/system'),
           SettingsSectionHeader(l.adminSectionExtensions),

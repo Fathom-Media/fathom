@@ -442,6 +442,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: '/admin/apikeys',
               pageBuilder: (_, _) => _fadePage(const AdminApiKeysScreen())),
           GoRoute(
+              path: '/admin/backups',
+              pageBuilder: (_, _) => _fadePage(const AdminBackupsScreen())),
+          GoRoute(
               path: '/admin/logs',
               pageBuilder: (_, _) => _fadePage(const AdminLogsScreen())),
           GoRoute(

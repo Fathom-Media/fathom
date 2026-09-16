@@ -177,6 +177,7 @@ const _aDvr = Icons.fiber_dvr_rounded;
 const _aTasks = Icons.schedule_rounded;
 const _aActivity = Icons.history_rounded;
 const _aLogs = Icons.description_outlined;
+const _aBackups = Icons.inventory_2_outlined;
 const _aSystem = Icons.dns_rounded;
 const _aPlugins = Icons.extension_rounded;
 
@@ -238,6 +239,7 @@ List<SettingResult> adminSettingsIndex(AppLocalizations l) => <SettingResult>[
   SettingResult(title: l.searchScheduledTasks, section: l.searchMaintenance, icon: _aTasks, route: '/admin/tasks', keywords: ['tasks', 'scheduled', 'jobs', 'scan', 'background', 'cron']),
   SettingResult(title: l.searchActivityLog, section: l.searchMaintenance, icon: _aActivity, route: '/admin/activity', keywords: ['activity', 'events', 'log', 'history']),
   SettingResult(title: l.searchLogs, section: l.searchMaintenance, icon: _aLogs, route: '/admin/logs', keywords: ['logs', 'log files', 'debug', 'ffmpeg']),
+  SettingResult(title: l.adminBackupsTitle, section: l.searchMaintenance, icon: _aBackups, route: '/admin/backups', keywords: ['backup', 'backups', 'restore', 'snapshot', 'database', 'migrate']),
   SettingResult(title: l.searchSystem, section: l.searchMaintenance, icon: _aSystem, route: '/admin/system', keywords: ['system', 'server info', 'restart', 'shutdown', 'version']),
 
   // Extensions
