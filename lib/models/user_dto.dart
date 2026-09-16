@@ -7,6 +7,10 @@ class UserDto {
   final bool isAdministrator;
   final bool enableContentDeletion;
 
+  /// Allowed to search for and download subtitles from the server's subtitle
+  /// providers. Administrators always may.
+  final bool enableSubtitleManagement;
+
   const UserDto({
     required this.id,
     required this.name,
@@ -14,6 +18,7 @@ class UserDto {
     this.primaryImageTag,
     this.isAdministrator = false,
     this.enableContentDeletion = false,
+    this.enableSubtitleManagement = false,
   });
 
   factory UserDto.fromJson(Map<String, dynamic> json) {
@@ -26,6 +31,8 @@ class UserDto {
       primaryImageTag: json['PrimaryImageTag'] as String?,
       isAdministrator: policy['IsAdministrator'] as bool? ?? false,
       enableContentDeletion: policy['EnableContentDeletion'] as bool? ?? false,
+      enableSubtitleManagement:
+          policy['EnableSubtitleManagement'] as bool? ?? false,
     );
   }
 }

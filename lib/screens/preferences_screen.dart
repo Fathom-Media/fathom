@@ -19,37 +19,20 @@ import '../widgets/ui_common.dart';
 import '../state/youtube_providers.dart';
 import '../services/youtube_download.dart';
 import '../services/sponsorblock.dart';
+import '../services/track_languages.dart';
 import '../widgets/app_snack.dart';
 import '../widgets/app_spinner.dart';
 
+// One list, shared with the player's online subtitle search (track_languages),
+// so the same codes and the same order appear everywhere.
 Map<String, String> _languages(AppLocalizations l) => {
       '': l.prefsLanguageServerDefault,
-      'eng': l.prefsLanguageEnglish,
-      'spa': l.prefsLanguageSpanish,
-      'fre': l.prefsLanguageFrench,
-      'ger': l.prefsLanguageGerman,
-      'ita': l.prefsLanguageItalian,
-      'jpn': l.prefsLanguageJapanese,
-      'kor': l.prefsLanguageKorean,
-      'chi': l.prefsLanguageChinese,
-      'por': l.prefsLanguagePortuguese,
-      'rus': l.prefsLanguageRussian,
-      'nld': l.prefsLanguageDutch,
+      ...trackLanguages(l),
     };
 
 Map<String, String> _subtitleLanguages(AppLocalizations l) => {
       '': l.prefsNone,
-      'eng': l.prefsLanguageEnglish,
-      'spa': l.prefsLanguageSpanish,
-      'fre': l.prefsLanguageFrench,
-      'ger': l.prefsLanguageGerman,
-      'ita': l.prefsLanguageItalian,
-      'jpn': l.prefsLanguageJapanese,
-      'kor': l.prefsLanguageKorean,
-      'chi': l.prefsLanguageChinese,
-      'por': l.prefsLanguagePortuguese,
-      'rus': l.prefsLanguageRussian,
-      'nld': l.prefsLanguageDutch,
+      ...trackLanguages(l),
     };
 
 const _accentColors = [

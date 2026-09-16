@@ -392,6 +392,51 @@ Future<void> deletePlaylist({
   }
 
 /// Full details for a single item (Overview, Genres, runtime, resume, ...).
+  /// Subtitles the server's providers (OpenSubtitles and the like, set up as
+  /// server plugins) have for this title, best first.
+  ///
+  /// The server does the searching: Fathom never talks to a provider, so
+  /// nothing here depends on which provider is installed.
+  Future<List<RemoteSubtitle>> searchRemoteSubtitles({
+    required String baseUrl,
+    required String token,
+    required String itemId,
+    required String language,
+  }) async {
+    try {
+      final res = await _dio.get(
+        '$baseUrl/Items/$itemId/RemoteSearch/Subtitles/$language',
+        options: _authed(token),
+      );
+      final list = (res.data as List?) ?? const [];
+      final out = [
+        for (final e in list.whereType<Map>())
+          RemoteSubtitle.fromJson(Map<String, dynamic>.from(e)),
+      ];
+      return sortRemoteSubtitles(out);
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
+  /// Downloads one of those onto the server, beside the video. It then shows
+  /// up as an ordinary external subtitle track for every client.
+  Future<void> downloadRemoteSubtitle({
+    required String baseUrl,
+    required String token,
+    required String itemId,
+    required String subtitleId,
+  }) async {
+    try {
+      await _dio.post(
+        '$baseUrl/Items/$itemId/RemoteSearch/Subtitles/$subtitleId',
+        options: _authed(token),
+      );
+    } on DioException catch (e) {
+      throw JellyfinException(_friendlyDioError(e));
+    }
+  }
+
   Future<BaseItemDto> getItem({
     required String baseUrl,
     required String userId,

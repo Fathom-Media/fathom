@@ -1537,6 +1537,48 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get playerSubtitleSearch => 'Search Subtitles Online';
+
+  @override
+  String playerSubtitleSearchIn(String language) {
+    return 'Online Subtitles: $language';
+  }
+
+  @override
+  String get playerSubtitleSearchLanguage => 'Change Language';
+
+  @override
+  String playerSubtitleSearchEmptyIn(String language) {
+    return 'No $language subtitles found for this title';
+  }
+
+  @override
+  String get playerSubtitleSearchTitle => 'Online Subtitles';
+
+  @override
+  String get playerSubtitleHashMatch => 'Matches your file';
+
+  @override
+  String playerSubtitleDownloads(int count) {
+    return '$count downloads';
+  }
+
+  @override
+  String get playerSubtitleDownloading => 'Downloading subtitle';
+
+  @override
+  String get playerSubtitleDownloaded => 'Subtitle added';
+
+  @override
+  String get playerSubtitleForced => 'Forced';
+
+  @override
+  String get playerSubtitlePicture => 'Picture';
+
+  @override
+  String get playerSubtitleFile => 'External';
+
+  @override
   String playerSubtitleNumber(String id) {
     return 'Subtitle $id';
   }

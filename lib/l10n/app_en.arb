@@ -1858,6 +1858,57 @@
       }
     }
   },
+  "playerSubtitleSearch": "Search Subtitles Online",
+  "@playerSubtitleSearch": {
+    "description": "Subtitle menu row that searches the server's subtitle providers."
+  },
+  "playerSubtitleSearchIn": "Online Subtitles: {language}",
+  "@playerSubtitleSearchIn": {
+    "description": "Title of the online subtitle results sheet, naming the language searched.",
+    "placeholders": { "language": { "type": "String" } }
+  },
+  "playerSubtitleSearchLanguage": "Change Language",
+  "@playerSubtitleSearchLanguage": {
+    "description": "Row in the online subtitle results that searches a different language."
+  },
+  "playerSubtitleSearchEmptyIn": "No {language} subtitles found for this title",
+  "@playerSubtitleSearchEmptyIn": {
+    "description": "Shown when the server's providers return nothing for a language.",
+    "placeholders": { "language": { "type": "String" } }
+  },
+  "playerSubtitleSearchTitle": "Online Subtitles",
+  "@playerSubtitleSearchTitle": {
+    "description": "Title of the sheet listing subtitles found online."
+  },
+  "playerSubtitleHashMatch": "Matches your file",
+  "@playerSubtitleHashMatch": {
+    "description": "Tag on a search result whose timing matches this exact release."
+  },
+  "playerSubtitleDownloads": "{count} downloads",
+  "@playerSubtitleDownloads": {
+    "description": "How many times a subtitle has been downloaded from the provider.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "playerSubtitleDownloading": "Downloading subtitle",
+  "@playerSubtitleDownloading": {
+    "description": "Progress message while the server fetches a subtitle."
+  },
+  "playerSubtitleDownloaded": "Subtitle added",
+  "@playerSubtitleDownloaded": {
+    "description": "Confirmation after the server saved a downloaded subtitle."
+  },
+  "playerSubtitleForced": "Forced",
+  "@playerSubtitleForced": {
+    "description": "Tag on a subtitle track that only captions foreign-language dialogue."
+  },
+  "playerSubtitlePicture": "Picture",
+  "@playerSubtitlePicture": {
+    "description": "Tag on a subtitle track made of images rather than text (Blu-ray PGS, DVD VobSub)."
+  },
+  "playerSubtitleFile": "External",
+  "@playerSubtitleFile": {
+    "description": "Tag on a subtitle track stored in its own file beside the video, rather than inside it. Matches the wording Jellyfin itself uses."
+  },
   "playerSubtitleNumber": "Subtitle {id}",
   "@playerSubtitleNumber": {
     "description": "Fallback label for a subtitle track that has no title or language, identified by its track id.",

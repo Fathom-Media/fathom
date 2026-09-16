@@ -2914,6 +2914,78 @@ abstract class AppLocalizations {
   /// **'Track {id}'**
   String playerTrackNumber(String id);
 
+  /// Subtitle menu row that searches the server's subtitle providers.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Subtitles Online'**
+  String get playerSubtitleSearch;
+
+  /// Title of the online subtitle results sheet, naming the language searched.
+  ///
+  /// In en, this message translates to:
+  /// **'Online Subtitles: {language}'**
+  String playerSubtitleSearchIn(String language);
+
+  /// Row in the online subtitle results that searches a different language.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Language'**
+  String get playerSubtitleSearchLanguage;
+
+  /// Shown when the server's providers return nothing for a language.
+  ///
+  /// In en, this message translates to:
+  /// **'No {language} subtitles found for this title'**
+  String playerSubtitleSearchEmptyIn(String language);
+
+  /// Title of the sheet listing subtitles found online.
+  ///
+  /// In en, this message translates to:
+  /// **'Online Subtitles'**
+  String get playerSubtitleSearchTitle;
+
+  /// Tag on a search result whose timing matches this exact release.
+  ///
+  /// In en, this message translates to:
+  /// **'Matches your file'**
+  String get playerSubtitleHashMatch;
+
+  /// How many times a subtitle has been downloaded from the provider.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} downloads'**
+  String playerSubtitleDownloads(int count);
+
+  /// Progress message while the server fetches a subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading subtitle'**
+  String get playerSubtitleDownloading;
+
+  /// Confirmation after the server saved a downloaded subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Subtitle added'**
+  String get playerSubtitleDownloaded;
+
+  /// Tag on a subtitle track that only captions foreign-language dialogue.
+  ///
+  /// In en, this message translates to:
+  /// **'Forced'**
+  String get playerSubtitleForced;
+
+  /// Tag on a subtitle track made of images rather than text (Blu-ray PGS, DVD VobSub).
+  ///
+  /// In en, this message translates to:
+  /// **'Picture'**
+  String get playerSubtitlePicture;
+
+  /// Tag on a subtitle track stored in its own file beside the video, rather than inside it. Matches the wording Jellyfin itself uses.
+  ///
+  /// In en, this message translates to:
+  /// **'External'**
+  String get playerSubtitleFile;
+
   /// Fallback label for a subtitle track that has no title or language, identified by its track id.
   ///
   /// In en, this message translates to:

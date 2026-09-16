@@ -594,7 +594,54 @@ Future<void> _postPlayState(
     }
   }
 
-/// Builds an image URL for an item. Load it with [imageHeaders] for auth.
+/// The URL for a subtitle track the server stores beside the video (a .srt
+  /// next to it, or one a subtitle plugin fetched).
+  ///
+  /// [deliveryUrl] is what the item's media streams report, but only some
+  /// responses carry it: fetching an item plainly (measured on 12.0) leaves it
+  /// out, so the address is built from the item, its media source and the
+  /// track's index instead. That route serves the file either way.
+  String subtitleUrl({
+    required String baseUrl,
+    required String token,
+    required String itemId,
+    required int index,
+    String? deliveryUrl,
+    String? mediaSourceId,
+    String? codec,
+  }) {
+    final raw = (deliveryUrl != null && deliveryUrl.isNotEmpty)
+        ? (deliveryUrl.startsWith('http')
+            ? deliveryUrl
+            : '$baseUrl$deliveryUrl')
+        : '$baseUrl/Videos/$itemId/${mediaSourceId ?? itemId}'
+            '/Subtitles/$index/0/Stream.${subtitleExtension(codec)}';
+    if (raw.contains('api_key=')) return raw;
+    return '$raw${raw.contains('?') ? '&' : '?'}api_key=$token';
+  }
+
+  /// The file extension the subtitle route wants. The server converts on the
+  /// way out, so asking for the track's own format keeps it untouched.
+  String subtitleExtension(String? codec) {
+    switch ((codec ?? '').toLowerCase()) {
+      case 'subrip':
+      case 'srt':
+        return 'srt';
+      case 'ass':
+        return 'ass';
+      case 'ssa':
+        return 'ssa';
+      case 'webvtt':
+      case 'vtt':
+        return 'vtt';
+      case '':
+        return 'srt';
+      default:
+        return 'vtt';
+    }
+  }
+
+  /// Builds an image URL for an item. Load it with [imageHeaders] for auth.
   String imageUrl({
     required String baseUrl,
     required String itemId,

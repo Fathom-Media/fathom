@@ -10,6 +10,7 @@ import '../models/media_segment.dart';
 import '../models/public_system_info.dart';
 import '../models/user_dto.dart';
 import '../models/lyrics.dart';
+import '../models/remote_subtitle.dart';
 import '../services/diagnostics.dart';
 import '../services/tv_mode.dart';
 

@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../widgets/app_snack.dart';
 import '../widgets/player_controls.dart';
 import '../widgets/sleep_timer_sheet.dart';
 
@@ -18,9 +19,12 @@ import '../routing/app_shell.dart';
 import '../models/base_item.dart';
 import '../state/admin_providers.dart';
 import '../models/media_segment.dart';
+import '../models/remote_subtitle.dart';
 import '../models/session.dart';
 import '../services/diagnostics.dart';
 import '../services/fold.dart';
+import '../services/subtitle_labels.dart';
+import '../services/track_languages.dart';
 import '../services/tv_mode.dart';
 import '../widgets/window_frame.dart';
 import '../widgets/cast_button.dart';
@@ -435,7 +439,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     });
     _positionSub = _player.stream.position.listen(_onPosition);
-    _tracksSub = _player.stream.tracks.listen((_) => _applyDefaultTracks());
+    _tracksSub = _player.stream.tracks.listen((tracks) {
+      if (!_loadedExternalSubtitle) _fileSubtitleTracks = tracks.subtitle;
+      _applyDefaultTracks();
+    });
     _completedSub = _player.stream.completed.listen((done) {
       if (done) _onCompleted();
     });
@@ -991,10 +998,119 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             itemId: widget.item.id,
           )
           .timeout(const Duration(seconds: 3));
+      // The same fetch carries the server's subtitle list. It names the
+      // tracks far better than the player does (which knows only a language
+      // code), and it's the only place tracks stored in their own file appear:
+      // the stream the player opens has no idea those exist.
+      if (mounted &&
+          (fresh.subtitleStreams.isNotEmpty || fresh.audioStreams.isNotEmpty)) {
+        setState(() {
+          _serverSubtitles = fresh.subtitleStreams;
+          _serverAudio = fresh.audioStreams;
+          _mediaSourceId = fresh.mediaSourceId;
+        });
+      }
       return fresh.resumePositionTicks;
     } catch (_) {
       return known;
     }
+  }
+
+  /// Every subtitle track the server knows about, in file order.
+  List<SubtitleStream> _serverSubtitles = const [];
+
+  /// Every audio track the server knows about, in file order.
+  List<AudioStream> _serverAudio = const [];
+
+  /// The subtitle tracks that came with the file, as the player first reported
+  /// them.
+  ///
+  /// Loading a track from its own file makes the player add it to that list, so
+  /// after one download the picker showed the file twice and, with the two
+  /// lists no longer the same length, gave up on the server's names and
+  /// listed "th 1", "th 2" again. This snapshot is what the file itself has;
+  /// tracks stored beside it come from the server's list instead.
+  List<SubtitleTrack> _fileSubtitleTracks = const [];
+
+  /// Set once a track from its own file has been loaded, so the snapshot above
+  /// isn't taken again until the next open.
+  bool _loadedExternalSubtitle = false;
+
+  /// The media source the subtitle routes want, from the same fetch.
+  String? _mediaSourceId;
+
+  /// The server's description of the audio tracks, in the order the player
+  /// reports them. Null when the two don't agree on how many there are.
+  List<AudioStream>? _audioInfo(List<AudioTrack> tracks) {
+    final real = tracks.where((t) => t.id != 'no' && t.id != 'auto').length;
+    return _serverAudio.length == real ? _serverAudio : null;
+  }
+
+  /// The ones stored beside the video, added to the picker below the tracks
+  /// inside it. Loaded by URL when chosen.
+  List<SubtitleStream> get _externalSubtitles =>
+      [for (final t in _serverSubtitles) if (t.isExternal) t];
+
+  /// The subtitle tracks the file itself carries, without any loaded from
+  /// their own file since.
+  List<SubtitleTrack> get _subtitleTracksInFile =>
+      _fileSubtitleTracks.isEmpty ? _player.state.tracks.subtitle : _fileSubtitleTracks;
+
+  /// The server's description of the tracks inside the file, in the same order
+  /// the player reports them, so each one can be named properly. Only when the
+  /// two agree on how many there are: a transcode can hand the player a
+  /// different set, and a wrong name is worse than a plain one.
+  List<SubtitleStream>? _embeddedSubtitleInfo(List<SubtitleTrack> tracks) {
+    final inFile = [
+      for (final t in _serverSubtitles)
+        if (!t.isExternal) t
+    ];
+    final real = tracks.where((t) => t.id != 'no' && t.id != 'auto').length;
+    return inFile.length == real ? inFile : null;
+  }
+
+  /// The external track showing now, so the picker can tick it (the player
+  /// reports a URI track with no name of its own).
+  SubtitleStream? _activeExternalSubtitle;
+
+  Future<void> _setPlayerSubtitleDrawing(bool on) async {
+    try {
+      await (_player.platform as dynamic)
+          .setProperty('sub-visibility', on ? 'yes' : 'no');
+    } catch (_) {
+      // Not fatal: text subtitles still come through the app's own layer.
+    }
+  }
+
+  /// Picks a track that lives inside the file.
+  Future<void> _selectSubtitle(SubtitleTrack track) async {
+    _activeExternalSubtitle = null;
+    await _player.setSubtitleTrack(track);
+    await _setPlayerSubtitleDrawing(isImageSubtitleCodec(track.codec));
+  }
+
+  /// Picks a track from its own file, by URL.
+  Future<void> _selectExternalSubtitle(SubtitleStream stream) async {
+    final session = _session, client = _client;
+    if (session == null || client == null) return;
+    _activeExternalSubtitle = stream;
+    _loadedExternalSubtitle = true;
+    await _player.setSubtitleTrack(SubtitleTrack.uri(
+      client.subtitleUrl(
+        baseUrl: session.baseUrl,
+        token: session.accessToken,
+        itemId: widget.item.id,
+        index: stream.index,
+        deliveryUrl: stream.deliveryUrl,
+        mediaSourceId: _mediaSourceId,
+        codec: stream.codec,
+      ),
+      title: stream.label,
+      language: stream.language,
+    ));
+    // An external track the server hands over as an image (a .sup beside the
+    // video) still needs the player to draw it.
+    await _setPlayerSubtitleDrawing(!stream.isTextSubtitleStream);
   }
 
   /// Opens [url] starting at [at] (or the beginning when zero).
@@ -1010,6 +1126,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// long the open takes.
   Future<void> _openAt(String url, Duration at, {bool play = true}) {
     _lastPos = at;
+    _loadedExternalSubtitle = false;
+    _fileSubtitleTracks = const [];
     return _player.open(Media(url, start: at > Duration.zero ? at : null),
         play: play);
   }
@@ -1297,7 +1415,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (prefs.subtitleLanguage.isNotEmpty) {
       final match = tracks.subtitle.where((t) =>
           (t.language ?? '').toLowerCase().startsWith(prefs.subtitleLanguage));
-      if (match.isNotEmpty) _player.setSubtitleTrack(match.first);
+      if (match.isNotEmpty) {
+        unawaited(_selectSubtitle(match.first));
+      } else {
+        final beside = _externalSubtitles.where((t) =>
+            (t.language ?? '').toLowerCase().startsWith(prefs.subtitleLanguage));
+        if (beside.isNotEmpty) unawaited(_selectExternalSubtitle(beside.first));
+      }
     }
   }
 
@@ -2264,23 +2388,210 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _showSubtitleMenu() {
     final l = AppLocalizations.of(context);
-    return _pickFromSheet<SubtitleTrack>(
+    // One list: the tracks inside the file, then any stored beside it. Named
+    // from the server where it can be matched up, since the player knows only
+    // a language code.
+    final tracks = _subtitleTracksInFile;
+    final info = _embeddedSubtitleInfo(tracks);
+    var nth = 0;
+    final inFile = [
+      for (final t in tracks)
+        (
+          track: t,
+          external: null as SubtitleStream?,
+          label: (t.id == 'no' || t.id == 'auto' || info == null)
+              ? _subtitleLabel(l, t)
+              : serverSubtitleLabel(l, info[nth++]),
+        ),
+    ];
+    final beside = [
+      for (final t in _externalSubtitles)
+        (
+          track: null as SubtitleTrack?,
+          external: t,
+          label: serverSubtitleLabel(l, t),
+        ),
+    ];
+    final options = [...inFile, ...beside];
+    final labels = numberRepeats([for (final o in options) o.label]);
+    final current = _player.state.track.subtitle.id;
+    // Searching the server's subtitle providers is the last row, the way a
+    // "more" entry reads. Only for accounts the server lets manage subtitles.
+    final canSearch = !widget.item.isLiveChannel && _canManageSubtitles;
+    final searchIndex = options.length;
+    return _pickFromSheet<int>(
       title: l.playerSubtitles,
-      options: _player.state.tracks.subtitle,
-      isSelected: (t) => t.id == _player.state.track.subtitle.id,
-      label: (t) => _subtitleLabel(l, t),
-      onSelect: _player.setSubtitleTrack,
+      options: [
+        for (var i = 0; i < options.length; i++) i,
+        if (canSearch) searchIndex,
+      ],
+      isSelected: (i) => i != searchIndex &&
+          (options[i].external != null
+              ? _activeExternalSubtitle?.index == options[i].external!.index
+              : _activeExternalSubtitle == null &&
+                  options[i].track!.id == current),
+      label: (i) => i == searchIndex ? l.playerSubtitleSearch : labels[i],
+      actionIcon: (i) =>
+          i == searchIndex ? Icons.travel_explore_rounded : null,
+      onSelect: (i) {
+        if (i == searchIndex) {
+          _searchOnlineSubtitles();
+        } else if (options[i].external != null) {
+          _selectExternalSubtitle(options[i].external!);
+        } else {
+          _selectSubtitle(options[i].track!);
+        }
+      },
     );
+  }
+
+  /// Whether this account may ask the server to fetch subtitles. Administrators
+  /// always may; everyone else needs the server's subtitle-management right.
+  bool get _canManageSubtitles {
+    final user = ref.read(currentUserProvider).asData?.value;
+    return (user?.isAdministrator ?? false) ||
+        (user?.enableSubtitleManagement ?? false);
+  }
+
+  /// Asks the server's providers what they have, then downloads the one you
+  /// pick. The server stores it beside the video, so it comes back as an
+  /// ordinary external track.
+  Future<void> _searchOnlineSubtitles({String? inLanguage}) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final session = _session, client = _client;
+    if (session == null || client == null) return;
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    // A search is for one language at a time, so say which, and let it be
+    // changed from the results: the preferred subtitle language is only a
+    // starting point, and a provider's results are all in that language with
+    // nothing in the rows to say so.
+    final language = inLanguage ??
+        ((prefs?.subtitleLanguage.isNotEmpty ?? false)
+            ? prefs!.subtitleLanguage
+            : deviceTrackLanguage(Localizations.localeOf(context)));
+    final languageLabel = languageName(l, language);
+    List<RemoteSubtitle> results;
+    try {
+      results = await client.searchRemoteSubtitles(
+        baseUrl: session.baseUrl,
+        token: session.accessToken,
+        itemId: widget.item.id,
+        language: language,
+      );
+    } catch (e) {
+      showErrorOn(messenger, e);
+      return;
+    }
+    if (!mounted) return;
+    if (results.isEmpty) {
+      showSnackOn(messenger, l.playerSubtitleSearchEmptyIn(languageLabel));
+      await _pickSubtitleLanguage(language);
+      return;
+    }
+    // A null entry is the "change language" row, below the results.
+    await _pickFromSheet<RemoteSubtitle?>(
+      title: l.playerSubtitleSearchIn(languageLabel),
+      options: [...results, null],
+      isSelected: (_) => false,
+      label: (r) => r == null
+          ? l.playerSubtitleSearchLanguage
+          : [
+              r.name,
+              [
+                if (r.isHashMatch) l.playerSubtitleHashMatch,
+                if (r.providerName != null) r.providerName!,
+                if (r.format != null) r.format!.toUpperCase(),
+                if (r.downloadCount != null)
+                  l.playerSubtitleDownloads(r.downloadCount!),
+              ].join(' · '),
+            ].join('\n'),
+      actionIcon: (r) => r == null ? Icons.translate_rounded : null,
+      onSelect: (r) =>
+          r == null ? _pickSubtitleLanguage(language) : _downloadSubtitle(r),
+    );
+  }
+
+  /// Searches again in another language.
+  Future<void> _pickSubtitleLanguage(String current) async {
+    final l = AppLocalizations.of(context);
+    final languages = trackLanguages(l);
+    final codes = languages.keys.toList();
+    await _pickFromSheet<String>(
+      title: l.playerSubtitleSearchLanguage,
+      options: codes,
+      isSelected: (code) => code == current,
+      label: (code) => languages[code] ?? code,
+      onSelect: (code) => _searchOnlineSubtitles(inLanguage: code),
+    );
+  }
+
+  Future<void> _downloadSubtitle(RemoteSubtitle subtitle) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final session = _session, client = _client;
+    if (session == null || client == null) return;
+    showSnackOn(messenger, l.playerSubtitleDownloading);
+    try {
+      await client.downloadRemoteSubtitle(
+        baseUrl: session.baseUrl,
+        token: session.accessToken,
+        itemId: widget.item.id,
+        subtitleId: subtitle.id,
+      );
+      // Re-read the item until the new track is listed: the server saves the
+      // file first and adds it to the item a moment later, so reading straight
+      // away came back without it and the track never appeared. Playing it
+      // needs no reload of the video, since it loads by URL.
+      final before = _externalSubtitles.length;
+      BaseItemDto? fresh;
+      for (var attempt = 0; attempt < 8; attempt++) {
+        fresh = await client.getItem(
+          baseUrl: session.baseUrl,
+          userId: session.userId,
+          token: session.accessToken,
+          itemId: widget.item.id,
+        );
+        final now = fresh.subtitleStreams.where((t) => t.isExternal).length;
+        if (now > before) break;
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+      }
+      if (!mounted || fresh == null) return;
+      setState(() {
+        _serverSubtitles = fresh!.subtitleStreams;
+        _serverAudio = fresh.audioStreams;
+        _mediaSourceId = fresh.mediaSourceId;
+      });
+      final added = _externalSubtitles;
+      if (added.isNotEmpty) await _selectExternalSubtitle(added.last);
+      showSnackOn(messenger, l.playerSubtitleDownloaded,
+          kind: SnackKind.success);
+    } catch (e) {
+      showErrorOn(messenger, e);
+    }
   }
 
   Future<void> _showAudioMenu() {
     final l = AppLocalizations.of(context);
-    return _pickFromSheet<AudioTrack>(
+    // Named from the server where the two lists line up: it knows the format
+    // and channel layout, and that one of them is a commentary, where the
+    // player has little more than a language code.
+    final tracks = _player.state.tracks.audio;
+    final info = _audioInfo(tracks);
+    var nth = 0;
+    final labels = numberRepeats([
+      for (final t in tracks)
+        (t.id == 'no' || t.id == 'auto' || info == null)
+            ? _audioLabel(l, t)
+            : serverAudioLabel(l, info[nth++]),
+    ]);
+    final current = _player.state.track.audio.id;
+    return _pickFromSheet<int>(
       title: l.playerAudio,
-      options: _player.state.tracks.audio,
-      isSelected: (t) => t.id == _player.state.track.audio.id,
-      label: (t) => _audioLabel(l, t),
-      onSelect: _player.setAudioTrack,
+      options: [for (var i = 0; i < tracks.length; i++) i],
+      isSelected: (i) => tracks[i].id == current,
+      label: (i) => labels[i],
+      onSelect: (i) => _player.setAudioTrack(tracks[i]),
     );
   }
 
@@ -2357,12 +2668,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
   }
 
+  /// A sheet of choices. [actionIcon] marks an entry that does something other
+  /// than pick a track (searching for subtitles online): it sits below a
+  /// divider, in the accent colour with its own icon, so nobody scanning a list
+  /// of language names reads past it.
   Future<void> _pickFromSheet<T>({
     required String title,
     required List<T> options,
     required bool Function(T) isSelected,
     required String Function(T) label,
     required void Function(T) onSelect,
+    IconData? Function(T)? actionIcon,
   }) async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -2385,19 +2701,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: ListView(
                 shrinkWrap: true,
                 children: [
-                  for (final o in options)
+                  for (final o in options) ...[
+                    if (actionIcon?.call(o) != null)
+                      const Divider(height: 1, indent: 16, endIndent: 16),
                     ListTile(
                       // TV: land the remote on the current selection so the first
                       // press moves or confirms rather than just taking focus.
                       autofocus: isTvDevice && isSelected(o),
-                      title: Text(label(o)),
+                      leading: actionIcon?.call(o) == null
+                          ? null
+                          : Icon(actionIcon!(o),
+                              color: Theme.of(ctx).colorScheme.primary),
+                      title: Text(
+                        label(o),
+                        style: actionIcon?.call(o) == null
+                            ? null
+                            : TextStyle(
+                                color: Theme.of(ctx).colorScheme.primary,
+                                fontWeight: FontWeight.w600),
+                      ),
                       trailing:
                           isSelected(o) ? const Icon(Icons.check_rounded) : null,
                       onTap: () {
-                        onSelect(o);
+                        // Close first, then act: an entry that opens another
+                        // sheet (Change Language) had this pop close the new
+                        // sheet instead of this one, so nothing happened.
                         Navigator.pop(ctx);
+                        onSelect(o);
                       },
                     ),
+                  ],
                 ],
               ),
             ),
