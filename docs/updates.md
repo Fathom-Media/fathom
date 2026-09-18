@@ -8,15 +8,15 @@ Open **Settings → Updates** to check manually, choose a channel, and turn auto
 
 | Channel | What you get |
 | --- | --- |
-| **Stable** | Only full releases (for example `0.12.0`). The default. |
+| **Stable** | Only full releases (for example `0.13.0`). The default. |
 | **Dev** | Full releases plus pre-release test builds, so you get new features and fixes early. |
 
 The updater always offers the newest version for your channel and downloads the build that matches your platform and CPU architecture automatically (x86_64 vs aarch64 on Linux; a universal APK on Android). When a new build is found, Fathom shows a dismissible banner and, on Linux and Android, a native system notification.
 
 ## How versions work
 
-- **Stable releases** are plain versions like `0.12.0`.
-- **Dev builds** are pre-releases named `0.12.0-dev01`, `0.12.0-dev02`, and so on. The Dev channel tracks these in order and rolls you onto the next stable release when it lands.
+- **Stable releases** are plain versions like `0.13.0`.
+- **Dev builds** are pre-releases named `0.13.1-dev01`, `0.13.1-dev02`, and so on. The Dev channel tracks these in order and rolls you onto the next stable release when it lands.
 - A floating **`dev-latest`** pre-release always points at the newest dev build, as a stable download link. The in-app updater tracks the numbered builds, not this alias.
 
 !!! note "Safe by design"

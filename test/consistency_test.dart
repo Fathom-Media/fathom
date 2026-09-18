@@ -120,5 +120,32 @@ void main() {
         reason: 'Call the documented route and pass this one as legacyUrl:\n'
             '${offenders.join('\n')}');
   });
-}
 
+  test('version examples in the docs match the current release', () {
+    // Example file names and version strings in the README, roadmap, and docs
+    // site go stale quietly after a release. Bumping pubspec's minor version
+    // fails this until they are refreshed along with the rest of the docs.
+    final minor = RegExp(r'^version: 0\.(\d+)\.', multiLine: true)
+        .firstMatch(File('pubspec.yaml').readAsStringSync())!
+        .group(1);
+    final version = RegExp(r'(?<![\d.])0\.(\d+)\.\d+');
+    final pages = [
+      File('README.md'),
+      File('ROADMAP.md'),
+      for (final f in Directory('docs').listSync(recursive: true))
+        if (f is File && f.path.endsWith('.md')) f,
+    ];
+    final stale = <String>[];
+    for (final f in pages) {
+      final lines = f.readAsStringSync().split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        for (final m in version.allMatches(lines[i])) {
+          if (m.group(1) != minor) stale.add('${f.path}:${i + 1} ${m[0]}');
+        }
+      }
+    }
+    expect(stale, isEmpty,
+        reason: 'Refresh these for 0.$minor and check the pages around them '
+            'for other outdated details:\n${stale.join('\n')}');
+  });
+}

@@ -36,7 +36,7 @@ See the [feature tour](https://fathom-media.github.io/fathom/features/) for the 
 
 ## Install
 
-Fathom runs on **Linux** and **Windows** (self-contained, nothing else to install) and on **Android** phones and tablets. **Android TV** is supported but experimental for now. macOS and iOS need Mac hardware.
+Fathom runs on **Linux** and **Windows** (self-contained, nothing else to install) and on **Android** phones, tablets, and foldables, with **Android Auto**. **Android TV** is supported but experimental for now. macOS and iOS need Mac hardware.
 
 Grab the latest build from [Releases](https://github.com/Fathom-Media/fathom/releases/latest). On Linux:
 

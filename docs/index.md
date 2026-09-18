@@ -30,7 +30,10 @@ Everything plays through mpv (via [media_kit](https://github.com/media-kit/media
 
 - **One player for everything.** Jellyfin and YouTube share the same control bar, seek bar, speed control, track pickers, and keyboard shortcuts.
 - **mpv-grade playback** with direct play, a transcode fallback, hardware decoding, and proper subtitle and audio track selection. A **Playback Info** overlay shows exactly what is happening (codecs, resolution, the live hardware-decode path, dropped frames).
-- **Run your server from the app**: users, libraries, scheduled tasks, transcoding, Live TV and DVR, and more, without opening the web dashboard.
+- **Every kind of subtitle**: text, picture-based discs (PGS, VobSub), and subtitle files beside the video, with tracks named clearly and **online subtitle search** through your server's subtitle plugin.
+- **A library that keeps up with you**: a Continue Watching row that follows what you actually watch, a **Watchlist**, extras on detail pages, multi-select, a sleep timer, and a **Movie Night Wheel** for when nobody can decide.
+- **Run your server from the app**: users (with every permission the web dashboard offers), libraries, scheduled tasks, transcoding, Live TV and DVR, backups, and more, without opening the web dashboard.
+- **Ready for Jellyfin 12**, while still working with older servers.
 - **YouTube, built in** (optional): search, subscriptions, local playlists, SponsorBlock, DeArrow, downloads, theater mode. Nothing is sent to YouTube.
 - **Requests and ratings**: Seerr browse-and-request with approve / decline / manage in place, plus Rotten Tomatoes, IMDb, and more.
 - **Take it offline**: download movies, episodes, whole series, recordings, and music, and browse them as a real library when the server is out of reach.
@@ -40,7 +43,7 @@ Everything plays through mpv (via [media_kit](https://github.com/media-kit/media
 
 ## Platforms
 
-Fathom runs on **Linux** (AppImage, or a Nix flake), **Windows**, and **Android** (phones and tablets) today, with **Android TV** supported but experimental for now. Linux and Windows have a self-contained download each, and Android installs from the APK. macOS and iOS are on the radar but need Mac hardware. See [Install](install.md) for details.
+Fathom runs on **Linux** (AppImage, or a Nix flake), **Windows** (installer or portable zip), and **Android** (phones, tablets, and foldables, with **Android Auto**) today, with **Android TV** supported but experimental for now. Linux and Windows have a self-contained download each, and Android installs from the APK. macOS and iOS are on the radar but need Mac hardware. See [Install](install.md) for details.
 
 !!! info "Free and open source"
     Fathom is free software under the [AGPL-3.0](https://github.com/Fathom-Media/fathom/blob/main/LICENSE) license, built and maintained by one person. If it is useful to you, a [star on GitHub](https://github.com/Fathom-Media/fathom) or a [Ko-fi](https://ko-fi.com/traceapps) helps.
