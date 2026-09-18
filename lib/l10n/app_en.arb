@@ -341,7 +341,7 @@
     "description": "Generic dismiss action, e.g. hiding a banner."
   },
   "settingsSupport": "Support Development",
-  "settingsSupportSubtitle": "Fathom is free. Buy me a coffee on Ko-fi",
+  "settingsSupportSubtitle": "Fathom is free. The current goal is a Mac, so Fathom can come to macOS and iOS.",
   "settingsLicenses": "Open Source Licenses",
   "settingsLicensesSubtitle": "The software Fathom is built on",
   "settingsSignOut": "Sign Out",

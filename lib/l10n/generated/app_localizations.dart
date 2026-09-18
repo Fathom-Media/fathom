@@ -709,7 +709,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSupportSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Fathom is free. Buy me a coffee on Ko-fi'**
+  /// **'Fathom is free. The current goal is a Mac, so Fathom can come to macOS and iOS.'**
   String get settingsSupportSubtitle;
 
   /// No description provided for @settingsLicenses.

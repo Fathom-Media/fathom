@@ -337,7 +337,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsSupportSubtitle =>
-      'Fathom is free. Buy me a coffee on Ko-fi';
+      'Fathom is free. The current goal is a Mac, so Fathom can come to macOS and iOS.';
 
   @override
   String get settingsLicenses => 'Open Source Licenses';

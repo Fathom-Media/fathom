@@ -16,6 +16,8 @@ An all-in-one client for Jellyfin, on desktop and Android. Your media, your serv
 
 **[Documentation](https://fathom-media.github.io/fathom/) · [Install](https://fathom-media.github.io/fathom/install/) · [Releases](https://github.com/Fathom-Media/fathom/releases/latest)**
 
+**Mac fund:** Fathom has no macOS or iOS build yet, because building either needs a Mac. [See the goal](https://traceapps.github.io/docs/support/) or [chip in](https://ko-fi.com/traceapps). Fathom stays free either way.
+
 </div>
 
 ---
@@ -59,9 +61,13 @@ The docs cover installing, connecting your server, every feature, the update cha
 
 ## Support
 
-Fathom is free and open source, and always will be. It's built and maintained by one person; donations help cover real costs like Mac hardware for macOS and iOS builds. Starring the repo helps too, and costs nothing.
+Fathom is free and open source, and always will be. No paid tier, nothing behind a donation, no telemetry. It's built and maintained by one person.
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Buy_me_a_coffee-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/traceapps)
+**The current goal is a Mac.** Building Fathom for macOS or iOS needs one, and so does testing on an iPhone. The same fund covers the Trace apps, which need the same hardware, so it's one goal rather than two. The itemised breakdown is on the [Support page](https://traceapps.github.io/docs/support/).
+
+Helping doesn't have to cost anything: starring the repo, reporting bugs with detail, and translating all count.
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support_the_Mac_fund-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/traceapps)
 
 ## License
 
