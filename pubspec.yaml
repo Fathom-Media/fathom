@@ -64,7 +64,6 @@ dependencies:
   # Background audio + lock-screen/notification media controls (music, mobile).
   audio_service: ^0.18.15
   background_downloader: ^9.6.1
-  open_filex: ^4.7.0
   audio_session: ^0.2.4
   # Voice entry on the D-pad keyboard (Android TV remotes with a mic button).
   speech_to_text: ^7.0.0

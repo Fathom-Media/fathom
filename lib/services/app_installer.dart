@@ -1,7 +1,7 @@
 import 'dart:ffi' show Abi;
 import 'dart:io';
 
-import 'package:open_filex/open_filex.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app_updates.dart';
@@ -61,12 +61,11 @@ Future<void> _installAndroidApk(
   await dio.download(asset.url, apkPath,
       onReceiveProgress: (r, t) => _report(onProgress, r, t));
   await _verifyDownload(apkPath, asset); // reject a truncated apk
-  final result = await OpenFilex.open(
-    apkPath,
-    type: 'application/vnd.android.package-archive',
-  );
-  if (result.type != ResultType.done) {
-    throw StateError('Could not open the installer: ${result.message}');
+  try {
+    await const MethodChannel('app.fathom.player/pip')
+        .invokeMethod<void>('installApk', apkPath);
+  } on PlatformException catch (e) {
+    throw StateError('Could not open the installer: ${e.message}');
   }
 }
 

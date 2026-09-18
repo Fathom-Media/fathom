@@ -3,14 +3,17 @@ package app.fathom.fathom
 import android.app.PictureInPictureParams
 import android.app.UiModeManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.media.MediaCodecList
 import android.os.Build
 import android.util.Rational
+import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 // Extends AudioServiceActivity (not FlutterActivity) so media-button intents and
 // the audio_service media session route to the Flutter engine correctly.
@@ -74,6 +77,27 @@ class MainActivity : AudioServiceActivity() {
                 }
                 "hardwareVideoCodecs" -> {
                     result.success(hardwareVideoCodecs())
+                }
+                // In-app update: hand the downloaded APK to the system installer.
+                // Done here rather than through a plugin because this handler is
+                // re-registered with every new activity; the engine is cached by
+                // AudioServiceActivity and outlives the activity, and open_filex
+                // dropped its channel when the activity was recreated, so updates
+                // failed after reopening the app while its media session lived on.
+                "installApk" -> {
+                    try {
+                        val file = File(call.arguments as String)
+                        val uri = FileProvider.getUriForFile(
+                            this, "$packageName.updates", file)
+                        val intent = Intent(Intent.ACTION_VIEW)
+                            .setDataAndType(uri, "application/vnd.android.package-archive")
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("install", e.toString(), null)
+                    }
                 }
                 else -> result.notImplemented()
             }

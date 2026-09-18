@@ -210,6 +210,9 @@ class UpdatesScreen extends ConsumerWidget {
                   .textTheme
                   .bodyMedium
                   ?.copyWith(color: Theme.of(context).colorScheme.error)),
+          // The reason, so a report says more than "it failed".
+          SelectableText(install.error!.replaceFirst('Bad state: ', ''),
+              style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 8),
         ],
         FilledButton.icon(
