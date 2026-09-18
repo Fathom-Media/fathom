@@ -595,6 +595,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#subtitles-and-audio-tracks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subtitles and audio tracks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#playback-info" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -917,6 +928,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#subtitles-and-audio-tracks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subtitles and audio tracks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#playback-info" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1063,7 +1085,9 @@
 <li><strong>Browse by anything</strong>: genres, studios, artists, and a page for every person, so a cast member's other work is one tap away. Trailers play in the app rather than sending you to a browser.</li>
 <li><strong>Extras</strong>: a title's bonus material (behind the scenes, deleted scenes, interviews, featurettes, and trailer files held on your server) appears as its own row on the detail page, and plays in the normal player.</li>
 <li><strong>Favorites and Watchlist</strong>: two separate personal lists, one for what you love, one for what you still want to watch. Toggle either from an item's detail page or its context menu (long-press, right-click, or the overflow button, they all open the same menu).</li>
-<li><strong>Tidy up Continue Watching</strong>: something you started and will not finish can be dropped from the row through the same context menu. It only clears the resume position, so the title is not marked watched and comes back if you play it again.</li>
+<li><strong>Continue Watching that follows what you watch</strong>: one card per show, whether you stopped part-way through an episode or finished one and the next is waiting, ordered by what you actually watched most recently. A half-watched episode you abandoned long ago gives way to where you really are in the show, and a new episode of a show you were caught up on goes near the front the day it arrives.</li>
+<li><strong>Tidy up Continue Watching</strong>: <strong>Remove from Continue Watching</strong> in a card's context menu takes that show or film off the row until you watch it again. If it had a resume point, that is cleared on the server too, so Jellyfin's other apps agree. Nothing is marked watched.</li>
+<li><strong>Home banner</strong>: the banner at the top of Home mixes a few things you are in the middle of with what was added recently.</li>
 <li><strong>Movie Night Wheel</strong>: when nobody can decide, spin for it. Fill the wheel from your library or type titles in, then pick a mode: Last One Standing knocks a title out on every spin, Single Spin takes the first result, and Best of 3 wants a title to win twice. It is reachable from the Watchlist, and from a SyncPlay session so a group can decide together.</li>
 <li><strong>Music</strong>: albums, a play queue, now playing, shuffle and repeat, synced lyrics with an online fallback, and scrobbling. The now-playing screen flips between artwork and lyrics.</li>
 <li><strong>Live TV and DVR</strong>: a channel list, an EPG guide, recording with series rules, and tuner and guide-provider setup.</li>
@@ -1076,6 +1100,14 @@
 <li><strong>Up Next</strong>: for an episode that has a next one, an Up Next card or compact Netflix-style pill appears during the credits and rolls into the next episode. Pick the style, and how long it waits before auto-skipping (the whole credits or a short countdown), under <strong>Settings → Playback</strong>, or leave Autoplay off and use its Play Now button.</li>
 <li><strong>Audio passthrough (desktop)</strong>: bitstream Dolby Digital, DTS, and Dolby Atmos straight to an AV receiver instead of decoding to stereo.</li>
 <li><strong>Tune it to taste</strong>: video fit, playback speed, a control bar you can style (glass, dark, or plain), remappable keyboard shortcuts, and scrub-preview thumbnails.</li>
+<li><strong>Foldable phones</strong>: half-fold the phone with the crease across the screen (tabletop) and the video takes the standing half, with the controls on the flat half. The YouTube player does the same, in its watch page and in fullscreen.</li>
+</ul>
+<h3 id="subtitles-and-audio-tracks">Subtitles and audio tracks<a class="headerlink" href="#subtitles-and-audio-tracks" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Every kind of subtitle</strong>: text subtitles (SRT, ASS, WebVTT, MP4 text) are drawn by Fathom in the size, colour, and background you set under <strong>Settings → Audio &amp; Subtitles</strong>. Picture-based subtitles from discs (Blu-ray PGS, DVD VobSub, DVB) are drawn by the player itself, since they are images rather than text.</li>
+<li><strong>Subtitles beside the video</strong>: a subtitle file stored next to the video on your server, including one a subtitle plugin downloaded, shows in the subtitle menu and loads when you pick it.</li>
+<li><strong>Tracks you can tell apart</strong>: subtitle and audio tracks are named from what the server knows about them, for example <strong>English (Forced, SRT)</strong>, <strong>English (Picture, PGS)</strong>, <strong>English (External, SRT)</strong>, or <strong>English (DTS-HD MA 5.1)</strong>. Tracks that would otherwise look the same are numbered. A forced track only captions foreign-language dialogue, so it stays quiet during the rest.</li>
+<li><strong>Search Subtitles Online</strong>: the last row of the subtitle menu searches the subtitle provider installed on your Jellyfin server (such as the OpenSubtitles plugin) and adds the one you pick straight to the video. Matches for your exact file come first. It searches your preferred subtitle language, or your device's language if you have not set one, and <strong>Change Language</strong> searches another. It needs a subtitle provider plugin on the server, and is shown to administrators and to accounts allowed to manage subtitles.</li>
 </ul>
 <h3 id="playback-info">Playback Info<a class="headerlink" href="#playback-info" title="Permanent link">&para;</a></h3>
 <p>Open the settings gear in the control bar and choose <strong>Playback Info</strong> for a read-only overlay of what is really happening, read live from mpv:</p>
@@ -1116,7 +1148,8 @@
 <li><strong>Watch together</strong>: SyncPlay-based shared playback that interoperates with the official Jellyfin apps and other clients, not only with other Fathom users.</li>
 </ul>
 <h2 id="server-administration">Server administration<a class="headerlink" href="#server-administration" title="Permanent link">&para;</a></h2>
-<p>Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, and plugins. Each plugin's configuration is an in-app form (toggles, fields, and add/remove lists), with a raw-JSON option if you prefer, and plugin logos show in the list.</p>
+<p>Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, backups, and plugins. Each plugin's configuration is an in-app form (toggles, fields, and add/remove lists), with a raw-JSON option if you prefer, and plugin logos show in the list.</p>
+<p><strong>Backups</strong> (on servers that offer them): create a backup of the server, choosing whether to include metadata, subtitles, and trickplay images alongside the database, see what each backup holds and the server version it was made on, and restore one. Backups are stored on the server itself. Restoring restarts the server and replaces everything changed since the backup was made, and should only be done onto the same Jellyfin version the backup came from.</p>
 <h2 id="personalization">Personalization<a class="headerlink" href="#personalization" title="Permanent link">&para;</a></h2>
 <p>Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, a sidebar whose items you can reorder or hide, in-app updates with a Stable or Dev channel, system and in-app notifications, a Settings screen you can search, and a fully translatable interface.</p>
 <ul>
@@ -1151,7 +1184,7 @@
     <span class="md-icon" title="Last update">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
     </span>
-    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 12, 2026 21:30:49 UTC">September 12, 2026</span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="September 16, 2026 20:06:13 UTC">September 16, 2026</span>
   </span>
 
     
