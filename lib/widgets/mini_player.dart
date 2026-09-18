@@ -123,6 +123,7 @@ class MiniPlayer extends ConsumerWidget {
               ),
               if (!isTvDevice) InlineVolume(player: player, expandLeft: true),
               IconButton(
+                tooltip: AppLocalizations.of(context).commonPrevious,
                 icon: const Icon(Icons.skip_previous_rounded),
                 onPressed: controller.previous,
               ),
@@ -144,6 +145,7 @@ class MiniPlayer extends ConsumerWidget {
                 },
               ),
               IconButton(
+                tooltip: AppLocalizations.of(context).commonNext,
                 icon: const Icon(Icons.skip_next_rounded),
                 onPressed: controller.next,
               ),

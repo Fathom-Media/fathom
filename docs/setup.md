@@ -9,6 +9,9 @@ On first launch, Fathom asks for your Jellyfin server:
 
 That is all that is required. Everything else, including the optional integrations below, is off until you turn it on.
 
+!!! note "Server versions"
+    Fathom follows current Jellyfin releases, including Jellyfin 12, and uses the API routes each release documents. Where an older server does not have one of those routes, Fathom falls back to the route that server does have, so older servers keep working.
+
 !!! tip "Quick Connect"
     If your server has Jellyfin Quick Connect enabled, you can authorize Fathom from another signed-in device instead of typing a password.
 

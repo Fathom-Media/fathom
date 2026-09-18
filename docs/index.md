@@ -33,13 +33,14 @@ Everything plays through mpv (via [media_kit](https://github.com/media-kit/media
 - **Run your server from the app**: users, libraries, scheduled tasks, transcoding, Live TV and DVR, and more, without opening the web dashboard.
 - **YouTube, built in** (optional): search, subscriptions, local playlists, SponsorBlock, DeArrow, downloads, theater mode. Nothing is sent to YouTube.
 - **Requests and ratings**: Seerr browse-and-request with approve / decline / manage in place, plus Rotten Tomatoes, IMDb, and more.
+- **Take it offline**: download movies, episodes, whole series, recordings, and music, and browse them as a real library when the server is out of reach.
 - **Internet radio** with live time-shift, so you can pause and rewind a live station.
 - **Watch together** over SyncPlay, interoperable with the official Jellyfin apps.
 - **Make it yours**: light, dark, and AMOLED themes with a custom accent, a rearrangeable Home, in-app updates, and a fully translatable interface.
 
 ## Platforms
 
-Fathom runs on **Linux**, **Windows**, and **Android** (phones and tablets) today, with **Android TV** supported but experimental for now. Linux and Windows have a self-contained download each, and Android installs from the APK. macOS and iOS are on the radar but need Mac hardware. See [Install](install.md) for details.
+Fathom runs on **Linux** (AppImage, or a Nix flake), **Windows**, and **Android** (phones and tablets) today, with **Android TV** supported but experimental for now. Linux and Windows have a self-contained download each, and Android installs from the APK. macOS and iOS are on the radar but need Mac hardware. See [Install](install.md) for details.
 
 !!! info "Free and open source"
     Fathom is free software under the [AGPL-3.0](https://github.com/Fathom-Media/fathom/blob/main/LICENSE) license, built and maintained by one person. If it is useful to you, a [star on GitHub](https://github.com/Fathom-Media/fathom) or a [Ko-fi](https://ko-fi.com/traceapps) helps.

@@ -156,11 +156,11 @@ class ExoVideoController {
           bool play = true}) =>
       _method?.invokeMethod('load', {
         'url': url,
-        if (audioUrl != null) 'audioUrl': audioUrl,
-        if (subtitleUrl != null) 'subtitleUrl': subtitleUrl,
-        if (subtitleLang != null) 'subtitleLang': subtitleLang,
-        if (subtitleLabel != null) 'subtitleLabel': subtitleLabel,
-        if (subtitleMime != null) 'subtitleMime': subtitleMime,
+        'audioUrl': ?audioUrl,
+        'subtitleUrl': ?subtitleUrl,
+        'subtitleLang': ?subtitleLang,
+        'subtitleLabel': ?subtitleLabel,
+        'subtitleMime': ?subtitleMime,
         'startPositionMs': start.inMilliseconds,
         'play': play,
       }) ??

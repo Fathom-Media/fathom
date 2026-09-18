@@ -7,10 +7,13 @@ import '../services/tv_mode.dart';
 import '../state/audio_player.dart';
 import '../state/downloads.dart';
 import '../state/library_providers.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/equalizer_bars.dart';
 import '../widgets/media_image.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/hover_pill_button.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 /// Album detail: cover, artist, a play button, and the track list. Rendered by
 /// DetailScreen when the item is a MusicAlbum online; in [downloadScoped] mode
@@ -150,7 +153,7 @@ class AlbumView extends ConsumerWidget {
             loading: () => const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppSpinner()),
               ),
             ),
             error: (e, _) => SliverToBoxAdapter(
@@ -208,7 +211,8 @@ class AlbumView extends ConsumerWidget {
       itemBuilder: (context, i) {
         final track = tracks[i];
         final isCurrent = playing?.id == track.id;
-        return TvFocusRing(
+        void openMenu(Offset at) => _trackMenu(context, ref, l, track, at);
+        final tile = TvFocusRing(
           borderRadius: BorderRadius.circular(8),
           child: ListTile(
             dense: true,
@@ -245,28 +249,18 @@ class AlbumView extends ConsumerWidget {
                   Text(_fmtDuration(track.runTimeTicks!),
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant)),
-                PopupMenuButton<String>(
-                  tooltip: l.browseMore,
-                  icon: const Icon(Icons.more_vert_rounded, size: 20),
-                  onSelected: (v) {
-                    final c = ref.read(audioControllerProvider.notifier);
-                    if (v == 'next') c.playNext(track);
-                    if (v == 'queue') c.addToQueue(track);
-                    if (v == 'remove') {
-                      ref.read(downloadsProvider.notifier).delete(track.id);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                        value: 'next', child: Text(l.browsePlayNext)),
-                    PopupMenuItem(
-                        value: 'queue', child: Text(l.browseAddToQueue)),
-                    if (downloadScoped)
-                      PopupMenuItem(
-                          value: 'remove',
-                          child: Text(l.detailRemoveDownload)),
-                  ],
-                ),
+                Builder(builder: (btnContext) {
+                  return IconButton(
+                    tooltip: l.browseMore,
+                    icon: const Icon(Icons.more_vert_rounded, size: 20),
+                    onPressed: () {
+                      final box = btnContext.findRenderObject() as RenderBox?;
+                      openMenu(box == null
+                          ? Offset.zero
+                          : box.localToGlobal(box.size.center(Offset.zero)));
+                    },
+                  );
+                }),
               ],
             ),
             onTap: () => ref
@@ -274,8 +268,39 @@ class AlbumView extends ConsumerWidget {
                 .playQueue(tracks, i),
           ),
         );
+        if (isTvDevice) return tile;
+        return GestureDetector(
+          behavior: HitTestBehavior.deferToChild,
+          onLongPressStart: (d) => openMenu(d.globalPosition),
+          onSecondaryTapUp: (d) => openMenu(d.globalPosition),
+          child: tile,
+        );
       },
     );
+  }
+
+  void _trackMenu(BuildContext context, WidgetRef ref, AppLocalizations l,
+      BaseItemDto track, Offset at) {
+    final c = ref.read(audioControllerProvider.notifier);
+    showContextMenu(context, at: at, title: track.name, actions: [
+      ContextMenuAction(
+        icon: Icons.playlist_play_rounded,
+        label: l.browsePlayNext,
+        onTap: () => c.playNext(track),
+      ),
+      ContextMenuAction(
+        icon: Icons.queue_music_rounded,
+        label: l.browseAddToQueue,
+        onTap: () => c.addToQueue(track),
+      ),
+      if (downloadScoped)
+        ContextMenuAction(
+          icon: Icons.delete_outline_rounded,
+          label: l.detailRemoveDownload,
+          color: Theme.of(context).colorScheme.error,
+          onTap: () => ref.read(downloadsProvider.notifier).delete(track.id),
+        ),
+    ]);
   }
 
   /// Download / progress / remove pill for the whole album, reflecting how many
@@ -297,12 +322,7 @@ class AlbumView extends ConsumerWidget {
         icon: Icons.download_rounded,
         label: l.detailDownloading,
         onTap: null,
-        iconWidget: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-              value: progress > 0 ? progress : null, strokeWidth: 2.5),
-        ),
+        iconWidget: AppSpinner.inline(value: progress > 0 ? progress : null),
       );
     }
     if (done >= trackCount && trackCount > 0) {
@@ -310,22 +330,11 @@ class AlbumView extends ConsumerWidget {
         icon: Icons.download_done_rounded,
         label: l.detailDownloaded,
         onTap: () async {
-          final ok = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: Text(l.detailRemoveDownload),
-              content: Text(l.detailRemoveOfflineCopy(album.name)),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: Text(l.commonCancel)),
-                FilledButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: Text(l.commonRemove)),
-              ],
-            ),
-          );
-          if (ok == true) {
+          final ok = await confirm(context,
+              title: l.detailRemoveDownload,
+              message: l.detailRemoveOfflineCopy(album.name),
+              confirmLabel: l.commonRemove);
+          if (ok) {
             await ref.read(downloadsProvider.notifier).deleteSeries(album.id);
           }
         },

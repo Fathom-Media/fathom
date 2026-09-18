@@ -26,6 +26,7 @@ import '../screens/libraries_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/live_tv_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/movie_wheel_screen.dart';
 import '../screens/person_screen.dart';
 import '../screens/now_playing_screen.dart';
 import '../screens/exo_player_screen.dart';
@@ -34,6 +35,7 @@ import '../services/tv_mode.dart';
 import '../screens/youtube_channel_screen.dart';
 import '../screens/youtube_player_screen.dart';
 import '../screens/radio_screen.dart';
+import '../screens/watchlist_screen.dart';
 import '../screens/youtube_screen.dart';
 import '../screens/youtube_watch_screen.dart';
 import '../screens/youtube_shorts_screen.dart';
@@ -278,12 +280,26 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Your own playlists, as opposed to /youtube/playlist which shows
       // someone else's fetched from YouTube.
       // A downloaded file. The player opens anything that isn't a YouTube URL
-      // straight from disk, so this needs no special plumbing — just a route.
+      // straight from disk, so this needs no special plumbing beyond the
+      // route; YoutubeDownloadPlayerScreen adds resume + channel/art parity
+      // with the online watch page, scoped to the download's own local state.
       GoRoute(
         path: '/youtube/file',
         pageBuilder: (context, state) {
-          final r = state.extra as ({String path, String? title});
-          return _fadePage(YoutubePlayerScreen(url: r.path, title: r.title));
+          final r = state.extra as ({
+            String path,
+            String videoId,
+            String? title,
+            String? author,
+            String? thumbnailUrl,
+          });
+          return _fadePage(YoutubeDownloadPlayerScreen(
+            path: r.path,
+            videoId: r.videoId,
+            title: r.title,
+            author: r.author,
+            thumbnailUrl: r.thumbnailUrl,
+          ));
         },
       ),
       GoRoute(
@@ -324,7 +340,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               pageBuilder: (_, _) => _fadePage(const LiveTvScreen())),
           GoRoute(
               path: '/youtube',
-              pageBuilder: (_, _) => _fadePage(const YoutubeScreen())),
+              pageBuilder: (_, state) =>
+                  _fadePage(YoutubeScreen(initialTab: state.extra as int?))),
           GoRoute(
               path: '/radio',
               pageBuilder: (_, _) => _fadePage(const RadioScreen())),
@@ -344,6 +361,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/favorites',
               pageBuilder: (_, _) => _fadePage(const FavoritesScreen())),
+          GoRoute(
+              path: '/watchlist',
+              pageBuilder: (_, _) => _fadePage(const WatchlistScreen())),
+          GoRoute(
+              path: '/watchlist/wheel',
+              pageBuilder: (_, _) => _fadePage(const MovieWheelScreen())),
           GoRoute(
               path: '/home-layout',
               pageBuilder: (_, _) => _fadePage(const HomeLayoutScreen())),
@@ -418,6 +441,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/admin/apikeys',
               pageBuilder: (_, _) => _fadePage(const AdminApiKeysScreen())),
+          GoRoute(
+              path: '/admin/backups',
+              pageBuilder: (_, _) => _fadePage(const AdminBackupsScreen())),
           GoRoute(
               path: '/admin/logs',
               pageBuilder: (_, _) => _fadePage(const AdminLogsScreen())),

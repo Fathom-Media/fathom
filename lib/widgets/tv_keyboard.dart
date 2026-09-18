@@ -6,6 +6,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../services/tv_mode.dart';
+import 'app_snack.dart';
 
 /// An on-screen keyboard driven entirely by the D-pad, for Android TV.
 ///
@@ -497,9 +498,7 @@ class _VoiceButtonState extends State<_VoiceButton> {
     }
     if (!_available) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).tvVoiceUnavailable)),
-        );
+        showSnack(context, AppLocalizations.of(context).tvVoiceUnavailable);
       }
       return;
     }

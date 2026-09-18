@@ -1,29 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:fathom/models/youtube_channel.dart';
+import 'package:fathom/services/resilient_secure_storage.dart';
 import 'package:fathom/state/providers.dart';
 import 'package:fathom/state/youtube_providers.dart';
 
-class _FakeStorage implements FlutterSecureStorage {
+class _FakeStorage implements ResilientSecureStorage {
   final Map<String, String> store = {};
 
   @override
-  Future<String?> read({required String key, dynamic iOptions, dynamic aOptions, dynamic lOptions, dynamic webOptions, dynamic mOptions, dynamic wOptions}) async =>
-      store[key];
+  Future<String?> read({required String key}) async => store[key];
 
   @override
-  Future<void> write({required String key, required String? value, dynamic iOptions, dynamic aOptions, dynamic lOptions, dynamic webOptions, dynamic mOptions, dynamic wOptions}) async {
-    if (value == null) {
-      store.remove(key);
-    } else {
-      store[key] = value;
-    }
+  Future<void> write({required String key, required String value}) async {
+    store[key] = value;
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  Future<void> delete({required String key}) async {
+    store.remove(key);
+  }
 }
 
 void main() {

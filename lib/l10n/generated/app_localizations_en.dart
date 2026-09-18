@@ -171,6 +171,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sync playback with others, from your profile menu';
 
   @override
+  String get settingsMovieWheel => 'Movie Night Wheel';
+
+  @override
+  String get settingsMovieWheelSubtitle =>
+      'Can\'t decide? Spin an elimination wheel from Watchlist or Watch Together';
+
+  @override
   String get settingsRadio => 'Internet Radio';
 
   @override
@@ -448,6 +455,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get prefsHeaderAudio => 'Audio';
+
+  @override
+  String get prefsReplayGain => 'Volume Levelling';
+
+  @override
+  String get prefsReplayGainSub =>
+      'Play every song at a similar loudness, using the levels stored in your files';
+
+  @override
+  String get prefsReplayGainOff => 'Off';
+
+  @override
+  String get prefsReplayGainTrack => 'Per Track';
+
+  @override
+  String get prefsReplayGainAlbum => 'Per Album';
+
+  @override
+  String get prefsReplayGainFallback => 'Untagged Music';
+
+  @override
+  String get prefsReplayGainFallbackSub =>
+      'Adjustment for files with no levels stored in them. Leave at 0 dB to play them untouched.';
 
   @override
   String get prefsHeaderSubtitles => 'Subtitles';
@@ -1108,6 +1138,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsDefault => 'Default';
 
   @override
+  String get prefsDownloadLocation => 'Download Location';
+
+  @override
+  String get prefsDownloadLocationPick => 'Choose Download Location';
+
+  @override
   String get prefsSbSkip => 'Skip Sponsor Segments';
 
   @override
@@ -1501,6 +1537,48 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get playerSubtitleSearch => 'Search Subtitles Online';
+
+  @override
+  String playerSubtitleSearchIn(String language) {
+    return 'Online Subtitles: $language';
+  }
+
+  @override
+  String get playerSubtitleSearchLanguage => 'Change Language';
+
+  @override
+  String playerSubtitleSearchEmptyIn(String language) {
+    return 'No $language subtitles found for this title';
+  }
+
+  @override
+  String get playerSubtitleSearchTitle => 'Online Subtitles';
+
+  @override
+  String get playerSubtitleHashMatch => 'Matches your file';
+
+  @override
+  String playerSubtitleDownloads(int count) {
+    return '$count downloads';
+  }
+
+  @override
+  String get playerSubtitleDownloading => 'Downloading subtitle';
+
+  @override
+  String get playerSubtitleDownloaded => 'Subtitle added';
+
+  @override
+  String get playerSubtitleForced => 'Forced';
+
+  @override
+  String get playerSubtitlePicture => 'Picture';
+
+  @override
+  String get playerSubtitleFile => 'External';
+
+  @override
   String playerSubtitleNumber(String id) {
     return 'Subtitle $id';
   }
@@ -1650,6 +1728,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get playerBackToApp => 'Back to App';
 
   @override
+  String get actionRemoveFromContinueWatching =>
+      'Remove from Continue Watching';
+
+  @override
   String get actionShowDetails => 'Show Details';
 
   @override
@@ -1677,10 +1759,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get detailMarkUnwatched => 'Mark Unwatched';
 
   @override
-  String get detailAddFavorite => 'Add Favorite';
+  String get detailAddFavorite => 'Add to Favorites';
 
   @override
-  String get detailRemoveFavorite => 'Remove Favorite';
+  String get detailRemoveFavorite => 'Remove from Favorites';
+
+  @override
+  String get detailAddToWatchlist => 'Add to Watchlist';
+
+  @override
+  String get detailRemoveFromWatchlist => 'Remove from Watchlist';
 
   @override
   String get detailSeries => 'Series';
@@ -1827,6 +1915,36 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get detailTrailer => 'Trailer';
+
+  @override
+  String get detailExtras => 'Extras';
+
+  @override
+  String get extraTypeTrailer => 'Trailer';
+
+  @override
+  String get extraTypeBehindTheScenes => 'Behind the Scenes';
+
+  @override
+  String get extraTypeDeletedScene => 'Deleted Scene';
+
+  @override
+  String get extraTypeInterview => 'Interview';
+
+  @override
+  String get extraTypeScene => 'Scene';
+
+  @override
+  String get extraTypeFeaturette => 'Featurette';
+
+  @override
+  String get extraTypeShort => 'Short';
+
+  @override
+  String get extraTypeClip => 'Clip';
+
+  @override
+  String get extraTypeSample => 'Sample';
 
   @override
   String get detailMoreLikeThis => 'More Like This';
@@ -2176,6 +2294,96 @@ class AppLocalizationsEn extends AppLocalizations {
   String get browseFavorites => 'Favorites';
 
   @override
+  String selectionCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count selected',
+      one: '1 selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get selectionSelectAll => 'Select All';
+
+  @override
+  String selectionMarkedWatched(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Marked $count as watched',
+      one: 'Marked 1 as watched',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String selectionMarkedUnwatched(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Marked $count as unwatched',
+      one: 'Marked 1 as unwatched',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String selectionFavorited(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Added $count to favorites',
+      one: 'Added 1 to favorites',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String selectionUnfavorited(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Removed $count from favorites',
+      one: 'Removed 1 from favorites',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String selectionDeleteTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Delete $count items?',
+      one: 'Delete 1 item?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get selectionDeleteBody =>
+      'This removes the files from your server. It cannot be undone.';
+
+  @override
+  String selectionDeleted(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Deleted $count items',
+      one: 'Deleted 1 item',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get actionSelect => 'Select';
+
+  @override
+  String get browseWatchlist => 'Watchlist';
+
+  @override
   String get browsePlaylists => 'Playlists';
 
   @override
@@ -2283,6 +2491,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get browseNoFavorites => 'No favorites yet';
+
+  @override
+  String get browseNoWatchlist => 'Your watchlist is empty';
 
   @override
   String get browseLibraryEmpty => 'This library is empty';
@@ -2735,6 +2946,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytPlaylists => 'Playlists';
 
   @override
+  String get ytDownloadPill => 'YouTube Download';
+
+  @override
   String get ytDownloads => 'Downloads';
 
   @override
@@ -3007,6 +3221,38 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get ytClearHistoryConfirm =>
       'This removes every watched video and its saved position.';
+
+  @override
+  String get ytSelectDownloads => 'Select';
+
+  @override
+  String get ytSelectAll => 'Select All';
+
+  @override
+  String ytNSelected(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count selected',
+      one: '1 selected',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ytDeleteSelectedTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Delete $count downloads?',
+      one: 'Delete download?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ytDeleteSelectedConfirm =>
+      'This removes the downloaded files from your device. They can be downloaded again later.';
 
   @override
   String get ytRemoveFromHistory => 'Remove from History';
@@ -3318,6 +3564,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appNavFavorites => 'Favorites';
 
   @override
+  String get appNavWatchlist => 'Watchlist';
+
+  @override
   String get appNavLiveTv => 'Live TV';
 
   @override
@@ -3352,6 +3601,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get radioSkip => 'Skip 15 seconds';
+
+  @override
+  String get radioPreviousStation => 'Previous Station';
+
+  @override
+  String get radioNextStation => 'Next Station';
 
   @override
   String get radioGroupOptions => 'Group Options';
@@ -3657,6 +3912,93 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get adminNetworkingSubtitle => 'Remote access, published URL, ports';
+
+  @override
+  String get adminBackupsTitle => 'Backups';
+
+  @override
+  String get adminBackupsSubtitle =>
+      'Create and restore snapshots of the server';
+
+  @override
+  String get adminBackupsHelp =>
+      'Create and restore snapshots of your server. A backup can include the database, metadata, subtitles, and trickplay images, and is stored on the server.';
+
+  @override
+  String get adminBackupsNone => 'No backups yet';
+
+  @override
+  String get adminBackupsUnsupported =>
+      'This server does not offer backups. They need a newer version of Jellyfin.';
+
+  @override
+  String get adminBackupCreate => 'Create Backup';
+
+  @override
+  String get adminBackupDisclaimer =>
+      'Depending on the size of your library, a backup can take a while.';
+
+  @override
+  String get adminBackupDatabase => 'Database';
+
+  @override
+  String get adminBackupMetadata => 'Metadata';
+
+  @override
+  String get adminBackupSubtitles => 'Subtitles';
+
+  @override
+  String get adminBackupTrickplay => 'Trickplay';
+
+  @override
+  String get adminBackupInProgress => 'Backup in progress';
+
+  @override
+  String get adminBackupCreated => 'Backup created';
+
+  @override
+  String get adminBackupTasksRunning => 'Scheduled tasks are running';
+
+  @override
+  String adminBackupTasksRunningBody(String tasks) {
+    return 'It is best to wait for these to finish, or stop them, before backing up:\n\n$tasks';
+  }
+
+  @override
+  String get adminBackupDetails => 'Backup Details';
+
+  @override
+  String get adminBackupPath => 'Path';
+
+  @override
+  String get adminBackupServerVersion => 'Server Version';
+
+  @override
+  String get adminBackupIncludes => 'Includes';
+
+  @override
+  String get adminBackupPathCopied => 'Path copied';
+
+  @override
+  String get adminBackupRestore => 'Restore';
+
+  @override
+  String get adminBackupRestoreTitle => 'Restore This Backup?';
+
+  @override
+  String adminBackupRestoreBody(String version) {
+    return 'The server restarts and is unusable until the restore finishes, and anything added or changed since this backup was made is lost.\n\nOnly restore a backup onto the same Jellyfin version it was made on ($version). Restoring onto a different version is unsupported and can leave the server unusable.';
+  }
+
+  @override
+  String get adminBackupRestoring => 'Restore in progress';
+
+  @override
+  String get adminBackupRestoringBody =>
+      'Waiting for the server to come back. This can take several minutes.';
+
+  @override
+  String get adminBackupRestored => 'Restore complete';
 
   @override
   String get adminApiKeysTitle => 'API Keys';
@@ -4546,6 +4888,130 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adminAccessAllDevices => 'Access All Devices';
 
   @override
+  String get adminForceRemoteTranscoding =>
+      'Force Transcoding of Remote Sources';
+
+  @override
+  String get adminForceRemoteTranscodingSub => 'Such as Live TV';
+
+  @override
+  String get adminSectionDeletion => 'Allow Media Deletion From';
+
+  @override
+  String get adminDeleteFromAll => 'All Libraries';
+
+  @override
+  String get adminSectionSyncPlay => 'SyncPlay';
+
+  @override
+  String get adminSyncPlayAccess => 'SyncPlay Access';
+
+  @override
+  String get adminSyncPlayCreateAndJoin => 'Create and Join Groups';
+
+  @override
+  String get adminSyncPlayJoin => 'Join Groups Only';
+
+  @override
+  String get adminSyncPlayNone => 'Disabled for This User';
+
+  @override
+  String get adminSectionSignIn => 'Sign-In';
+
+  @override
+  String get adminAuthProvider => 'Authentication Provider';
+
+  @override
+  String get adminPasswordResetProvider => 'Password Reset Provider';
+
+  @override
+  String get adminDeviceAccessHelp =>
+      'This only applies to devices that can be uniquely identified, and does not block browser access. Limiting devices stops this user signing in on a new device until it is approved here.';
+
+  @override
+  String get adminChannelAccessHelp => 'Choose the channels this user can see.';
+
+  @override
+  String get adminRatingHelp =>
+      'Content rated higher than this is hidden from this user.';
+
+  @override
+  String get adminBlockUnratedHelp =>
+      'Hide items of these kinds that have no rating, or a rating the server does not recognise.';
+
+  @override
+  String get adminUnratedBooks => 'Books';
+
+  @override
+  String get adminUnratedChannels => 'Channels';
+
+  @override
+  String get adminUnratedLiveTv => 'Live TV';
+
+  @override
+  String get adminUnratedMovies => 'Movies';
+
+  @override
+  String get adminUnratedMusic => 'Music';
+
+  @override
+  String get adminUnratedTrailers => 'Trailers';
+
+  @override
+  String get adminUnratedShows => 'Shows';
+
+  @override
+  String get adminUnratedOther => 'Other';
+
+  @override
+  String get adminAllowedTags => 'Allow Items With Tags';
+
+  @override
+  String get adminAllowedTagsHelp =>
+      'Only show media with at least one of these tags.';
+
+  @override
+  String get adminBlockedTags => 'Block Items With Tags';
+
+  @override
+  String get adminBlockedTagsHelp =>
+      'Hide media with at least one of these tags.';
+
+  @override
+  String get adminAddTag => 'Add Tag';
+
+  @override
+  String get adminTag => 'Tag';
+
+  @override
+  String get adminAccessSchedule => 'Access Schedule';
+
+  @override
+  String get adminAccessScheduleHelp =>
+      'Limit this user to certain days and hours. With no schedule, access is not limited.';
+
+  @override
+  String get adminAddSchedule => 'Add Schedule';
+
+  @override
+  String get adminScheduleDay => 'Day';
+
+  @override
+  String get adminScheduleStart => 'Start Time';
+
+  @override
+  String get adminScheduleEnd => 'End Time';
+
+  @override
+  String get adminEveryDay => 'Every Day';
+
+  @override
+  String get adminWeekdays => 'Weekdays';
+
+  @override
+  String get adminWeekends => 'Weekends';
+
+  @override
   String get adminAccessAllChannels => 'Access All Channels';
 
   @override
@@ -4822,6 +5288,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchImageCache => 'Image Cache';
+
+  @override
+  String get searchDownloadLocation => 'Download Location';
 
   @override
   String get searchTheme => 'Theme';
@@ -5332,4 +5801,210 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tvVoiceUnavailable =>
       'Voice input isn\'t available on this device';
+
+  @override
+  String get wheelTitle => 'Movie Night Wheel';
+
+  @override
+  String get wheelNeedsWatchlist =>
+      'Search your library above to add titles, or put a few on your Watchlist.';
+
+  @override
+  String get wheelSetupHint => 'Pick at least two titles, then spin.';
+
+  @override
+  String wheelStartWith(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Start with $count Titles',
+      one: 'Start with 1 Title',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get wheelNeedTwo => 'Pick at Least 2 Titles';
+
+  @override
+  String wheelRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Left',
+      one: '1 Left',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get wheelTapToSpin => 'Tap or flick the wheel to spin';
+
+  @override
+  String wheelEliminated(String name) {
+    return '$name is out!';
+  }
+
+  @override
+  String get wheelWinnerLabel => 'TONIGHT\'S PICK';
+
+  @override
+  String get wheelSpinAgain => 'Spin Again';
+
+  @override
+  String get wheelPressToSpin => 'Press OK to spin';
+
+  @override
+  String get wheelModeLast => 'Last One Standing';
+
+  @override
+  String get wheelModeSingle => 'Single Spin';
+
+  @override
+  String get wheelModeBest3 => 'Best of 3';
+
+  @override
+  String get wheelModeLastHint =>
+      'Each spin knocks one title out until one is left.';
+
+  @override
+  String get wheelModeSingleHint =>
+      'One spin. Wherever it lands is tonight\'s pick.';
+
+  @override
+  String get wheelModeBest3Hint =>
+      'The first title the wheel lands on twice wins.';
+
+  @override
+  String get wheelSearchLabel => 'Add from Your Library';
+
+  @override
+  String get wheelSearchHint => 'Search movies and shows';
+
+  @override
+  String get wheelNoResults => 'No matches';
+
+  @override
+  String get wheelAdded => 'Added';
+
+  @override
+  String get wheelWatched => 'Watched';
+
+  @override
+  String get wheelFilterUnwatched => 'Unwatched';
+
+  @override
+  String get wheelFilterUnder2h => 'Under 2 Hours';
+
+  @override
+  String get wheelFilterGenre => 'Genre';
+
+  @override
+  String get wheelFilterAllGenres => 'All Genres';
+
+  @override
+  String get wheelSelectAll => 'Select All';
+
+  @override
+  String get wheelSelectNone => 'Select None';
+
+  @override
+  String get wheelNothingMatches => 'Nothing matches these filters.';
+
+  @override
+  String get wheelUndo => 'Undo';
+
+  @override
+  String wheelSpinOf(int current, int total) {
+    return 'Spin $current of $total';
+  }
+
+  @override
+  String get wheelTiebreak => 'Tiebreaker: This Spin Decides It';
+
+  @override
+  String get wheelSingleHeader => 'One Spin Decides It';
+
+  @override
+  String wheelScored(String name) {
+    return '$name scores!';
+  }
+
+  @override
+  String get wheelMute => 'Mute Sounds';
+
+  @override
+  String get wheelUnmute => 'Unmute Sounds';
+
+  @override
+  String get wheelPlayForGroup => 'Play for Group';
+
+  @override
+  String get wheelGroupHint =>
+      'Everyone in your Watch Together group will start watching.';
+
+  @override
+  String get sleepTimer => 'Sleep Timer';
+
+  @override
+  String sleepTimerMinutes(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Minutes',
+      one: '1 Minute',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get sleepTimerEndOfTrack => 'End of Track';
+
+  @override
+  String get sleepTimerEndOfEpisode => 'End of Episode';
+
+  @override
+  String get sleepTimerEndOfVideo => 'End of Video';
+
+  @override
+  String sleepTimerStopsIn(String time) {
+    return 'Stops in $time';
+  }
+
+  @override
+  String get sleepTimerAfterThis => 'Stops at the end of this one';
+
+  @override
+  String get sleepTimerTurnOff => 'Turn Off';
+
+  @override
+  String get commonRepeat => 'Repeat';
+
+  @override
+  String get commonMoreOptions => 'More Options';
+
+  @override
+  String get loginShowPassword => 'Show Password';
+
+  @override
+  String get loginHidePassword => 'Hide Password';
+
+  @override
+  String a11yWheel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Movie Night Wheel with $count titles',
+      one: 'Movie Night Wheel with 1 title',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get a11ySpin => 'Spin';
+
+  @override
+  String a11yWinner(String name) {
+    return 'Tonight\'s pick: $name';
+  }
 }

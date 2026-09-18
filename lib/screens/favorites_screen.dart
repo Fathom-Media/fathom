@@ -30,6 +30,7 @@ class FavoritesScreen extends ConsumerWidget {
         items: items,
         emptyIcon: Icons.favorite_border_rounded,
         emptyTitle: l.browseNoFavorites,
+        onRefresh: () => ref.invalidate(favoriteItemsProvider),
       ),
     );
   }

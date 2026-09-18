@@ -31,6 +31,8 @@ import '../widgets/mini_player.dart';
 import '../widgets/mini_video.dart';
 import '../widgets/user_avatar.dart';
 import '../widgets/ui_common.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
 
 
 /// The shell's inner navigator. Held here so navigation code can pop any pushed
@@ -292,7 +294,7 @@ class AppShell extends ConsumerWidget {
                 ),
                 // Floating minimized video (picture-in-picture).
                 const MiniVideo(),
-                const Positioned.fill(child: DownloadPill()),
+                const Positioned.fill(child: DownloadPills()),
                 const Positioned.fill(child: UpdateBanner()),
               ],
             ),
@@ -609,7 +611,7 @@ class _MobileShellState extends ConsumerState<_MobileShell> {
                     ),
                   ),
                   const MiniVideo(),
-                  const Positioned.fill(child: DownloadPill()),
+                  const Positioned.fill(child: DownloadPills()),
                 const Positioned.fill(child: UpdateBanner()),
                 ],
               ),
@@ -1627,8 +1629,7 @@ class _QuickConnectAuthorizeDialogState
       if (!mounted) return;
       if (ok) {
         Navigator.of(context).pop();
-        messenger.showSnackBar(
-            SnackBar(content: Text(l.miscDeviceApproved)));
+        showSnackOn(messenger, l.miscDeviceApproved);
       } else {
         setState(() => _error = l.miscCodeNotApproved);
       }
@@ -1679,10 +1680,7 @@ class _QuickConnectAuthorizeDialogState
         FilledButton(
           onPressed: _busy ? null : _authorize,
           child: _busy
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2.5))
+              ? AppSpinner.inline()
               : Text(l.miscApprove),
         ),
       ],

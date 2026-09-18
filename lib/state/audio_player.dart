@@ -14,6 +14,8 @@ import 'package:media_kit/media_kit.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../services/diagnostics.dart';
+import 'sleep_timer.dart';
 import '../services/secure_http.dart';
 import 'radio.dart';
 
@@ -164,6 +166,23 @@ class AudioController extends Notifier<AudioState> {
   Timer? _radioTick; // 1s ticker for live time-shift (behind-live / seekable)
   StreamSubscription<void>? _noisySub; // pause on BT/headphone disconnect (mobile)
   StreamSubscription<AudioInterruptionEvent>? _interruptSub; // pause on focus loss / AA disconnect
+  StreamSubscription<String>? _radioErrorSub; // auto-reconnect on a dropped stream
+  DateTime? _radioLastReconnectAttempt;
+  // Set on a stream error, cleared once playback is actually flowing again.
+  // Tells togglePlay() that resuming needs a real reconnect, not a bare
+  // unpause (which can leave mpv trying to resume a dead connection and
+  // replaying stale buffered data instead of continuing live).
+  bool _radioNeedsReconnect = false;
+  // A stream that failed to come back gets retried on a growing delay. mpv
+  // stops reporting errors once it gives up, so "the next error will retry"
+  // (which this used to rely on) means nothing happens at all: the station
+  // sits paused until the user notices.
+  Timer? _radioRetry;
+  int _radioRetryAttempt = 0;
+  // True while playback is paused by something transient (a recording app, a
+  // call, a notification). Radio reconnects rather than unpauses when the
+  // interruption ends, since a live stream can't resume where it stopped.
+  bool _pausedByInterruption = false;
   // Live edge in playback time: advances by wall-clock every tick, so pausing or
   // rewinding leaves playback behind it. Reset on tune / go-live.
   Duration _radioEdge = Duration.zero;
@@ -265,11 +284,19 @@ class AudioController extends Notifier<AudioState> {
     if (h != null) {
       h.onPlay = _player.play;
       h.onPause = _player.pause;
-      // Skip routes by mode: the YouTube queue advances itself (one track at a
-      // time), the music queue uses the player's own playlist.
-      h.onNext = () => state.isYoutubeAudio ? _ytNext(user: true) : _player.next();
-      h.onPrevious =
-          () => state.isYoutubeAudio ? _ytPrevious() : _player.previous();
+      // Skip routes by mode: radio has no track queue, so skip means switch
+      // station; the YouTube queue advances itself (one track at a time); the
+      // music queue uses the player's own playlist.
+      h.onNext = () => state.isRadio
+          ? _radioSkip(1)
+          : state.isYoutubeAudio
+              ? _ytNext(user: true)
+              : _player.next();
+      h.onPrevious = () => state.isRadio
+          ? _radioSkip(-1)
+          : state.isYoutubeAudio
+              ? _ytPrevious()
+              : _player.previous();
       h.onSeek = _player.seek;
       // Stop from the notification: leave radio / YouTube-audio mode entirely,
       // else just stop the music queue.
@@ -331,7 +358,28 @@ class AudioController extends Notifier<AudioState> {
         // the phone speaker. We don't auto-resume on the tail: a disconnect is
         // deliberate, so playback stays paused until the user restarts it.
         _interruptSub = session.interruptionEventStream.listen((event) {
-          if (event.begin && _player.state.playing) _player.pause();
+          if (event.begin) {
+            if (!_player.state.playing) return;
+            // A transient interruption (a recording app taking the mic, a call,
+            // a notification) says to come back afterwards; an unknown one is a
+            // deliberate handover like a Bluetooth or Android Auto disconnect,
+            // where resuming would blast out of the phone speaker.
+            _pausedByInterruption = event.type != AudioInterruptionType.unknown;
+            Diagnostics.instance.add('radio',
+                'interrupted (${event.type.name}), resume=$_pausedByInterruption');
+            _player.pause();
+            return;
+          }
+          if (!_pausedByInterruption) return;
+          _pausedByInterruption = false;
+          Diagnostics.instance.add('radio', 'interruption over, resuming');
+          if (state.isRadio) {
+            // The connection is long dead by now (the log shows the server
+            // dropping it about ten seconds in), so take it from the top.
+            unawaited(_reconnectRadio(force: true));
+          } else if (state.hasTrack) {
+            unawaited(_player.play());
+          }
         });
       }).catchError((_) {});
     }
@@ -347,6 +395,18 @@ class AudioController extends Notifier<AudioState> {
       // by, so a projected head unit actually gets our sound.
       if (Platform.isAndroid) unawaited(p.setProperty('ao', 'audiotrack'));
     } catch (_) {}
+    _applyReplayGain();
+    // Follow the setting live, so changing it doesn't need a restart or a
+    // track change to take effect.
+    ref.listen(preferencesProvider, (prev, next) {
+      final a = prev?.asData?.value;
+      final b = next.asData?.value;
+      if (b == null) return;
+      if (a?.replayGain != b.replayGain ||
+          a?.replayGainFallback != b.replayGainFallback) {
+        _applyReplayGain();
+      }
+    });
 
     final subPlaylist = _player.stream.playlist.listen((pl) {
       // Keep the visible queue in the player's real order (matters once shuffle
@@ -386,6 +446,8 @@ class AudioController extends Notifier<AudioState> {
       // that actually played out — should advance, otherwise a bad/expired URL
       // cascades "completed -> next -> completed" through the whole queue.
       if (_player.state.duration <= Duration.zero) return;
+      // The sleep timer is set to stop at the end of this track.
+      if (ref.read(sleepTimerProvider.notifier).consumeEndOfItem()) return;
       // Repeat-one: replay the current track instead of advancing. The Next
       // button still skips, because it calls _ytNext directly.
       if (state.repeat == PlaylistMode.single) {
@@ -406,22 +468,79 @@ class AudioController extends Notifier<AudioState> {
       // Re-publish now-playing once the real duration is known.
       subDuration = _player.stream.duration.listen((_) => _pushNowPlaying());
     }
+    // A dropped connection (network loss, a dead cell zone) surfaces here as a
+    // stream error, not a user pause. Auto-reconnect at the live edge instead
+    // of leaving the station stalled on a connection that's never coming back
+    // on its own; also flags togglePlay() in case the user hits Play first.
+    _radioErrorSub = _player.stream.error.listen((e) {
+      if (!state.isRadio) return;
+      Diagnostics.instance.add('radio', 'stream error: $e, reconnecting');
+      _radioNeedsReconnect = true;
+      unawaited(_reconnectRadio());
+    });
+    final subRadioPlaying = _player.stream.playing.listen((playing) {
+      if (!state.isRadio) return;
+      Diagnostics.instance.add('radio', 'playing=$playing');
+    });
+    final subRadioBuffering = _player.stream.buffering.listen((buffering) {
+      if (state.isRadio) {
+        Diagnostics.instance.add('radio', 'buffering=$buffering');
+        // Buffering ending with the player playing is the first moment audio
+        // is really flowing; `playing` alone goes true while mpv is still
+        // trying a dead connection.
+        if (!buffering && _player.state.playing) {
+          _radioNeedsReconnect = false;
+          _radioRecovered();
+        }
+      }
+    });
     _progressTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _reportProgress();
       _pushPlaybackState();
     });
+    // Sleep timer: a timed stop fades out whatever is playing (or pauses the
+    // cast device); "end of track" pauses just before the track ends instead
+    // of letting the queue move on. Checked against the position rather than
+    // waiting for a track change, because the queue advances inside the
+    // player itself and the next song would already be playing.
+    final sleep = ref.read(sleepTimerProvider.notifier);
+    final unregisterSleep = sleep.register((fade) async {
+      final cast = ref.read(castControllerProvider);
+      if (cast.casting) {
+        if (cast.playing) await ref.read(castControllerProvider.notifier).pause();
+        return;
+      }
+      await fadeOutAndPause(_player, fade);
+    });
+    final subSleepEnd = _player.stream.position.listen((pos) {
+      if (!sleep.stopsAtEndOfItem || state.isRadio || !_player.state.playing) {
+        return;
+      }
+      final dur = _player.state.duration;
+      if (dur > Duration.zero &&
+          dur - pos <= const Duration(milliseconds: 400) &&
+          sleep.consumeEndOfItem()) {
+        unawaited(_player.pause());
+      }
+    });
     ref.onDispose(() {
+      unregisterSleep();
+      subSleepEnd.cancel();
       subPlaylist.cancel();
       subPosition.cancel();
       subCompleted.cancel();
       subPlaying?.cancel();
       subBuffering?.cancel();
       subDuration?.cancel();
+      subRadioPlaying.cancel();
+      subRadioBuffering.cancel();
       _progressTimer?.cancel();
       _radioIcyTimer?.cancel();
       _radioTick?.cancel();
+      _radioRetry?.cancel();
       _noisySub?.cancel();
       _interruptSub?.cancel();
+      _radioErrorSub?.cancel();
       _reportStopped();
     });
     return const AudioState();
@@ -689,10 +808,14 @@ class AudioController extends Notifier<AudioState> {
   /// Play an internet-radio station: opens its live stream (replacing the music
   /// queue), switches the UI to the radio presentation, and polls ICY metadata.
   Future<void> playStation(RadioStation s) async {
+    Diagnostics.instance.add('radio', 'tuning in: ${s.name}');
     _radioIcyTimer?.cancel();
     _radioTick?.cancel();
+    _radioRetry?.cancel();
+    _radioRetryAttempt = 0;
     _reportStopped(); // no Jellyfin scrobble for radio
     _reportedId = null;
+    _radioNeedsReconnect = false;
     state = state.copyWith(
       radioStation: s,
       // Clear any YouTube item — otherwise isYoutubeAudio stays true and the
@@ -719,6 +842,28 @@ class AudioController extends Notifier<AudioState> {
     _startRadioTick();
   }
 
+  /// Switches to the next ([step] 1) or previous ([step] -1) station, for the
+  /// media notification / Android Auto / car skip buttons. Walks
+  /// [RadioController.skipOrder] (Favorites, then each group, then
+  /// Ungrouped, the same order the Radio screen shows), wrapping at either
+  /// end. If the current station isn't in that list at all (a Browse/search
+  /// preview that was never saved), next lands on the first saved station and
+  /// previous on the last, rather than doing nothing.
+  Future<void> _radioSkip(int step) async {
+    final order = ref.read(radioControllerProvider.notifier).skipOrder;
+    if (order.isEmpty) return;
+    final current = state.radioStation;
+    final i = current == null
+        ? -1
+        : order.indexWhere((s) => s.id == current.id);
+    if (i < 0) {
+      await playStation(step > 0 ? order.first : order.last);
+      return;
+    }
+    final wrapped = (i + step) % order.length;
+    await playStation(order[wrapped < 0 ? wrapped + order.length : wrapped]);
+  }
+
   /// Enable a back-buffer + forced seeking so we can pause (and keep buffering)
   /// and, where the stream allows, rewind/skip within the buffered window.
   Future<void> _configureRadioBuffer() async {
@@ -735,6 +880,9 @@ class AudioController extends Notifier<AudioState> {
   Future<void> stopRadio() async {
     _radioIcyTimer?.cancel();
     _radioTick?.cancel();
+    _radioRetry?.cancel();
+    _radioRetryAttempt = 0;
+    _radioNeedsReconnect = false;
     await _player.stop();
     state = state.copyWith(
       radioStation: null,
@@ -1012,6 +1160,91 @@ class AudioController extends Notifier<AudioState> {
     state = state.copyWith(radioBehindLive: Duration.zero);
     await _player.open(Media(s.url));
     _applyVolume();
+  }
+
+  /// Recovers from a dropped stream (a connectivity loss mid-broadcast):
+  /// reopens the station fresh at the live edge, instead of resuming a
+  /// connection mpv may have already given up on, which can otherwise replay
+  /// stale buffered audio from earlier in the session rather than continuing
+  /// live. Debounced, since a flaky connection can fire several error events
+  /// in a row.
+  Future<void> _reconnectRadio({bool force = false}) async {
+    final s = state.radioStation;
+    if (s == null) return;
+    // Not while something else holds the audio: reconnecting mid-recording
+    // would take the focus back and play over whatever interrupted us. The
+    // interruption's own tail resumes instead.
+    if (_pausedByInterruption) {
+      Diagnostics.instance.add('radio', 'reconnect deferred: interrupted');
+      _radioNeedsReconnect = true;
+      return;
+    }
+    final now = DateTime.now();
+    final last = _radioLastReconnectAttempt;
+    if (!force &&
+        last != null &&
+        now.difference(last) < const Duration(seconds: 3)) {
+      // A flaky stream fires a burst of errors; only the first should act. The
+      // rest used to be dropped entirely, which is how a failed attempt became
+      // the last one ever.
+      Diagnostics.instance.add('radio', 'reconnect skipped: debounced');
+      _scheduleRadioRetry();
+      return;
+    }
+    _radioLastReconnectAttempt = now;
+    _radioEdge = Duration.zero;
+    _emptyIcyCount = 0;
+    _radioTickWall = null;
+    state = state.copyWith(radioBehindLive: Duration.zero, radioSeekable: false);
+    Diagnostics.instance.add('radio', 'reconnect attempt: ${s.name}');
+    try {
+      await _player.open(Media(s.url));
+      _applyVolume();
+      Diagnostics.instance.add('radio', 'reconnect: open() returned');
+    } catch (e) {
+      Diagnostics.instance.add('radio', 'reconnect failed: $e');
+    }
+    // open() returning proves nothing: a DNS failure surfaces as an error event
+    // afterwards, not an exception. Line up the next attempt, and cancel it
+    // once audio is actually flowing (see the buffering listener).
+    _scheduleRadioRetry();
+  }
+
+  /// Queues another reconnect on a growing delay, until playback is confirmed
+  /// flowing again. Without this a station that failed to come back stayed
+  /// silently paused, because mpv stops reporting errors once it gives up.
+  void _scheduleRadioRetry() {
+    if (!state.isRadio || state.radioStation == null) return;
+    _radioRetry?.cancel();
+    // 20 tries over about twenty minutes: long enough to ride out a tunnel or
+    // a router reboot, short of retrying forever on a station that's gone.
+    if (_radioRetryAttempt >= 20) {
+      Diagnostics.instance.add('radio', 'reconnect: giving up for now');
+      return;
+    }
+    const steps = [3, 5, 10, 20, 30, 60];
+    final delay = Duration(
+        seconds: steps[_radioRetryAttempt.clamp(0, steps.length - 1)]);
+    _radioRetryAttempt++;
+    Diagnostics.instance.add(
+        'radio', 'reconnect retry #$_radioRetryAttempt in ${delay.inSeconds}s');
+    _radioRetry = Timer(delay, () {
+      if (!state.isRadio || _pausedByInterruption) return;
+      if (_player.state.playing && !_player.state.buffering) {
+        _radioRetryAttempt = 0;
+        return;
+      }
+      unawaited(_reconnectRadio(force: true));
+    });
+  }
+
+  /// Playback is flowing again: stop retrying and reset the backoff.
+  void _radioRecovered() {
+    if (_radioRetry == null && _radioRetryAttempt == 0) return;
+    Diagnostics.instance.add('radio', 'reconnected, back to live');
+    _radioRetry?.cancel();
+    _radioRetry = null;
+    _radioRetryAttempt = 0;
   }
 
   /// Rewind/skip within the buffered window (seekable streams only). Negative to
@@ -1472,6 +1705,17 @@ class AudioController extends Notifier<AudioState> {
       final c = ref.read(castControllerProvider.notifier);
       return cast.playing ? c.pause() : c.play();
     }
+    // Resuming radio after a dropped connection needs a real reconnect, not a
+    // bare unpause: see _reconnectRadio.
+    if (state.isRadio && !_player.state.playing && _radioNeedsReconnect) {
+      Diagnostics.instance
+          .add('radio', 'togglePlay: resuming via reconnect (needsReconnect)');
+      return _reconnectRadio();
+    }
+    if (state.isRadio) {
+      Diagnostics.instance.add('radio',
+          'togglePlay: playing=${_player.state.playing}, needsReconnect=$_radioNeedsReconnect');
+    }
     return _player.playOrPause();
   }
 
@@ -1502,6 +1746,7 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       return ref.read(castControllerProvider.notifier).queueNext();
     }
+    if (state.isRadio) return _radioSkip(1);
     if (state.isYoutubeAudio) return _ytNext(user: true);
     return _player.next();
   }
@@ -1511,6 +1756,7 @@ class AudioController extends Notifier<AudioState> {
     if (cast.casting) {
       return ref.read(castControllerProvider.notifier).queuePrev();
     }
+    if (state.isRadio) return _radioSkip(-1);
     if (state.isYoutubeAudio) return _ytPrevious();
     return _player.previous();
   }
@@ -1556,6 +1802,28 @@ class AudioController extends Notifier<AudioState> {
     final to = newIndex < 0 ? 0 : (newIndex > len ? len : newIndex);
     if (to == oldIndex) return;
     await _player.move(oldIndex, to);
+  }
+
+  /// Volume-levels music from its ReplayGain tags. mpv does the work: it reads
+  /// REPLAYGAIN_TRACK_GAIN / REPLAYGAIN_ALBUM_GAIN and applies the gain, so
+  /// this is a property, not a filter chain. Files without the tags get
+  /// [Prefs.replayGainFallback] instead (0 dB, i.e. nothing, by default), which
+  /// is what keeps an untagged album from jumping out against a tagged one.
+  void _applyReplayGain() {
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    if (prefs == null) return;
+    try {
+      final p = _player.platform as dynamic;
+      final on = prefs.replayGain != 'off';
+      unawaited(p.setProperty('replaygain', on ? prefs.replayGain : 'no'));
+      // Measured: mpv applies the fallback whenever its ReplayGain logic isn't
+      // active, so leaving a non-zero one set while levelling is off quietly
+      // attenuates everything, with the slider hidden and no way back.
+      unawaited(p.setProperty(
+          'replaygain-fallback', on ? '${prefs.replayGainFallback}' : '0'));
+      // Never let a positive gain clip: mpv lowers it instead.
+      unawaited(p.setProperty('replaygain-clip', 'no'));
+    } catch (_) {}
   }
 
   /// Append a track to the end of the queue, or start fresh if nothing plays.
@@ -1729,46 +1997,46 @@ class AudioController extends Notifier<AudioState> {
     try {
       if (parentMediaId == AudioService.browsableRootId ||
           parentMediaId == 'root') {
-        return _autoRoot();
+        return await _autoRoot();
       }
       // Top-level tabs.
-      if (parentMediaId == 'tab:home') return _autoHome();
-      if (parentMediaId == 'tab:library') return _autoLibrary();
-      if (parentMediaId == 'tab:radio') return _autoRadioStations();
-      if (parentMediaId == 'tab:youtube') return _autoYoutubeRoot();
+      if (parentMediaId == 'tab:home') return await _autoHome();
+      if (parentMediaId == 'tab:library') return await _autoLibrary();
+      if (parentMediaId == 'tab:radio') return await _autoRadioStations();
+      if (parentMediaId == 'tab:youtube') return await _autoYoutubeRoot();
       // Home shortcuts + Library extras.
-      if (parentMediaId == 'home:recent') return _autoRecentlyPlayed();
-      if (parentMediaId == 'home:recentalbums') return _autoRecentAlbums();
-      if (parentMediaId == 'cat:genres') return _autoGenres();
+      if (parentMediaId == 'home:recent') return await _autoRecentlyPlayed();
+      if (parentMediaId == 'home:recentalbums') return await _autoRecentAlbums();
+      if (parentMediaId == 'cat:genres') return await _autoGenres();
       if (parentMediaId.startsWith('genre:')) {
-        return _autoGenreAlbums(parentMediaId.substring('genre:'.length));
+        return await _autoGenreAlbums(parentMediaId.substring('genre:'.length));
       }
-      if (parentMediaId == 'cat:radio') return _autoRadioStations();
+      if (parentMediaId == 'cat:radio') return await _autoRadioStations();
       if (parentMediaId == 'radio:favorites') {
-        return _radioStationsWhere((s) => s.favorite);
+        return await _radioStationsWhere((s) => s.favorite);
       }
       if (parentMediaId == 'radio:ungrouped') {
-        return _radioStationsWhere((s) => s.group == null || s.group!.isEmpty);
+        return await _radioStationsWhere((s) => s.group == null || s.group!.isEmpty);
       }
       if (parentMediaId.startsWith('radiogroup:')) {
         final g = parentMediaId.substring('radiogroup:'.length);
-        return _radioStationsWhere((s) => s.group == g);
+        return await _radioStationsWhere((s) => s.group == g);
       }
-      if (parentMediaId == 'cat:playlists') return _autoPlaylists();
-      if (parentMediaId == 'cat:albums') return _autoAlbums();
-      if (parentMediaId == 'cat:artists') return _autoArtists();
+      if (parentMediaId == 'cat:playlists') return await _autoPlaylists();
+      if (parentMediaId == 'cat:albums') return await _autoAlbums();
+      if (parentMediaId == 'cat:artists') return await _autoArtists();
       if (parentMediaId.startsWith('artist:')) {
-        return _autoArtistAlbums(parentMediaId.substring('artist:'.length));
+        return await _autoArtistAlbums(parentMediaId.substring('artist:'.length));
       }
-      if (parentMediaId == 'cat:youtube') return _autoYoutubeRoot();
-      if (parentMediaId == 'ytcat:whatsnew') return _autoYtWhatsNew();
-      if (parentMediaId == 'ytcat:playlists') return _autoYtPlaylists();
-      if (parentMediaId == 'ytcat:subs') return _autoYtSubs();
+      if (parentMediaId == 'cat:youtube') return await _autoYoutubeRoot();
+      if (parentMediaId == 'ytcat:whatsnew') return await _autoYtWhatsNew();
+      if (parentMediaId == 'ytcat:playlists') return await _autoYtPlaylists();
+      if (parentMediaId == 'ytcat:subs') return await _autoYtSubs();
       if (parentMediaId.startsWith('ytpl:')) {
-        return _autoYtPlaylistVideos(parentMediaId.substring('ytpl:'.length));
+        return await _autoYtPlaylistVideos(parentMediaId.substring('ytpl:'.length));
       }
       if (parentMediaId.startsWith('ytch:')) {
-        return _autoYtChannelVideos(parentMediaId.substring('ytch:'.length));
+        return await _autoYtChannelVideos(parentMediaId.substring('ytch:'.length));
       }
       if (parentMediaId == 'cat:favorites') {
         final tracks = await _songsForParent('favorites', '');

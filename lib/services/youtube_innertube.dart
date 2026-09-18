@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../models/youtube_channel.dart';
 import '../models/youtube_chapter.dart';
@@ -505,9 +506,23 @@ class YoutubeInnerTube {
     return out;
   }
 
-  /// Chapters, from the marker entities in the batch update.
+  /// Chapters, for tests: the same parse [watch] runs on a /next response.
+  @visibleForTesting
+  List<YoutubeChapter> chaptersFrom(Map<String, dynamic> data) =>
+      _chapters(data);
+
+  /// Chapters. YouTube has carried them in two places, so both are read.
   ///
-  /// Two marker lists arrive and they must not be confused:
+  /// Current (measured 2026-09-14): the player bar's markers map, keyed
+  /// DESCRIPTION_CHAPTERS for chapters the creator wrote in the description,
+  /// or AUTO_CHAPTERS for generated ones. Each entry is a chapterRenderer with a
+  /// title and timeRangeStartMillis. A video with 42 chapters on youtube.com
+  /// came back with none from the older location alone, which by then only
+  /// held the "most replayed" heatmap.
+  ///
+  /// Older: the marker entities in the batch update, read below as a fallback.
+  ///
+  /// Two marker lists arrive there and they must not be confused:
   /// MARKER_TYPE_HEATMAP is the "most replayed" graph — around a hundred evenly
   /// spaced markers with no titles — while MARKER_TYPE_TIMESTAMPS is the actual
   /// chapter list. Taking the wrong one yields a hundred untitled "chapters".
@@ -515,6 +530,8 @@ class YoutubeInnerTube {
   /// startMillis is read directly rather than parsing the "4:15" display label,
   /// which is rounded and localised.
   List<YoutubeChapter> _chapters(Map<String, dynamic> data) {
+    final fromPlayerBar = _playerBarChapters(data);
+    if (fromPlayerBar.isNotEmpty) return fromPlayerBar;
     final mutations = _path(data, [
       'frameworkUpdates',
       'entityBatchUpdate',
@@ -542,6 +559,45 @@ class YoutubeInnerTube {
       if (out.isNotEmpty) {
         out.sort((a, b) => a.start.compareTo(b.start));
         return out;
+      }
+    }
+    return const [];
+  }
+
+  List<YoutubeChapter> _playerBarChapters(Map<String, dynamic> data) {
+    final map = _path(data, [
+      'playerOverlays',
+      'playerOverlayRenderer',
+      'decoratedPlayerBarRenderer',
+      'decoratedPlayerBarRenderer',
+      'playerBar',
+      'multiMarkersPlayerBarRenderer',
+      'markersMap',
+    ]);
+    if (map is! List) return const [];
+    // The creator's own chapters win over generated ones when both are there.
+    for (final key in const ['DESCRIPTION_CHAPTERS', 'AUTO_CHAPTERS']) {
+      for (final entry in map.whereType<Map>()) {
+        if ('${entry['key']}' != key) continue;
+        final list = _path(entry, ['value', 'chapters']);
+        if (list is! List) continue;
+        final out = <YoutubeChapter>[];
+        for (final item in list.whereType<Map>()) {
+          final c = item['chapterRenderer'];
+          if (c is! Map) continue;
+          final title = _text(c['title']);
+          final startMillis =
+              int.tryParse('${c['timeRangeStartMillis'] ?? ''}');
+          if (title.isEmpty || startMillis == null) continue;
+          out.add(YoutubeChapter(
+            title: title,
+            start: Duration(milliseconds: startMillis),
+          ));
+        }
+        if (out.isNotEmpty) {
+          out.sort((a, b) => a.start.compareTo(b.start));
+          return out;
+        }
       }
     }
     return const [];

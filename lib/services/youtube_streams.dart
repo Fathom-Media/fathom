@@ -37,7 +37,7 @@ Map<String, dynamic> _visionOsClient(String? visitorData) => {
       'gl': 'US',
       'timeZone': 'UTC',
       'utcOffsetMinutes': 0,
-      if (visitorData != null) 'visitorData': visitorData,
+      'visitorData': ?visitorData,
     };
 
 final Dio _ytDio = Dio(BaseOptions(

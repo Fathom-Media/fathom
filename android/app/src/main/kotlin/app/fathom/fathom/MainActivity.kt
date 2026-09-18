@@ -24,6 +24,7 @@ class MainActivity : AudioServiceActivity() {
     private var channel: MethodChannel? = null
 
     private var castBridge: CastBridge? = null
+    private var wheelSfx: WheelSfx? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -35,6 +36,12 @@ class MainActivity : AudioServiceActivity() {
         )
         // Native Google Cast bridge (Chromecast).
         castBridge = CastBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+        // SoundPool for the wheel's peg ticks (see WheelSfx).
+        wheelSfx = WheelSfx(
+            this,
+            flutterEngine.dartExecutor.binaryMessenger,
+            io.flutter.FlutterInjector.instance().flutterLoader(),
+        )
         channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "app.fathom.player/pip",

@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../services/tv_mode.dart';
+import '../state/preferences.dart';
 import '../state/session_controller.dart';
 import '../state/syncplay.dart';
+import '../widgets/clapper_icon.dart';
 import '../widgets/tv_focus.dart';
 import '../widgets/tv_keyboard.dart';
 import '../widgets/user_avatar.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
 
 /// Watch Together (SyncPlay) management panel: create or join a group, see who
 /// is in the one you're in, and leave. Reached from the profile menu. Actual
@@ -59,9 +64,9 @@ class _SyncPlayScreenState extends ConsumerState<SyncPlayScreen> {
     if (name == null || name.trim().isEmpty) return;
     try {
       await ref.read(syncPlayControllerProvider.notifier).create(name.trim());
-      messenger.showSnackBar(SnackBar(content: Text(l.appGroupCreated)));
+      showSnackOn(messenger, l.appGroupCreated, kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     }
   }
 
@@ -70,8 +75,7 @@ class _SyncPlayScreenState extends ConsumerState<SyncPlayScreen> {
       await ref.read(syncPlayControllerProvider.notifier).join(groupId);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
+        showError(context, e);
       }
     }
   }
@@ -130,7 +134,7 @@ class _SyncPlayScreenState extends ConsumerState<SyncPlayScreen> {
     } else if (groups.isLoading) {
       children.add(const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: AppSpinner()),
       ));
     } else if (groups.hasError) {
       children.add(_InlineError(
@@ -307,6 +311,22 @@ class _CurrentGroup extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
         ],
+        // Can't agree what to watch? Spin for one, single-device (whoever's
+        // holding this screen spins, everyone else just watches it), no
+        // playback sync needed for a decision that happens before anyone
+        // presses play.
+        if (ref.watch(preferencesProvider
+            .select((p) => p.asData?.value.movieWheelEnabled ?? true))) ...[
+          ClapOnHover(
+            child: FilledButton.tonalIcon(
+              onPressed: () => context.push('/watchlist/wheel'),
+              icon: const ClapperIcon(),
+              label: Text(l.wheelTitle),
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         OutlinedButton.icon(
           onPressed: onLeave,
           icon: Icon(Icons.logout_rounded, color: scheme.error),
@@ -347,10 +367,8 @@ class _GroupTile extends StatelessWidget {
     final subtitle = participants.isEmpty
         ? l.appNoOneWatching
         : l.appWatchingList(participants.length, participants.join(', '));
-    // Flex layout (Expanded) mysteriously collapses this row on this screen even
-    // with a tight width, so we use a self-sizing row (the shape that renders)
-    // and make the WHOLE row tappable to join, with a text "Join" affordance
-    // instead of a FilledButton (which also wouldn't paint here).
+    // A FilledButton wouldn't paint here, hence the plain text "Join"
+    // affordance with the whole row made tappable instead.
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       // On TV the row is a bare GestureDetector (no focus node), so a D-pad can't
@@ -371,15 +389,16 @@ class _GroupTile extends StatelessWidget {
               color: scheme.surfaceContainerHighest,
               alignment: Alignment.centerLeft,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              // Full-width row so the Join affordance sits hard right (a Spacer
-              // pushes it there). Expanded on the title column collapsed here in
-              // the past, so keep the width-capped column + Spacer instead.
+              // The title column and the trailing Join label both flex/ellipsis
+              // instead of claiming a fixed width regardless of the actual
+              // screen: a long group name plus a long participant list (or a
+              // longer translation of "In a group") could otherwise overflow
+              // this row on a narrow phone.
               child: Row(
                 children: [
                   Icon(Icons.groups_rounded, color: scheme.onSurfaceVariant),
                   const SizedBox(width: 14),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
+                  Expanded(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,13 +418,18 @@ class _GroupTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    canJoin ? l.appJoin : l.appInAGroup,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color:
-                          canJoin ? scheme.primary : scheme.onSurfaceVariant,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      canJoin ? l.appJoin : l.appInAGroup,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color:
+                            canJoin ? scheme.primary : scheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),

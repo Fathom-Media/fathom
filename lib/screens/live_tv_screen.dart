@@ -11,6 +11,7 @@ import '../widgets/error_view.dart';
 import '../widgets/media_image.dart';
 import '../widgets/tv_focus.dart';
 import 'guide_view.dart';
+import '../widgets/app_spinner.dart';
 
 /// Live TV, with a proper EPG guide grid and a simple channel list.
 class LiveTvScreen extends ConsumerWidget {
@@ -61,7 +62,7 @@ class _RecordingsList extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final recordings = ref.watch(recordingsProvider);
     return recordings.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: AppSpinner()),
       error: (e, _) => ErrorView(message: '$e'),
       data: (items) {
         if (items.isEmpty) {
@@ -122,7 +123,7 @@ class _ChannelsList extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final channels = ref.watch(liveTvChannelsProvider);
     return channels.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: AppSpinner()),
       error: (e, _) => ErrorView(message: '$e'),
       data: (items) {
         if (items.isEmpty) {

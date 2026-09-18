@@ -13,6 +13,7 @@ import '../models/youtube_history.dart';
 import '../models/youtube_video.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/cached_image.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/search_field.dart';
@@ -31,10 +32,16 @@ import '../services/youtube_search_params.dart';
 import '../services/youtube_download.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../routing/app_shell.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 /// The YouTube section: subscribed channels, what they've posted, and search.
 class YoutubeScreen extends ConsumerWidget {
-  const YoutubeScreen({super.key});
+  /// Tab to land on (e.g. the Downloads pill deep-links to it). Falls back to
+  /// the usual Search/Subscriptions default when unset.
+  final int? initialTab;
+  const YoutubeScreen({super.key, this.initialTab});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,7 +51,7 @@ class YoutubeScreen extends ConsumerWidget {
     // Land on Search until there's something subscribed to show.
     return DefaultTabController(
       length: 6,
-      initialIndex: subs.isEmpty ? 0 : 1,
+      initialIndex: initialTab ?? (subs.isEmpty ? 0 : 1),
       child: Scaffold(
         appBar: AppBar(
           leading: mobileDrawerLeading(context),
@@ -93,13 +100,12 @@ class _SubscriptionsTab extends ConsumerWidget {
     // On mobile, accept any file and validate by parsing below; desktop keeps
     // the tidy csv/json filter.
     final isMobile = Platform.isAndroid || Platform.isIOS;
-    final picked = await FilePicker.platform.pickFiles(
+    final picked = await FilePicker.pickFile(
       type: isMobile ? FileType.any : FileType.custom,
       allowedExtensions: isMobile ? null : const ['csv', 'json'],
-      withData: true,
     );
-    final bytes = picked?.files.singleOrNull?.bytes;
-    if (bytes == null) return;
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
 
     List<YoutubeChannel> parsed;
     try {
@@ -108,19 +114,15 @@ class _SubscriptionsTab extends ConsumerWidget {
       parsed = const [];
     }
     if (parsed.isEmpty) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(l.ytImportNotFound),
-      ));
+      showSnackOn(messenger, l.ytImportNotFound);
       return;
     }
     final added = await ref
         .read(youtubeSubscriptionsProvider.notifier)
         .importAll(parsed);
-    messenger.showSnackBar(SnackBar(
-      content: Text(added == 0
+    showSnackOn(messenger, added == 0
           ? l.ytAlreadySubscribedAll(parsed.length)
-          : l.ytAddedOfTotal(added, parsed.length)),
-    ));
+          : l.ytAddedOfTotal(added, parsed.length), kind: SnackKind.success);
   }
 
   /// Writes NewPipe's format, so these can be taken elsewhere.
@@ -130,14 +132,14 @@ class _SubscriptionsTab extends ConsumerWidget {
     final subs = ref.read(youtubeSubscriptionsProvider).asData?.value ??
         const <YoutubeChannel>[];
     if (subs.isEmpty) return;
-    final path = await FilePicker.platform.saveFile(
+    final path = await FilePicker.saveFile(
       dialogTitle: l.ytExportSubscriptions,
       fileName: 'fathom_subscriptions.json',
       bytes: utf8.encode(SubscriptionTransfer.exportNewPipeJson(subs)),
     );
     if (path == null) return;
-    messenger.showSnackBar(
-        SnackBar(content: Text(l.ytExportedSubscriptions(subs.length))));
+    showSnackOn(messenger, l.ytExportedSubscriptions(subs.length),
+        kind: SnackKind.success);
   }
 
   @override
@@ -765,17 +767,68 @@ class _LocalPlaylistRow extends ConsumerWidget {
 // ---- Downloads ----
 
 /// Downloads in progress, and the files already on disk.
-class _DownloadsTab extends ConsumerWidget {
+class _DownloadsTab extends ConsumerStatefulWidget {
   const _DownloadsTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DownloadsTab> createState() => _DownloadsTabState();
+}
+
+class _DownloadsTabState extends ConsumerState<_DownloadsTab> {
+  bool _selectionMode = false;
+  final Set<String> _selected = {};
+
+  // Only finished downloads are selectable — an active transfer already has
+  // its own Cancel, and bulk-deleting a failed/queued row doesn't mean the
+  // same thing as deleting a file.
+  void _enterSelection([String? firstId]) => setState(() {
+        _selectionMode = true;
+        if (firstId != null) _selected.add(firstId);
+      });
+
+  void _exitSelection() => setState(() {
+        _selectionMode = false;
+        _selected.clear();
+      });
+
+  void _toggle(String id) => setState(() {
+        if (!_selected.remove(id)) _selected.add(id);
+      });
+
+  void _selectAll(List<String> ids) => setState(() {
+        _selected
+          ..clear()
+          ..addAll(ids);
+      });
+
+  Future<void> _deleteSelected() async {
     final l = AppLocalizations.of(context);
+    final ok = await confirm(context,
+        title: l.ytDeleteSelectedTitle(_selected.length),
+        message: l.ytDeleteSelectedConfirm,
+        confirmLabel: l.commonDelete);
+    if (ok != true || !mounted) return;
+    final n = ref.read(youtubeDownloadsProvider.notifier);
+    final ids = _selected.toList();
+    _exitSelection();
+    for (final id in ids) {
+      await n.remove(id, deleteFile: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     final downloads =
         ref.watch(youtubeDownloadsProvider).asData?.value ?? const [];
     final dir =
         ref.watch(youtubeDownloadDirProvider(YtDownloadKind.video)).asData?.value;
     final hasFfmpeg = ref.watch(ffmpegAvailableProvider).asData?.value ?? true;
+    final doneIds = [
+      for (final d in downloads)
+        if (d.status == YtDownloadStatus.done) d.id,
+    ];
 
     if (downloads.isEmpty) {
       return EmptyState(
@@ -787,18 +840,128 @@ class _DownloadsTab extends ConsumerWidget {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      itemCount: downloads.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _DownloadRow(download: downloads[i]),
+    return Column(
+      children: [
+        // Only shown while actually selecting — there's no standing "Select"
+        // button; that action lives in each finished download's own menu
+        // instead (see _DownloadRow), alongside its other actions rather than
+        // as its own prominent affordance for something done rarely.
+        if (_selectionMode)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                Text(l.ytNSelected(_selected.length),
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => _selectAll(doneIds),
+                  child: Text(l.ytSelectAll),
+                ),
+                IconButton(
+                  tooltip: l.commonCancel,
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: _exitSelection,
+                ),
+                IconButton(
+                  tooltip: l.commonDelete,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  onPressed: _selected.isEmpty ? null : _deleteSelected,
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            itemCount: downloads.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final d = downloads[i];
+              final selectable = d.status == YtDownloadStatus.done;
+              return _DownloadRow(
+                download: d,
+                selecting: _selectionMode,
+                selected: _selected.contains(d.id),
+                onEnterSelection:
+                    selectable ? () => _enterSelection(d.id) : null,
+                onToggle: selectable ? () => _toggle(d.id) : null,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
+
 }
 
 class _DownloadRow extends ConsumerWidget {
   final YoutubeDownload download;
-  const _DownloadRow({required this.download});
+  final bool selecting;
+  final bool selected;
+  final VoidCallback? onEnterSelection;
+  final VoidCallback? onToggle;
+  const _DownloadRow({
+    required this.download,
+    this.selecting = false,
+    this.selected = false,
+    this.onEnterSelection,
+    this.onToggle,
+  });
+
+  /// The same menu whichever of the three-dot button, right-click, or
+  /// long-press opened it. "Select" (when this download has finished) is
+  /// just one more entry in it, not a separate gesture of its own.
+  Future<void> _openMenu(BuildContext context, WidgetRef ref, Offset at) {
+    final l = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final d = download;
+    final n = ref.read(youtubeDownloadsProvider.notifier);
+    final playable = d.status == YtDownloadStatus.done && d.filePath != null;
+    void play() => context.push('/youtube/file', extra: (
+          path: d.filePath!,
+          videoId: d.id,
+          title: d.title,
+          author: d.author,
+          thumbnailUrl: d.thumbnailUrl,
+        ));
+    return showContextMenu(context, at: at, actions: [
+      if (playable)
+        ContextMenuAction(
+            icon: Icons.play_arrow_rounded, label: l.commonPlay, onTap: play),
+      if (d.filePath != null)
+        ContextMenuAction(
+          icon: Icons.folder_open_rounded,
+          label: l.ytShowInFolder,
+          onTap: () => launchUrl(Uri.file(File(d.filePath!).parent.path)),
+        ),
+      // Bulk delete starts from any one item's own menu, not a standing
+      // button, this is a rare action, not one that deserves permanent
+      // real estate.
+      if (onEnterSelection != null)
+        ContextMenuAction(
+          icon: Icons.checklist_rounded,
+          label: l.ytSelectDownloads,
+          onTap: onEnterSelection!,
+        ),
+      // Two verbs, because they're different intentions: clearing the list
+      // is not the same as deleting the video.
+      ContextMenuAction(
+        icon: Icons.remove_circle_outline_rounded,
+        label: l.ytRemoveFromList,
+        onTap: () => n.remove(d.id),
+      ),
+      if (d.filePath != null)
+        ContextMenuAction(
+          icon: Icons.delete_outline_rounded,
+          label: l.ytDeleteFile,
+          color: cs.error,
+          onTap: () => n.remove(d.id, deleteFile: true),
+        ),
+    ]);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -820,16 +983,32 @@ class _DownloadRow extends ConsumerWidget {
     };
 
     final playable = d.status == YtDownloadStatus.done && d.filePath != null;
-    void play() => context.push('/youtube/file',
-        extra: (path: d.filePath!, title: d.title));
+    void play() => context.push('/youtube/file', extra: (
+          path: d.filePath!,
+          videoId: d.id,
+          title: d.title,
+          author: d.author,
+          thumbnailUrl: d.thumbnailUrl,
+        ));
 
-    return TvFocusRing(
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      // InkWell has no position-aware long-press/right-click variants, so
+      // those two gestures are handled up here instead, around it.
+      onLongPressStart: selecting
+          ? null
+          : (d) => _openMenu(context, ref, d.globalPosition),
+      onSecondaryTapUp: selecting
+          ? null
+          : (d) => _openMenu(context, ref, d.globalPosition),
+      child: TvFocusRing(
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         // The whole point of downloading is watching it later, offline. Tapping
-        // the row plays the file from disk rather than re-streaming it.
-        onTap: playable ? play : null,
+        // the row plays the file from disk rather than re-streaming it, unless
+        // a bulk selection is in progress, where a tap toggles instead.
+        onTap: selecting ? onToggle : (playable ? play : null),
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: Row(
@@ -848,11 +1027,23 @@ class _DownloadRow extends ConsumerWidget {
                               url: d.thumbnailUrl,
                               errorBuilder: (_) => Container(
                                   color: scheme.surfaceContainerHigh)),
-                      if (playable)
+                      if (playable && !selecting)
                         Container(
                           color: Colors.black38,
                           child: const Icon(Icons.play_arrow_rounded,
                               color: Colors.white, size: 28),
+                        ),
+                      if (selecting && onToggle != null)
+                        Container(
+                          color: selected ? Colors.black45 : Colors.black26,
+                          alignment: Alignment.center,
+                          child: Icon(
+                            selected
+                                ? Icons.check_circle_rounded
+                                : Icons.circle_outlined,
+                            color: Colors.white,
+                            size: 26,
+                          ),
                         ),
                     ],
                   ),
@@ -888,44 +1079,36 @@ class _DownloadRow extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              if (d.isActive)
+              if (selecting)
+                const SizedBox.shrink()
+              else if (d.isActive)
                 IconButton(
                   tooltip: l.commonCancel,
                   icon: const Icon(Icons.close_rounded),
                   onPressed: () => n.cancel(d.id),
                 )
               else
-                PopupMenuButton<String>(
-                  tooltip: l.ytOptions,
-                  onSelected: (v) async {
-                    if (v == 'play') {
-                      play();
-                    } else if (v == 'remove') {
-                      await n.remove(d.id);
-                    } else if (v == 'delete') {
-                      await n.remove(d.id, deleteFile: true);
-                    } else if (v == 'folder' && d.filePath != null) {
-                      await launchUrl(Uri.file(File(d.filePath!).parent.path));
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    if (playable)
-                      PopupMenuItem(value: 'play', child: Text(l.commonPlay)),
-                    if (d.filePath != null)
-                      PopupMenuItem(
-                          value: 'folder', child: Text(l.ytShowInFolder)),
-                    // Two verbs, because they're different intentions: clearing
-                    // the list is not the same as deleting the video.
-                    PopupMenuItem(
-                        value: 'remove', child: Text(l.ytRemoveFromList)),
-                    if (d.filePath != null)
-                      PopupMenuItem(
-                          value: 'delete', child: Text(l.ytDeleteFile)),
-                  ],
-                ),
+                Builder(builder: (btnContext) {
+                  return IconButton(
+                    tooltip: l.ytOptions,
+                    icon: const Icon(Icons.more_vert_rounded),
+                    onPressed: () {
+                      final box =
+                          btnContext.findRenderObject() as RenderBox?;
+                      _openMenu(
+                          context,
+                          ref,
+                          box == null
+                              ? Offset.zero
+                              : box.localToGlobal(
+                                  box.size.center(Offset.zero)));
+                    },
+                  );
+                }),
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -975,22 +1158,11 @@ class _HistoryTab extends ConsumerWidget {
 
   Future<void> _confirmClear(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.ytClearHistory),
-        content: Text(l.ytClearHistoryConfirm),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonClear)),
-        ],
-      ),
-    );
-    if (ok == true) await ref.read(youtubeHistoryProvider.notifier).clear();
+    final ok = await confirm(context,
+        title: l.ytClearHistory,
+        message: l.ytClearHistoryConfirm,
+        confirmLabel: l.commonClear);
+    if (ok) await ref.read(youtubeHistoryProvider.notifier).clear();
   }
 }
 
@@ -1467,7 +1639,7 @@ class _Results extends ConsumerWidget {
             if (i >= rows.length) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppSpinner()),
               );
             }
             return rows[i];

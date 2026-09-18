@@ -6,6 +6,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../state/admin_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
+import 'app_snack.dart';
 
 enum _RecState { off, single, series }
 
@@ -114,19 +115,17 @@ class _LiveRecordButtonState extends ConsumerState<LiveRecordButton> {
       switch (_state) {
         case _RecState.off:
           await _create(series: false);
-          messenger.showSnackBar(
-              SnackBar(content: Text(l.playerRecordingProgram)));
+          showSnackOn(messenger, l.playerRecordingProgram);
         case _RecState.single:
           await _create(series: true);
-          messenger.showSnackBar(
-              SnackBar(content: Text(l.playerRecordingEveryEpisode)));
+          showSnackOn(messenger, l.playerRecordingEveryEpisode);
         case _RecState.series:
           await _askToStop();
       }
     } on JellyfinException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      showSnackOn(messenger, e.message);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

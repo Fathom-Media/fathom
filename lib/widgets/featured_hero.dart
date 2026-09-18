@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +15,7 @@ import 'detail_header.dart';
 import 'media_image.dart';
 import 'motion.dart';
 import 'tv_focus.dart';
+import '../api/jellyfin_client.dart';
 
 /// A large auto-rotating hero banner at the top of Home, cycling through a few
 /// featured items with their backdrop, title, overview, and quick actions.
@@ -117,6 +119,28 @@ class _FeaturedHeroState extends State<FeaturedHero> {
     }
     _controller.animateToPage(target.clamp(0, _items.length - 1),
         duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+  }
+
+  @override
+  void didUpdateWidget(FeaturedHero oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final before = oldWidget.items.take(6).map((e) => e.id).toList();
+    final after = _items.map((e) => e.id).toList();
+    if (listEquals(before, after)) return;
+    // The list changed under the carousel. The details overlay reads _page and
+    // the backdrop reads the PageView's own position; nothing tied the two
+    // together, so they could end up on different items. Stay on the same
+    // title if it's still there, otherwise fall back into range, and move the
+    // backdrop to match.
+    final currentId =
+        (_page >= 0 && _page < before.length) ? before[_page] : null;
+    var target = currentId == null ? -1 : after.indexOf(currentId);
+    if (target < 0) target = after.isEmpty ? 0 : _page.clamp(0, after.length - 1);
+    _page = target;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_controller.hasClients) return;
+      if ((_controller.page ?? 0).round() != _page) _controller.jumpToPage(_page);
+    });
   }
 
   @override

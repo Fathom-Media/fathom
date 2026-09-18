@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/base_item.dart';
 import 'providers.dart';
 import 'session_controller.dart';
+import '../api/jellyfin_client.dart';
 
 typedef _JsonList = List<Map<String, dynamic>>;
 
@@ -46,6 +47,16 @@ final adminEncodingConfigProvider =
   if (s == null) return const {};
   return ref.watch(jellyfinClientProvider).getNamedConfiguration(
       baseUrl: s.baseUrl, token: s.accessToken, key: 'encoding');
+});
+
+/// The server's backups; null when it has no backup API (before Jellyfin 12).
+final adminBackupsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>?>((ref) async {
+  final s = ref.watch(sessionControllerProvider).asData?.value;
+  if (s == null) return const [];
+  return ref
+      .watch(jellyfinClientProvider)
+      .getBackups(baseUrl: s.baseUrl, token: s.accessToken);
 });
 
 final adminApiKeysProvider = FutureProvider.autoDispose<_JsonList>((ref) async {

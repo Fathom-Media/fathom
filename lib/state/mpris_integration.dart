@@ -73,13 +73,14 @@ final mprisProvider = Provider<MprisService?>((ref) {
     }
     final st = ref.read(audioControllerProvider);
     // Internet radio: the music player has no queue track, so present the
-    // station (with its live ICY "now playing", if any) instead.
+    // station (with its live ICY "now playing", if any) instead. Next/Previous
+    // switch stations (see AudioController.next/previous), not tracks.
     if (st.isRadio && st.radioStation != null) {
       mpris.update(
         status: player.state.playing ? 'Playing' : 'Paused',
         metadata: _radioMetadata(st),
-        canNext: false,
-        canPrev: false,
+        canNext: true,
+        canPrev: true,
       );
       return;
     }

@@ -3,7 +3,8 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'resilient_secure_storage.dart';
 
 /// Whether the app is running on an Android TV (leanback) device — i.e. driven
 /// by a D-pad remote with no touchscreen. Set once at startup by [detectTvMode]
@@ -34,7 +35,7 @@ Future<void> detectTvMode() async {
 Future<void> applyForcedTvMode() async {
   if (isTvDevice) return;
   try {
-    const raw = FlutterSecureStorage();
+    const raw = ResilientSecureStorage();
     final s = await raw.read(key: 'fathom_prefs');
     if (s == null) return;
     final json = jsonDecode(s) as Map<String, dynamic>;

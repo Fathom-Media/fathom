@@ -255,8 +255,13 @@ class _InlineVolumeState extends ConsumerState<InlineVolume> {
       curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
+        // From the theme, not a fixed near-black: these two pills live on the
+        // music screens (never over video), so in the light theme a hardcoded
+        // dark slab swallowed its own icon, which is drawn in the theme's
+        // foreground colour.
         color: _open
-            ? const Color(0xFF16151A).withValues(alpha: 0.94)
+            ? Theme.of(context).colorScheme.surfaceContainerHigh
+                .withValues(alpha: 0.96)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(30),
         boxShadow: _open
@@ -279,6 +284,248 @@ class _InlineVolumeState extends ConsumerState<InlineVolume> {
         if (!_dragging) setState(() => _open = false);
       },
       child: chip,
+    );
+  }
+}
+
+/// Volume as a speaker icon that reveals a VERTICAL slider *inline*, below
+/// the icon, one continuous pill instead of a detached popup: the vertical
+/// twin of [InlineVolume] (same technique, rotated), for a spot where a
+/// horizontal reveal has nowhere to grow into (a Now Playing transport row
+/// that's already full-width on a phone, portrait or landscape).
+class VerticalVolumeButton extends ConsumerStatefulWidget {
+  final Player player;
+
+  /// Draws the pill on the overlay, exactly over its spot in the layout,
+  /// instead of growing in the layout. For places where opening it must not
+  /// push or re-center anything around it (content below it, or a centered
+  /// page). The layout keeps only the collapsed icon's footprint.
+  final bool floating;
+  const VerticalVolumeButton(
+      {super.key, required this.player, this.floating = false});
+
+  @override
+  ConsumerState<VerticalVolumeButton> createState() =>
+      _VerticalVolumeButtonState();
+}
+
+class _VerticalVolumeButtonState extends ConsumerState<VerticalVolumeButton> {
+  bool _open = false;
+  bool _dragging = false;
+  double? _value;
+  double _beforeMute = 100;
+  Timer? _closeTimer;
+  final _portal = OverlayPortalController();
+
+  static const _sliderHeight = 120.0;
+
+  bool get _touch =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  @override
+  void initState() {
+    super.initState();
+    // The floating pill always lives on the overlay (collapsed it's just the
+    // icon), so hovering it never has to hand off between two widgets.
+    if (widget.floating) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _portal.show();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _closeTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleClose() {
+    _closeTimer?.cancel();
+    _closeTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted) setState(() => _open = false);
+    });
+  }
+
+  void _set(double v) {
+    if (ref.read(castControllerProvider).casting) {
+      setState(() => _value = v);
+      ref.read(castControllerProvider.notifier).setVolume(v);
+    } else {
+      setState(() => _value = v);
+      widget.player.setVolume(v);
+    }
+  }
+
+  void _toggleMute(double v) {
+    if (v > 0) {
+      _beforeMute = v;
+      _set(0);
+    } else {
+      _set(_beforeMute <= 0 ? 100 : _beforeMute);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final cast = ref.watch(castControllerProvider);
+    final casting = cast.casting;
+    ref.listen(preferencesProvider, (_, next) {
+      final v = next.asData?.value.volume;
+      if (!casting && v != null && !_dragging && mounted && v != _value) {
+        setState(() => _value = v);
+      }
+    });
+    final v = (casting
+            ? cast.volume
+            : (_value ??
+                ref.read(preferencesProvider).asData?.value.volume ??
+                100))
+        .clamp(0.0, 100.0);
+
+    final iconBtn = IconButton(
+      icon: Icon(volumeIcon(v)),
+      tooltip: v <= 0 ? l.playerUnmute : l.playerMute,
+      onPressed: () {
+        if (_touch) {
+          setState(() => _open = !_open);
+          if (_open) {
+            _scheduleClose();
+          } else {
+            _closeTimer?.cancel();
+          }
+        } else {
+          _toggleMute(v);
+        }
+      },
+    );
+    // Wipes open downward under a ClipRect via an Align height-factor (0→1),
+    // the same technique InlineVolume uses sideways.
+    final reveal = TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: _open ? 1 : 0),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      builder: (context, t, child) => ClipRect(
+        child: Align(
+          alignment: Alignment.topCenter,
+          heightFactor: t,
+          // Without a width factor this stretches to whatever width it's
+          // offered, which on the overlay is the whole window: the pill grew
+          // window-wide and shoved its own icon off screen.
+          widthFactor: 1,
+          child: child,
+        ),
+      ),
+      child: SizedBox(
+        height: _sliderHeight,
+        width: 40,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 12),
+          child: SizedBox(
+            width: 24,
+            // A horizontal Slider rotated -90deg (3 quarter-turns): min ends
+            // up at the bottom, max at the top, matching how a physical
+            // volume slider (and Android's own) reads. RotatedBox transforms
+            // hit-testing along with the render, so dragging still works.
+            child: RotatedBox(
+              quarterTurns: 3,
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 3,
+                  overlayShape: SliderComponentShape.noOverlay,
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 6),
+                ),
+                child: Slider(
+                  value: v,
+                  max: 100,
+                  onChangeStart: (_) {
+                    _dragging = true;
+                    _closeTimer?.cancel(); // hold open while adjusting
+                  },
+                  onChanged: _set,
+                  onChangeEnd: (_) {
+                    _dragging = false;
+                    if (_touch && _open) _scheduleClose();
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [iconBtn, reveal],
+    );
+    // Icon and slider sit on ONE soft pill, so the slider reads as flowing
+    // directly out of the icon rather than a second, separate shape.
+    final chip = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        // From the theme, for the same reason as InlineVolume above.
+        color: _open
+            ? Theme.of(context).colorScheme.surfaceContainerHigh
+                .withValues(alpha: 0.96)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: _open
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.38),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : const [],
+      ),
+      child: column,
+    );
+
+    final pill = _touch
+        ? chip
+        : MouseRegion(
+            onEnter: (_) => setState(() => _open = true),
+            onExit: (_) {
+              if (!_dragging) setState(() => _open = false);
+            },
+            child: chip,
+          );
+    if (!widget.floating) return pill;
+    // The layout holds an invisible copy of the collapsed icon (so the
+    // footprint matches exactly); the real pill is drawn on the overlay,
+    // pinned to that spot, so it can open over whatever is below without
+    // moving it, and stays fully tappable (content that merely overflowed its
+    // parent couldn't be).
+    // Placed by hand from the layout builder's paint transform rather than by
+    // a CompositedTransformFollower: a follower only gets its transform when
+    // it's composited, so any overlay of its own inside it (the icon's own
+    // tooltip is one) can't work out where it belongs, and asserts on hover.
+    return OverlayPortal.overlayChildLayoutBuilder(
+      controller: _portal,
+      overlayChildBuilder: (context, info) {
+        final at = MatrixUtils.transformPoint(
+            info.childPaintTransform, Offset.zero);
+        return Stack(
+          children: [
+            Positioned(
+              left: at.dx,
+              top: at.dy,
+              child: Align(alignment: Alignment.topLeft, child: pill),
+            ),
+          ],
+        );
+      },
+      child: ExcludeSemantics(
+        child: ExcludeFocus(
+          child: IgnorePointer(child: Opacity(opacity: 0, child: iconBtn)),
+        ),
+      ),
     );
   }
 }

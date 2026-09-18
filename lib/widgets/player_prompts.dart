@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import 'tv_focus.dart';
+import 'app_spinner.dart';
 
 /// Fades its child in once on mount via an explicit controller — robust to
 /// parent rebuilds (the exo screen rebuilds every position tick, which reset an
@@ -191,7 +192,7 @@ class UpNextPrompt extends StatelessWidget {
       shadowColor: Colors.black,
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        width: 392 * s,
+        width: 412 * s,
         padding: EdgeInsets.all(12 * s),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,25 +242,34 @@ class UpNextPrompt extends StatelessWidget {
                               color: Colors.white54, fontSize: 12.5 * s)),
                     ),
                   SizedBox(height: 10 * s),
-                  Row(
-                    children: [
-                      _button(
-                        color: cs.primary,
-                        textColor: cs.onPrimary,
-                        icon: Icons.play_arrow_rounded,
-                        label: l.playerUpNextPlayNow,
-                        onTap: onPlayNow,
-                        focusNode: playFocus,
-                      ),
-                      SizedBox(width: 8 * s),
-                      _button(
-                        color: Colors.white.withValues(alpha: 0.14),
-                        textColor: Colors.white,
-                        label: l.playerUpNextHide,
-                        onTap: onHide,
-                        focusNode: hideFocus,
-                      ),
-                    ],
+                  // Scale-safe: a longer translated "Play Now"/"Hide" pair
+                  // could outgrow the space left beside the thumbnail and
+                  // countdown ring even with the width bumped for the common
+                  // case, so shrink together as a last resort rather than
+                  // hard-overflowing.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      children: [
+                        _button(
+                          color: cs.primary,
+                          textColor: cs.onPrimary,
+                          icon: Icons.play_arrow_rounded,
+                          label: l.playerUpNextPlayNow,
+                          onTap: onPlayNow,
+                          focusNode: playFocus,
+                        ),
+                        SizedBox(width: 8 * s),
+                        _button(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          textColor: Colors.white,
+                          label: l.playerUpNextHide,
+                          onTap: onHide,
+                          focusNode: hideFocus,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -278,12 +288,7 @@ class UpNextPrompt extends StatelessWidget {
                       tween: Tween<double>(
                           end: (remaining! / total).clamp(0.0, 1.0)),
                       builder: (_, v, _) => SizedBox.expand(
-                        child: CircularProgressIndicator(
-                          value: v,
-                          strokeWidth: 3.5 * s,
-                          color: cs.primary,
-                          backgroundColor: Colors.white24,
-                        ),
+                        child: AppSpinner.inline(value: v, color: cs.primary),
                       ),
                     ),
                     Text('$remaining',

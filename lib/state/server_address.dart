@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'providers.dart';
 import 'session_controller.dart';
+import '../api/jellyfin_client.dart';
 
 /// Keeps the active [Session.baseUrl] pointed at whichever address is reachable:
 /// the internal (home/LAN) one whenever it answers, otherwise the external

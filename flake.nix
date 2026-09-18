@@ -18,7 +18,10 @@
       packages = builtins.mapAttrs (system: pkgs: rec {
         default = fathom;
 
-        fathom = pkgs.flutter344.buildFlutterApplication (finalAttrs: {
+        # flutter347 (Dart 3.13), not an older one: background_downloader 9.6
+        # and later need Dart 3.13, and CI builds on Flutter 3.47 too. Keep this
+        # in step with .github/workflows when the SDK floor moves.
+        fathom = pkgs.flutter347.buildFlutterApplication (finalAttrs: {
           pname = "fathom";
           version = "0.12.0";
 
@@ -55,7 +58,7 @@
       devShells = builtins.mapAttrs (system: pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [
-            flutter344
+            flutter347
             dart
           ];
         };

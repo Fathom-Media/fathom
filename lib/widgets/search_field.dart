@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/tv_mode.dart';
 import 'tv_keyboard.dart';
+import '../l10n/generated/app_localizations.dart';
 
 /// The app's unified search box: a rounded field that, on focus, draws an accent
 /// outline that grows from the centre of the top and bottom edges outward until
@@ -181,6 +182,7 @@ class _SearchFieldState extends State<SearchField>
             )
           else if (hasText)
             IconButton(
+              tooltip: AppLocalizations.of(context).commonClear,
               icon: const Icon(Icons.close_rounded, size: 18),
               splashRadius: 18,
               color: scheme.onSurfaceVariant,

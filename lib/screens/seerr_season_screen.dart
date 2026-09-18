@@ -6,6 +6,7 @@ import '../models/seerr_detail.dart';
 import '../state/seerr_providers.dart';
 import '../widgets/cached_image.dart';
 import '../widgets/error_view.dart';
+import '../widgets/app_spinner.dart';
 
 /// The episode list for one season of a series.
 class SeerrSeasonScreen extends ConsumerWidget {
@@ -27,7 +28,7 @@ class SeerrSeasonScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(seasonName)),
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppSpinner()),
         error: (e, _) => ErrorView(message: '$e'),
         data: (episodes) => episodes.isEmpty
             ? Center(child: Text(l.detailNoEpisodes))

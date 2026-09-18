@@ -19,35 +19,20 @@ import '../widgets/ui_common.dart';
 import '../state/youtube_providers.dart';
 import '../services/youtube_download.dart';
 import '../services/sponsorblock.dart';
+import '../services/track_languages.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
 
+// One list, shared with the player's online subtitle search (track_languages),
+// so the same codes and the same order appear everywhere.
 Map<String, String> _languages(AppLocalizations l) => {
       '': l.prefsLanguageServerDefault,
-      'eng': l.prefsLanguageEnglish,
-      'spa': l.prefsLanguageSpanish,
-      'fre': l.prefsLanguageFrench,
-      'ger': l.prefsLanguageGerman,
-      'ita': l.prefsLanguageItalian,
-      'jpn': l.prefsLanguageJapanese,
-      'kor': l.prefsLanguageKorean,
-      'chi': l.prefsLanguageChinese,
-      'por': l.prefsLanguagePortuguese,
-      'rus': l.prefsLanguageRussian,
-      'nld': l.prefsLanguageDutch,
+      ...trackLanguages(l),
     };
 
 Map<String, String> _subtitleLanguages(AppLocalizations l) => {
       '': l.prefsNone,
-      'eng': l.prefsLanguageEnglish,
-      'spa': l.prefsLanguageSpanish,
-      'fre': l.prefsLanguageFrench,
-      'ger': l.prefsLanguageGerman,
-      'ita': l.prefsLanguageItalian,
-      'jpn': l.prefsLanguageJapanese,
-      'kor': l.prefsLanguageKorean,
-      'chi': l.prefsLanguageChinese,
-      'por': l.prefsLanguagePortuguese,
-      'rus': l.prefsLanguageRussian,
-      'nld': l.prefsLanguageDutch,
+      ...trackLanguages(l),
     };
 
 const _accentColors = [
@@ -107,7 +92,7 @@ class PreferencesScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: prefsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppSpinner()),
         error: (e, _) => Center(child: Text('$e')),
         data: (p) => ListView(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -620,6 +605,7 @@ class PreferencesScreen extends ConsumerWidget {
         onChanged: (v) => c.edit((x) => x.copyWith(notifUpdates: v)),
       ),
       SettingsSectionHeader(l.prefsHeaderStorage),
+      const _JellyfinDownloadFolder(),
       const _StorageTile(),
     ];
   }
@@ -993,6 +979,49 @@ class PreferencesScreen extends ConsumerWidget {
           onChanged: (v) => c.edit((x) => x.copyWith(audioLanguage: v)),
         ),
       ),
+      ListTile(
+        leading: const Icon(Icons.graphic_eq_rounded),
+        title: Text(l.prefsReplayGain),
+        subtitle: Text(l.prefsReplayGainSub),
+        trailing: _Dropdown(
+          value: p.replayGain,
+          options: {
+            'off': l.prefsReplayGainOff,
+            'track': l.prefsReplayGainTrack,
+            'album': l.prefsReplayGainAlbum,
+          },
+          onChanged: (v) => c.edit((x) => x.copyWith(replayGain: v)),
+        ),
+      ),
+      if (p.replayGain != 'off')
+        ListTile(
+          leading: const Icon(Icons.tune_rounded),
+          title: Text(l.prefsReplayGainFallback),
+          subtitle: Text(l.prefsReplayGainFallbackSub),
+          trailing: SizedBox(
+            width: 190,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: p.replayGainFallback,
+                    min: -10,
+                    max: 10,
+                    divisions: 40,
+                    label: '${p.replayGainFallback.toStringAsFixed(1)} dB',
+                    onChanged: (v) =>
+                        c.edit((x) => x.copyWith(replayGainFallback: v)),
+                  ),
+                ),
+                SizedBox(
+                  width: 54,
+                  child: Text('${p.replayGainFallback.toStringAsFixed(1)} dB',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ),
+              ],
+            ),
+          ),
+        ),
       SettingsSectionHeader(l.prefsHeaderSubtitles),
       ListTile(
         leading: const Icon(Icons.closed_caption_rounded),
@@ -1277,22 +1306,10 @@ class _YoutubeClearData extends ConsumerWidget {
 
   Future<bool> _confirm(BuildContext context, String what) async {
     final l = AppLocalizations.of(context);
-    return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(l.prefsClearConfirmTitle(what)),
-            content: Text(l.prefsClearCannotUndo),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: Text(l.commonCancel)),
-              FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: Text(l.commonClear)),
-            ],
-          ),
-        ) ??
-        false;
+    return await confirm(context,
+        title: l.prefsClearConfirmTitle(what),
+        message: l.prefsClearCannotUndo,
+        confirmLabel: l.commonClear);
   }
 
   @override
@@ -1318,8 +1335,8 @@ class _YoutubeClearData extends ConsumerWidget {
               : () async {
                   if (!await _confirm(context, l.prefsWhatWatchHistory)) return;
                   await ref.read(youtubeHistoryProvider.notifier).clear();
-                  messenger.showSnackBar(
-                      SnackBar(content: Text(l.prefsWatchHistoryCleared)));
+                  showSnackOn(messenger, l.prefsWatchHistoryCleared,
+                      kind: SnackKind.success);
                 },
         ),
         ListTile(
@@ -1336,8 +1353,8 @@ class _YoutubeClearData extends ConsumerWidget {
                     return;
                   }
                   await ref.read(youtubeSearchHistoryProvider.notifier).clear();
-                  messenger.showSnackBar(
-                      SnackBar(content: Text(l.prefsSearchHistoryCleared)));
+                  showSnackOn(messenger, l.prefsSearchHistoryCleared,
+                      kind: SnackKind.success);
                 },
         ),
       ],
@@ -1359,7 +1376,7 @@ class _YoutubeDownloadFolders extends ConsumerWidget {
         ref.watch(youtubeDownloadDirProvider(YtDownloadKind.video)).asData?.value;
 
     Future<void> pick(bool audio) async {
-      final dir = await FilePicker.platform.getDirectoryPath(
+      final dir = await FilePicker.getDirectoryPath(
           dialogTitle:
               audio ? l.prefsAudioDownloadFolder : l.prefsVideoDownloadFolder);
       if (dir == null) return;
@@ -1392,6 +1409,50 @@ class _YoutubeDownloadFolders extends ConsumerWidget {
       row(l.prefsVideoFolder, p.youtubeVideoDownloadPath, false),
       row(l.prefsAudioFolder, p.youtubeAudioDownloadPath, true),
     ]);
+  }
+}
+
+/// Where downloaded Jellyfin media (movies, shows, music, recordings) is
+/// saved. Separate from the YouTube video/audio folders above: Jellyfin
+/// downloads are an offline library Fathom manages as a unit (art, ratings,
+/// and metadata cache all live alongside the media), so one location covers
+/// all of it, organized into Movies/TV Shows/Music/Recordings subfolders.
+/// Defaults to app-private storage, matching Netflix/Plex-style apps rather
+/// than the YouTube folders' real-Downloads-folder default.
+class _JellyfinDownloadFolder extends ConsumerWidget {
+  const _JellyfinDownloadFolder();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final p = ref.watch(preferencesProvider).asData?.value ?? const Prefs();
+    final c = ref.read(preferencesProvider.notifier);
+    final path = p.jellyfinDownloadPath;
+
+    Future<void> pick() async {
+      final dir = await FilePicker.getDirectoryPath(dialogTitle: l.prefsDownloadLocationPick);
+      if (dir == null) return;
+      c.edit((x) => x.copyWith(jellyfinDownloadPath: dir));
+    }
+
+    return ListTile(
+      leading: const Icon(Icons.folder_rounded),
+      title: Text(l.prefsDownloadLocation),
+      subtitle: Text(
+        path.isEmpty ? l.prefsDefault : path,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: path.isEmpty
+          ? null
+          : IconButton(
+              tooltip: l.commonReset,
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () =>
+                  c.edit((x) => x.copyWith(jellyfinDownloadPath: '')),
+            ),
+      onTap: pick,
+    );
   }
 }
 

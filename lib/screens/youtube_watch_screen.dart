@@ -11,8 +11,10 @@ import '../models/youtube_channel.dart';
 import '../models/youtube_comment.dart';
 import '../models/youtube_watch.dart';
 import '../services/tv_mode.dart';
+import '../services/fold.dart';
 import '../state/preferences.dart';
 import '../state/youtube_providers.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/error_view.dart';
 import '../widgets/subscribe_button.dart';
 import '../widgets/tv_focus.dart';
@@ -24,6 +26,8 @@ import '../widgets/youtube_actions.dart';
 import '../widgets/youtube_skeletons.dart';
 import '../l10n/generated/app_localizations.dart';
 import 'youtube_player_screen.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
 
 /// The watch page: the player, what you're watching, who made it, and where to
 /// go next. Related videos sit beside the player on wide windows and below it
@@ -258,6 +262,10 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
       );
     }
 
+    // Read here, not inside the page: the Scaffold strips the status bar
+    // padding from its body's MediaQuery.
+    final pageTop = MediaQuery.paddingOf(context).top +
+        (Theme.of(context).appBarTheme.toolbarHeight ?? kToolbarHeight);
     return Scaffold(
       // No title here: it sits under the player, so repeating it just wastes
       // the row and truncates.
@@ -265,6 +273,7 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
       body: details.when(
         loading: () => _Body(
           player: player,
+          pageTop: pageTop,
           details: null,
           theater: _theater,
           descExpanded: _descExpanded,
@@ -283,6 +292,7 @@ class _YoutubeWatchScreenState extends ConsumerState<YoutubeWatchScreen> {
         ),
         data: (d) => _Body(
           player: player,
+          pageTop: pageTop,
           details: d,
           theater: _theater,
           descExpanded: _descExpanded,
@@ -395,6 +405,9 @@ const double _railWidth = 440;
 
 class _Body extends StatelessWidget {
   final Widget player;
+  /// Where the page starts on screen, below the status bar and app bar, so a
+  /// fold reported in screen coordinates can be placed within the page.
+  final double pageTop;
   final YoutubeWatchDetails? details;
 
   /// Theater mode hides the rail and enlarges the player.
@@ -420,6 +433,7 @@ class _Body extends StatelessWidget {
 
   const _Body({
     required this.player,
+    this.pageTop = 0,
     required this.details,
     this.theater = false,
     required this.descExpanded,
@@ -464,8 +478,16 @@ class _Body extends StatelessWidget {
       // swallow the title and channel row.
       const videoMargin = 16.0;
       final videoWidth = contentWidth - videoMargin * 2;
-      final playerHeight = math.min(
-          videoWidth * 9 / 16, box.maxHeight * (theater ? 0.82 : 0.6));
+      // Tabletop: the video fills the standing half, down to just above the
+      // crease, and the title, comments and Up Next scroll on the flat half,
+      // the way YouTube's own app does it. The page sits under the app bar, so
+      // the crease (in screen coordinates) is moved into the page's own.
+      final fold = tabletopFold(context);
+      final creaseInPage = fold == null ? null : fold.position - pageTop;
+      final playerHeight = creaseInPage != null && creaseInPage > 120
+          ? creaseInPage - 16 - 8
+          : math.min(
+              videoWidth * 9 / 16, box.maxHeight * (theater ? 0.82 : 0.6));
 
       // The player is pinned OUTSIDE the scroll view on purpose: a Scrollable
       // gives mouse pointers a 1px drag slop, so it wins the gesture arena and
@@ -885,32 +907,17 @@ class _QueueSheet extends ConsumerWidget {
                     onPressed: queue.isEmpty
                         ? null
                         : () async {
-                            final confirm = ref
+                            final needsConfirm = ref
                                     .read(preferencesProvider)
                                     .asData
                                     ?.value
                                     .youtubeConfirmClearQueue ??
                                 true;
-                            if (confirm) {
-                              final ok = await showDialog<bool>(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      title: Text(l.ytClearQueueTitle),
-                                      content: Text(
-                                          l.ytClearQueueConfirm(queue.length)),
-                                      actions: [
-                                        TextButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, false),
-                                            child: Text(l.commonCancel)),
-                                        FilledButton(
-                                            onPressed: () =>
-                                                Navigator.pop(ctx, true),
-                                            child: Text(l.commonClear)),
-                                      ],
-                                    ),
-                                  ) ??
-                                  false;
+                            if (needsConfirm) {
+                              final ok = await confirm(context,
+                                  title: l.ytClearQueueTitle,
+                                  message: l.ytClearQueueConfirm(queue.length),
+                                  confirmLabel: l.commonClear);
                               if (!ok) return;
                             }
                             notifier.clear();
@@ -960,16 +967,11 @@ class _QueueSheet extends ConsumerWidget {
                                           ));
                                     },
                                     extraMenuItems: [
-                                      PopupMenuItem(
-                                        value: () => notifier.remove(v.id),
-                                        child: Row(children: [
-                                          const Icon(
-                                              Icons
-                                                  .remove_circle_outline_rounded,
-                                              size: 18),
-                                          const SizedBox(width: 12),
-                                          Text(l.ytRemoveFromQueue),
-                                        ]),
+                                      ContextMenuAction(
+                                        icon: Icons
+                                            .remove_circle_outline_rounded,
+                                        label: l.ytRemoveFromQueue,
+                                        onTap: () => notifier.remove(v.id),
                                       ),
                                     ],
                                   ),
@@ -1001,7 +1003,7 @@ class _Comments extends ConsumerWidget {
     return async.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: AppSpinner()),
       ),
       // Comments failing shouldn't shout; the video is the point.
       error: (e, _) => const SizedBox.shrink(),
@@ -1031,11 +1033,7 @@ class _Comments extends ConsumerWidget {
                   child: page.loadingMore
                       ? const Padding(
                           padding: EdgeInsets.all(8),
-                          child: SizedBox(
-                              height: 20,
-                              width: 20,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2)),
+                          child: AppSpinner.inline(),
                         )
                       : TextButton.icon(
                           onPressed: () => ref
@@ -1202,10 +1200,7 @@ class _CommentRowState extends ConsumerState<_CommentRow> {
       child: async.when(
         loading: () => const Padding(
           padding: EdgeInsets.symmetric(vertical: 8),
-          child: SizedBox(
-              height: 18,
-              width: 18,
-              child: CircularProgressIndicator(strokeWidth: 2)),
+          child: AppSpinner.inline(),
         ),
         error: (_, _) => Text(AppLocalizations.of(context).ytCouldNotLoadReplies,
             style: theme.textTheme.bodySmall

@@ -70,13 +70,14 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // Integrations — Seerr connection / sign-in
   SettingResult(title: l.searchSeerrConnection, section: l.settingsSectionIntegrations, icon: _integrations, route: '/seerr-settings', keywords: ['seerr', 'jellyseerr', 'overseerr', 'connect', 'connection', 'login', 'log in', 'sign in', 'signin', 'account', 'jellyfin', 'local', 'api key', 'apikey', 'token', 'email', 'password', 'url', 'server', 'requests']),
   // System — updates, backup, diagnostics
-  SettingResult(title: l.settingsUpdates, section: l.settingsSectionSystem, icon: Icons.system_update_alt_rounded, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'dev', 'beta', 'stable', 'latest']),
+  SettingResult(title: l.settingsUpdates, section: l.settingsSectionSystem, icon: Icons.system_update_alt_rounded, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'dev', 'beta', 'stable', 'latest', 'frequency', 'daily', 'weekly', 'launch', 'how often']),
   SettingResult(title: l.settingsBackup, section: l.settingsSectionSystem, icon: Icons.settings_backup_restore_rounded, route: '/backup', keywords: ['backup', 'restore', 'export', 'import', 'settings', 'save settings', 'transfer', 'migrate', 'move', 'sync', 'json', 'share', 'download settings']),
   SettingResult(title: l.diagnosticsTitle, section: l.settingsSectionSystem, icon: Icons.bug_report_rounded, route: '/diagnostics', keywords: ['diagnostic', 'diagnostics', 'log', 'logging', 'verbose', 'debug', 'troubleshoot', 'troubleshooting', 'bug report', 'mpv log', 'copy log', 'crash', 'issue']),
   SettingResult(title: l.profileChangePassword, section: l.settingsSectionSystem, icon: Icons.password_rounded, route: '/profile', keywords: ['password', 'change password', 'reset password', 'passcode', 'credentials', 'account', 'profile', 'security', 'login', 'sign in']),
   SettingResult(title: l.searchDownloadComplete, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'download', 'complete', 'finished', 'youtube']),
   // General — Storage
   SettingResult(title: l.searchImageCache, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['cache', 'storage', 'clear cache', 'disk', 'data', 'space', 'thumbnails', 'posters']),
+  SettingResult(title: l.searchDownloadLocation, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['download', 'location', 'folder', 'path', 'directory', 'storage', 'movies', 'tv', 'music', 'recordings', 'jellyfin']),
 
   // Appearance
   SettingResult(title: l.searchTheme, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['dark', 'light', 'mode', 'system', 'appearance', 'color scheme']),
@@ -110,6 +111,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
 
   // Audio & Subtitles
   SettingResult(title: l.searchAudioLanguage, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['audio', 'language', 'dub', 'track', 'default audio']),
+  SettingResult(title: l.prefsReplayGain, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['replaygain', 'replay gain', 'volume', 'loudness', 'normalize', 'normalise', 'levelling', 'leveling', 'gain', 'music', 'quiet', 'loud']),
   SettingResult(title: l.searchSubtitleLanguage, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['subtitle', 'caption', 'cc', 'language', 'subs']),
   SettingResult(title: l.searchSubtitleSize, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['subtitle', 'caption', 'size', 'scale', 'font', 'text size']),
   SettingResult(title: l.searchSubtitleColor, section: l.searchAudioSubtitles, icon: _audio, route: '/preferences', extra: 'audio', keywords: ['subtitle', 'caption', 'color', 'colour', 'text color']),
@@ -157,6 +159,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // Integrations
   SettingResult(title: l.searchWatchTogether, section: l.searchIntegrations, icon: Icons.groups_rounded, route: '/settings', keywords: ['syncplay', 'sync play', 'watch together', 'watch party', 'group', 'together', 'enable', 'shared playback', 'sync']),
   SettingResult(title: l.settingsRadio, section: l.searchIntegrations, icon: Icons.radio_rounded, route: '/settings', keywords: ['radio', 'internet radio', 'stations', 'station', 'stream', 'icy', 'shoutcast', 'icecast', 'fm', 'am', 'enable', 'music']),
+  SettingResult(title: l.settingsMovieWheel, section: l.searchIntegrations, icon: Icons.movie_filter_rounded, route: '/settings', keywords: ['wheel', 'movie wheel', 'movie night', 'spin', 'decide', 'elimination', 'random', 'randomize', 'picker', 'enable', 'watchlist', 'watch together', 'syncplay']),
 ];
 
 // Admin section icons, mirroring the Server Admin hub.
@@ -174,6 +177,7 @@ const _aDvr = Icons.fiber_dvr_rounded;
 const _aTasks = Icons.schedule_rounded;
 const _aActivity = Icons.history_rounded;
 const _aLogs = Icons.description_outlined;
+const _aBackups = Icons.inventory_2_outlined;
 const _aSystem = Icons.dns_rounded;
 const _aPlugins = Icons.extension_rounded;
 
@@ -235,6 +239,7 @@ List<SettingResult> adminSettingsIndex(AppLocalizations l) => <SettingResult>[
   SettingResult(title: l.searchScheduledTasks, section: l.searchMaintenance, icon: _aTasks, route: '/admin/tasks', keywords: ['tasks', 'scheduled', 'jobs', 'scan', 'background', 'cron']),
   SettingResult(title: l.searchActivityLog, section: l.searchMaintenance, icon: _aActivity, route: '/admin/activity', keywords: ['activity', 'events', 'log', 'history']),
   SettingResult(title: l.searchLogs, section: l.searchMaintenance, icon: _aLogs, route: '/admin/logs', keywords: ['logs', 'log files', 'debug', 'ffmpeg']),
+  SettingResult(title: l.adminBackupsTitle, section: l.searchMaintenance, icon: _aBackups, route: '/admin/backups', keywords: ['backup', 'backups', 'restore', 'snapshot', 'database', 'migrate']),
   SettingResult(title: l.searchSystem, section: l.searchMaintenance, icon: _aSystem, route: '/admin/system', keywords: ['system', 'server info', 'restart', 'shutdown', 'version']),
 
   // Extensions

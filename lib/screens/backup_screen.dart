@@ -11,6 +11,8 @@ import 'package:share_plus/share_plus.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../services/settings_backup.dart';
 import '../state/radio.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
 
 /// Export/import of Fathom's own settings as a portable JSON file, selectable by
 /// group (everything checked by default). No passwords or API keys are included.
@@ -42,9 +44,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    showSnack(context, message);
   }
 
   Future<void> _export(Set<String> groups) async {
@@ -61,21 +61,28 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
         final dir = await getTemporaryDirectory();
         final path = '${dir.path}/$fileName';
         await File(path).writeAsString(jsonStr);
-        await Share.shareXFiles(
-          [XFile(path, mimeType: 'application/json', name: fileName)],
+        await SharePlus.instance.share(ShareParams(
+          files: [XFile(path, mimeType: 'application/json', name: fileName)],
           subject: l.backupExportSubject,
-        );
+        ));
       } else {
-        final chosen = await FilePicker.platform.saveFile(
+        // saveFile writes the bytes itself now and returns where they landed,
+        // so there's no separate File().writeAsString step. It takes `type` and
+        // `allowedExtensions` but never passes them to the platform, so the
+        // extension isn't enforced: a filename typed without .json would save
+        // as-is and then be invisible to the .json-filtered import picker.
+        // Hence the mime type (a hint some dialogs honour) and the rename.
+        final saved = await FilePicker.saveFile(
           dialogTitle: l.backupExportTitle,
           fileName: fileName,
-          type: FileType.custom,
-          allowedExtensions: const ['json'],
+          bytes: utf8.encode(jsonStr),
+          mimeType: 'application/json',
         );
-        if (chosen == null) return;
-        final path =
-            chosen.toLowerCase().endsWith('.json') ? chosen : '$chosen.json';
-        await File(path).writeAsString(jsonStr);
+        if (saved == null) return;
+        var path = saved.scheme == 'file' ? saved.toFilePath() : saved.path;
+        if (saved.scheme == 'file' && !path.toLowerCase().endsWith('.json')) {
+          path = (await File(path).rename('$path.json')).path;
+        }
         _snack(l.backupSavedTo(path));
       }
     } catch (e) {
@@ -89,17 +96,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final l = AppLocalizations.of(context);
     setState(() => _busy = true);
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final f = await FilePicker.pickFile(
         dialogTitle: l.backupImportTitle,
         type: FileType.custom,
         allowedExtensions: const ['json'],
-        withData: true,
       );
-      if (result == null || result.files.isEmpty) return;
-      final f = result.files.first;
-      final content = f.bytes != null
-          ? utf8.decode(f.bytes!)
-          : await File(f.path!).readAsString();
+      if (f == null) return;
+      // A picked file reads its own bytes now, on every platform, so there's no
+      // withData flag and no path fallback for the platforms that ignored it.
+      final content = utf8.decode(await f.readAsBytes());
       final decoded = jsonDecode(content);
       if (!isValidBackup(decoded)) throw const FormatException('invalid');
       final data = Map<String, dynamic>.from(decoded as Map);
@@ -236,7 +241,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           if (_busy)
             const Padding(
               padding: EdgeInsets.only(top: 16),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: AppSpinner()),
             ),
         ],
       ),

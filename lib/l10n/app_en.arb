@@ -158,6 +158,10 @@
   "settingsYouTubeSubtitle": "Search & watch, ad-free",
   "settingsWatchTogether": "Watch Together",
   "settingsWatchTogetherSubtitle": "Sync playback with others, from your profile menu",
+  "settingsMovieWheel": "Movie Night Wheel",
+  "@settingsMovieWheel": { "description": "Settings toggle for the Movie Night Wheel feature." },
+  "settingsMovieWheelSubtitle": "Can't decide? Spin an elimination wheel from Watchlist or Watch Together",
+  "@settingsMovieWheelSubtitle": { "description": "Subtitle under the Movie Night Wheel settings toggle." },
   "settingsRadio": "Internet Radio",
   "settingsRadioSubtitle": "Search, save, and play radio stations from the sidebar",
   "settingsProfileSubtitle": "View profile, change picture",
@@ -485,6 +489,20 @@
   "@prefsHeaderAudio": {
     "description": "Settings section header: audio options."
   },
+  "prefsReplayGain": "Volume Levelling",
+  "@prefsReplayGain": { "description": "Setting: ReplayGain mode for music (off / per track / per album)." },
+  "prefsReplayGainSub": "Play every song at a similar loudness, using the levels stored in your files",
+  "@prefsReplayGainSub": { "description": "Subtitle for the volume levelling setting." },
+  "prefsReplayGainOff": "Off",
+  "@prefsReplayGainOff": { "description": "Volume levelling option: no adjustment." },
+  "prefsReplayGainTrack": "Per Track",
+  "@prefsReplayGainTrack": { "description": "Volume levelling option: level each song on its own." },
+  "prefsReplayGainAlbum": "Per Album",
+  "@prefsReplayGainAlbum": { "description": "Volume levelling option: keep an album's own quiet and loud songs relative to each other." },
+  "prefsReplayGainFallback": "Untagged Music",
+  "@prefsReplayGainFallback": { "description": "Setting: gain applied to files that carry no ReplayGain tags." },
+  "prefsReplayGainFallbackSub": "Adjustment for files with no levels stored in them. Leave at 0 dB to play them untouched.",
+  "@prefsReplayGainFallbackSub": { "description": "Subtitle for the untagged-music gain setting." },
   "prefsHeaderSubtitles": "Subtitles",
   "@prefsHeaderSubtitles": {
     "description": "Settings section header: subtitle options."
@@ -1309,6 +1327,14 @@
   "@prefsDefault": {
     "description": "Shown when a download folder uses the default location."
   },
+  "prefsDownloadLocation": "Download Location",
+  "@prefsDownloadLocation": {
+    "description": "List tile title: where downloaded Jellyfin media (movies, shows, music, recordings) is saved."
+  },
+  "prefsDownloadLocationPick": "Choose Download Location",
+  "@prefsDownloadLocationPick": {
+    "description": "Directory-picker dialog title for the Jellyfin download location."
+  },
   "prefsSbSkip": "Skip Sponsor Segments",
   "@prefsSbSkip": {
     "description": "SponsorBlock toggle title: skip sponsor segments."
@@ -1832,6 +1858,57 @@
       }
     }
   },
+  "playerSubtitleSearch": "Search Subtitles Online",
+  "@playerSubtitleSearch": {
+    "description": "Subtitle menu row that searches the server's subtitle providers."
+  },
+  "playerSubtitleSearchIn": "Online Subtitles: {language}",
+  "@playerSubtitleSearchIn": {
+    "description": "Title of the online subtitle results sheet, naming the language searched.",
+    "placeholders": { "language": { "type": "String" } }
+  },
+  "playerSubtitleSearchLanguage": "Change Language",
+  "@playerSubtitleSearchLanguage": {
+    "description": "Row in the online subtitle results that searches a different language."
+  },
+  "playerSubtitleSearchEmptyIn": "No {language} subtitles found for this title",
+  "@playerSubtitleSearchEmptyIn": {
+    "description": "Shown when the server's providers return nothing for a language.",
+    "placeholders": { "language": { "type": "String" } }
+  },
+  "playerSubtitleSearchTitle": "Online Subtitles",
+  "@playerSubtitleSearchTitle": {
+    "description": "Title of the sheet listing subtitles found online."
+  },
+  "playerSubtitleHashMatch": "Matches your file",
+  "@playerSubtitleHashMatch": {
+    "description": "Tag on a search result whose timing matches this exact release."
+  },
+  "playerSubtitleDownloads": "{count} downloads",
+  "@playerSubtitleDownloads": {
+    "description": "How many times a subtitle has been downloaded from the provider.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "playerSubtitleDownloading": "Downloading subtitle",
+  "@playerSubtitleDownloading": {
+    "description": "Progress message while the server fetches a subtitle."
+  },
+  "playerSubtitleDownloaded": "Subtitle added",
+  "@playerSubtitleDownloaded": {
+    "description": "Confirmation after the server saved a downloaded subtitle."
+  },
+  "playerSubtitleForced": "Forced",
+  "@playerSubtitleForced": {
+    "description": "Tag on a subtitle track that only captions foreign-language dialogue."
+  },
+  "playerSubtitlePicture": "Picture",
+  "@playerSubtitlePicture": {
+    "description": "Tag on a subtitle track made of images rather than text (Blu-ray PGS, DVD VobSub)."
+  },
+  "playerSubtitleFile": "External",
+  "@playerSubtitleFile": {
+    "description": "Tag on a subtitle track stored in its own file beside the video, rather than inside it. Matches the wording Jellyfin itself uses."
+  },
   "playerSubtitleNumber": "Subtitle {id}",
   "@playerSubtitleNumber": {
     "description": "Fallback label for a subtitle track that has no title or language, identified by its track id.",
@@ -2046,6 +2123,8 @@
   "@playerBackToApp": {
     "description": "Tooltip for the button that returns the popped-out desktop video back into the app window."
   },
+  "actionRemoveFromContinueWatching": "Remove from Continue Watching",
+  "@actionRemoveFromContinueWatching": { "description": "Item menu action: drop the item from the Continue Watching row by clearing its resume position." },
   "actionShowDetails": "Show Details",
   "@actionShowDetails": {
     "description": "Context-menu row: open the item's detail page."
@@ -2082,13 +2161,21 @@
   "@detailMarkUnwatched": {
     "description": "Tooltip: mark this item as not watched."
   },
-  "detailAddFavorite": "Add Favorite",
+  "detailAddFavorite": "Add to Favorites",
   "@detailAddFavorite": {
     "description": "Tooltip: add this item to favorites."
   },
-  "detailRemoveFavorite": "Remove Favorite",
+  "detailRemoveFavorite": "Remove from Favorites",
   "@detailRemoveFavorite": {
     "description": "Tooltip: remove this item from favorites."
+  },
+  "detailAddToWatchlist": "Add to Watchlist",
+  "@detailAddToWatchlist": {
+    "description": "Tooltip/menu row: add this item to the Watchlist."
+  },
+  "detailRemoveFromWatchlist": "Remove from Watchlist",
+  "@detailRemoveFromWatchlist": {
+    "description": "Tooltip/menu row: remove this item from the Watchlist."
   },
   "detailSeries": "Series",
   "@detailSeries": {
@@ -2300,6 +2387,26 @@
   "@detailTrailer": {
     "description": "Button label for the trailer action."
   },
+  "detailExtras": "Extras",
+  "@detailExtras": { "description": "Detail page section: a title's bonus material." },
+  "extraTypeTrailer": "Trailer",
+  "@extraTypeTrailer": { "description": "Extra kind label." },
+  "extraTypeBehindTheScenes": "Behind the Scenes",
+  "@extraTypeBehindTheScenes": { "description": "Extra kind label." },
+  "extraTypeDeletedScene": "Deleted Scene",
+  "@extraTypeDeletedScene": { "description": "Extra kind label." },
+  "extraTypeInterview": "Interview",
+  "@extraTypeInterview": { "description": "Extra kind label." },
+  "extraTypeScene": "Scene",
+  "@extraTypeScene": { "description": "Extra kind label." },
+  "extraTypeFeaturette": "Featurette",
+  "@extraTypeFeaturette": { "description": "Extra kind label." },
+  "extraTypeShort": "Short",
+  "@extraTypeShort": { "description": "Extra kind label." },
+  "extraTypeClip": "Clip",
+  "@extraTypeClip": { "description": "Extra kind label." },
+  "extraTypeSample": "Sample",
+  "@extraTypeSample": { "description": "Extra kind label." },
   "detailMoreLikeThis": "More Like This",
   "@detailMoreLikeThis": {
     "description": "Section heading for a row of similar titles."
@@ -2795,6 +2902,30 @@
   "@browseFavorites": {
     "description": "Favorites screen title, browse-bar link, and library filter chip."
   },
+  "selectionCount": "{count, plural, =1{1 selected} other{{count} selected}}",
+  "@selectionCount": { "description": "How many items are selected in a grid.", "placeholders": { "count": { "type": "int" } } },
+  "selectionSelectAll": "Select All",
+  "@selectionSelectAll": { "description": "Selects every item currently shown in the grid." },
+  "selectionMarkedWatched": "{count, plural, =1{Marked 1 as watched} other{Marked {count} as watched}}",
+  "@selectionMarkedWatched": { "description": "Result message after marking a selection watched.", "placeholders": { "count": { "type": "int" } } },
+  "selectionMarkedUnwatched": "{count, plural, =1{Marked 1 as unwatched} other{Marked {count} as unwatched}}",
+  "@selectionMarkedUnwatched": { "description": "Result message after marking a selection unwatched.", "placeholders": { "count": { "type": "int" } } },
+  "selectionFavorited": "{count, plural, =1{Added 1 to favorites} other{Added {count} to favorites}}",
+  "@selectionFavorited": { "description": "Result message after favoriting a selection.", "placeholders": { "count": { "type": "int" } } },
+  "selectionUnfavorited": "{count, plural, =1{Removed 1 from favorites} other{Removed {count} from favorites}}",
+  "@selectionUnfavorited": { "description": "Result message after unfavoriting a selection.", "placeholders": { "count": { "type": "int" } } },
+  "selectionDeleteTitle": "{count, plural, =1{Delete 1 item?} other{Delete {count} items?}}",
+  "@selectionDeleteTitle": { "description": "Confirmation title for deleting a selection.", "placeholders": { "count": { "type": "int" } } },
+  "selectionDeleteBody": "This removes the files from your server. It cannot be undone.",
+  "@selectionDeleteBody": { "description": "Confirmation body for deleting a selection." },
+  "selectionDeleted": "{count, plural, =1{Deleted 1 item} other{Deleted {count} items}}",
+  "@selectionDeleted": { "description": "Result message after deleting a selection.", "placeholders": { "count": { "type": "int" } } },
+  "actionSelect": "Select",
+  "@actionSelect": { "description": "Item menu action: start selecting several items in the grid." },
+  "browseWatchlist": "Watchlist",
+  "@browseWatchlist": {
+    "description": "Watchlist screen title and nav destination label."
+  },
   "browsePlaylists": "Playlists",
   "@browsePlaylists": {
     "description": "Browse-bar link to playlists."
@@ -2944,6 +3075,10 @@
   "browseNoFavorites": "No favorites yet",
   "@browseNoFavorites": {
     "description": "Empty state: the user has no favorites."
+  },
+  "browseNoWatchlist": "Your watchlist is empty",
+  "@browseNoWatchlist": {
+    "description": "Empty state: the user's Watchlist has nothing in it yet."
   },
   "browseLibraryEmpty": "This library is empty",
   "@browseLibraryEmpty": {
@@ -3535,6 +3670,10 @@
   "@ytPlaylists": {
     "description": "YouTube tab / search filter label: playlists."
   },
+  "ytDownloadPill": "YouTube Download",
+  "@ytDownloadPill": {
+    "description": "Floating pill label while a YouTube download is in progress. Distinct from the Jellyfin download pill's plain \"Downloading\" since both can show at once."
+  },
   "ytDownloads": "Downloads",
   "@ytDownloads": {
     "description": "Tab / screen title: downloaded items."
@@ -3887,6 +4026,36 @@
   "ytClearHistoryConfirm": "This removes every watched video and its saved position.",
   "@ytClearHistoryConfirm": {
     "description": "Confirmation body when clearing watch history."
+  },
+  "ytSelectDownloads": "Select",
+  "@ytSelectDownloads": {
+    "description": "Button to enter multi-select mode on the Downloads tab."
+  },
+  "ytSelectAll": "Select All",
+  "@ytSelectAll": {
+    "description": "Button to select every finished download at once."
+  },
+  "ytNSelected": "{count, plural, =1{1 selected} other{{count} selected}}",
+  "@ytNSelected": {
+    "description": "App-bar-style label while some downloads are selected.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ytDeleteSelectedTitle": "{count, plural, =1{Delete download?} other{Delete {count} downloads?}}",
+  "@ytDeleteSelectedTitle": {
+    "description": "Confirmation dialog title for bulk-deleting selected downloads.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ytDeleteSelectedConfirm": "This removes the downloaded files from your device. They can be downloaded again later.",
+  "@ytDeleteSelectedConfirm": {
+    "description": "Confirmation dialog body for bulk-deleting selected downloads."
   },
   "ytRemoveFromHistory": "Remove from History",
   "@ytRemoveFromHistory": {
@@ -4301,6 +4470,10 @@
   "@appNavFavorites": {
     "description": "Navigation rail label for the Favorites section."
   },
+  "appNavWatchlist": "Watchlist",
+  "@appNavWatchlist": {
+    "description": "Navigation rail label for the Watchlist section."
+  },
   "appNavLiveTv": "Live TV",
   "@appNavLiveTv": {
     "description": "Navigation rail label for the Live TV section."
@@ -4331,6 +4504,10 @@
   "@radioRewind": {"description": "Tooltip for the radio rewind button."},
   "radioSkip": "Skip 15 seconds",
   "@radioSkip": {"description": "Tooltip for the radio skip-forward button."},
+  "radioPreviousStation": "Previous Station",
+  "@radioPreviousStation": {"description": "Tooltip for the previous-station button on the radio Now Playing screen."},
+  "radioNextStation": "Next Station",
+  "@radioNextStation": {"description": "Tooltip for the next-station button on the radio Now Playing screen."},
   "radioGroupOptions": "Group Options",
   "@radioGroupOptions": {"description": "Tooltip for the group header overflow menu."},
   "radioRenameGroup": "Rename Group",
@@ -4701,6 +4878,58 @@
   "@adminNetworkingSubtitle": {
     "description": "Admin hub tile subtitle for Networking settings."
   },
+  "adminBackupsTitle": "Backups",
+  "@adminBackupsTitle": { "description": "Admin screen title: server backups." },
+  "adminBackupsSubtitle": "Create and restore snapshots of the server",
+  "@adminBackupsSubtitle": { "description": "Admin hub subtitle for the Backups screen." },
+  "adminBackupsHelp": "Create and restore snapshots of your server. A backup can include the database, metadata, subtitles, and trickplay images, and is stored on the server.",
+  "@adminBackupsHelp": { "description": "Intro text at the top of the Backups screen." },
+  "adminBackupsNone": "No backups yet",
+  "@adminBackupsNone": { "description": "Empty state on the Backups screen." },
+  "adminBackupsUnsupported": "This server does not offer backups. They need a newer version of Jellyfin.",
+  "@adminBackupsUnsupported": { "description": "Shown when the server has no backup API." },
+  "adminBackupCreate": "Create Backup",
+  "@adminBackupCreate": { "description": "Button and dialog title: make a new server backup." },
+  "adminBackupDisclaimer": "Depending on the size of your library, a backup can take a while.",
+  "@adminBackupDisclaimer": { "description": "Note in the Create Backup dialog." },
+  "adminBackupDatabase": "Database",
+  "@adminBackupDatabase": { "description": "Backup content option: the server database. Always included." },
+  "adminBackupMetadata": "Metadata",
+  "@adminBackupMetadata": { "description": "Backup content option: metadata such as artwork and NFO data." },
+  "adminBackupSubtitles": "Subtitles",
+  "@adminBackupSubtitles": { "description": "Backup content option: subtitles stored by the server." },
+  "adminBackupTrickplay": "Trickplay",
+  "@adminBackupTrickplay": { "description": "Backup content option: trickplay scrubbing images." },
+  "adminBackupInProgress": "Backup in progress",
+  "@adminBackupInProgress": { "description": "Title of the dialog shown while a backup is being written." },
+  "adminBackupCreated": "Backup created",
+  "@adminBackupCreated": { "description": "Confirmation after a backup finishes." },
+  "adminBackupTasksRunning": "Scheduled tasks are running",
+  "@adminBackupTasksRunning": { "description": "Title of the warning shown when creating a backup while tasks run." },
+  "adminBackupTasksRunningBody": "It is best to wait for these to finish, or stop them, before backing up:\n\n{tasks}",
+  "@adminBackupTasksRunningBody": { "description": "Warning body listing running scheduled tasks.", "placeholders": { "tasks": { "type": "String" } } },
+  "adminBackupDetails": "Backup Details",
+  "@adminBackupDetails": { "description": "Title of the sheet showing one backup's details." },
+  "adminBackupPath": "Path",
+  "@adminBackupPath": { "description": "Label for where a backup is stored on the server." },
+  "adminBackupServerVersion": "Server Version",
+  "@adminBackupServerVersion": { "description": "Label for the Jellyfin version a backup was made on." },
+  "adminBackupIncludes": "Includes",
+  "@adminBackupIncludes": { "description": "Label for what a backup contains." },
+  "adminBackupPathCopied": "Path copied",
+  "@adminBackupPathCopied": { "description": "Confirmation after copying a backup's path." },
+  "adminBackupRestore": "Restore",
+  "@adminBackupRestore": { "description": "Action: restore the server from a backup." },
+  "adminBackupRestoreTitle": "Restore This Backup?",
+  "@adminBackupRestoreTitle": { "description": "Confirmation title before restoring a backup." },
+  "adminBackupRestoreBody": "The server restarts and is unusable until the restore finishes, and anything added or changed since this backup was made is lost.\n\nOnly restore a backup onto the same Jellyfin version it was made on ({version}). Restoring onto a different version is unsupported and can leave the server unusable.",
+  "@adminBackupRestoreBody": { "description": "Warning before restoring a backup.", "placeholders": { "version": { "type": "String" } } },
+  "adminBackupRestoring": "Restore in progress",
+  "@adminBackupRestoring": { "description": "Title of the dialog shown while the server restores." },
+  "adminBackupRestoringBody": "Waiting for the server to come back. This can take several minutes.",
+  "@adminBackupRestoringBody": { "description": "Body of the restore progress dialog." },
+  "adminBackupRestored": "Restore complete",
+  "@adminBackupRestored": { "description": "Confirmation when the server is back after a restore." },
   "adminApiKeysTitle": "API Keys",
   "@adminApiKeysTitle": {
     "description": "Admin section title: API keys (app access tokens)."
@@ -5887,6 +6116,84 @@
   "@adminAccessAllDevices": {
     "description": "Toggle label: grant access to all devices."
   },
+  "adminForceRemoteTranscoding": "Force Transcoding of Remote Sources",
+  "@adminForceRemoteTranscoding": { "description": "Toggle: always transcode remote media sources such as Live TV for this user." },
+  "adminForceRemoteTranscodingSub": "Such as Live TV",
+  "@adminForceRemoteTranscodingSub": { "description": "Subtitle under the force remote transcoding toggle." },
+  "adminSectionDeletion": "Allow Media Deletion From",
+  "@adminSectionDeletion": { "description": "Section header: which libraries a user may delete media from." },
+  "adminDeleteFromAll": "All Libraries",
+  "@adminDeleteFromAll": { "description": "Toggle: the user may delete media from every library." },
+  "adminSectionSyncPlay": "SyncPlay",
+  "@adminSectionSyncPlay": { "description": "Section header for a user's watch-together permissions." },
+  "adminSyncPlayAccess": "SyncPlay Access",
+  "@adminSyncPlayAccess": { "description": "Dropdown label: what a user may do with SyncPlay groups." },
+  "adminSyncPlayCreateAndJoin": "Create and Join Groups",
+  "@adminSyncPlayCreateAndJoin": { "description": "SyncPlay access option." },
+  "adminSyncPlayJoin": "Join Groups Only",
+  "@adminSyncPlayJoin": { "description": "SyncPlay access option." },
+  "adminSyncPlayNone": "Disabled for This User",
+  "@adminSyncPlayNone": { "description": "SyncPlay access option." },
+  "adminSectionSignIn": "Sign-In",
+  "@adminSectionSignIn": { "description": "Section header for a user's authentication and password reset providers." },
+  "adminAuthProvider": "Authentication Provider",
+  "@adminAuthProvider": { "description": "Dropdown label: how this user signs in." },
+  "adminPasswordResetProvider": "Password Reset Provider",
+  "@adminPasswordResetProvider": { "description": "Dropdown label: how this user resets a forgotten password." },
+  "adminDeviceAccessHelp": "This only applies to devices that can be uniquely identified, and does not block browser access. Limiting devices stops this user signing in on a new device until it is approved here.",
+  "@adminDeviceAccessHelp": { "description": "Help under the device access list." },
+  "adminChannelAccessHelp": "Choose the channels this user can see.",
+  "@adminChannelAccessHelp": { "description": "Help under the channel access list." },
+  "adminRatingHelp": "Content rated higher than this is hidden from this user.",
+  "@adminRatingHelp": { "description": "Help under the maximum parental rating dropdown." },
+  "adminBlockUnratedHelp": "Hide items of these kinds that have no rating, or a rating the server does not recognise.",
+  "@adminBlockUnratedHelp": { "description": "Help above the block unrated item types." },
+  "adminUnratedBooks": "Books",
+  "@adminUnratedBooks": { "description": "Unrated item type." },
+  "adminUnratedChannels": "Channels",
+  "@adminUnratedChannels": { "description": "Unrated item type: plugin channel content." },
+  "adminUnratedLiveTv": "Live TV",
+  "@adminUnratedLiveTv": { "description": "Unrated item type." },
+  "adminUnratedMovies": "Movies",
+  "@adminUnratedMovies": { "description": "Unrated item type." },
+  "adminUnratedMusic": "Music",
+  "@adminUnratedMusic": { "description": "Unrated item type." },
+  "adminUnratedTrailers": "Trailers",
+  "@adminUnratedTrailers": { "description": "Unrated item type." },
+  "adminUnratedShows": "Shows",
+  "@adminUnratedShows": { "description": "Unrated item type." },
+  "adminUnratedOther": "Other",
+  "@adminUnratedOther": { "description": "Unrated item type: anything not covered by the other types. Only shown when a user already blocks it, so it can be cleared." },
+  "adminAllowedTags": "Allow Items With Tags",
+  "@adminAllowedTags": { "description": "Section header: tags a user's content must carry." },
+  "adminAllowedTagsHelp": "Only show media with at least one of these tags.",
+  "@adminAllowedTagsHelp": { "description": "Help for allowed tags." },
+  "adminBlockedTags": "Block Items With Tags",
+  "@adminBlockedTags": { "description": "Section header: tags that hide content from a user." },
+  "adminBlockedTagsHelp": "Hide media with at least one of these tags.",
+  "@adminBlockedTagsHelp": { "description": "Help for blocked tags." },
+  "adminAddTag": "Add Tag",
+  "@adminAddTag": { "description": "Button and dialog title: add a tag." },
+  "adminTag": "Tag",
+  "@adminTag": { "description": "Text field label for a tag." },
+  "adminAccessSchedule": "Access Schedule",
+  "@adminAccessSchedule": { "description": "Section header: hours a user may use the server." },
+  "adminAccessScheduleHelp": "Limit this user to certain days and hours. With no schedule, access is not limited.",
+  "@adminAccessScheduleHelp": { "description": "Help for access schedules." },
+  "adminAddSchedule": "Add Schedule",
+  "@adminAddSchedule": { "description": "Button and dialog title: add an access schedule." },
+  "adminScheduleDay": "Day",
+  "@adminScheduleDay": { "description": "Dropdown label: day or days a schedule applies to." },
+  "adminScheduleStart": "Start Time",
+  "@adminScheduleStart": { "description": "Dropdown label: when a schedule's access begins." },
+  "adminScheduleEnd": "End Time",
+  "@adminScheduleEnd": { "description": "Dropdown label: when a schedule's access ends." },
+  "adminEveryDay": "Every Day",
+  "@adminEveryDay": { "description": "Access schedule day option." },
+  "adminWeekdays": "Weekdays",
+  "@adminWeekdays": { "description": "Access schedule day option." },
+  "adminWeekends": "Weekends",
+  "@adminWeekends": { "description": "Access schedule day option." },
   "adminAccessAllChannels": "Access All Channels",
   "@adminAccessAllChannels": {
     "description": "Toggle label: grant access to all channels."
@@ -6234,6 +6541,10 @@
   "searchImageCache": "Image Cache",
   "@searchImageCache": {
     "description": "Settings search result title: image cache storage / clear cache."
+  },
+  "searchDownloadLocation": "Download Location",
+  "@searchDownloadLocation": {
+    "description": "Settings search result title: where downloaded Jellyfin media is saved."
   },
   "searchTheme": "Theme",
   "@searchTheme": {
@@ -6846,5 +7157,111 @@
   "backupGroupServers": "Servers",
   "@backupGroupServers": { "description": "Backup group: server addresses and username." },
   "tvVoiceUnavailable": "Voice input isn't available on this device",
-  "@tvVoiceUnavailable": { "description": "Snackbar shown when the TV has no speech recognizer for the on-screen keyboard's mic button." }
+  "@tvVoiceUnavailable": { "description": "Snackbar shown when the TV has no speech recognizer for the on-screen keyboard's mic button." },
+  "wheelTitle": "Movie Night Wheel",
+  "@wheelTitle": { "description": "Title of the elimination-wheel decider screen." },
+  "wheelNeedsWatchlist": "Search your library above to add titles, or put a few on your Watchlist.",
+  "@wheelNeedsWatchlist": { "description": "Shown on the wheel setup screen when there are no titles to pick from yet." },
+  "wheelSetupHint": "Pick at least two titles, then spin.",
+  "@wheelSetupHint": { "description": "Instructions on the wheel's setup screen, above the checklist." },
+  "wheelStartWith": "{count, plural, =1{Start with 1 Title} other{Start with {count} Titles}}",
+  "@wheelStartWith": { "description": "Start button label, showing how many titles are selected.", "placeholders": { "count": { "type": "int" } } },
+  "wheelNeedTwo": "Pick at Least 2 Titles",
+  "@wheelNeedTwo": { "description": "Disabled Start button label when fewer than 2 titles are selected." },
+  "wheelRemaining": "{count, plural, =1{1 Left} other{{count} Left}}",
+  "@wheelRemaining": { "description": "Header above the wheel showing how many titles remain in this round.", "placeholders": { "count": { "type": "int" } } },
+  "wheelTapToSpin": "Tap or flick the wheel to spin",
+  "@wheelTapToSpin": { "description": "Hint text below the wheel." },
+  "wheelEliminated": "{name} is out!",
+  "@wheelEliminated": { "description": "Shown over a dimmed poster right after a spin eliminates a title.", "placeholders": { "name": { "type": "String" } } },
+  "wheelWinnerLabel": "TONIGHT'S PICK",
+  "@wheelWinnerLabel": { "description": "Small eyebrow label above the winning title's poster." },
+  "wheelSpinAgain": "Spin Again",
+  "@wheelSpinAgain": { "description": "Button to restart the wheel from the setup screen." },
+  "wheelPressToSpin": "Press OK to spin",
+  "@wheelPressToSpin": { "description": "Hint below the wheel on TV, where the remote's OK/Select button spins it." },
+  "wheelModeLast": "Last One Standing",
+  "@wheelModeLast": { "description": "Wheel game mode: each spin eliminates a title until one remains." },
+  "wheelModeSingle": "Single Spin",
+  "@wheelModeSingle": { "description": "Wheel game mode: one spin picks the winner." },
+  "wheelModeBest3": "Best of 3",
+  "@wheelModeBest3": { "description": "Wheel game mode: the first title landed on twice wins." },
+  "wheelModeLastHint": "Each spin knocks one title out until one is left.",
+  "@wheelModeLastHint": { "description": "Explains the Last One Standing mode on the setup screen." },
+  "wheelModeSingleHint": "One spin. Wherever it lands is tonight's pick.",
+  "@wheelModeSingleHint": { "description": "Explains the Single Spin mode on the setup screen." },
+  "wheelModeBest3Hint": "The first title the wheel lands on twice wins.",
+  "@wheelModeBest3Hint": { "description": "Explains the Best of 3 mode on the setup screen." },
+  "wheelSearchLabel": "Add from Your Library",
+  "@wheelSearchLabel": { "description": "Label of the search field for adding library titles to the wheel." },
+  "wheelSearchHint": "Search movies and shows",
+  "@wheelSearchHint": { "description": "Placeholder in the wheel's library search field." },
+  "wheelNoResults": "No matches",
+  "@wheelNoResults": { "description": "Shown under the wheel's library search when nothing matches." },
+  "wheelAdded": "Added",
+  "@wheelAdded": { "description": "Tag on a wheel candidate that was added from the library rather than the Watchlist." },
+  "wheelWatched": "Watched",
+  "@wheelWatched": { "description": "Tag on a wheel candidate the user has already watched." },
+  "wheelFilterUnwatched": "Unwatched",
+  "@wheelFilterUnwatched": { "description": "Filter chip: only include titles not yet watched." },
+  "wheelFilterUnder2h": "Under 2 Hours",
+  "@wheelFilterUnder2h": { "description": "Filter chip: only include titles with a runtime of 2 hours or less." },
+  "wheelFilterGenre": "Genre",
+  "@wheelFilterGenre": { "description": "Genre filter chip label when no genre is chosen." },
+  "wheelFilterAllGenres": "All Genres",
+  "@wheelFilterAllGenres": { "description": "Genre filter menu option that clears the genre filter." },
+  "wheelSelectAll": "Select All",
+  "@wheelSelectAll": { "description": "Button that checks every title currently shown on the wheel setup list." },
+  "wheelSelectNone": "Select None",
+  "@wheelSelectNone": { "description": "Button that unchecks every title currently shown on the wheel setup list." },
+  "wheelNothingMatches": "Nothing matches these filters.",
+  "@wheelNothingMatches": { "description": "Shown on the wheel setup list when the filters exclude every title." },
+  "wheelUndo": "Undo",
+  "@wheelUndo": { "description": "Button under the wheel that reverses the last result." },
+  "wheelSpinOf": "Spin {current} of {total}",
+  "@wheelSpinOf": { "description": "Header above the wheel in Best of 3 mode.", "placeholders": { "current": { "type": "int" }, "total": { "type": "int" } } },
+  "wheelTiebreak": "Tiebreaker: This Spin Decides It",
+  "@wheelTiebreak": { "description": "Header above the wheel when three spins landed on three different titles." },
+  "wheelSingleHeader": "One Spin Decides It",
+  "@wheelSingleHeader": { "description": "Header above the wheel in Single Spin mode." },
+  "wheelScored": "{name} scores!",
+  "@wheelScored": { "description": "Shown over a poster in Best of 3 mode when the wheel lands on it.", "placeholders": { "name": { "type": "String" } } },
+  "wheelMute": "Mute Sounds",
+  "@wheelMute": { "description": "Tooltip for the wheel's sound toggle while sound is on." },
+  "wheelUnmute": "Unmute Sounds",
+  "@wheelUnmute": { "description": "Tooltip for the wheel's sound toggle while sound is off." },
+  "wheelPlayForGroup": "Play for Group",
+  "@wheelPlayForGroup": { "description": "Play button on the wheel's result screen while in a Watch Together group." },
+  "wheelGroupHint": "Everyone in your Watch Together group will start watching.",
+  "@wheelGroupHint": { "description": "Note under the result screen's buttons while in a Watch Together group." },
+  "sleepTimer": "Sleep Timer",
+  "@sleepTimer": { "description": "Sleep timer button tooltip, player menu entry, and sheet title." },
+  "sleepTimerMinutes": "{count, plural, =1{1 Minute} other{{count} Minutes}}",
+  "@sleepTimerMinutes": { "description": "Sleep timer option: stop playback after this many minutes.", "placeholders": { "count": { "type": "int" } } },
+  "sleepTimerEndOfTrack": "End of Track",
+  "@sleepTimerEndOfTrack": { "description": "Sleep timer option: stop when the current song finishes instead of playing the next." },
+  "sleepTimerEndOfEpisode": "End of Episode",
+  "@sleepTimerEndOfEpisode": { "description": "Sleep timer option: stop when the current episode finishes instead of playing the next." },
+  "sleepTimerEndOfVideo": "End of Video",
+  "@sleepTimerEndOfVideo": { "description": "Sleep timer option: stop when the current movie or video finishes." },
+  "sleepTimerStopsIn": "Stops in {time}",
+  "@sleepTimerStopsIn": { "description": "Sleep timer countdown, e.g. 'Stops in 23m'.", "placeholders": { "time": { "type": "String" } } },
+  "sleepTimerAfterThis": "Stops at the end of this one",
+  "@sleepTimerAfterThis": { "description": "Sleep timer status when set to stop at the end of the current track or episode." },
+  "sleepTimerTurnOff": "Turn Off",
+  "@sleepTimerTurnOff": { "description": "Button that cancels a running sleep timer." },
+  "commonRepeat": "Repeat",
+  "@commonRepeat": { "description": "Tooltip / screen-reader label for the repeat (off / all / one) button." },
+  "commonMoreOptions": "More Options",
+  "@commonMoreOptions": { "description": "Tooltip / screen-reader label for a three-dot overflow menu button." },
+  "loginShowPassword": "Show Password",
+  "@loginShowPassword": { "description": "Tooltip / screen-reader label for the button that reveals the typed password." },
+  "loginHidePassword": "Hide Password",
+  "@loginHidePassword": { "description": "Tooltip / screen-reader label for the button that hides the typed password again." },
+  "a11yWheel": "{count, plural, =1{Movie Night Wheel with 1 title} other{Movie Night Wheel with {count} titles}}",
+  "@a11yWheel": { "description": "Screen-reader label for the spinning wheel.", "placeholders": { "count": { "type": "int" } } },
+  "a11ySpin": "Spin",
+  "@a11ySpin": { "description": "Screen-reader name of the action that spins the wheel." },
+  "a11yWinner": "Tonight's pick: {name}",
+  "@a11yWinner": { "description": "Screen-reader announcement of the wheel's final pick.", "placeholders": { "name": { "type": "String" } } }
 }

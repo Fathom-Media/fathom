@@ -3,6 +3,13 @@
 ## Your library
 
 - **Movies and TV**: libraries, search, rich detail pages, resume and Next Up, next and previous episode, skip intro, recap, and credits, an Up Next prompt that rolls into the next episode during the credits, chapters, and trickplay thumbnails as you scrub.
+- **Browse by anything**: genres, studios, artists, and a page for every person, so a cast member's other work is one tap away. Trailers play in the app rather than sending you to a browser.
+- **Extras**: a title's bonus material (behind the scenes, deleted scenes, interviews, featurettes, and trailer files held on your server) appears as its own row on the detail page, and plays in the normal player.
+- **Favorites and Watchlist**: two separate personal lists, one for what you love, one for what you still want to watch. Toggle either from an item's detail page or its context menu (long-press, right-click, or the overflow button, they all open the same menu).
+- **Continue Watching that follows what you watch**: one card per show, whether you stopped part-way through an episode or finished one and the next is waiting, ordered by what you actually watched most recently. A half-watched episode you abandoned long ago gives way to where you really are in the show, and a new episode of a show you were caught up on goes near the front the day it arrives.
+- **Tidy up Continue Watching**: **Remove from Continue Watching** in a card's context menu takes that show or film off the row until you watch it again. If it had a resume point, that is cleared on the server too, so Jellyfin's other apps agree. Nothing is marked watched.
+- **Home banner**: the banner at the top of Home mixes a few things you are in the middle of with what was added recently.
+- **Movie Night Wheel**: when nobody can decide, spin for it. Fill the wheel from your library or type titles in, then pick a mode: Last One Standing knocks a title out on every spin, Single Spin takes the first result, and Best of 3 wants a title to win twice. It is reachable from the Watchlist, and from a SyncPlay session so a group can decide together.
 - **Music**: albums, a play queue, now playing, shuffle and repeat, synced lyrics with an online fallback, and scrobbling. The now-playing screen flips between artwork and lyrics.
 - **Live TV and DVR**: a channel list, an EPG guide, recording with series rules, and tuner and guide-provider setup.
 
@@ -15,6 +22,14 @@ The same player drives Jellyfin and [YouTube](youtube.md): one control bar, one 
 - **Up Next**: for an episode that has a next one, an Up Next card or compact Netflix-style pill appears during the credits and rolls into the next episode. Pick the style, and how long it waits before auto-skipping (the whole credits or a short countdown), under **Settings → Playback**, or leave Autoplay off and use its Play Now button.
 - **Audio passthrough (desktop)**: bitstream Dolby Digital, DTS, and Dolby Atmos straight to an AV receiver instead of decoding to stereo.
 - **Tune it to taste**: video fit, playback speed, a control bar you can style (glass, dark, or plain), remappable keyboard shortcuts, and scrub-preview thumbnails.
+- **Foldable phones**: half-fold the phone with the crease across the screen (tabletop) and the video takes the standing half, with the controls on the flat half. The YouTube player does the same, in its watch page and in fullscreen.
+
+### Subtitles and audio tracks
+
+- **Every kind of subtitle**: text subtitles (SRT, ASS, WebVTT, MP4 text) are drawn by Fathom in the size, colour, and background you set under **Settings → Audio & Subtitles**. Picture-based subtitles from discs (Blu-ray PGS, DVD VobSub, DVB) are drawn by the player itself, since they are images rather than text.
+- **Subtitles beside the video**: a subtitle file stored next to the video on your server, including one a subtitle plugin downloaded, shows in the subtitle menu and loads when you pick it.
+- **Tracks you can tell apart**: subtitle and audio tracks are named from what the server knows about them, for example **English (Forced, SRT)**, **English (Picture, PGS)**, **English (External, SRT)**, or **English (DTS-HD MA 5.1)**. Tracks that would otherwise look the same are numbered. A forced track only captions foreign-language dialogue, so it stays quiet during the rest.
+- **Search Subtitles Online**: the last row of the subtitle menu searches the subtitle provider installed on your Jellyfin server (such as the OpenSubtitles plugin) and adds the one you pick straight to the video. Matches for your exact file come first. It searches your preferred subtitle language, or your device's language if you have not set one, and **Change Language** searches another. It needs a subtitle provider plugin on the server, and is shown to administrators and to accounts allowed to manage subtitles.
 
 ### Playback Info
 
@@ -27,11 +42,25 @@ Open the settings gear in the control bar and choose **Playback Info** for a rea
 
 It works in both the Jellyfin and YouTube players, and stays put when you enter fullscreen.
 
+## Offline downloads
+
+Download a movie, an episode, a whole season or series, a Live TV recording, a track, or an entire album, and watch or listen with the server out of reach.
+
+- **Downloads is a real library**, not a list of files: Movies, TV Shows, Recordings, and Music sections with the same artwork and rating badges as your online library.
+- **Detail pages work offline** too, scoped to what you actually have: only the episodes on the device, with local Play, Mark Watched, and Remove that never touch the server.
+- **Pick a scope** when downloading a series (everything, or a single season), and watch progress on a floating pill with a Cancel All action.
+- **Choose where it lands** under **Settings → Downloads**.
+
+## Sleep timer
+
+Every player has one, from the gear menu or the moon button in the top bar: music, video, YouTube, and radio. Pick anything from 15 minutes to 2 hours, or have it stop at the end of the current track or episode. The sound fades out over the last 15 seconds rather than cutting off, and the button shows the time left while it runs.
+
 ## Internet radio
 
 Add stations by URL or search the built-in [radio-browser.info](https://www.radio-browser.info) directory. Organize them into groups and favorites, and reorder them by drag.
 
 - **Live time-shift**: pause and rewind a live station within a buffered window, then hit **LIVE** to jump back to the edge.
+- **Switch stations**: previous/next-station controls on the Now Playing screen, and on the OS media session too (the notification, Android Auto, and Linux/Windows media controls), so a keyboard media key or steering-wheel button skips to another saved station.
 - **Now playing**: station art (with album-art lookup for stations that report track info), an inline volume control, and background playback.
 - Radio can be cast to a speaker or TV alongside your music.
 
@@ -53,11 +82,16 @@ Because Fathom is sideloaded rather than installed from the Play Store, the firs
 
 ## Server administration
 
-Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, and plugins. Each plugin's configuration is an in-app form (toggles, fields, and add/remove lists), with a raw-JSON option if you prefer, and plugin logos show in the list.
+Run most of Jellyfin from the app, without opening the web dashboard: manage users, libraries, scheduled tasks, active sessions, playback and transcoding, networking, branding, Live TV and DVR, backups, and plugins. Each plugin's configuration is an in-app form (toggles, fields, and add/remove lists), with a raw-JSON option if you prefer, and plugin logos show in the list.
+
+**Backups** (on servers that offer them): create a backup of the server, choosing whether to include metadata, subtitles, and trickplay images alongside the database, see what each backup holds and the server version it was made on, and restore one. Backups are stored on the server itself. Restoring restarts the server and replaces everything changed since the backup was made, and should only be done onto the same Jellyfin version the backup came from.
 
 ## Personalization
 
-Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, in-app updates with a Stable or Dev channel, system and in-app notifications, a Settings screen you can search, and a fully translatable interface.
+Light, dark, and AMOLED themes with a custom accent color, a Home layout you can rearrange, a sidebar whose items you can reorder or hide, in-app updates with a Stable or Dev channel, system and in-app notifications, a Settings screen you can search, and a fully translatable interface.
+
+- **Several accounts**: keep more than one Jellyfin account (or server) signed in and switch between them without re-entering anything.
+- **Screen readers**: cards announce themselves as a single item with their title and year, every icon-only button carries a label, and the Movie Night Wheel names its titles and reads out each result.
 
 ## Notifications
 

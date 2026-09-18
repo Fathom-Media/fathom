@@ -22,6 +22,12 @@ class AppNotif {
   /// Optional in-app destination to open when tapped (e.g. '/downloads').
   final String? route;
 
+  /// The go_router `extra` for [route] (e.g. which tab to land on). Only
+  /// JSON-primitive values (int/String/bool) survive a restart — that covers
+  /// every real use so far; a route needing more should carry an id in the
+  /// route path instead of a complex extra.
+  final Object? routeExtra;
+
   const AppNotif({
     required this.id,
     required this.kind,
@@ -30,6 +36,7 @@ class AppNotif {
     required this.time,
     this.read = false,
     this.route,
+    this.routeExtra,
   });
 
   AppNotif copyWith({bool? read}) => AppNotif(
@@ -40,6 +47,7 @@ class AppNotif {
         time: time,
         read: read ?? this.read,
         route: route,
+        routeExtra: routeExtra,
       );
 
   Map<String, dynamic> toJson() => {
@@ -50,6 +58,7 @@ class AppNotif {
         'time': time.toIso8601String(),
         'read': read,
         if (route != null) 'route': route,
+        if (routeExtra != null) 'routeExtra': routeExtra,
       };
 
   factory AppNotif.fromJson(Map<String, dynamic> j) => AppNotif(
@@ -61,5 +70,6 @@ class AppNotif {
         time: DateTime.tryParse(j['time'] as String? ?? '') ?? DateTime(2020),
         read: j['read'] == true,
         route: j['route'] as String?,
+        routeExtra: j['routeExtra'],
       );
 }

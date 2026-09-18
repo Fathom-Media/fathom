@@ -135,12 +135,14 @@ class _CastRemoteState extends ConsumerState<CastRemote> {
                     children: [
                       if (widget.onPrevious != null)
                         IconButton(
+                          tooltip: AppLocalizations.of(context).commonPrevious,
                           iconSize: 36,
                           color: Colors.white,
                           icon: const Icon(Icons.skip_previous_rounded),
                           onPressed: widget.onPrevious,
                         ),
                       IconButton(
+                        tooltip: cast.playing ? AppLocalizations.of(context).commonPause : AppLocalizations.of(context).commonPlay,
                         iconSize: 56,
                         color: Colors.white,
                         icon: Icon(cast.playing
@@ -151,6 +153,7 @@ class _CastRemoteState extends ConsumerState<CastRemote> {
                       ),
                       if (widget.onNext != null)
                         IconButton(
+                          tooltip: AppLocalizations.of(context).commonNext,
                           iconSize: 36,
                           color: Colors.white,
                           icon: const Icon(Icons.skip_next_rounded),
