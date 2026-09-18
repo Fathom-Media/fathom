@@ -23,8 +23,13 @@ import '../widgets/window_frame.dart';
 import '../services/live_players.dart';
 import '../services/sponsorblock.dart';
 import '../services/tv_mode.dart';
+import '../services/fold.dart';
 import '../models/youtube_caption.dart';
 import '../models/youtube_chapter.dart';
+import '../models/youtube_download.dart';
+import '../state/sleep_timer.dart';
+import '../widgets/sleep_timer_sheet.dart';
+import '../widgets/app_snack.dart';
 
 /// Plays a YouTube video (or any direct URL) with the shared Fathom controls.
 ///
@@ -97,6 +102,22 @@ class YoutubeVideoPlayer extends ConsumerStatefulWidget {
   final String? channel;
   final String? artUrl;
 
+  /// Enables the minimize/PiP button outside the usual `embedded` case (a
+  /// downloaded file plays full-screen — no surrounding watch page owns the
+  /// top bar — but should still be mini-player-able like watching online).
+  final bool allowMinimize;
+
+  /// The id the PiP dock reclaims by, and what it hands to [reopenRoute] on
+  /// reopen. Null derives it from [url] the way YouTube URLs always have
+  /// (`youtubeVideoId`), which doesn't work for a local file path — a
+  /// downloaded video passes its own id explicitly.
+  final String? matchId;
+
+  /// Where tapping the dock reopens to, and with what `extra`. Null keeps
+  /// today's default: `/youtube/watch` with `(videoId, title)`.
+  final String? reopenRoute;
+  final Object? reopenExtra;
+
   const YoutubeVideoPlayer({
     super.key,
     required this.url,
@@ -116,6 +137,10 @@ class YoutubeVideoPlayer extends ConsumerStatefulWidget {
     this.onNext,
     this.channel,
     this.artUrl,
+    this.allowMinimize = false,
+    this.matchId,
+    this.reopenRoute,
+    this.reopenExtra,
   });
 
   @override
@@ -130,6 +155,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   // (the video was minimized and is now being reopened), rather than creating a
   // fresh one. Reclaiming skips the reload and keeps playback seamless.
   late final bool _reclaimed;
+  VoidCallback? _unregisterSleep;
   late final VolumeSync _volume = VolumeSync(
     player: _player,
     read: () => ref.read(preferencesProvider).asData?.value.volume ?? 100,
@@ -217,7 +243,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     final pipNotifier = ref.read(pipProvider.notifier);
     final dockedPlayer = pipNotifier.player;
     final dockedController = pipNotifier.controller;
-    final reclaimId = widget.embedded ? youtubeVideoId(widget.url) : null;
+    final reclaimId = (widget.embedded || widget.allowMinimize)
+        ? (widget.matchId ?? youtubeVideoId(widget.url))
+        : null;
     final canReclaim = reclaimId != null &&
         dockedPlayer != null &&
         dockedController != null &&
@@ -263,6 +291,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     }
     // Volume is shared and remembered across every player.
     _volume.attach();
+    _unregisterSleep = ref
+        .read(sleepTimerProvider.notifier)
+        .register((fade) => fadeOutAndPause(_player, fade));
     widget.handle?._seek = _player.seek;
     // Quitting outright skips dispose(); the registry tears mpv down
     // before the engine goes. A reclaimed player is already registered.
@@ -276,7 +307,10 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
       }
     });
     _completedSub = _player.stream.completed.listen((done) {
-      if (done) widget.onEnded?.call();
+      if (!done) return;
+      // The sleep timer is set to stop at the end of this video.
+      if (ref.read(sleepTimerProvider.notifier).consumeEndOfItem()) return;
+      widget.onEnded?.call();
     });
     if (widget.onProgress != null) {
       _progressTimer = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -396,6 +430,16 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     try {
       if (!isYoutubeUrl(widget.url)) {
         await _player.open(Media(widget.url));
+        // A local file (a download): the video itself needs no network, but
+        // captions and SponsorBlock are separate resources keyed by video id
+        // — if a downloaded video knows its real YouTube id (widget.matchId)
+        // and happens to be online, there's no reason to withhold them just
+        // because playback itself came from disk. Both degrade to nothing on
+        // any failure (offline included), so this never risks playback.
+        if (widget.matchId != null) {
+          unawaited(_loadCaptions());
+          unawaited(_loadSponsors());
+        }
         return;
       }
       final s = await resolveYoutubeStreams(widget.url);
@@ -492,7 +536,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   }
 
   Future<void> _loadCaptions() async {
-    final id = youtubeVideoId(widget.url);
+    final id = widget.matchId ?? youtubeVideoId(widget.url);
     if (id == null) return;
     final caps = await resolveYoutubeCaptions(id);
     if (!mounted || caps.isEmpty) return;
@@ -500,7 +544,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
   }
 
   Future<void> _loadSponsors() async {
-    final id = youtubeVideoId(widget.url);
+    final id = widget.matchId ?? youtubeVideoId(widget.url);
     if (id == null || !mounted) return;
     final segments =
         await ref.read(youtubeSponsorSegmentsProvider(id).future);
@@ -527,25 +571,14 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
       // seek, so by default it says what it did and offers a way back.
       if (notify && mounted) {
         final l = AppLocalizations.of(context);
-        ScaffoldMessenger.of(context)
-          // Only one at a time: back-to-back segments would otherwise queue,
-          // and each waits its full turn before the next appears.
-          ..clearSnackBars()
-          ..showSnackBar(SnackBar(
-            duration: const Duration(seconds: 4),
-            // Load-bearing. Flutter defaults persist to `action != null`
-            // (snack_bar.dart: `persist = persist ?? action != null`), so
-            // adding Undo silently opted this into never going away — it sat
-            // there until the action or the route was dismissed. The offer to
-            // undo shouldn't outlive the moment it's useful.
-            persist: false,
-            content: Text(l.playerSkippedSegment(
-                s.category.label.toLowerCase(), s.length.inSeconds)),
-            action: SnackBarAction(
-              label: l.playerUndo,
-              onPressed: () => unawaited(_player.seek(s.start)),
-            ),
-          ));
+        showSnack(
+          context,
+          l.playerSkippedSegment(
+              s.category.label.toLowerCase(), s.length.inSeconds),
+          duration: const Duration(seconds: 4),
+          actionLabel: l.playerUndo,
+          onAction: () => unawaited(_player.seek(s.start)),
+        );
       }
       return;
     }
@@ -754,14 +787,15 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     _progressTimer?.cancel();
     _reportProgress();
     _volume.dispose();
-    final vid = youtubeVideoId(widget.url) ?? '';
+    final vid = widget.matchId ?? youtubeVideoId(widget.url) ?? '';
     ref.read(pipProvider.notifier).adopt(
           player: _player,
           controller: _controller,
           title: widget.title ?? '',
           matchId: vid,
-          route: '/youtube/watch',
-          routeExtra: (videoId: vid, title: widget.title),
+          route: widget.reopenRoute ?? '/youtube/watch',
+          routeExtra:
+              widget.reopenExtra ?? (videoId: vid, title: widget.title),
         );
     if (mounted) Navigator.of(context).maybePop();
   }
@@ -779,6 +813,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
       return;
     }
     _volume.dispose();
+    // A player handed to the PiP dock keeps playing, so it stays registered
+    // with the sleep timer (the early return above).
+    _unregisterSleep?.call();
     _sponsorSub?.cancel();
     _firstFrameSub?.cancel();
     _mpvLogSub?.cancel();
@@ -995,6 +1032,7 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
             if (!widget.embedded)
               SafeArea(
                 child: IconButton.filledTonal(
+                  tooltip: AppLocalizations.of(context).commonBack,
                   icon: const Icon(Icons.arrow_back_rounded),
                   onPressed:
                       widget.onBack ?? () => Navigator.of(context).maybePop(),
@@ -1010,7 +1048,9 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     // owns the keyboard, and stealing focus would break scrolling and search.
     final video = Video(
       controller: _controller,
-      controls: (state) => FathomPlayerControls(
+      controls: (state) => _TabletopFullscreen(
+          controller: _controller,
+          controls: (split) => FathomPlayerControls(
         player: _player,
         title: _titleText(l),
         isLive: _isLive,
@@ -1021,18 +1061,22 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         // two skip buttons parked over the middle of the video are exactly what
         // you don't want while watching it, and every other player fades them.
         // The pointer being off the video most of the time is the argument FOR
-        // this: moving back over it brings them straight back.
-        autoHide: true,
+        // this: moving back over it brings them straight back. Except split at
+        // a fold, where they have the flat half to themselves.
+        autoHide: !split,
         showTopBar: !widget.embedded,
         onBack: widget.onBack ?? () => Navigator.of(context).maybePop(),
         onSeekBy: _seekBy,
         onJumpToLive: _isLive ? _jumpToLive : null,
         onToggleMute: _toggleMute,
-        onMinimize: widget.embedded ? _minimize : null,
+        onMinimize:
+            (widget.embedded || widget.allowMinimize) ? _minimize : null,
         onToggleTheater: widget.onToggleTheater,
         theaterActive: widget.theaterActive,
         onNext: widget.onNext,
         onSpeed: _showSpeedMenu,
+        onSleepTimer: () => showSleepTimerSheet(context,
+            endOfItemLabel: AppLocalizations.of(context).sleepTimerEndOfVideo),
         onQuality: _qualities.isNotEmpty ? _showQualityMenu : null,
         qualityLabel: _qualityLabel == 'Auto' ? l.playerAuto : _qualityLabel,
         onSubtitles: _captions.isNotEmpty ? _showSubtitleMenu : null,
@@ -1041,13 +1085,15 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
         statsOpen: _statsOpen,
         seekBackSeconds: widget.seekBackSeconds,
         seekForwardSeconds: widget.seekForwardSeconds,
+        // Chapters split the bar and get the pill; the ticks are SponsorBlock's.
+        chapters: [
+          for (final c in widget.chapters) (position: c.start, label: c.title),
+        ],
         markers: [
-          for (final c in widget.chapters)
-            (position: c.start, label: c.title),
           for (final s in _sponsors)
             (position: s.start, label: l.playerSkipSegment(s.category.label)),
         ],
-      ),
+      )),
       // Fullscreen orientation follows the video: a 9:16 Short goes immersive
       // portrait instead of being rotated into a landscape letterbox. Normal
       // (wider-than-tall) videos and Android TV keep landscape; desktop uses
@@ -1100,11 +1146,30 @@ class _YoutubeVideoPlayerState extends ConsumerState<YoutubeVideoPlayer>
     // The desktop keyboard shortcuts + autofocus wrapper would intercept the
     // arrows for volume/seek and defeat that, so skip them on TV.
     if (isTvDevice) return video;
+    // Standalone (a trailer, a download) the player is the whole screen, so in
+    // tabletop it takes the half above the crease. Embedded, the watch page
+    // sizes it. Always the same Stack, folded or not: moving the live Video to
+    // a different spot in the tree is something media_kit can't survive.
+    final fold = widget.embedded ? null : tabletopFold(context);
+    final screenHeight = MediaQuery.sizeOf(context).height;
     return CallbackShortcuts(
       bindings: _shortcuts(context),
       child: Focus(
         autofocus: !widget.embedded,
-        child: video,
+        child: ColoredBox(
+          color: Colors.black,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: fold == null ? 0 : screenHeight - fold.position,
+                child: video,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1160,4 +1225,185 @@ class YoutubePlayerScreen extends StatelessWidget {
         backgroundColor: Colors.black,
         body: YoutubeVideoPlayer(url: url, title: title, isTrailer: isTrailer),
       );
+}
+
+/// A downloaded YouTube video, played with the same resume-and-remember
+/// parity as watching online. The video id survives the download (it's the
+/// entry's own key), so there's no reason offline playback should forget
+/// where you left off or lose the channel name from the lock screen just
+/// because it's a local file instead of a stream.
+///
+/// Deliberately its own screen rather than reusing [YoutubePlayerScreen]:
+/// that class is shared with trailers, where resume/watch-position tracking
+/// makes no sense (a trailer isn't a video you pick back up mid-way).
+class YoutubeDownloadPlayerScreen extends ConsumerStatefulWidget {
+  final String path;
+  final String videoId;
+  final String? title;
+  final String? author;
+  final String? thumbnailUrl;
+
+  const YoutubeDownloadPlayerScreen({
+    super.key,
+    required this.path,
+    required this.videoId,
+    this.title,
+    this.author,
+    this.thumbnailUrl,
+  });
+
+  @override
+  ConsumerState<YoutubeDownloadPlayerScreen> createState() =>
+      _YoutubeDownloadPlayerScreenState();
+}
+
+class _YoutubeDownloadPlayerScreenState
+    extends ConsumerState<YoutubeDownloadPlayerScreen> {
+  late final _downloads = ref.read(youtubeDownloadsProvider.notifier);
+
+  // The video on screen. Owned here, not read from the widget, so Next swaps
+  // it in place instead of navigating — mirrors the online watch page, which
+  // deliberately avoids repeated pushReplacement on the same path (it mints
+  // colliding go_router page keys; see _YoutubeWatchScreenState._open).
+  late String _path = widget.path;
+  late String _videoId = widget.videoId;
+  late String? _title = widget.title;
+  late String? _author = widget.author;
+  late String? _thumbnailUrl = widget.thumbnailUrl;
+  late Future<Duration?> _resumeAt = _resolveResume();
+
+  /// Where to pick this video up, or null to start from the beginning — the
+  /// same rule the online watch page uses, against the download's own local
+  /// watch position instead of the shared online history.
+  Future<Duration?> _resolveResume() async {
+    await ref.read(youtubeDownloadsProvider.future);
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    if (prefs != null && !prefs.youtubeResumePlayback) return null;
+    final d = _downloads.entryFor(_videoId);
+    if (d == null || d.watchFinished || d.watchPositionSeconds <= 0) {
+      return null;
+    }
+    return d.watchPosition;
+  }
+
+  void _open(YoutubeDownload d) {
+    if (d.id == _videoId || d.filePath == null) return;
+    setState(() {
+      _path = d.filePath!;
+      _videoId = d.id;
+      _title = d.title;
+      _author = d.author;
+      _thumbnailUrl = d.thumbnailUrl;
+      _resumeAt = _resolveResume();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prefs = ref.watch(preferencesProvider).asData?.value;
+    // Same list, same order as the Downloads tab, so Next matches what
+    // "next in the list" visually means there — completed downloads only,
+    // since a queued/failed entry has no file to play.
+    final done = [
+      for (final d in ref.watch(youtubeDownloadsProvider).asData?.value ??
+          const <YoutubeDownload>[])
+        if (d.status == YtDownloadStatus.done && d.filePath != null) d,
+    ];
+    final idx = done.indexWhere((d) => d.id == _videoId);
+    final next = (idx >= 0 && idx + 1 < done.length) ? done[idx + 1] : null;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: YoutubeVideoPlayer(
+        // A fresh player per video, matching the online watch page: without a
+        // new key, State.initState (which does the actual mpv open()) never
+        // reruns just because the constructor args changed.
+        key: ValueKey(_videoId),
+        url: _path,
+        title: _title,
+        channel: _author,
+        artUrl: _thumbnailUrl,
+        resumeAt: _resumeAt,
+        seekBackSeconds: prefs?.youtubeSeekBackSeconds ?? 10,
+        seekForwardSeconds: prefs?.youtubeSeekForwardSeconds ?? 30,
+        // No ref in here: fires from a timer and from the player's dispose(),
+        // and touching ref once the widget is gone throws.
+        onProgress: (position, duration) => unawaited(
+            _downloads.updateProgress(_videoId, position, duration)),
+        onNext: next != null ? () => _open(next) : null,
+        onEnded: () {
+          if (!mounted || next == null) return;
+          final autoplay =
+              ref.read(preferencesProvider).asData?.value.youtubeAutoplay ??
+                  true;
+          if (autoplay) _open(next);
+        },
+        // Minimize/PiP, like watching online — reclaimed and reopened by this
+        // download's own id/route rather than the online watch page's.
+        allowMinimize: true,
+        matchId: _videoId,
+        reopenRoute: '/youtube/file',
+        reopenExtra: (
+          path: _path,
+          videoId: _videoId,
+          title: _title,
+          author: _author,
+          thumbnailUrl: _thumbnailUrl,
+        ),
+      ),
+    );
+  }
+}
+
+/// Fullscreen in tabletop: the video on the standing half, the controls on
+/// black on the flat half, the same as the Jellyfin player.
+///
+/// media_kit's fullscreen is its own page with the video filling it, and only
+/// the controls are ours to build. So in tabletop the controls cover that page
+/// and draw a second view of the same video above the crease; media_kit's own
+/// fullscreen works the same way, a second view over the page's. Everywhere
+/// else (not fullscreen, not folded) it's just the controls.
+class _TabletopFullscreen extends StatelessWidget {
+  const _TabletopFullscreen({required this.controller, required this.controls});
+
+  final VideoController controller;
+  final Widget Function(bool split) controls;
+
+  @override
+  Widget build(BuildContext context) {
+    final fold = isFullscreen(context) ? tabletopFold(context) : null;
+    final split = fold != null;
+    final height = MediaQuery.sizeOf(context).height;
+    return Stack(
+      children: [
+        if (split) ...[
+          const Positioned.fill(child: ColoredBox(color: Colors.black)),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: height - fold.position,
+            child: Video(
+              controller: controller,
+              controls: NoVideoControls,
+              // The page's own view already holds the wakelock and handles
+              // going to the background; a second one doing it too would fight.
+              wakelock: false,
+              pauseUponEnteringBackgroundMode: false,
+            ),
+          ),
+        ],
+        // Keyed so the controls keep their state when the fold changes which
+        // children come before them.
+        Positioned(
+          key: const ValueKey('controls'),
+          left: 0,
+          right: 0,
+          top: split ? fold.position : 0,
+          bottom: 0,
+          child: controls(split),
+        ),
+      ],
+    );
+  }
 }

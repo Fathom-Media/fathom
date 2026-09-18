@@ -6,12 +6,18 @@ class UserItemData {
   final bool isFavorite;
   final int unplayedItemCount; // unwatched children (series/season)
 
+  /// When this was last played, as the server recorded it. Continue Watching
+  /// comes back in an order that buries the thing you're actually watching, and
+  /// its endpoint takes no sort parameters, so the row is sorted on this.
+  final DateTime? lastPlayedDate;
+
   const UserItemData({
     this.playedPercentage = 0,
     this.playbackPositionTicks = 0,
     this.played = false,
     this.isFavorite = false,
     this.unplayedItemCount = 0,
+    this.lastPlayedDate,
   });
 
   factory UserItemData.fromJson(Map<String, dynamic> json) => UserItemData(
@@ -21,6 +27,8 @@ class UserItemData {
         played: json['Played'] as bool? ?? false,
         isFavorite: json['IsFavorite'] as bool? ?? false,
         unplayedItemCount: (json['UnplayedItemCount'] as num?)?.toInt() ?? 0,
+        lastPlayedDate: DateTime.tryParse(
+            (json['LastPlayedDate'] as String?) ?? ''),
       );
 }
 
@@ -116,6 +124,25 @@ class BaseItemDto {
   final String? overview;
   final List<String> genres;
   final String? mediaType; // Video, Audio
+  /// Jellyfin's ExtraType on a bonus item: Trailer, BehindTheScenes,
+  /// DeletedScene, Interview, Scene, Sample, Clip, Featurette, Short,
+  /// ThemeSong, ThemeVideo. Null on ordinary library items.
+  final String? extraType;
+
+  /// The subtitle tracks the server knows about, including any that live in
+  /// their own file beside the video. Empty unless the item was fetched with
+  /// its media streams (the player does that before it starts).
+  final List<SubtitleStream> subtitleStreams;
+
+  /// The audio tracks the server knows about, in file order.
+  final List<AudioStream> audioStreams;
+
+  /// The item's media source, needed to fetch a subtitle that lives in its own
+  /// file. Usually the same as the item's own id, but not always.
+  final String? mediaSourceId;
+  /// When the item arrived in the library. For a weekly show this is the day
+  /// after each episode airs, which is how Continue Watching spots a new one.
+  final DateTime? dateCreated;
   final bool isFolder;
   final String? officialRating;
   final double? communityRating; // IMDb-style, 0-10
@@ -163,6 +190,11 @@ class BaseItemDto {
     this.overview,
     this.genres = const [],
     this.mediaType,
+    this.extraType,
+    this.subtitleStreams = const [],
+    this.audioStreams = const [],
+    this.mediaSourceId,
+    this.dateCreated,
     this.isFolder = false,
     this.officialRating,
     this.communityRating,
@@ -278,6 +310,11 @@ class BaseItemDto {
       overview: json['Overview'] as String?,
       genres: (json['Genres'] as List?)?.cast<String>() ?? const [],
       mediaType: json['MediaType'] as String?,
+      extraType: json['ExtraType'] as String?,
+      subtitleStreams: parseSubtitleStreams(json),
+      audioStreams: parseAudioStreams(json),
+      mediaSourceId: firstMediaSourceId(json),
+      dateCreated: DateTime.tryParse((json['DateCreated'] as String?) ?? ''),
       isFolder: json['IsFolder'] as bool? ?? false,
       officialRating: json['OfficialRating'] as String?,
       communityRating: (json['CommunityRating'] as num?)?.toDouble(),
@@ -355,3 +392,165 @@ class BaseItemDto {
     return (TrickplayInfo.fromJson(byWidth[width]!), width);
   }
 }
+
+/// One subtitle track as the server describes it.
+///
+/// Jellyfin reports both the tracks inside the video file and any that sit
+/// beside it in their own file (a .srt next to the video, or one a subtitle
+/// plugin downloaded). Only the external ones need Fathom to do anything: the
+/// player never sees them, because they aren't in the stream it opens.
+class SubtitleStream {
+  const SubtitleStream({
+    required this.index,
+    required this.isExternal,
+    required this.isTextSubtitleStream,
+    this.codec,
+    this.displayTitle,
+    this.language,
+    this.title,
+    this.deliveryUrl,
+    this.isForced = false,
+    this.isDefault = false,
+  });
+
+  final int index;
+  final bool isExternal;
+
+  /// False for the picture-based formats (Blu-ray PGS, DVD VobSub, DVB), which
+  /// are images rather than text and so can only be drawn by the player.
+  final bool isTextSubtitleStream;
+  final String? codec;
+  final String? displayTitle;
+  final String? language;
+  final String? title;
+
+  /// Where to fetch an external track, relative to the server.
+  final String? deliveryUrl;
+  final bool isForced;
+  final bool isDefault;
+
+  /// What to call it in the track picker.
+  String get label {
+    final name = (displayTitle?.trim().isNotEmpty ?? false)
+        ? displayTitle!.trim()
+        : (title?.trim().isNotEmpty ?? false)
+            ? title!.trim()
+            : (language ?? codec ?? 'Subtitle');
+    return name;
+  }
+
+  static SubtitleStream? fromJson(Map json) {
+    final index = (json['Index'] as num?)?.toInt();
+    if (index == null) return null;
+    return SubtitleStream(
+      index: index,
+      isExternal: json['IsExternal'] as bool? ?? false,
+      isTextSubtitleStream: json['IsTextSubtitleStream'] as bool? ?? true,
+      codec: json['Codec'] as String?,
+      displayTitle: json['DisplayTitle'] as String?,
+      language: json['Language'] as String?,
+      title: json['Title'] as String?,
+      deliveryUrl: json['DeliveryUrl'] as String?,
+      isForced: json['IsForced'] as bool? ?? false,
+      isDefault: json['IsDefault'] as bool? ?? false,
+    );
+  }
+}
+
+/// The subtitle streams in an item's JSON, from either shape the server uses:
+/// MediaStreams at the top level, or inside the first media source.
+List<SubtitleStream> parseSubtitleStreams(Map<String, dynamic> json) {
+  final out = <SubtitleStream>[];
+  final seen = <int>{};
+  void take(dynamic list) {
+    if (list is! List) return;
+    for (final st in list.whereType<Map>()) {
+      if ('${st['Type']}' != 'Subtitle') continue;
+      final s = SubtitleStream.fromJson(st);
+      if (s != null && seen.add(s.index)) out.add(s);
+    }
+  }
+
+  take(json['MediaStreams']);
+  for (final src in (json['MediaSources'] as List? ?? const [])) {
+    if (src is Map) take(src['MediaStreams']);
+  }
+  return out;
+}
+
+/// One audio track as the server describes it. The player knows little more
+/// than a language code, so the format and channel layout come from here.
+class AudioStream {
+  const AudioStream({
+    required this.index,
+    this.codec,
+    this.profile,
+    this.displayTitle,
+    this.language,
+    this.title,
+    this.channelLayout,
+    this.channels,
+    this.isDefault = false,
+  });
+
+  final int index;
+  final String? codec;
+
+  /// The finer name for the format where there is one: "DTS-HD MA" rather
+  /// than plain "dts".
+  final String? profile;
+  final String? displayTitle;
+  final String? language;
+  final String? title;
+  final String? channelLayout;
+  final int? channels;
+  final bool isDefault;
+
+  static AudioStream? fromJson(Map json) {
+    final index = (json['Index'] as num?)?.toInt();
+    if (index == null) return null;
+    return AudioStream(
+      index: index,
+      codec: json['Codec'] as String?,
+      profile: json['Profile'] as String?,
+      displayTitle: json['DisplayTitle'] as String?,
+      language: json['Language'] as String?,
+      title: json['Title'] as String?,
+      channelLayout: json['ChannelLayout'] as String?,
+      channels: (json['Channels'] as num?)?.toInt(),
+      isDefault: json['IsDefault'] as bool? ?? false,
+    );
+  }
+}
+
+/// The audio streams in an item's JSON, from either shape the server uses.
+List<AudioStream> parseAudioStreams(Map<String, dynamic> json) {
+  final out = <AudioStream>[];
+  final seen = <int>{};
+  void take(dynamic list) {
+    if (list is! List) return;
+    for (final st in list.whereType<Map>()) {
+      if ('${st['Type']}' != 'Audio') continue;
+      final s = AudioStream.fromJson(st);
+      if (s != null && seen.add(s.index)) out.add(s);
+    }
+  }
+
+  take(json['MediaStreams']);
+  for (final src in (json['MediaSources'] as List? ?? const [])) {
+    if (src is Map) take(src['MediaStreams']);
+  }
+  return out;
+}
+
+/// The id of an item's first media source, or null when it has none.
+String? firstMediaSourceId(Map<String, dynamic> json) {
+  for (final src in (json['MediaSources'] as List? ?? const [])) {
+    if (src is Map) {
+      final id = src['Id'];
+      if (id is String && id.isNotEmpty) return id;
+    }
+  }
+  return null;
+}
+

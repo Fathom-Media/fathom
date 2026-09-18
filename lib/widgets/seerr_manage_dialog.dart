@@ -11,6 +11,7 @@ import '../state/seerr_providers.dart';
 import 'app_snack.dart';
 import 'seerr_avatar.dart';
 import 'seerr_edit_request_dialog.dart';
+import 'ui_common.dart';
 
 /// Opens Jellyseerr's "Manage Movie/Series" panel as a right-docked sheet:
 /// per-request approve/decline/edit plus the Advanced actions (mark available,
@@ -82,33 +83,18 @@ class _ManageSheetState extends ConsumerState<_ManageSheet> {
       _invalidate();
       if (mounted) showSnack(context, done, kind: SnackKind.success);
     } catch (e) {
-      if (mounted) showSnack(context, '$e', kind: SnackKind.error);
+      if (mounted) showError(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  Future<bool> _confirm(String title, String message, String action) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(AppLocalizations.of(ctx).commonCancel)),
-          FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(action),
-          ),
-        ],
-      ),
-    );
-    return ok ?? false;
-  }
+  Future<bool> _confirm(String title, String message, String action) =>
+      confirm(context,
+          title: title,
+          message: message,
+          confirmLabel: action,
+          destructive: true);
 
   Future<void> _edit(SeerrRequest r) async {
     final ok = await showSeerrEditRequestDialog(context, r);
@@ -165,6 +151,7 @@ class _ManageSheetState extends ConsumerState<_ManageSheet> {
                       ),
                     ),
                     IconButton(
+                      tooltip: AppLocalizations.of(context).commonClose,
                       icon: const Icon(Icons.close_rounded),
                       onPressed: () => Navigator.of(context).pop(),
                     ),

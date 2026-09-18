@@ -6,7 +6,11 @@ Fathom includes a complete YouTube client, off by default. Turn it on in **Setti
 
 - **Search** across videos, channels, and playlists.
 - **Subscriptions and feed groups**, plus your own **local playlists**.
-- **Comments, captions, chapters**, a play queue, and **theater mode**.
+- **Comments, captions**, a play queue, and **theater mode**.
+- **Chapters, the way YouTube shows them**: the current chapter's title sits in a pill beside the volume control and opens the chapter list, the seek bar splits into a segment per chapter, and hovering or dragging along the bar names the chapter you would land in.
+- **Foldable phones**: in tabletop (half-folded with the crease across the screen) the video takes the standing half, with the details, comments, and Up Next on the flat half. Fullscreen splits the same way.
+- **Shorts**: a vertical swipe pager through a channel's Shorts, with comments, a scrubbable progress bar, and portrait fullscreen.
+- **Background audio**: keep listening with the screen off, with lock-screen and Android Auto controls, a queue, shuffle, and repeat.
 - The same player as the rest of Fathom: one control bar, seek bar, speed control, and keyboard shortcuts.
 
 ## Cleaner viewing

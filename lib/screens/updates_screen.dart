@@ -8,6 +8,7 @@ import '../state/app_info.dart';
 import '../state/installer.dart';
 import '../state/preferences.dart';
 import '../state/updates.dart';
+import '../widgets/app_spinner.dart';
 
 /// In-app update checking: shows the current version, the release channel, and
 /// the result of a GitHub Releases check. Phase 1 links out to the release page
@@ -93,10 +94,7 @@ class UpdatesScreen extends ConsumerWidget {
           FilledButton.icon(
             onPressed: async.isLoading ? null : () => ctrl.check(force: true),
             icon: async.isLoading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.5))
+                ? AppSpinner.inline()
                 : const Icon(Icons.refresh_rounded),
             label: Text(async.isLoading ? l.updateChecking : l.updateCheckNow),
           ),

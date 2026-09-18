@@ -8,6 +8,7 @@ import '../services/tv_mode.dart';
 import '../state/preferences.dart';
 import 'item_actions.dart';
 import 'media_image.dart';
+import 'meta_pill.dart';
 import 'motion.dart';
 import 'tv_focus.dart';
 
@@ -40,12 +41,17 @@ class HoverPosterArt extends ConsumerStatefulWidget {
   /// A custom menu opener that replaces the shared item menu (used by the
   /// offline Downloads library, whose actions are Play / Remove download rather
   /// than the server-side ones). When set, the poster shows the menu affordance
-  /// and calls this instead of [showItemActionsMenu].
-  final VoidCallback? onMenu;
+  /// and calls this instead of [showItemActionsMenu]. Receives the tap/click's
+  /// global position, to anchor a desktop dropdown the same way the shared menu does.
+  final void Function(Offset at)? onMenu;
 
   /// What the menu's "Show Details" runs. Defaults to [onTap]; the Downloads
   /// library sets it to open the detail page while [onTap] plays/drills in.
   final VoidCallback? onOpenDetails;
+
+  /// Adds a "Select" row to this card's menu, which puts the grid into
+  /// multi-select with this item already ticked.
+  final VoidCallback? onSelect;
   const HoverPosterArt(
       {super.key,
       this.item,
@@ -58,7 +64,8 @@ class HoverPosterArt extends ConsumerStatefulWidget {
       this.autofocus = false,
       this.contextActions = true,
       this.onMenu,
-      this.onOpenDetails})
+      this.onOpenDetails,
+      this.onSelect})
       : assert(item != null || art != null);
 
   @override
@@ -86,17 +93,19 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
               widget.item != null &&
               widget.item!.collectionType == null));
 
-  void _openMenu() {
+  void _openMenu(Offset at) {
     if (widget.onMenu != null) {
-      widget.onMenu!();
+      widget.onMenu!(at);
       return;
     }
     showItemActionsMenu(
       context,
       ref,
       widget.item!,
+      at: at,
       fromGrid: true,
       onOpenDetails: widget.onOpenDetails ?? widget.onTap,
+      onSelect: widget.onSelect,
     );
   }
 
@@ -136,8 +145,10 @@ class _HoverPosterArtState extends ConsumerState<HoverPosterArt> {
           },
           child: GestureDetector(
           onTap: widget.onTap,
-          onLongPress: _canMenu ? _openMenu : null,
-          onSecondaryTapDown: _canMenu ? (_) => _openMenu() : null,
+          onLongPressStart:
+              _canMenu ? (d) => _openMenu(d.globalPosition) : null,
+          onSecondaryTapDown:
+              _canMenu ? (d) => _openMenu(d.globalPosition) : null,
           child: DecoratedBox(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(widget.borderRadius),
@@ -384,7 +395,7 @@ class _WatchedBadge extends StatelessWidget {
 /// Small circular hamburger drawn on a poster on hover (desktop). Opens the
 /// shared item context menu.
 class _CardMenuButton extends StatelessWidget {
-  final VoidCallback onTap;
+  final void Function(Offset at) onTap;
   const _CardMenuButton({required this.onTap});
 
   @override
@@ -394,7 +405,12 @@ class _CardMenuButton extends StatelessWidget {
       shape: const CircleBorder(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
+        onTap: () {
+          final box = context.findRenderObject() as RenderBox?;
+          onTap(box == null
+              ? Offset.zero
+              : box.localToGlobal(box.size.center(Offset.zero)));
+        },
         child: const Padding(
           padding: EdgeInsets.all(4),
           child: Icon(Icons.more_vert_rounded, size: 20, color: Colors.white),
@@ -421,7 +437,7 @@ class PosterCard extends StatelessWidget {
 
   /// A custom menu opener (replaces the shared item menu). The Downloads library
   /// passes one for its Play / Remove-download actions.
-  final VoidCallback? onMenu;
+  final void Function(Offset at)? onMenu;
 
   /// What the menu's "Show Details" runs; defaults to [onTap].
   final VoidCallback? onOpenDetails;
@@ -441,7 +457,11 @@ class PosterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
+    // One screen-reader stop that reads "Title, 2019, button", not an
+    // unlabeled tap target followed by stray text.
+    return _CardSemantics(
+      onTap: onTap,
+      child: SizedBox(
       width: width,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -491,6 +511,7 @@ class PosterCard extends StatelessWidget {
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
         ],
       ),
+      ),
     );
   }
 }
@@ -504,8 +525,21 @@ class PosterTile extends StatelessWidget {
   /// on content, not the app bar.
   final bool autofocus;
 
-  const PosterTile(
-      {super.key, required this.item, this.onTap, this.autofocus = false});
+  /// While the grid is selecting, a tap ticks the tile instead of opening it,
+  /// and [selected] draws the tick. Null means the grid isn't selecting.
+  final bool? selected;
+
+  /// Starts multi-select from this tile's own menu.
+  final VoidCallback? onSelect;
+
+  const PosterTile({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.autofocus = false,
+    this.selected,
+    this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -513,12 +547,60 @@ class PosterTile extends StatelessWidget {
     final subtitle = item.isEpisode
         ? (item.seriesName ?? '')
         : (item.productionYear?.toString() ?? '');
-    return Column(
+    final selecting = selected != null;
+    final ticked = selected ?? false;
+    return _CardSemantics(
+      onTap: onTap,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-            child: HoverPosterArt(
-                item: item, onTap: onTap, autofocus: autofocus)),
+            child: Stack(
+          children: [
+            Positioned.fill(
+              child: HoverPosterArt(
+                  item: item,
+                  onTap: onTap,
+                  autofocus: autofocus,
+                  onSelect: onSelect,
+                  // No per-card menu mid-selection: the bar above the grid is
+                  // what acts on things now.
+                  contextActions: !selecting),
+            ),
+            if (selecting)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: ticked
+                          ? theme.colorScheme.primary.withValues(alpha: 0.28)
+                          : Colors.black.withValues(alpha: 0.28),
+                      border: ticked
+                          ? Border.all(
+                              color: theme.colorScheme.primary, width: 3)
+                          : null,
+                    ),
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(
+                          ticked
+                              ? Icons.check_circle_rounded
+                              : Icons.circle_outlined,
+                          color: ticked
+                              ? theme.colorScheme.primary
+                              : Colors.white70,
+                          size: 26,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        )),
         const SizedBox(height: 6),
         Text(item.name,
             maxLines: 1,
@@ -532,29 +614,164 @@ class PosterTile extends StatelessWidget {
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
       ],
+      ),
     );
   }
 }
 
 /// Landscape card with a progress bar (Continue Watching).
-class ContinueCard extends StatelessWidget {
+/// A single extra (behind the scenes, a deleted scene, a trailer file): a
+/// landscape thumbnail with its kind and runtime, which plays on tap.
+class ExtraCard extends StatelessWidget {
   final BaseItemDto item;
-  final VoidCallback? onTap;
-  static const double width = 304;
 
-  const ContinueCard({super.key, required this.item, this.onTap});
+  /// The localized ExtraType ("Deleted Scene"), or null for an unknown kind.
+  final String? kind;
+  final VoidCallback? onTap;
+  static const double width = 240;
+
+  const ExtraCard({super.key, required this.item, this.kind, this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final minutes = item.runTimeTicks == null
+        ? null
+        : (item.runTimeTicks! / 600000000).round();
+    final subtitle = [
+      ?kind,
+      if (minutes != null && minutes > 0) fmtRuntime(minutes),
+    ].join(' · ');
+    return _CardSemantics(
+      onTap: onTap,
+      child: HoverLift(
+        child: SizedBox(
+          width: width,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: TvFocusable(
+                  onTap: onTap,
+                  borderRadius: BorderRadius.circular(12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: InkWell(
+                        onTap: onTap,
+                        canRequestFocus: isTvDevice,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            MediaImage(
+                              item: item,
+                              landscape: true,
+                              placeholderIcon: Icons.movie_creation_outlined,
+                            ),
+                            Center(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.45),
+                                  shape: BoxShape.circle,
+                                ),
+                                padding: const EdgeInsets.all(6),
+                                child: const Icon(Icons.play_arrow_rounded,
+                                    color: Colors.white, size: 22),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600)),
+              if (subtitle.isNotEmpty)
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The landscape card used by Continue Watching and Next Up.
+///
+/// Carries the same item menu a poster does (long-press, right-click, or the
+/// hover hamburger): without it there was nowhere to reach "Remove from
+/// Continue Watching", which is the one action this row exists for.
+class ContinueCard extends ConsumerStatefulWidget {
+  final BaseItemDto item;
+  final VoidCallback? onTap;
+  /// Sits in the Continue Watching row (not Next Up), so its menu offers
+  /// Remove even for a waiting episode.
+  final bool inContinueWatching;
+  static const double width = 304;
+
+  const ContinueCard({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.inContinueWatching = false,
+  });
+
+  @override
+  ConsumerState<ContinueCard> createState() => _ContinueCardState();
+}
+
+class _ContinueCardState extends ConsumerState<ContinueCard> {
+  bool _hover = false;
+
+  // Off TV only, exactly like the poster cards: on TV the card's D-pad path is
+  // left alone and the menu lives on the detail page.
+  bool get _canMenu => !isTvDevice;
+
+  void _openMenu(Offset at) => showItemActionsMenu(
+        context,
+        ref,
+        widget.item,
+        at: at,
+        fromGrid: true,
+        onOpenDetails: widget.onTap,
+        inContinueWatching: widget.inContinueWatching,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final onTap = widget.onTap;
     final theme = Theme.of(context);
     final title = item.isEpisode ? (item.seriesName ?? item.name) : item.name;
     final subtitle = item.isEpisode
         ? _episodeLabel(item)
         : (item.productionYear?.toString() ?? '');
 
-    return HoverLift(
+    return _CardSemantics(
+      onTap: onTap,
+      child: MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+      onLongPressStart:
+          _canMenu ? (d) => _openMenu(d.globalPosition) : null,
+      onSecondaryTapDown:
+          _canMenu ? (d) => _openMenu(d.globalPosition) : null,
+      child: HoverLift(
       child: SizedBox(
-        width: width,
+        width: ContinueCard.width,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -611,6 +828,19 @@ class ContinueCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (_canMenu)
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: AnimatedOpacity(
+                            opacity: _hover ? 1 : 0,
+                            duration: const Duration(milliseconds: 120),
+                            child: IgnorePointer(
+                              ignoring: !_hover,
+                              child: _CardMenuButton(onTap: _openMenu),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -634,6 +864,9 @@ class ContinueCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
+      ),
+      ),
     );
   }
 
@@ -656,7 +889,9 @@ class LibraryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return HoverLift(
+    return _CardSemantics(
+      onTap: onTap,
+      child: HoverLift(
       child: SizedBox(
         width: width,
         child: TvFocusable(
@@ -724,6 +959,21 @@ class LibraryCard extends StatelessWidget {
         ),
         ),
       ),
+      ),
     );
   }
+}
+
+/// Makes a card one screen-reader stop: its tap target, title, and subtitle
+/// read together as a single button ("Title, 2019, button") instead of an
+/// unlabeled tap target followed by stray pieces of text.
+class _CardSemantics extends StatelessWidget {
+  const _CardSemantics({required this.onTap, required this.child});
+  final VoidCallback? onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => MergeSemantics(
+        child: Semantics(button: onTap != null, child: child),
+      );
 }

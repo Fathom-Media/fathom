@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/water_shimmer.dart';
+import '../widgets/app_spinner.dart';
 
 /// The launch splash: a large logo and the app name over a soft depth wash,
 /// shown while the persisted session restores (held a minimum beat by
@@ -63,14 +64,7 @@ class SplashScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 40),
-                    const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Color(0xFF5BC6DE),
-                      ),
-                    ),
+                    AppSpinner.inline(color: Color(0xFF5BC6DE)),
                   ],
                 ),
               ),

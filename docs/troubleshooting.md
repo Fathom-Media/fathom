@@ -70,10 +70,16 @@ Android Auto only lists apps installed from the Play Store by default, and Fatho
 
 This allowance is per device and gets cleared when you switch phones, reinstall Fathom, or update the Android Auto app, so you may need to redo it after any of those.
 
+### Subtitles do not show
+
+- **Check what kind of track it is.** The subtitle menu names each one. A track marked **Forced** only captions foreign-language dialogue, so it is silent during the rest of the film.
+- **Picture tracks (PGS, VobSub)** are drawn by the player over the video. If one still shows nothing, turn on Diagnostic Logging (below), select the track again, and include the log in a bug report.
+- **No subtitles at all?** If your server has a subtitle provider plugin such as OpenSubtitles, use **Search Subtitles Online** at the bottom of the subtitle menu.
+
 ## Diagnostics
 
-For anything harder to pin down, turn on **Diagnostic Logging** in Settings, reproduce the problem, and export the log. It captures app errors and playback details in one place, which is the best thing to attach to a bug report.
+For anything harder to pin down, open **Settings → System → Diagnostics**, turn on **Diagnostic Logging**, reproduce the problem, then tap **Copy Diagnostics**. It captures app errors and playback details in one place, with credentials removed, which is the best thing to attach to a bug report.
 
 ## Still stuck?
 
-Open an issue at [github.com/Fathom-Media/fathom/issues](https://github.com/Fathom-Media/fathom/issues) with your platform, the build version (Settings → Updates shows it), and a diagnostics export if you have one.
+Open an issue at [github.com/Fathom-Media/fathom/issues](https://github.com/Fathom-Media/fathom/issues/new/choose). The bug report form asks for your platform and the Fathom version (**Settings → Updates** shows it), and has a place for the diagnostic log. Questions that are not bugs are welcome in [Discussions](https://github.com/Fathom-Media/fathom/discussions/categories/q-a).

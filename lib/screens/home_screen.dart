@@ -31,7 +31,9 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final resume = ref.watch(resumeItemsProvider);
+    // One row per show, resume and Next Up merged and ordered by what you
+    // actually last watched (see continueWatchingProvider).
+    final resume = ref.watch(continueWatchingProvider);
     final latest = ref.watch(latestItemsProvider);
     final hero = ref.watch(heroItemsProvider);
     final views = ref.watch(userViewsProvider);
@@ -44,7 +46,7 @@ class HomeScreen extends ConsumerWidget {
       ref.invalidate(heroItemsProvider);
       ref.invalidate(userViewsProvider);
       await Future.wait([
-        ref.read(resumeItemsProvider.future),
+        ref.read(continueWatchingProvider.future),
         ref.read(latestItemsProvider.future),
         ref.read(userViewsProvider.future),
       ]);
@@ -97,7 +99,13 @@ class HomeScreen extends ConsumerWidget {
             else if (prefs.homeBanner == 'carousel')
               SliverToBoxAdapter(
                 child: TvScrollToTopOnFocus(
-                  child: FeaturedHero(items: hero.asData?.value ?? const []),
+                  // `value`, not `asData?.value`: asData is null while
+                  // reloading even when there's a previous list, so every
+                  // refresh handed the carousel an empty list for a moment.
+                  // It tore its pages down and rebuilt them at page 0 while
+                  // still showing the old page's title and logo, so a
+                  // Raymond backdrop sat under The Legend of Tarzan's details.
+                  child: FeaturedHero(items: hero.value ?? const []),
                 ),
               )
             else if (prefs.homeBanner == 'detailed' && heroItem != null)
@@ -123,10 +131,14 @@ class HomeScreen extends ConsumerWidget {
                         title: l.browseContinueWatching,
                         height: _resumeRowHeight,
                         async: resume,
-                        onRetry: () => ref.invalidate(resumeItemsProvider),
+                        onRetry: () {
+                          ref.invalidate(resumeItemsProvider);
+                          ref.invalidate(nextUpItemsProvider);
+                        },
                         cardBuilder: (item) => ContinueCard(
                           item: item,
                           onTap: () => context.push('/item', extra: item),
+                          inContinueWatching: true,
                         ),
                       )
                     : null,

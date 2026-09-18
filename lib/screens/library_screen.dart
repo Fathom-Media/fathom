@@ -11,11 +11,14 @@ import '../state/preferences.dart';
 import '../state/session_controller.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
+import '../widgets/item_selection.dart';
+import '../state/library_providers.dart';
 import '../widgets/media_cards.dart';
 import '../widgets/media_image.dart';
 import '../widgets/motion.dart';
 import '../widgets/shimmer.dart';
 import '../widgets/tv_focus.dart';
+import '../widgets/app_spinner.dart';
 
 /// Full contents of one library, as a paged poster grid with infinite scroll.
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -29,6 +32,7 @@ class LibraryScreen extends ConsumerStatefulWidget {
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   static const _pageSize = 100;
   final _scroll = ScrollController();
+  final _selection = ItemSelection();
   final List<BaseItemDto> _items = [];
   int _total = 0;
   bool _loading = false;
@@ -74,12 +78,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   void initState() {
     super.initState();
+    _selection.addListener(_onSelectionChanged);
     _scroll.addListener(_onScroll);
     _loadMore();
   }
 
+  void _onSelectionChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _selection.removeListener(_onSelectionChanged);
+    _selection.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -227,10 +238,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             if (!_genresLoaded)
               const Padding(
                 padding: EdgeInsets.all(12),
-                child: SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2)),
+                child: AppSpinner.inline(),
               )
             else if (_genres.isNotEmpty) ...[
               const SizedBox(height: 10),
@@ -404,7 +412,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ),
       );
     }
-    return GridView.builder(
+    final grid = GridView.builder(
       controller: _scroll,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -422,9 +430,33 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           // On TV the first tile grabs focus so the remote lands on content, not
           // the app bar back button.
           autofocus: isTvDevice && i == 0,
-          onTap: () => context.push('/item', extra: _items[i]),
+          selected:
+              _selection.active ? _selection.contains(_items[i].id) : null,
+          onSelect: isTvDevice ? null : () => _selection.start(_items[i]),
+          onTap: () => _selection.active
+              ? _selection.toggle(_items[i])
+              : context.push('/item', extra: _items[i]),
         ),
       ),
+    );
+    if (!_selection.active) return grid;
+    // The bar sits above the grid rather than replacing the app bar: this
+    // screen's own bar carries the library's filters and sort, which stay
+    // relevant while picking things out of it.
+    final user = ref.watch(currentUserProvider).asData?.value;
+    final session = ref.watch(sessionControllerProvider).asData?.value;
+    return Column(
+      children: [
+        SelectionBar(
+          selection: _selection,
+          all: _items,
+          onChanged: _reload,
+          canDelete: (user?.enableContentDeletion ?? false) ||
+              (user?.isAdministrator ?? false) ||
+              (session?.canDelete ?? false),
+        ),
+        Expanded(child: grid),
+      ],
     );
   }
 }

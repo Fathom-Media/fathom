@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
 import '../models/session.dart';
+import '../services/resilient_secure_storage.dart';
 
 /// Stable per-account identity. Keys on the server id (which survives an
 /// internal/external address swap) plus the user, so the active [Session.baseUrl]
@@ -34,7 +33,7 @@ class Accounts {
 class AccountsStore {
   static const _key = 'fathom_accounts';
   static const _legacyKey = 'fathom_session';
-  final FlutterSecureStorage _storage;
+  final ResilientSecureStorage _storage;
 
   AccountsStore(this._storage);
 

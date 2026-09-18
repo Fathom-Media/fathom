@@ -10,6 +10,7 @@ import '../widgets/cached_image.dart';
 import '../widgets/error_view.dart';
 import '../widgets/motion.dart';
 import '../widgets/seerr_poster_card.dart';
+import '../widgets/app_spinner.dart';
 
 /// Seerr person page: a rotating backdrop of their work, their bio, and a
 /// filterable grid of appearances (each opens the title's detail page).
@@ -29,7 +30,7 @@ class _SeerrPersonScreenState extends ConsumerState<SeerrPersonScreen> {
     final async = ref.watch(seerrPersonProvider(widget.personId));
     return Scaffold(
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: AppSpinner()),
         error: (e, _) => SafeArea(
           child: Column(
             children: [

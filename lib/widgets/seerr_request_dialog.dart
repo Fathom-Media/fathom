@@ -10,6 +10,8 @@ import '../state/seerr_providers.dart';
 import '../theme/app_theme.dart';
 import 'cached_image.dart';
 import 'seerr_avatar.dart';
+import 'app_snack.dart';
+import 'app_spinner.dart';
 
 /// Jellyseerr's request flow: a backdrop header, a per-season table for a
 /// series, and the advanced options (4K, server, quality/language profile,
@@ -59,6 +61,11 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
   final Set<int> _selectedSeasons = {};
   String? _backdropUrl;
 
+  // A per-user (Jellyfin/local) sign-in: the "request as" admin override
+  // doesn't apply and must never be sent (see the note in _load).
+  bool get _isCookieMode =>
+      ref.read(preferencesProvider).asData?.value.seerrAuthMode == 'cookie';
+
   bool get _isTv => widget.result.mediaType == 'tv';
   List<SeerrSeason> get _requestable =>
       _seasons.where((s) => !s.isAvailable && !s.isRequested).toList();
@@ -82,8 +89,15 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
       return;
     }
     try {
+      // "Request as another user" is an admin-only Jellyseerr feature: the
+      // /user list endpoint needs admin permissions, and the request endpoint
+      // rejects a userId field from a plain per-user session even when it
+      // matches the caller's own id ("needs an api key"). So a signed-in
+      // (cookie) user never sees or sends this — the server already attributes
+      // the request to them from the session. Only the admin API key mode
+      // fetches the user list and offers the picker.
       final results = await Future.wait([
-        client.requestUsers(),
+        _isCookieMode ? Future.value(<SeerrUser>[]) : client.requestUsers(),
         client.servers(widget.result.mediaType),
         if (_isTv)
           client
@@ -103,7 +117,7 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
       setState(() {
         _users = users;
         _servers = servers;
-        _userId = users.isNotEmpty ? users.first.id : null;
+        _userId = (!_isCookieMode && users.isNotEmpty) ? users.first.id : null;
         _serverId = server?.id;
         _opts = opts;
         _applyDefaults();
@@ -185,14 +199,18 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
         profileId: _profileId,
         rootFolder: rootFolder,
         languageProfileId: _isTv ? _languageProfileId : null,
-        userId: _userId,
+        // Never sent for a signed-in (cookie) user: Jellyseerr treats userId as
+        // an admin override and rejects it from a per-user session even when
+        // it's their own id, so the server attributes the request to them
+        // from the session instead.
+        userId: _isCookieMode ? null : _userId,
         tags: _selectedTags.toList(),
       );
       if (mounted) Navigator.pop(context, true);
-      messenger.showSnackBar(SnackBar(
-          content: Text(l.detailRequestedTitle(widget.result.title))));
+      showSnackOn(messenger, l.detailRequestedTitle(widget.result.title),
+          kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
       if (mounted) setState(() => _busy = false);
     }
   }
@@ -211,7 +229,7 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
         child: _loading
             ? const SizedBox(
                 height: 220,
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppSpinner()),
               )
             : Column(
                 mainAxisSize: MainAxisSize.min,
@@ -290,9 +308,7 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
     final scheme = theme.colorScheme;
     final serverOptions = _serversForMode;
     // The admin API key auto-approves; a signed-in user follows their perms.
-    final autoApproves = ref.read(preferencesProvider).asData?.value
-            .seerrAuthMode !=
-        'cookie';
+    final autoApproves = !_isCookieMode;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -616,25 +632,30 @@ class _SeerrRequestDialogState extends ConsumerState<_SeerrRequestDialog> {
         : l.detailRequest;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          TextButton(
-              onPressed: _busy ? null : () => Navigator.pop(context, false),
-              child: Text(l.commonCancel)),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            style: kInlineButtonStyle,
-            onPressed: canSubmit ? _submit : null,
-            icon: _busy
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.download_rounded, size: 18),
-            label: Text(label),
-          ),
-        ],
+      // Scale-safe: "Select Season(s)" is already the longest of these
+      // labels in English, and a longer translation could outgrow a narrow
+      // phone's width even inside this dialog's own cap, so shrink together
+      // (both stay fully readable, just smaller) rather than hard-overflowing.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerRight,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+                onPressed: _busy ? null : () => Navigator.pop(context, false),
+                child: Text(l.commonCancel)),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              style: kInlineButtonStyle,
+              onPressed: canSubmit ? _submit : null,
+              icon: _busy
+                  ? AppSpinner.inline()
+                  : const Icon(Icons.download_rounded, size: 18),
+              label: Text(label),
+            ),
+          ],
+        ),
       ),
     );
   }

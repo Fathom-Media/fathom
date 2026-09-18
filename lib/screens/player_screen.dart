@@ -9,7 +9,9 @@ import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
+import '../widgets/app_snack.dart';
 import '../widgets/player_controls.dart';
+import '../widgets/sleep_timer_sheet.dart';
 
 import '../api/jellyfin_client.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -17,8 +19,12 @@ import '../routing/app_shell.dart';
 import '../models/base_item.dart';
 import '../state/admin_providers.dart';
 import '../models/media_segment.dart';
+import '../models/remote_subtitle.dart';
 import '../models/session.dart';
 import '../services/diagnostics.dart';
+import '../services/fold.dart';
+import '../services/subtitle_labels.dart';
+import '../services/track_languages.dart';
 import '../services/tv_mode.dart';
 import '../widgets/window_frame.dart';
 import '../widgets/cast_button.dart';
@@ -29,6 +35,7 @@ import '../state/media_session.dart';
 import '../state/cast.dart';
 import '../state/downloads.dart';
 import '../state/preferences.dart';
+import '../state/sleep_timer.dart';
 import '../state/library_providers.dart';
 import '../state/pip_controller.dart';
 import '../state/providers.dart';
@@ -65,6 +72,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // handed the player TO the dock (dispose/deactivate must leave it alone).
   bool _reclaimed = false;
   bool _minimized = false;
+  // A context from inside media_kit's controls tree, which it reuses in both
+  // the windowed and fullscreen trees (see _wrapControls). isFullscreen()/
+  // exitFullscreen() need a context scoped there, not the screen's own,
+  // to correctly see FullscreenInheritedWidget while actually fullscreen.
+  BuildContext? _controlsContext;
+  VoidCallback? _unregisterSleep;
   late final VolumeSync _volume = VolumeSync(
     player: _player,
     read: () => ref.read(preferencesProvider).asData?.value.volume ?? 100,
@@ -244,15 +257,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _enterImmersiveLandscape() {
     if (!_isMobile) return;
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    // Only the system bars here. Whether to ask for landscape depends on the
+    // screen size, which isn't readable yet from initState, and asking
+    // unconditionally made a tablet or unfolded foldable rotate and then
+    // rotate back as the first build withdrew it. build() decides the lock.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  // Whether the landscape lock is currently asked for, so a fold/unfold only
+  // talks to the platform when the answer actually changes.
+  bool? _landscapeLocked;
+
+  /// Android 12 and later IGNORE an orientation request from a resizable app on
+  /// a large screen, and offer the user a manual rotate button instead: asking
+  /// for landscape on an unfolded foldable produced exactly that button, and
+  /// video played portrait with black bars until it was tapped. So the lock is
+  /// for phone-sized screens only; a tablet or an unfolded foldable is left to
+  /// auto-rotate, which is both what the system wants and what makes tabletop
+  /// posture reachable by just turning the device.
+  void _lockLandscape(bool want) {
+    if (!_isMobile || _landscapeLocked == want) return;
+    _landscapeLocked = want;
+    SystemChrome.setPreferredOrientations(want
+        ? const [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]
+        : const []);
   }
 
   void _restoreSystemUi() {
     if (!_isMobile) return;
+    _landscapeLocked = null;
     // Empty list = no lock (restore whatever the app allowed before), and bring
     // the status/nav bars back edge-to-edge.
     SystemChrome.setPreferredOrientations(const []);
@@ -372,6 +405,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     syncSession.notifyPlayerOpened();
     // Volume is shared and remembered across every player.
     _volume.attach();
+    _unregisterSleep = ref
+        .read(sleepTimerProvider.notifier)
+        .register((fade) => fadeOutAndPause(_player, fade));
     // Quitting outright skips dispose(); the registry tears mpv down
     // before the engine goes. A reclaimed player is already registered.
     if (!_reclaimed) LivePlayers.add(_player);
@@ -403,7 +439,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     });
     _positionSub = _player.stream.position.listen(_onPosition);
-    _tracksSub = _player.stream.tracks.listen((_) => _applyDefaultTracks());
+    _tracksSub = _player.stream.tracks.listen((tracks) {
+      if (!_loadedExternalSubtitle) _fileSubtitleTracks = tracks.subtitle;
+      _applyDefaultTracks();
+    });
     _completedSub = _player.stream.completed.listen((done) {
       if (done) _onCompleted();
     });
@@ -564,6 +603,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _resumeAfterReclaim() {
     _session = ref.read(sessionControllerProvider).asData?.value;
     _client = ref.read(jellyfinClientProvider);
+    _container = ProviderScope.containerOf(context, listen: false);
     _started = true;
     _isPlaying = _player.state.playing;
     _progressTimer?.cancel();
@@ -621,6 +661,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final l = AppLocalizations.of(context);
     _session = session;
     _client = client;
+    _container = ProviderScope.containerOf(context, listen: false);
     unawaited(_loadSiblingEpisodes());
 
     // Don't let background music play under the video.
@@ -733,8 +774,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 '${startPrefs?.hardwareDecoding ?? true} '
                 'url=${redactUrl(url)}');
       }
+      final resumeTicks = widget.resume && !widget.item.isLiveChannel
+          ? await _currentResumeTicks(client, session, url)
+          : 0;
+      _resumeTicks = resumeTicks;
+      // Where to start:
+      // - FOLLOWER: the group's current position.
+      // - INITIATOR in a group, and solo playback: our resume point, which an
+      //   initiator also broadcasts as the queue's StartPositionTicks, so every
+      //   member's transcode simply begins there with no mid-stream cold-seek
+      //   (which is what thrashed the group).
+      Duration startAt = Duration(microseconds: resumeTicks ~/ 10);
+      if (syncing && syncSession.groupStartPosition > Duration.zero) {
+        startAt = syncSession.groupStartPosition;
+      }
+      if (startAt > Duration.zero) {
+        _suppressGroup(); // starting mid-file isn't a user seek; don't broadcast
+      }
       _playUrl = url;
-      await _player.open(Media(url), play: !syncing);
+      await _openAt(url, startAt, play: !syncing);
 
       final prefs = ref.read(preferencesProvider).asData?.value;
       if (prefs != null && prefs.subtitleScale != 1.0) {
@@ -785,29 +843,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             : l.playerVideoSlowStart);
       });
 
-      final resumeTicks =
-          widget.resume ? widget.item.resumePositionTicks : 0;
-      // Where to start:
-      // - FOLLOWER: the group's current position.
-      // - INITIATOR in a group: from the BEGINNING (0). Broadcasting a deep
-      //   resume point makes every follower cold-seek a fresh stream to that
-      //   spot, which they can't do fast enough — the group then thrashes and
-      //   resets (the observed Seek-to-0). Starting at 0 keeps everyone aligned;
-      //   anyone can seek together once playing.
-      // - SOLO (not in a group): our own resume point.
-      // A FOLLOWER joins at the group's current position; an INITIATOR (and solo
-      // playback) start at our resume point and BROADCAST it as the queue's
-      // StartPositionTicks — so every member's transcode simply begins there,
-      // with no mid-stream cold-seek (which is what thrashed the group).
-      Duration startAt = Duration(microseconds: resumeTicks ~/ 10);
-      if (syncing && syncSession.groupStartPosition > Duration.zero) {
-        startAt = syncSession.groupStartPosition;
-      }
-      if (startAt > Duration.zero) {
-        _suppressGroup(); // this seek isn't a user action; don't broadcast it
-        await _seekWhenReady(startAt);
-      }
-
       _started = true;
       // Telling the server "I started" is bookkeeping for resume-sync, not part
       // of playback. Its failure must never surface as a playback error — a
@@ -848,8 +883,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  // Typed, never dynamic: the client's methods are extensions (one per API
+  // area), and an extension method called on a dynamic value doesn't exist at
+  // runtime. As dynamic, this threw NoSuchMethodError on every play, the catch
+  // below hid it, and the server never saved a resume point.
   Future<void> _reportStartQuietly(
-      dynamic client, dynamic session, int resumeTicks) async {
+      JellyfinClient client, Session session, int resumeTicks) async {
     try {
       await client.reportPlaybackStart(
         baseUrl: session.baseUrl,
@@ -925,12 +964,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     try {
       final url = await _videoUrlForQuality();
       _playUrl = url;
-      await _player.open(Media(url));
-      _appliedTracks = false;
       if (pos > Duration.zero) {
         _suppressGroup(); // reopening at the same spot isn't a group seek
-        await _seekWhenReady(pos);
       }
+      await _openAt(url, pos);
+      _appliedTracks = false;
     } catch (e) {
       if (mounted) setState(() => _error = l.playerQualityChangeFailed('$e'));
     }
@@ -938,18 +976,160 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Seeks once the demuxer reports a duration past the target, so mpv doesn't
   /// drop an early seek issued before the media is loaded.
-  Future<void> _seekWhenReady(Duration target) async {
+  /// The resume point this playback started from, for the transcode fallback.
+  int _resumeTicks = 0;
+
+  /// Where to resume, asked of the server rather than read off the item that
+  /// was tapped. That item comes from a card or a detail page loaded before
+  /// the last playback's Stopped report reached the server, so it lagged a
+  /// session behind: the third play resumed where the first one stopped. The
+  /// server's copy is also right after watching on another device. Falls back
+  /// to the item's own value for a downloaded file or an unreachable server.
+  Future<int> _currentResumeTicks(
+      JellyfinClient client, Session session, String url) async {
+    final known = widget.item.resumePositionTicks;
+    if (!url.startsWith('http')) return known;
     try {
-      if (_player.state.duration <= target) {
-        await _player.stream.duration
-            .firstWhere((d) => d > target)
-            .timeout(const Duration(seconds: 15));
+      final fresh = await client
+          .getItem(
+            baseUrl: session.baseUrl,
+            userId: session.userId,
+            token: session.accessToken,
+            itemId: widget.item.id,
+          )
+          .timeout(const Duration(seconds: 3));
+      // The same fetch carries the server's subtitle list. It names the
+      // tracks far better than the player does (which knows only a language
+      // code), and it's the only place tracks stored in their own file appear:
+      // the stream the player opens has no idea those exist.
+      if (mounted &&
+          (fresh.subtitleStreams.isNotEmpty || fresh.audioStreams.isNotEmpty)) {
+        setState(() {
+          _serverSubtitles = fresh.subtitleStreams;
+          _serverAudio = fresh.audioStreams;
+          _mediaSourceId = fresh.mediaSourceId;
+        });
       }
-      if (_disposed) return;
-      await _player.seek(target);
+      return fresh.resumePositionTicks;
     } catch (_) {
-      // Duration never arrived (odd media) — leave playback at the start.
+      return known;
     }
+  }
+
+  /// Every subtitle track the server knows about, in file order.
+  List<SubtitleStream> _serverSubtitles = const [];
+
+  /// Every audio track the server knows about, in file order.
+  List<AudioStream> _serverAudio = const [];
+
+  /// The subtitle tracks that came with the file, as the player first reported
+  /// them.
+  ///
+  /// Loading a track from its own file makes the player add it to that list, so
+  /// after one download the picker showed the file twice and, with the two
+  /// lists no longer the same length, gave up on the server's names and
+  /// listed "th 1", "th 2" again. This snapshot is what the file itself has;
+  /// tracks stored beside it come from the server's list instead.
+  List<SubtitleTrack> _fileSubtitleTracks = const [];
+
+  /// Set once a track from its own file has been loaded, so the snapshot above
+  /// isn't taken again until the next open.
+  bool _loadedExternalSubtitle = false;
+
+  /// The media source the subtitle routes want, from the same fetch.
+  String? _mediaSourceId;
+
+  /// The server's description of the audio tracks, in the order the player
+  /// reports them. Null when the two don't agree on how many there are.
+  List<AudioStream>? _audioInfo(List<AudioTrack> tracks) {
+    final real = tracks.where((t) => t.id != 'no' && t.id != 'auto').length;
+    return _serverAudio.length == real ? _serverAudio : null;
+  }
+
+  /// The ones stored beside the video, added to the picker below the tracks
+  /// inside it. Loaded by URL when chosen.
+  List<SubtitleStream> get _externalSubtitles =>
+      [for (final t in _serverSubtitles) if (t.isExternal) t];
+
+  /// The subtitle tracks the file itself carries, without any loaded from
+  /// their own file since.
+  List<SubtitleTrack> get _subtitleTracksInFile =>
+      _fileSubtitleTracks.isEmpty ? _player.state.tracks.subtitle : _fileSubtitleTracks;
+
+  /// The server's description of the tracks inside the file, in the same order
+  /// the player reports them, so each one can be named properly. Only when the
+  /// two agree on how many there are: a transcode can hand the player a
+  /// different set, and a wrong name is worse than a plain one.
+  List<SubtitleStream>? _embeddedSubtitleInfo(List<SubtitleTrack> tracks) {
+    final inFile = [
+      for (final t in _serverSubtitles)
+        if (!t.isExternal) t
+    ];
+    final real = tracks.where((t) => t.id != 'no' && t.id != 'auto').length;
+    return inFile.length == real ? inFile : null;
+  }
+
+  /// The external track showing now, so the picker can tick it (the player
+  /// reports a URI track with no name of its own).
+  SubtitleStream? _activeExternalSubtitle;
+
+  Future<void> _setPlayerSubtitleDrawing(bool on) async {
+    try {
+      await (_player.platform as dynamic)
+          .setProperty('sub-visibility', on ? 'yes' : 'no');
+    } catch (_) {
+      // Not fatal: text subtitles still come through the app's own layer.
+    }
+  }
+
+  /// Picks a track that lives inside the file.
+  Future<void> _selectSubtitle(SubtitleTrack track) async {
+    _activeExternalSubtitle = null;
+    await _player.setSubtitleTrack(track);
+    await _setPlayerSubtitleDrawing(isImageSubtitleCodec(track.codec));
+  }
+
+  /// Picks a track from its own file, by URL.
+  Future<void> _selectExternalSubtitle(SubtitleStream stream) async {
+    final session = _session, client = _client;
+    if (session == null || client == null) return;
+    _activeExternalSubtitle = stream;
+    _loadedExternalSubtitle = true;
+    await _player.setSubtitleTrack(SubtitleTrack.uri(
+      client.subtitleUrl(
+        baseUrl: session.baseUrl,
+        token: session.accessToken,
+        itemId: widget.item.id,
+        index: stream.index,
+        deliveryUrl: stream.deliveryUrl,
+        mediaSourceId: _mediaSourceId,
+        codec: stream.codec,
+      ),
+      title: stream.label,
+      language: stream.language,
+    ));
+    // An external track the server hands over as an image (a .sup beside the
+    // video) still needs the player to draw it.
+    await _setPlayerSubtitleDrawing(!stream.isTextSubtitleStream);
+  }
+
+  /// Opens [url] starting at [at] (or the beginning when zero).
+  ///
+  /// The position goes to mpv with the file, not as a seek afterwards. On
+  /// Android a seek sent right after open raced mpv's own load: a real resume
+  /// landed on the saved spot and then snapped back to 0 a quarter of a second
+  /// later, with nothing in Fathom asking it to. Desktop won the race, which is
+  /// why resume only broke on phones.
+  ///
+  /// Also records [at] as the last position seen, so arriving there isn't read
+  /// as a jump and broadcast to a SyncPlay group as somebody's seek, however
+  /// long the open takes.
+  Future<void> _openAt(String url, Duration at, {bool play = true}) {
+    _lastPos = at;
+    _loadedExternalSubtitle = false;
+    _fileSubtitleTracks = const [];
+    return _player.open(Media(url, start: at > Duration.zero ? at : null),
+        play: play);
   }
 
   /// How the current stream is being delivered, for the stats overlay. Fathom
@@ -991,12 +1171,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         forceTranscode: true,
       );
       _playUrl = url;
-      await _player.open(Media(url));
-      final resumeTicks = widget.item.resumePositionTicks;
+      final resumeTicks = _resumeTicks;
       if (resumeTicks > 0) {
         _suppressGroup(); // transcode-fallback resume isn't a group seek
-        await _seekWhenReady(Duration(microseconds: resumeTicks ~/ 10));
       }
+      await _openAt(url, Duration(microseconds: resumeTicks ~/ 10));
       _loadTimer?.cancel();
       _loadTimer = Timer(const Duration(seconds: 30), () {
         if (mounted && !_isPlaying) {
@@ -1166,13 +1345,40 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } catch (_) {}
   }
 
-  void _playEpisodeAt(int index) {
+  /// media_kit's desktop fullscreen is a route pushed directly onto the same
+  /// Navigator go_router owns (see _wrapControls). Replacing the /player
+  /// route (episode advance) while that route is still sitting on top of it
+  /// discards it ungracefully, so desktopFullscreen never gets reset and
+  /// the custom title bar wrongly reappears over what's still a fullscreen-
+  /// looking video. Exit it properly first, through the media_kit helpers
+  /// (which need a context scoped inside the controls tree to see it, the
+  /// screen's own context can't), so the window/title-bar state stays sane
+  /// across the transition.
+  Future<void> _exitFullscreenIfNeeded() async {
+    final cc = _controlsContext;
+    if (cc == null || !cc.mounted) {
+      Diagnostics.instance.add(
+          'player', 'exitFullscreenIfNeeded: no controls context, skipped');
+      return;
+    }
+    if (isFullscreen(cc)) {
+      Diagnostics.instance
+          .add('player', 'exitFullscreenIfNeeded: exiting before episode change');
+      await exitFullscreen(cc);
+    }
+  }
+
+  Future<void> _playEpisodeAt(int index) async {
     if (index < 0 || index >= _episodes.length) return;
+    await _exitFullscreenIfNeeded();
+    if (!mounted) return;
     context.pushReplacement('/player', extra: _episodes[index]);
   }
 
   Future<void> _onCompleted() async {
     if (!mounted || _deactivated) return;
+    // The sleep timer is set to stop at the end of this one.
+    if (ref.read(sleepTimerProvider.notifier).consumeEndOfItem()) return;
     if (widget.item.isLiveChannel || !widget.item.isEpisode) return;
     final seriesId = widget.item.seriesId;
     if (seriesId == null) return;
@@ -1188,6 +1394,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         seriesId: seriesId,
       );
       if (next != null && next.id != widget.item.id && mounted) {
+        await _exitFullscreenIfNeeded();
+        if (!mounted) return;
         context.pushReplacement('/player', extra: next);
       }
     } catch (_) {}
@@ -1207,7 +1415,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (prefs.subtitleLanguage.isNotEmpty) {
       final match = tracks.subtitle.where((t) =>
           (t.language ?? '').toLowerCase().startsWith(prefs.subtitleLanguage));
-      if (match.isNotEmpty) _player.setSubtitleTrack(match.first);
+      if (match.isNotEmpty) {
+        unawaited(_selectSubtitle(match.first));
+      } else {
+        final beside = _externalSubtitles.where((t) =>
+            (t.language ?? '').toLowerCase().startsWith(prefs.subtitleLanguage));
+        if (beside.isNotEmpty) unawaited(_selectExternalSubtitle(beside.first));
+      }
     }
   }
 
@@ -1261,6 +1475,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// runs from deactivate() and again from dispose(), and must not double-post.
   bool _released = false;
 
+  /// Captured while mounted: the refresh below runs after the screen is gone.
+  ProviderContainer? _container;
+
+  /// Refreshes everything showing this item's progress once the server has
+  /// the stopping position. The screens refresh as soon as the player closes,
+  /// which is before this report lands, so on their own they fetched the
+  /// position from the playback before.
+  static void _refreshAfterStop(ProviderContainer? container, BaseItemDto item) {
+    if (container == null || item.isLiveChannel) return;
+    container
+      ..invalidate(itemDetailProvider(item.id))
+      ..invalidate(resumeItemsProvider)
+      ..invalidate(nextUpItemsProvider);
+    final seriesId = item.seriesId;
+    if (seriesId != null) {
+      container
+        ..invalidate(itemDetailProvider(seriesId))
+        ..invalidate(episodesProvider(seriesId))
+        ..invalidate(nextUpProvider(seriesId));
+    }
+  }
+
   void _releaseServerSide() {
     if (_released) return;
     _released = true;
@@ -1273,14 +1509,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_started) {
       // The live ids are what tell the server which session ended; without
       // them it leaves the tuner and the transcode running.
-      unawaited(client.reportPlaybackStopped(
-        baseUrl: session.baseUrl,
-        token: session.accessToken,
-        itemId: widget.item.id,
-        positionTicks: positionTicks,
-        liveStreamId: liveStreamId,
-        playSessionId: _livePlaySessionId,
-      ));
+      final container = _container;
+      final item = widget.item;
+      unawaited(client
+          .reportPlaybackStopped(
+            baseUrl: session.baseUrl,
+            token: session.accessToken,
+            itemId: item.id,
+            positionTicks: positionTicks,
+            liveStreamId: liveStreamId,
+            playSessionId: _livePlaySessionId,
+          )
+          .then((_) => _refreshAfterStop(container, item)));
     }
     if (liveStreamId != null) {
       unawaited(client.closeLiveStream(
@@ -1421,6 +1661,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
     _volume.dispose();
+    // A player handed to the dock keeps playing after this screen goes, so it
+    // stays registered with the sleep timer (the early return above).
+    _unregisterSleep?.call();
     LivePlayers.remove(_player);
     _progressTimer?.cancel();
     _loadTimer?.cancel();
@@ -1576,6 +1819,108 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ? _LiveRecBadge(programId: program.id)
         : null;
 
+    // Tabletop: half-folded with the crease across the middle, so the top half
+    // stands up like a screen and the bottom lies flat. The picture goes above
+    // the crease and the controls below it, instead of the controls sitting on
+    // the picture. Only on a phone-sized foldable; everywhere else (and when
+    // the device reports no fold, which happens even on one that has one) this
+    // is false and the layout is exactly as it was.
+    final fold = FoldInfo.of(context);
+    final tabletop = _isMobile && !_inPip && (fold?.isTabletop ?? false);
+    // Folding changes the screen size under the player, so the lock is decided
+    // per build rather than once on entry.
+    if (!_inPip) {
+      _lockLandscape(MediaQuery.sizeOf(context).shortestSide < 600);
+    }
+    final crease = fold?.position ?? 0;
+    final playerControls = FathomPlayerControls(
+    player: _player,
+    // In tabletop the controls own the bottom half, so there's nothing for
+    // them to get out of the way of: fading out would just leave a black
+    // slab under the picture.
+    autoHide: !tabletop,
+    trickItemId: widget.item.id,
+    title: _title,
+    channelNumber:
+        isLive ? widget.item.channelNumber : null,
+    isLive: widget.item.isLiveChannel,
+    barStyle: prefs?.playerBarStyle ?? 'glass',
+    // On a phone the route is already fullscreen and we
+    // force landscape, so hide the redundant fullscreen
+    // control (and its double-tap gesture).
+    showFullscreen: !_isMobile,
+    // Left-swipe brightness / right-swipe volume, phone only.
+    touchGestures: _isMobile,
+    // Hide the generic spinner while a SyncPlay cue is
+    // shown — the sync glyph is the status indicator then,
+    // and two overlapping spinners just fight for space.
+    loading: !_isPlaying && _syncCue == null,
+    onBack: () => Navigator.of(context).maybePop(),
+    onSeekBy: _seekBy,
+    onJumpToLive: isLive ? _jumpToLive : null,
+    onSubtitles: _showSubtitleMenu,
+    onAudio: _showAudioMenu,
+    // Speed and Quality are meaningless on a live stream
+    // (it always plays at 1x, and there's no transcode
+    // ladder), so both are hidden there.
+    onSpeed: widget.item.isLiveChannel
+        ? null
+        : _showSpeedMenu,
+    onQuality: widget.item.isLiveChannel
+        ? null
+        : _showQualityMenu,
+    qualityLabel: qualityLabel,
+    onChapters: widget.item.chapters.isNotEmpty
+        ? _showChapters
+        : null,
+    onSleepTimer: () => showSleepTimerSheet(context,
+        endOfItemLabel: widget.item.isLiveChannel
+            ? null
+            : widget.item.isEpisode
+                ? AppLocalizations.of(context)
+                    .sleepTimerEndOfEpisode
+                : AppLocalizations.of(context)
+                    .sleepTimerEndOfVideo),
+    statsPlayMethod: _playMethodLabel(l),
+    statsOpen: _statsOpen,
+    markers: [
+      for (final c in widget.item.chapters)
+        (position: c.start, label: c.name ?? l.playerChapter),
+      for (final seg in _segments)
+        (position: seg.start, label: seg.categoryLabel(l)),
+    ],
+    recordButton: (widget.item.isLiveChannel &&
+            widget.item.currentProgram != null)
+        ? LiveRecordButton(
+            programId: widget.item.currentProgram!.id)
+        : null,
+    onToggleMute: _toggleMute,
+    trickplay: _trickplay,
+    trickplayWidth: _trickWidth,
+    baseUrl: session?.baseUrl,
+    client: ref.read(jellyfinClientProvider),
+    headers: ref.read(imageHeadersProvider),
+    showThumbnailPreview:
+        prefs?.previewThumbnailsWhileSeeking ?? true,
+    infoPanel: _tvInfoPanel(),
+    liveBottomInfo: liveBottomInfo,
+    overlayBadge: liveRecBadge,
+    // No picture-in-picture on TV: the mini-player is a
+    // phone/desktop paradigm and isn't reachable on a TV, so
+    // the button is dropped there (kept elsewhere).
+    onMinimize: isTvDevice ? null : _minimize,
+    onVisibilityChanged: (v) {
+      if (mounted) setState(() => _chromeVisible = v);
+    },
+    onPrevious: _epIndex > 0
+        ? () => _playEpisodeAt(_epIndex - 1)
+        : null,
+    onNext:
+        (_epIndex >= 0 && _epIndex < _episodes.length - 1)
+            ? () => _playEpisodeAt(_epIndex + 1)
+            : null,
+  );
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: _error != null
@@ -1590,7 +1935,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 bindings: _buildShortcuts(context),
                 child: Stack(
                   children: [
-                    Positioned.fill(
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      // Above the crease in tabletop, the whole screen otherwise.
+                      bottom: tabletop
+                          ? MediaQuery.sizeOf(context).height - crease
+                          : 0,
                       child: Video(
                         controller: _controller,
                         fit: fit,
@@ -1600,12 +1952,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         // media_kit's native fullscreen; mobile keeps the default.
                         onEnterFullscreen: isDesktopWindowFrame
                             ? () async {
+                                Diagnostics.instance
+                                    .add('player', 'desktopFullscreen -> true');
                                 desktopFullscreen.value = true;
                                 await defaultEnterNativeFullscreen();
                               }
                             : defaultEnterNativeFullscreen,
                         onExitFullscreen: isDesktopWindowFrame
                             ? () async {
+                                Diagnostics.instance
+                                    .add('player', 'desktopFullscreen -> false');
                                 desktopFullscreen.value = false;
                                 await defaultExitNativeFullscreen();
                               }
@@ -1614,85 +1970,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         // (toggleFullscreen/isFullscreen) resolve correctly.
                         // In a system PiP window, show just the video (the OS
                         // draws its own play/pause), so hide our chrome.
-                        controls: (state) => _wrapControls(_inPip
-                            ? const SizedBox.shrink()
-                            : FathomPlayerControls(
-                          player: _player,
-                          trickItemId: widget.item.id,
-                          title: _title,
-                          channelNumber:
-                              isLive ? widget.item.channelNumber : null,
-                          isLive: widget.item.isLiveChannel,
-                          barStyle: prefs?.playerBarStyle ?? 'glass',
-                          // On a phone the route is already fullscreen and we
-                          // force landscape, so hide the redundant fullscreen
-                          // control (and its double-tap gesture).
-                          showFullscreen: !_isMobile,
-                          // Left-swipe brightness / right-swipe volume, phone only.
-                          touchGestures: _isMobile,
-                          // Hide the generic spinner while a SyncPlay cue is
-                          // shown — the sync glyph is the status indicator then,
-                          // and two overlapping spinners just fight for space.
-                          loading: !_isPlaying && _syncCue == null,
-                          onBack: () => Navigator.of(context).maybePop(),
-                          onSeekBy: _seekBy,
-                          onJumpToLive: isLive ? _jumpToLive : null,
-                          onSubtitles: _showSubtitleMenu,
-                          onAudio: _showAudioMenu,
-                          // Speed and Quality are meaningless on a live stream
-                          // (it always plays at 1x, and there's no transcode
-                          // ladder), so both are hidden there.
-                          onSpeed: widget.item.isLiveChannel
-                              ? null
-                              : _showSpeedMenu,
-                          onQuality: widget.item.isLiveChannel
-                              ? null
-                              : _showQualityMenu,
-                          qualityLabel: qualityLabel,
-                          onChapters: widget.item.chapters.isNotEmpty
-                              ? _showChapters
-                              : null,
-                          statsPlayMethod: _playMethodLabel(l),
-                          statsOpen: _statsOpen,
-                          markers: [
-                            for (final c in widget.item.chapters)
-                              (position: c.start, label: c.name ?? l.playerChapter),
-                            for (final seg in _segments)
-                              (position: seg.start, label: seg.categoryLabel(l)),
-                          ],
-                          recordButton: (widget.item.isLiveChannel &&
-                                  widget.item.currentProgram != null)
-                              ? LiveRecordButton(
-                                  programId: widget.item.currentProgram!.id)
-                              : null,
-                          onToggleMute: _toggleMute,
-                          trickplay: _trickplay,
-                          trickplayWidth: _trickWidth,
-                          baseUrl: session?.baseUrl,
-                          client: ref.read(jellyfinClientProvider),
-                          headers: ref.read(imageHeadersProvider),
-                          showThumbnailPreview:
-                              prefs?.previewThumbnailsWhileSeeking ?? true,
-                          infoPanel: _tvInfoPanel(),
-                          liveBottomInfo: liveBottomInfo,
-                          overlayBadge: liveRecBadge,
-                          // No picture-in-picture on TV: the mini-player is a
-                          // phone/desktop paradigm and isn't reachable on a TV, so
-                          // the button is dropped there (kept elsewhere).
-                          onMinimize: isTvDevice ? null : _minimize,
-                          onVisibilityChanged: (v) {
-                            if (mounted) setState(() => _chromeVisible = v);
-                          },
-                          onPrevious: _epIndex > 0
-                              ? () => _playEpisodeAt(_epIndex - 1)
-                              : null,
-                          onNext:
-                              (_epIndex >= 0 && _epIndex < _episodes.length - 1)
-                                  ? () => _playEpisodeAt(_epIndex + 1)
-                                  : null,
-                        )),
+                        controls: (state) => _wrapControls(
+                            (_inPip || tabletop)
+                                ? const SizedBox.shrink()
+                                : playerControls),
                       ),
                     ),
+                    // Tabletop only: the controls get the flat half to
+                    // themselves, on black, where they're under your hands and
+                    // no longer covering the picture.
+                    if (tabletop)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: crease,
+                        bottom: 0,
+                        child: ColoredBox(
+                          color: Colors.black,
+                          child: playerControls,
+                        ),
+                      ),
                     // SyncPlay status cue (waiting/aligning, or SkipToSync).
                     if (!_inPip)
                       Positioned.fill(child: _SyncCueOverlay(cue: _syncCue)),
@@ -1759,7 +2056,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// Skip Credits pill suppressed).
   bool _handleUpNext(MediaSegment seg, Duration pos) {
     final prefs = ref.read(preferencesProvider).asData?.value;
-    final autoplayOn = prefs?.autoplayNext ?? true;
+    // No countdown into the next episode when the sleep timer is set to stop
+    // at the end of this one.
+    final autoplayOn = (prefs?.autoplayNext ?? true) &&
+        !ref.read(sleepTimerProvider.notifier).stopsAtEndOfItem;
     final lead = prefs?.upNextLeadSeconds ?? 20;
     final next = _episodes[_epIndex + 1];
 
@@ -1954,10 +2254,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     // other and broke Space. The Builder gives a context beneath the Video so
     // toggleFullscreen/isFullscreen resolve correctly.
     return Builder(
-      builder: (ctx) => CallbackShortcuts(
-        bindings: _buildShortcuts(ctx),
-        child: Focus(autofocus: true, child: controls),
-      ),
+      builder: (ctx) {
+        _controlsContext = ctx;
+        return CallbackShortcuts(
+          bindings: _buildShortcuts(ctx),
+          child: Focus(autofocus: true, child: controls),
+        );
+      },
     );
   }
 
@@ -2085,23 +2388,210 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Future<void> _showSubtitleMenu() {
     final l = AppLocalizations.of(context);
-    return _pickFromSheet<SubtitleTrack>(
+    // One list: the tracks inside the file, then any stored beside it. Named
+    // from the server where it can be matched up, since the player knows only
+    // a language code.
+    final tracks = _subtitleTracksInFile;
+    final info = _embeddedSubtitleInfo(tracks);
+    var nth = 0;
+    final inFile = [
+      for (final t in tracks)
+        (
+          track: t,
+          external: null as SubtitleStream?,
+          label: (t.id == 'no' || t.id == 'auto' || info == null)
+              ? _subtitleLabel(l, t)
+              : serverSubtitleLabel(l, info[nth++]),
+        ),
+    ];
+    final beside = [
+      for (final t in _externalSubtitles)
+        (
+          track: null as SubtitleTrack?,
+          external: t,
+          label: serverSubtitleLabel(l, t),
+        ),
+    ];
+    final options = [...inFile, ...beside];
+    final labels = numberRepeats([for (final o in options) o.label]);
+    final current = _player.state.track.subtitle.id;
+    // Searching the server's subtitle providers is the last row, the way a
+    // "more" entry reads. Only for accounts the server lets manage subtitles.
+    final canSearch = !widget.item.isLiveChannel && _canManageSubtitles;
+    final searchIndex = options.length;
+    return _pickFromSheet<int>(
       title: l.playerSubtitles,
-      options: _player.state.tracks.subtitle,
-      isSelected: (t) => t.id == _player.state.track.subtitle.id,
-      label: (t) => _subtitleLabel(l, t),
-      onSelect: _player.setSubtitleTrack,
+      options: [
+        for (var i = 0; i < options.length; i++) i,
+        if (canSearch) searchIndex,
+      ],
+      isSelected: (i) => i != searchIndex &&
+          (options[i].external != null
+              ? _activeExternalSubtitle?.index == options[i].external!.index
+              : _activeExternalSubtitle == null &&
+                  options[i].track!.id == current),
+      label: (i) => i == searchIndex ? l.playerSubtitleSearch : labels[i],
+      actionIcon: (i) =>
+          i == searchIndex ? Icons.travel_explore_rounded : null,
+      onSelect: (i) {
+        if (i == searchIndex) {
+          _searchOnlineSubtitles();
+        } else if (options[i].external != null) {
+          _selectExternalSubtitle(options[i].external!);
+        } else {
+          _selectSubtitle(options[i].track!);
+        }
+      },
     );
+  }
+
+  /// Whether this account may ask the server to fetch subtitles. Administrators
+  /// always may; everyone else needs the server's subtitle-management right.
+  bool get _canManageSubtitles {
+    final user = ref.read(currentUserProvider).asData?.value;
+    return (user?.isAdministrator ?? false) ||
+        (user?.enableSubtitleManagement ?? false);
+  }
+
+  /// Asks the server's providers what they have, then downloads the one you
+  /// pick. The server stores it beside the video, so it comes back as an
+  /// ordinary external track.
+  Future<void> _searchOnlineSubtitles({String? inLanguage}) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final session = _session, client = _client;
+    if (session == null || client == null) return;
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    // A search is for one language at a time, so say which, and let it be
+    // changed from the results: the preferred subtitle language is only a
+    // starting point, and a provider's results are all in that language with
+    // nothing in the rows to say so.
+    final language = inLanguage ??
+        ((prefs?.subtitleLanguage.isNotEmpty ?? false)
+            ? prefs!.subtitleLanguage
+            : deviceTrackLanguage(Localizations.localeOf(context)));
+    final languageLabel = languageName(l, language);
+    List<RemoteSubtitle> results;
+    try {
+      results = await client.searchRemoteSubtitles(
+        baseUrl: session.baseUrl,
+        token: session.accessToken,
+        itemId: widget.item.id,
+        language: language,
+      );
+    } catch (e) {
+      showErrorOn(messenger, e);
+      return;
+    }
+    if (!mounted) return;
+    if (results.isEmpty) {
+      showSnackOn(messenger, l.playerSubtitleSearchEmptyIn(languageLabel));
+      await _pickSubtitleLanguage(language);
+      return;
+    }
+    // A null entry is the "change language" row, below the results.
+    await _pickFromSheet<RemoteSubtitle?>(
+      title: l.playerSubtitleSearchIn(languageLabel),
+      options: [...results, null],
+      isSelected: (_) => false,
+      label: (r) => r == null
+          ? l.playerSubtitleSearchLanguage
+          : [
+              r.name,
+              [
+                if (r.isHashMatch) l.playerSubtitleHashMatch,
+                if (r.providerName != null) r.providerName!,
+                if (r.format != null) r.format!.toUpperCase(),
+                if (r.downloadCount != null)
+                  l.playerSubtitleDownloads(r.downloadCount!),
+              ].join(' · '),
+            ].join('\n'),
+      actionIcon: (r) => r == null ? Icons.translate_rounded : null,
+      onSelect: (r) =>
+          r == null ? _pickSubtitleLanguage(language) : _downloadSubtitle(r),
+    );
+  }
+
+  /// Searches again in another language.
+  Future<void> _pickSubtitleLanguage(String current) async {
+    final l = AppLocalizations.of(context);
+    final languages = trackLanguages(l);
+    final codes = languages.keys.toList();
+    await _pickFromSheet<String>(
+      title: l.playerSubtitleSearchLanguage,
+      options: codes,
+      isSelected: (code) => code == current,
+      label: (code) => languages[code] ?? code,
+      onSelect: (code) => _searchOnlineSubtitles(inLanguage: code),
+    );
+  }
+
+  Future<void> _downloadSubtitle(RemoteSubtitle subtitle) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final session = _session, client = _client;
+    if (session == null || client == null) return;
+    showSnackOn(messenger, l.playerSubtitleDownloading);
+    try {
+      await client.downloadRemoteSubtitle(
+        baseUrl: session.baseUrl,
+        token: session.accessToken,
+        itemId: widget.item.id,
+        subtitleId: subtitle.id,
+      );
+      // Re-read the item until the new track is listed: the server saves the
+      // file first and adds it to the item a moment later, so reading straight
+      // away came back without it and the track never appeared. Playing it
+      // needs no reload of the video, since it loads by URL.
+      final before = _externalSubtitles.length;
+      BaseItemDto? fresh;
+      for (var attempt = 0; attempt < 8; attempt++) {
+        fresh = await client.getItem(
+          baseUrl: session.baseUrl,
+          userId: session.userId,
+          token: session.accessToken,
+          itemId: widget.item.id,
+        );
+        final now = fresh.subtitleStreams.where((t) => t.isExternal).length;
+        if (now > before) break;
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+      }
+      if (!mounted || fresh == null) return;
+      setState(() {
+        _serverSubtitles = fresh!.subtitleStreams;
+        _serverAudio = fresh.audioStreams;
+        _mediaSourceId = fresh.mediaSourceId;
+      });
+      final added = _externalSubtitles;
+      if (added.isNotEmpty) await _selectExternalSubtitle(added.last);
+      showSnackOn(messenger, l.playerSubtitleDownloaded,
+          kind: SnackKind.success);
+    } catch (e) {
+      showErrorOn(messenger, e);
+    }
   }
 
   Future<void> _showAudioMenu() {
     final l = AppLocalizations.of(context);
-    return _pickFromSheet<AudioTrack>(
+    // Named from the server where the two lists line up: it knows the format
+    // and channel layout, and that one of them is a commentary, where the
+    // player has little more than a language code.
+    final tracks = _player.state.tracks.audio;
+    final info = _audioInfo(tracks);
+    var nth = 0;
+    final labels = numberRepeats([
+      for (final t in tracks)
+        (t.id == 'no' || t.id == 'auto' || info == null)
+            ? _audioLabel(l, t)
+            : serverAudioLabel(l, info[nth++]),
+    ]);
+    final current = _player.state.track.audio.id;
+    return _pickFromSheet<int>(
       title: l.playerAudio,
-      options: _player.state.tracks.audio,
-      isSelected: (t) => t.id == _player.state.track.audio.id,
-      label: (t) => _audioLabel(l, t),
-      onSelect: _player.setAudioTrack,
+      options: [for (var i = 0; i < tracks.length; i++) i],
+      isSelected: (i) => tracks[i].id == current,
+      label: (i) => labels[i],
+      onSelect: (i) => _player.setAudioTrack(tracks[i]),
     );
   }
 
@@ -2178,12 +2668,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
   }
 
+  /// A sheet of choices. [actionIcon] marks an entry that does something other
+  /// than pick a track (searching for subtitles online): it sits below a
+  /// divider, in the accent colour with its own icon, so nobody scanning a list
+  /// of language names reads past it.
   Future<void> _pickFromSheet<T>({
     required String title,
     required List<T> options,
     required bool Function(T) isSelected,
     required String Function(T) label,
     required void Function(T) onSelect,
+    IconData? Function(T)? actionIcon,
   }) async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -2206,19 +2701,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: ListView(
                 shrinkWrap: true,
                 children: [
-                  for (final o in options)
+                  for (final o in options) ...[
+                    if (actionIcon?.call(o) != null)
+                      const Divider(height: 1, indent: 16, endIndent: 16),
                     ListTile(
                       // TV: land the remote on the current selection so the first
                       // press moves or confirms rather than just taking focus.
                       autofocus: isTvDevice && isSelected(o),
-                      title: Text(label(o)),
+                      leading: actionIcon?.call(o) == null
+                          ? null
+                          : Icon(actionIcon!(o),
+                              color: Theme.of(ctx).colorScheme.primary),
+                      title: Text(
+                        label(o),
+                        style: actionIcon?.call(o) == null
+                            ? null
+                            : TextStyle(
+                                color: Theme.of(ctx).colorScheme.primary,
+                                fontWeight: FontWeight.w600),
+                      ),
                       trailing:
                           isSelected(o) ? const Icon(Icons.check_rounded) : null,
                       onTap: () {
-                        onSelect(o);
+                        // Close first, then act: an entry that opens another
+                        // sheet (Change Language) had this pop close the new
+                        // sheet instead of this one, so nothing happened.
                         Navigator.pop(ctx);
+                        onSelect(o);
                       },
                     ),
+                  ],
                 ],
               ),
             ),
@@ -2280,6 +2792,7 @@ class _ErrorOverlay extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: IconButton.filledTonal(
+                tooltip: AppLocalizations.of(context).commonBack,
                 icon: const Icon(Icons.arrow_back_rounded),
                 onPressed: () => Navigator.of(context).maybePop(),
               ),

@@ -100,6 +100,7 @@ class _BrowseBar extends StatelessWidget {
       (l.browseArtists, Icons.person_rounded, '/artists'),
       (l.browsePlaylists, Icons.playlist_play_rounded, '/playlists'),
       (l.browseFavorites, Icons.favorite_rounded, '/favorites'),
+      (l.browseWatchlist, Icons.bookmark_rounded, '/watchlist'),
       (l.browseDownloads, Icons.download_rounded, '/downloads'),
     ];
     return SizedBox(

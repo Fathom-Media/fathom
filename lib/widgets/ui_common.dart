@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/generated/app_localizations.dart';
+
 /// The section-header label used inside settings and admin forms.
 ///
 /// One definition so the whole app's grouping labels look identical. Previously
@@ -52,3 +54,49 @@ IconData collectionTypeIcon(String? type) => switch (type) {
       'playlists' => Icons.playlist_play_rounded,
       _ => Icons.folder_rounded,
     };
+
+/// The app's one confirmation dialog.
+///
+/// Returns true only if the user confirmed. Twenty-three of these were written
+/// by hand, which is how they drifted: some styled the destructive action red
+/// and some didn't, and the confirm button was sometimes the one focus landed
+/// on and sometimes not. [destructive] paints the confirm button in the error
+/// colour, for anything that deletes or removes.
+Future<bool> confirm(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+  String? cancelLabel,
+  bool destructive = false,
+}) async {
+  final l = AppLocalizations.of(context);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: Text(message),
+      actions: [
+        TextButton(
+          // Focus starts on Cancel for anything destructive, so a stray Enter
+          // (or a D-pad OK on TV) can't delete something.
+          autofocus: destructive,
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(cancelLabel ?? l.commonCancel),
+        ),
+        FilledButton(
+          autofocus: !destructive,
+          style: destructive
+              ? FilledButton.styleFrom(
+                  backgroundColor: Theme.of(ctx).colorScheme.error,
+                  foregroundColor: Theme.of(ctx).colorScheme.onError,
+                )
+              : null,
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(confirmLabel),
+        ),
+      ],
+    ),
+  );
+  return ok == true;
+}

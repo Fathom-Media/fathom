@@ -7,6 +7,10 @@ import '../state/library_providers.dart';
 import '../state/providers.dart';
 import '../state/session_controller.dart';
 import '../widgets/user_avatar.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
+import '../api/jellyfin_client.dart';
 
 /// The signed-in user's profile: large avatar with change / remove actions.
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -26,16 +30,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      withData: true,
-    );
-    final file =
-        (result != null && result.files.isNotEmpty) ? result.files.first : null;
-    final bytes = file?.bytes;
-    if (bytes == null) return;
+    final file = await FilePicker.pickFile(type: FileType.image);
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
 
-    final ext = (file!.extension ?? 'jpg').toLowerCase();
+    final ext = (file.extension ?? 'jpg').toLowerCase();
     final mime = switch (ext) {
       'png' => 'image/png',
       'gif' => 'image/gif',
@@ -53,10 +52,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             contentType: mime,
           );
       ref.invalidate(currentUserProvider);
-      messenger.showSnackBar(
-          SnackBar(content: Text(l.profilePictureUpdated)));
+      showSnackOn(messenger, l.profilePictureUpdated, kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -76,10 +74,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             userId: user.id,
           );
       ref.invalidate(currentUserProvider);
-      messenger
-          .showSnackBar(SnackBar(content: Text(l.profilePictureRemoved)));
+      showSnackOn(messenger, l.profilePictureRemoved, kind: SnackKind.success);
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -131,27 +128,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 return;
               }
               if (newCtrl.text.isEmpty) {
-                final confirmed = await showDialog<bool>(
-                  context: ctx,
-                  builder: (wctx) => AlertDialog(
-                    title: Text(l.profileNoPasswordTitle),
-                    content: Text(l.profileNoPasswordBody),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(wctx, false),
-                        child: Text(l.commonCancel),
-                      ),
-                      FilledButton(
-                        style: FilledButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(wctx).colorScheme.error),
-                        onPressed: () => Navigator.pop(wctx, true),
-                        child: Text(l.profileNoPasswordConfirm),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed != true) return;
+                final confirmed = await confirm(ctx,
+                    title: l.profileNoPasswordTitle,
+                    message: l.profileNoPasswordBody,
+                    confirmLabel: l.profileNoPasswordConfirm,
+                    destructive: true);
+                if (!confirmed) return;
               }
               setSt(() {
                 submitting = true;
@@ -197,10 +179,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 FilledButton(
                   onPressed: submitting ? null : submit,
                   child: submitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
+                      ? AppSpinner.inline()
                       : Text(l.commonSave),
                 ),
               ],
@@ -213,7 +192,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     newCtrl.dispose();
     confirmCtrl.dispose();
     if (ok == true) {
-      messenger.showSnackBar(SnackBar(content: Text(l.profilePasswordChanged)));
+      showSnackOn(messenger, l.profilePasswordChanged);
     }
   }
 
@@ -294,7 +273,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 28),
             if (_busy)
-              const CircularProgressIndicator()
+              const AppSpinner()
             else ...[
               FilledButton.icon(
                 onPressed: _changePhoto,

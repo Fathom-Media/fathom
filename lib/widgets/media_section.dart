@@ -27,9 +27,13 @@ class SectionHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          Text(title,
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w800)),
+          // A heading, so screen-reader users can jump row to row.
+          Semantics(
+            header: true,
+            child: Text(title,
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800)),
+          ),
           if (trailing != null) ...[const Spacer(), trailing!],
         ],
       ),

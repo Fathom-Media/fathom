@@ -6,6 +6,7 @@ import '../models/seerr_result.dart';
 import 'cached_image.dart';
 import 'media_cards.dart';
 import 'seerr_request_dialog.dart';
+import 'app_spinner.dart';
 
 // Jellyseerr's card colours: blue for movies, purple for series, green for
 // available, amber for requested/partial.
@@ -289,10 +290,7 @@ class _SeerrHoverRequestButtonState
           textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
         ),
         icon: _busy
-            ? const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2))
+            ? AppSpinner.inline()
             : Icon(_done ? Icons.check_rounded : Icons.download_rounded,
                 size: 16),
         label: Text(_done ? 'Requested' : 'Request'),

@@ -15,7 +15,9 @@ import '../state/preferences.dart';
 import '../state/providers.dart';
 import '../state/seerr_providers.dart';
 import '../state/session_controller.dart';
+import '../state/watchlist.dart';
 import '../widgets/add_to_playlist.dart';
+import '../widgets/context_menu.dart';
 import '../widgets/item_actions.dart';
 import '../widgets/score_pills.dart';
 import '../widgets/series_download_sheet.dart';
@@ -31,6 +33,10 @@ import '../widgets/meta_pill.dart';
 import '../widgets/shimmer.dart';
 import 'album_screen.dart';
 import 'collection_view.dart';
+import '../widgets/app_snack.dart';
+import '../widgets/app_spinner.dart';
+import '../widgets/ui_common.dart';
+import '../api/jellyfin_client.dart';
 
 /// Item detail: backdrop, metadata, overview, a Play/Resume action, and — for
 /// series — an episode list. Tapping Play opens the media_kit player.
@@ -232,6 +238,15 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     ref.invalidate(itemDetailProvider(item.id));
     ref.invalidate(resumeItemsProvider);
     ref.invalidate(latestItemsProvider);
+    // Same refresh the player teardown does: Next Up and the episode list both
+    // change when an episode's watched state does.
+    ref.invalidate(nextUpItemsProvider);
+    final seriesId = item.isSeries ? item.id : item.seriesId;
+    if (seriesId != null) {
+      ref.invalidate(itemDetailProvider(seriesId));
+      ref.invalidate(episodesProvider(seriesId));
+      ref.invalidate(nextUpProvider(seriesId));
+    }
   }
 
   Future<void> _toggleFavorite(WidgetRef ref) async {
@@ -249,6 +264,15 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     ref.invalidate(itemDetailProvider(item.id));
   }
 
+  Future<void> _toggleWatchlist(WidgetRef ref, bool inWatchlist) async {
+    final watchlist = ref.read(watchlistProvider.notifier);
+    if (inWatchlist) {
+      await watchlist.remove(item.id);
+    } else {
+      await watchlist.add(item);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
@@ -258,6 +282,10 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
     // provider so the icon flips when it toggles.
     if (downloadScoped) ref.watch(downloadsProvider);
     final watched = downloadScoped ? _localWatched(ref) : item.userData.played;
+    // Not meaningful in download-scoped mode (guarded below), but computing it
+    // unconditionally keeps this a plain top-of-build value like the others.
+    final inWatchlist = (ref.watch(watchlistProvider).asData?.value ?? const [])
+        .any((e) => e.id == item.id);
     // Cast / Play-on stream from the server, so in download mode they only make
     // sense online. Normal mode is always "online" here (no behaviour change).
     final online = !downloadScoped ||
@@ -428,9 +456,9 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                 ),
                 onPressed: () => _togglePlayed(ref),
               ),
-              // Favourite is a server write, so it's hidden in download-local
-              // mode (nothing here touches the server).
-              if (!downloadScoped)
+              // Favourite and Watchlist are both server writes (Watchlist via a
+              // hidden playlist), so both are hidden in download-local mode.
+              if (!downloadScoped) ...[
                 IconButton(
                   tooltip: item.userData.isFavorite
                       ? l.detailRemoveFavorite
@@ -443,6 +471,19 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
                   ),
                   onPressed: () => _toggleFavorite(ref),
                 ),
+                IconButton(
+                  tooltip: inWatchlist
+                      ? l.detailRemoveFromWatchlist
+                      : l.detailAddToWatchlist,
+                  icon: _PopIcon(
+                    selected: inWatchlist,
+                    icon: Icons.bookmark_rounded,
+                    iconOff: Icons.bookmark_border_rounded,
+                    selectedColor: scheme.primary,
+                  ),
+                  onPressed: () => _toggleWatchlist(ref, inWatchlist),
+                ),
+              ],
               _ItemMenu(item: item, downloadScoped: downloadScoped),
             ],
             flexibleSpace: FlexibleSpaceBar(
@@ -551,6 +592,7 @@ class _DetailBodyState extends ConsumerState<_DetailBody> {
               // A recorded series' episodes download as recordings.
               downloadAsType: sourceType == 'Recording' ? 'Recording' : null,
             ),
+          if (!downloadScoped) _Extras(itemId: item.id),
           if (!item.isEpisode && !downloadScoped) _MoreLikeThis(itemId: item.id),
         ],
       ),
@@ -684,14 +726,19 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
                   Expanded(
                     child: GestureDetector(
                       behavior: HitTestBehavior.deferToChild,
-                      onLongPress: isTvDevice
+                      onLongPressStart: isTvDevice
                           ? null
-                          : () => _openDownloadEpisodeMenu(ep),
+                          : (d) =>
+                              _openDownloadEpisodeMenu(ep, d.globalPosition),
+                      onSecondaryTapUp: isTvDevice
+                          ? null
+                          : (d) =>
+                              _openDownloadEpisodeMenu(ep, d.globalPosition),
                       child: tile,
                     ),
                   ),
                   _EpisodeMenuButton(
-                      onTap: () => _openDownloadEpisodeMenu(ep)),
+                      onTap: (at) => _openDownloadEpisodeMenu(ep, at)),
                 ],
               );
             }
@@ -728,71 +775,56 @@ class _EpisodeListState extends ConsumerState<_EpisodeList> {
                 Expanded(
                   child: GestureDetector(
                     behavior: HitTestBehavior.deferToChild,
-                    onLongPress: isTvDevice ? null : () => _openEpisodeMenu(ep),
+                    onLongPressStart: isTvDevice
+                        ? null
+                        : (d) => _openEpisodeMenu(ep, d.globalPosition),
+                    onSecondaryTapUp: isTvDevice
+                        ? null
+                        : (d) => _openEpisodeMenu(ep, d.globalPosition),
                     child: tile,
                   ),
                 ),
-                _EpisodeMenuButton(onTap: () => _openEpisodeMenu(ep)),
+                _EpisodeMenuButton(onTap: (at) => _openEpisodeMenu(ep, at)),
               ],
             );
           },
         );
   }
 
-  void _openEpisodeMenu(BaseItemDto ep) {
+  void _openEpisodeMenu(BaseItemDto ep, Offset at) {
     // The deleted/played/favorite refresh rides on provider invalidation inside
     // the shared menu (episodesProvider + nextUp keyed off ep.seriesId).
-    showItemActionsMenu(context, ref, ep, downloadAsType: widget.downloadAsType);
+    showItemActionsMenu(context, ref, ep,
+        at: at, downloadAsType: widget.downloadAsType);
   }
 
   // Download-local episode menu: Play, Mark Watched (local), Remove download.
   // Nothing here touches the server copy.
-  void _openDownloadEpisodeMenu(BaseItemDto ep) {
+  void _openDownloadEpisodeMenu(BaseItemDto ep, Offset at) {
     final l = AppLocalizations.of(context);
+    final cs = Theme.of(context).colorScheme;
     final ctrl = ref.read(downloadsProvider.notifier);
     final watched = ep.userData.played;
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.play_arrow_rounded),
-              title: Text(l.commonPlay),
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                context.push('/player', extra: ep);
-              },
-            ),
-            ListTile(
-              leading: Icon(watched
-                  ? Icons.check_circle_rounded
-                  : Icons.check_circle_outline_rounded),
-              title:
-                  Text(watched ? l.detailMarkUnwatched : l.detailMarkWatched),
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                ctrl.setWatched(ep.id, !watched);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Theme.of(sheetCtx).colorScheme.error),
-              title: Text(l.detailRemoveDownload,
-                  style: TextStyle(color: Theme.of(sheetCtx).colorScheme.error)),
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                ctrl.delete(ep.id);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+    showContextMenu(context, at: at, actions: [
+      ContextMenuAction(
+        icon: Icons.play_arrow_rounded,
+        label: l.commonPlay,
+        onTap: () => context.push('/player', extra: ep),
       ),
-    );
+      ContextMenuAction(
+        icon: watched
+            ? Icons.check_circle_rounded
+            : Icons.check_circle_outline_rounded,
+        label: watched ? l.detailMarkUnwatched : l.detailMarkWatched,
+        onTap: () => ctrl.setWatched(ep.id, !watched),
+      ),
+      ContextMenuAction(
+        icon: Icons.delete_outline_rounded,
+        label: l.detailRemoveDownload,
+        color: cs.error,
+        onTap: () => ctrl.delete(ep.id),
+      ),
+    ]);
   }
 }
 
@@ -814,14 +846,14 @@ BaseItemDto _downloadEpisodeItem(DownloadEntry e, bool watched) => BaseItemDto(
 
 /// Per-episode three-dot: a D-pad focus stop on TV, an icon button off it.
 class _EpisodeMenuButton extends StatelessWidget {
-  final VoidCallback onTap;
+  final void Function(Offset at) onTap;
   const _EpisodeMenuButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     if (isTvDevice) {
       return TvFocusable(
-        onTap: onTap,
+        onTap: () => onTap(Offset.zero), // ignored on the TV sheet path
         scale: 1.1,
         borderRadius: const BorderRadius.all(Radius.circular(24)),
         child: const Padding(
@@ -833,7 +865,12 @@ class _EpisodeMenuButton extends StatelessWidget {
     return IconButton(
       icon: const Icon(Icons.more_vert_rounded),
       tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
-      onPressed: onTap,
+      onPressed: () {
+        final box = context.findRenderObject() as RenderBox?;
+        onTap(box == null
+            ? Offset.zero
+            : box.localToGlobal(box.size.center(Offset.zero)));
+      },
     );
   }
 }
@@ -1008,15 +1045,9 @@ class _DownloadButton extends ConsumerWidget {
           tooltip: l.detailDownloadingTooltip,
           label: l.detailDownloading,
           onTap: null,
-          iconOverride: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
+          iconOverride: AppSpinner.inline(
               value: entry.progress > 0 ? entry.progress : null,
-              strokeWidth: 2.5,
-              color: header ? Colors.white : null,
-            ),
-          ),
+              color: header ? Colors.white : null),
         );
       case DownloadStatus.complete:
         return _btn(
@@ -1037,24 +1068,11 @@ class _DownloadButton extends ConsumerWidget {
 
   Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.detailRemoveDownload),
-        content: Text(l.detailRemoveOfflineCopy(item.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l.commonRemove),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) ref.read(downloadsProvider.notifier).delete(item.id);
+    final ok = await confirm(context,
+        title: l.detailRemoveDownload,
+        message: l.detailRemoveOfflineCopy(item.name),
+        confirmLabel: l.commonRemove);
+    if (ok) ref.read(downloadsProvider.notifier).delete(item.id);
   }
 
   /// The series-level download button. It has no file of its own, so its state
@@ -1098,15 +1116,9 @@ class _DownloadButton extends ConsumerWidget {
         tooltip: l.detailDownloadingTooltip,
         label: l.detailDownloading,
         onTap: null,
-        iconOverride: SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
+        iconOverride: AppSpinner.inline(
             value: progress > 0 ? progress : null,
-            strokeWidth: 2.5,
-            color: header ? Colors.white : null,
-          ),
-        ),
+            color: header ? Colors.white : null),
       );
     }
     return downloadBtn();
@@ -1115,24 +1127,11 @@ class _DownloadButton extends ConsumerWidget {
   Future<void> _confirmDeleteSeries(
       BuildContext context, WidgetRef ref, List<BaseItemDto> episodes) async {
     final l = AppLocalizations.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.detailRemoveDownload),
-        content: Text(l.detailRemoveOfflineCopy(item.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l.commonRemove),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
+    final ok = await confirm(context,
+        title: l.detailRemoveDownload,
+        message: l.detailRemoveOfflineCopy(item.name),
+        confirmLabel: l.commonRemove);
+    if (!ok) return;
     final notifier = ref.read(downloadsProvider.notifier);
     for (final e in episodes) {
       await notifier.delete(e.id);
@@ -1178,14 +1177,12 @@ class _RemoteButton extends ConsumerWidget {
         token: session.accessToken,
       );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('$e')));
+      showErrorOn(messenger, e);
       return;
     }
     if (!context.mounted) return;
     if (devices.isEmpty) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(l.detailNoControllableDevices)),
-      );
+      showSnackOn(messenger, l.detailNoControllableDevices);
       return;
     }
     showModalBottomSheet<void>(
@@ -1232,19 +1229,11 @@ class _RemoteButton extends ConsumerWidget {
                               sessionId: '${d['Id']}',
                               itemId: item.id,
                             );
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  l.detailPlayingOn(
+                            showSnackOn(messenger, l.detailPlayingOn(
                                     '${d['DeviceName'] ?? l.detailDevice}',
-                                  ),
-                                ),
-                              ),
-                            );
+                                  ),);
                           } catch (e) {
-                            messenger.showSnackBar(
-                              SnackBar(content: Text('$e')),
-                            );
+                            showErrorOn(messenger, e);
                           }
                         },
                       ),
@@ -1342,22 +1331,11 @@ class _ItemMenu extends ConsumerWidget {
   Future<void> _removeDownload(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
     final ctrl = ref.read(downloadsProvider.notifier);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l.detailRemoveDownload),
-        content: Text(l.detailRemoveOfflineCopy(item.name)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonRemove)),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    final confirmed = await confirm(context,
+        title: l.detailRemoveDownload,
+        message: l.detailRemoveOfflineCopy(item.name),
+        confirmLabel: l.commonRemove);
+    if (!confirmed) return;
     if (item.isSeries) {
       await ctrl.deleteSeries(item.id);
     } else {
@@ -1392,34 +1370,18 @@ class _ItemMenu extends ConsumerWidget {
           token: session.accessToken,
           itemId: item.id,
         );
-        messenger.showSnackBar(
-          SnackBar(content: Text(l.detailMetadataRefreshStarted)),
-        );
+        showSnackOn(messenger, l.detailMetadataRefreshStarted,
+            kind: SnackKind.success);
       } catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('$e')));
+        showErrorOn(messenger, e);
       }
     } else if (value == 'delete') {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(l.detailDeleteItem),
-          content: Text(l.detailDeleteConfirm(item.name)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l.commonCancel),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Theme.of(ctx).colorScheme.error,
-              ),
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l.commonDelete),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true) return;
+      final confirmed = await confirm(context,
+          title: l.detailDeleteItem,
+          message: l.detailDeleteConfirm(item.name),
+          confirmLabel: l.commonDelete,
+          destructive: true);
+      if (!confirmed) return;
       try {
         await client.deleteItem(
           baseUrl: session.baseUrl,
@@ -1431,12 +1393,11 @@ class _ItemMenu extends ConsumerWidget {
         ref.invalidate(favoriteItemsProvider);
         if (context.mounted) {
           context.pop();
-          messenger.showSnackBar(
-            SnackBar(content: Text(l.detailDeleted(item.name))),
-          );
+          showSnackOn(messenger, l.detailDeleted(item.name),
+              kind: SnackKind.success);
         }
       } catch (e) {
-        messenger.showSnackBar(SnackBar(content: Text('$e')));
+        showErrorOn(messenger, e);
       }
     }
   }
@@ -2123,6 +2084,56 @@ class _DetailTitle extends ConsumerWidget {
           fit: BoxFit.contain,
           alignment: Alignment.centerLeft,
           errorBuilder: (_, _, _) => text,
+        ),
+      ),
+    );
+  }
+}
+
+/// A row of the title's extras: behind the scenes, deleted scenes, interviews,
+/// featurettes, and trailer files held on the server. Hidden when there are
+/// none, which is most of the time.
+class _Extras extends ConsumerWidget {
+  final String itemId;
+  const _Extras({required this.itemId});
+
+  /// Jellyfin's ExtraType, in the user's language. Unknown kinds fall back to
+  /// no label rather than showing the raw enum name.
+  static String? _kind(AppLocalizations l, String? type) => switch (type) {
+        'Trailer' => l.extraTypeTrailer,
+        'BehindTheScenes' => l.extraTypeBehindTheScenes,
+        'DeletedScene' => l.extraTypeDeletedScene,
+        'Interview' => l.extraTypeInterview,
+        'Scene' => l.extraTypeScene,
+        'Featurette' => l.extraTypeFeaturette,
+        'Short' => l.extraTypeShort,
+        'Clip' => l.extraTypeClip,
+        'Sample' => l.extraTypeSample,
+        _ => null,
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final extras = ref.watch(extrasProvider(itemId));
+    // No skeleton here: unlike More Like This, most titles have no extras at
+    // all, so a placeholder would flash on every page for nothing.
+    final items = extras.asData?.value ?? const <BaseItemDto>[];
+    if (items.isEmpty) return const SliverToBoxAdapter();
+    final l = AppLocalizations.of(context);
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 24),
+        child: MediaSection(
+          title: l.detailExtras,
+          height: 210,
+          children: [
+            for (final e in items)
+              ExtraCard(
+                item: e,
+                kind: _kind(l, e.extraType),
+                onTap: () => context.push('/player', extra: e),
+              ),
+          ],
         ),
       ),
     );

@@ -42,6 +42,15 @@ class Prefs {
 
   // Playback
   final String audioLanguage; // ISO 639-2 (e.g. 'eng'); '' = server default
+
+  /// ReplayGain normalization for music: 'off', 'track', or 'album'. mpv reads
+  /// the REPLAYGAIN_* tags in the files and applies the gain itself; files
+  /// without tags fall back to [replayGainFallback].
+  final String replayGain;
+
+  /// Gain in dB applied to music with no ReplayGain tags, so an untagged
+  /// library isn't left conspicuously louder than a tagged one. 0 = untouched.
+  final double replayGainFallback;
   final String subtitleLanguage; // ISO 639-2; '' = none/off
   final double subtitleScale; // 0.5..2.0 relative subtitle size
   final int subtitleTextColor; // ARGB
@@ -114,6 +123,13 @@ class Prefs {
   final List<String> navOrder; // order of the sidebar destinations (empty = default)
   final List<String> navHidden; // sidebar destination ids the user hid
   final Map<String, int> keyBindings; // player shortcut overrides
+
+  /// Shows (and films) taken off Continue Watching, keyed "userId|id" with the
+  /// time it was removed. The row skips them until there's viewing newer than
+  /// that, so watching the show again brings it back by itself. Needed because
+  /// that row merges in waiting episodes, which have no resume point for a
+  /// server-side removal to clear.
+  final Map<String, String> continueWatchingDismissed;
   final String playerFit; // 'contain' | 'cover' | 'fill'
   final String playerBarStyle; // 'none' | 'glass' | 'dark' — control-bar chrome
   final String libraryViewMode; // 'grid' | 'list'
@@ -132,6 +148,16 @@ class Prefs {
 
   // Watch Together (SyncPlay): surfaces the entry in the profile menu.
   final bool syncPlayEnabled;
+  // Movie Night Wheel: elimination-style picker on Watchlist/SyncPlay.
+  final bool movieWheelEnabled;
+  // 'last' (last one standing), 'single' (one spin picks), 'best3'.
+  final String movieWheelMode;
+  final bool movieWheelSound;
+  // Stored as the titles left UNCHECKED, so anything newly added to the
+  // Watchlist since the last spin starts out selected.
+  final List<String> movieWheelDeselected;
+  // Library titles added to the wheel on top of the Watchlist.
+  final List<String> movieWheelExtras;
 
   // Internet radio: shows the Radio section in the sidebar. Off by default —
   // this is primarily a Jellyfin client, so radio is an opt-in integration.
@@ -205,6 +231,7 @@ class Prefs {
   /// music, and music belongs with music rather than mixed in with videos.
   final String youtubeVideoDownloadPath;
   final String youtubeAudioDownloadPath;
+  final String jellyfinDownloadPath;
 
   /// Quality offered first in the download sheet.
   final String youtubeDownloadQuality; // 'ask' | '2160'..'360' | 'audio' | 'mp3-320'..
@@ -304,6 +331,8 @@ class Prefs {
     this.upNextLeadSeconds = 20,
     this.upNextStyle = 'card',
     this.audioPassthrough = false,
+    this.replayGain = 'off',
+    this.replayGainFallback = 0,
     this.forceTvMode = false,
     this.startupScreen = 'home',
     this.homeBanner = 'carousel',
@@ -322,6 +351,7 @@ class Prefs {
     this.navOrder = const [],
     this.navHidden = const [],
     this.keyBindings = const {},
+    this.continueWatchingDismissed = const {},
     this.playerFit = 'contain',
     this.playerBarStyle = 'glass',
     this.libraryViewMode = 'grid',
@@ -332,6 +362,11 @@ class Prefs {
     this.rememberTracks = true,
     this.trailerQuality = 'auto',
     this.syncPlayEnabled = true,
+    this.movieWheelEnabled = true,
+    this.movieWheelMode = 'last',
+    this.movieWheelSound = true,
+    this.movieWheelDeselected = const [],
+    this.movieWheelExtras = const [],
     this.radioEnabled = false,
     this.notifNewRequest = true,
     this.notifSeerrApproved = true,
@@ -361,6 +396,7 @@ class Prefs {
     this.youtubeRestrictedMode = false,
     this.youtubeVideoDownloadPath = '',
     this.youtubeAudioDownloadPath = '',
+    this.jellyfinDownloadPath = '',
     this.youtubeDownloadQuality = 'ask',
     this.youtubeVideoContainer = 'mp4',
     this.youtubeDownloadRetries = 3,
@@ -426,6 +462,8 @@ class Prefs {
     int? upNextLeadSeconds,
     String? upNextStyle,
     bool? audioPassthrough,
+    String? replayGain,
+    double? replayGainFallback,
     bool? forceTvMode,
     String? startupScreen,
     String? homeBanner,
@@ -439,6 +477,7 @@ class Prefs {
     List<String>? navOrder,
     List<String>? navHidden,
     Map<String, int>? keyBindings,
+    Map<String, String>? continueWatchingDismissed,
     String? playerFit,
     String? playerBarStyle,
     String? libraryViewMode,
@@ -449,6 +488,11 @@ class Prefs {
     bool? rememberTracks,
     String? trailerQuality,
     bool? syncPlayEnabled,
+    bool? movieWheelEnabled,
+    String? movieWheelMode,
+    bool? movieWheelSound,
+    List<String>? movieWheelDeselected,
+    List<String>? movieWheelExtras,
     bool? radioEnabled,
     bool? notifNewRequest,
     bool? notifSeerrApproved,
@@ -478,6 +522,7 @@ class Prefs {
     bool? youtubeRestrictedMode,
     String? youtubeVideoDownloadPath,
     String? youtubeAudioDownloadPath,
+    String? jellyfinDownloadPath,
     String? youtubeDownloadQuality,
     String? youtubeVideoContainer,
     int? youtubeDownloadRetries,
@@ -543,6 +588,8 @@ class Prefs {
         upNextLeadSeconds: upNextLeadSeconds ?? this.upNextLeadSeconds,
         upNextStyle: upNextStyle ?? this.upNextStyle,
         audioPassthrough: audioPassthrough ?? this.audioPassthrough,
+        replayGain: replayGain ?? this.replayGain,
+        replayGainFallback: replayGainFallback ?? this.replayGainFallback,
         forceTvMode: forceTvMode ?? this.forceTvMode,
         startupScreen: startupScreen ?? this.startupScreen,
         homeBanner: homeBanner ?? this.homeBanner,
@@ -557,6 +604,8 @@ class Prefs {
         navOrder: navOrder ?? this.navOrder,
         navHidden: navHidden ?? this.navHidden,
         keyBindings: keyBindings ?? this.keyBindings,
+        continueWatchingDismissed:
+            continueWatchingDismissed ?? this.continueWatchingDismissed,
         playerFit: playerFit ?? this.playerFit,
         playerBarStyle: playerBarStyle ?? this.playerBarStyle,
         libraryViewMode: libraryViewMode ?? this.libraryViewMode,
@@ -567,6 +616,11 @@ class Prefs {
         rememberTracks: rememberTracks ?? this.rememberTracks,
         trailerQuality: trailerQuality ?? this.trailerQuality,
         syncPlayEnabled: syncPlayEnabled ?? this.syncPlayEnabled,
+        movieWheelEnabled: movieWheelEnabled ?? this.movieWheelEnabled,
+        movieWheelMode: movieWheelMode ?? this.movieWheelMode,
+        movieWheelSound: movieWheelSound ?? this.movieWheelSound,
+        movieWheelDeselected: movieWheelDeselected ?? this.movieWheelDeselected,
+        movieWheelExtras: movieWheelExtras ?? this.movieWheelExtras,
         radioEnabled: radioEnabled ?? this.radioEnabled,
         notifNewRequest: notifNewRequest ?? this.notifNewRequest,
         notifSeerrApproved: notifSeerrApproved ?? this.notifSeerrApproved,
@@ -602,6 +656,7 @@ class Prefs {
             youtubeVideoDownloadPath ?? this.youtubeVideoDownloadPath,
         youtubeAudioDownloadPath:
             youtubeAudioDownloadPath ?? this.youtubeAudioDownloadPath,
+        jellyfinDownloadPath: jellyfinDownloadPath ?? this.jellyfinDownloadPath,
         youtubeDownloadQuality:
             youtubeDownloadQuality ?? this.youtubeDownloadQuality,
         youtubeVideoContainer:
@@ -673,6 +728,8 @@ class Prefs {
         'upNextLeadSeconds': upNextLeadSeconds,
         'upNextStyle': upNextStyle,
         'audioPassthrough': audioPassthrough,
+        'replayGain': replayGain,
+        'replayGainFallback': replayGainFallback,
         'forceTvMode': forceTvMode,
         'startupScreen': startupScreen,
         'homeBanner': homeBanner,
@@ -686,6 +743,7 @@ class Prefs {
         'navOrder': navOrder,
         'navHidden': navHidden,
         'keyBindings': keyBindings.map((k, v) => MapEntry(k, v)),
+        'continueWatchingDismissed': continueWatchingDismissed,
         'playerFit': playerFit,
         'playerBarStyle': playerBarStyle,
         'libraryViewMode': libraryViewMode,
@@ -696,6 +754,11 @@ class Prefs {
         'rememberTracks': rememberTracks,
         'trailerQuality': trailerQuality,
         'syncPlayEnabled': syncPlayEnabled,
+        'movieWheelEnabled': movieWheelEnabled,
+        'movieWheelMode': movieWheelMode,
+        'movieWheelSound': movieWheelSound,
+        'movieWheelDeselected': movieWheelDeselected,
+        'movieWheelExtras': movieWheelExtras,
         'radioEnabled': radioEnabled,
         'notifNewRequest': notifNewRequest,
         'notifSeerrApproved': notifSeerrApproved,
@@ -725,6 +788,7 @@ class Prefs {
         'youtubeRestrictedMode': youtubeRestrictedMode,
         'youtubeVideoDownloadPath': youtubeVideoDownloadPath,
         'youtubeAudioDownloadPath': youtubeAudioDownloadPath,
+        'jellyfinDownloadPath': jellyfinDownloadPath,
         'youtubeDownloadQuality': youtubeDownloadQuality,
         'youtubeVideoContainer': youtubeVideoContainer,
         'youtubeDownloadRetries': youtubeDownloadRetries,
@@ -765,6 +829,9 @@ class Prefs {
         amoled: j['amoled'] as bool? ?? false,
         showGreeting: j['showGreeting'] as bool? ?? true,
         audioLanguage: j['audioLanguage'] as String? ?? '',
+        replayGain: j['replayGain'] as String? ?? 'off',
+        replayGainFallback:
+            (j['replayGainFallback'] as num?)?.toDouble() ?? 0,
         subtitleLanguage: j['subtitleLanguage'] as String? ?? '',
         subtitleScale: (j['subtitleScale'] as num?)?.toDouble() ?? 1.0,
         subtitleTextColor:
@@ -809,6 +876,9 @@ class Prefs {
         keyBindings: (j['keyBindings'] as Map?)
                 ?.map((k, v) => MapEntry('$k', (v as num).toInt())) ??
             const {},
+        continueWatchingDismissed: (j['continueWatchingDismissed'] as Map?)
+                ?.map((k, v) => MapEntry('$k', '$v')) ??
+            const {},
         playerFit: j['playerFit'] as String? ?? 'contain',
         playerBarStyle: j['playerBarStyle'] as String? ?? 'glass',
         libraryViewMode: j['libraryViewMode'] as String? ?? 'grid',
@@ -819,6 +889,13 @@ class Prefs {
         rememberTracks: j['rememberTracks'] as bool? ?? true,
         trailerQuality: j['trailerQuality'] as String? ?? 'auto',
         syncPlayEnabled: j['syncPlayEnabled'] as bool? ?? true,
+        movieWheelEnabled: j['movieWheelEnabled'] as bool? ?? true,
+        movieWheelMode: j['movieWheelMode'] as String? ?? 'last',
+        movieWheelSound: j['movieWheelSound'] as bool? ?? true,
+        movieWheelDeselected:
+            (j['movieWheelDeselected'] as List?)?.cast<String>() ?? const [],
+        movieWheelExtras:
+            (j['movieWheelExtras'] as List?)?.cast<String>() ?? const [],
         radioEnabled: j['radioEnabled'] as bool? ?? false,
         notifNewRequest: j['notifNewRequest'] as bool? ?? true,
         notifSeerrApproved: j['notifSeerrApproved'] as bool? ?? true,
@@ -853,6 +930,7 @@ class Prefs {
             j['youtubeVideoDownloadPath'] as String? ?? '',
         youtubeAudioDownloadPath:
             j['youtubeAudioDownloadPath'] as String? ?? '',
+        jellyfinDownloadPath: j['jellyfinDownloadPath'] as String? ?? '',
         youtubeDownloadQuality: j['youtubeDownloadQuality'] as String? ?? 'ask',
         youtubeVideoContainer:
             j['youtubeVideoContainer'] as String? ?? 'mp4',

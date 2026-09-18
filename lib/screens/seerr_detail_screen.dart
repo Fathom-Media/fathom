@@ -25,6 +25,8 @@ import '../widgets/score_pills.dart';
 import '../widgets/seerr_manage_dialog.dart';
 import '../widgets/seerr_poster_card.dart';
 import '../widgets/seerr_request_dialog.dart';
+import '../widgets/app_spinner.dart';
+import '../api/jellyfin_client.dart';
 
 /// Rich Seerr detail page: backdrop, overview, cast, and requesting
 /// (movie whole, or per-season for TV).
@@ -66,7 +68,7 @@ class SeerrDetailScreen extends ConsumerWidget {
             ),
           ),
         ),
-      const Center(child: CircularProgressIndicator()),
+      const Center(child: AppSpinner()),
       SafeArea(
         child: BackButton(color: Theme.of(context).colorScheme.onSurface),
       ),
@@ -696,7 +698,7 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
         );
       }
     } catch (e) {
-      if (mounted) showSnack(context, '$e', kind: SnackKind.error);
+      if (mounted) showError(context, e);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -714,11 +716,7 @@ class _ViewRequestButtonState extends ConsumerState<_ViewRequestButton>
     final iconSize = widget.primary ? 26.0 : 22.0;
 
     Widget restIcon() => _busy
-        ? SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: fg),
-          )
+        ? AppSpinner.inline(color: fg)
         : Icon(Icons.info_outline_rounded, size: iconSize, color: fg);
 
     return OverlayPortal(

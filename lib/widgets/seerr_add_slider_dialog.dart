@@ -5,6 +5,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../models/seerr_custom_slider.dart';
 import '../state/seerr_providers.dart';
 import 'tv_keyboard.dart';
+import 'app_spinner.dart';
 
 /// Create a custom Discover slider (movie/TV genre, or a keyword search).
 Future<SeerrCustomSlider?> showSeerrAddSliderDialog(
@@ -123,7 +124,7 @@ class _AddSliderDialogState extends ConsumerState<_AddSliderDialog> {
                 loading: () => const Center(
                     child: Padding(
                         padding: EdgeInsets.all(8),
-                        child: CircularProgressIndicator())),
+                        child: AppSpinner())),
                 error: (e, _) => Text('$e'),
                 data: (genres) => DropdownButtonFormField<int>(
                   initialValue: _genreId,

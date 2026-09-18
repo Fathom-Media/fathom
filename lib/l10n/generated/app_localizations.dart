@@ -412,6 +412,18 @@ abstract class AppLocalizations {
   /// **'Sync playback with others, from your profile menu'**
   String get settingsWatchTogetherSubtitle;
 
+  /// Settings toggle for the Movie Night Wheel feature.
+  ///
+  /// In en, this message translates to:
+  /// **'Movie Night Wheel'**
+  String get settingsMovieWheel;
+
+  /// Subtitle under the Movie Night Wheel settings toggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t decide? Spin an elimination wheel from Watchlist or Watch Together'**
+  String get settingsMovieWheelSubtitle;
+
   /// No description provided for @settingsRadio.
   ///
   /// In en, this message translates to:
@@ -933,6 +945,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Audio'**
   String get prefsHeaderAudio;
+
+  /// Setting: ReplayGain mode for music (off / per track / per album).
+  ///
+  /// In en, this message translates to:
+  /// **'Volume Levelling'**
+  String get prefsReplayGain;
+
+  /// Subtitle for the volume levelling setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Play every song at a similar loudness, using the levels stored in your files'**
+  String get prefsReplayGainSub;
+
+  /// Volume levelling option: no adjustment.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get prefsReplayGainOff;
+
+  /// Volume levelling option: level each song on its own.
+  ///
+  /// In en, this message translates to:
+  /// **'Per Track'**
+  String get prefsReplayGainTrack;
+
+  /// Volume levelling option: keep an album's own quiet and loud songs relative to each other.
+  ///
+  /// In en, this message translates to:
+  /// **'Per Album'**
+  String get prefsReplayGainAlbum;
+
+  /// Setting: gain applied to files that carry no ReplayGain tags.
+  ///
+  /// In en, this message translates to:
+  /// **'Untagged Music'**
+  String get prefsReplayGainFallback;
+
+  /// Subtitle for the untagged-music gain setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjustment for files with no levels stored in them. Leave at 0 dB to play them untouched.'**
+  String get prefsReplayGainFallbackSub;
 
   /// Settings section header: subtitle options.
   ///
@@ -2116,6 +2170,18 @@ abstract class AppLocalizations {
   /// **'Default'**
   String get prefsDefault;
 
+  /// List tile title: where downloaded Jellyfin media (movies, shows, music, recordings) is saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Download Location'**
+  String get prefsDownloadLocation;
+
+  /// Directory-picker dialog title for the Jellyfin download location.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Download Location'**
+  String get prefsDownloadLocationPick;
+
   /// SponsorBlock toggle title: skip sponsor segments.
   ///
   /// In en, this message translates to:
@@ -2848,6 +2914,78 @@ abstract class AppLocalizations {
   /// **'Track {id}'**
   String playerTrackNumber(String id);
 
+  /// Subtitle menu row that searches the server's subtitle providers.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Subtitles Online'**
+  String get playerSubtitleSearch;
+
+  /// Title of the online subtitle results sheet, naming the language searched.
+  ///
+  /// In en, this message translates to:
+  /// **'Online Subtitles: {language}'**
+  String playerSubtitleSearchIn(String language);
+
+  /// Row in the online subtitle results that searches a different language.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Language'**
+  String get playerSubtitleSearchLanguage;
+
+  /// Shown when the server's providers return nothing for a language.
+  ///
+  /// In en, this message translates to:
+  /// **'No {language} subtitles found for this title'**
+  String playerSubtitleSearchEmptyIn(String language);
+
+  /// Title of the sheet listing subtitles found online.
+  ///
+  /// In en, this message translates to:
+  /// **'Online Subtitles'**
+  String get playerSubtitleSearchTitle;
+
+  /// Tag on a search result whose timing matches this exact release.
+  ///
+  /// In en, this message translates to:
+  /// **'Matches your file'**
+  String get playerSubtitleHashMatch;
+
+  /// How many times a subtitle has been downloaded from the provider.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} downloads'**
+  String playerSubtitleDownloads(int count);
+
+  /// Progress message while the server fetches a subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading subtitle'**
+  String get playerSubtitleDownloading;
+
+  /// Confirmation after the server saved a downloaded subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Subtitle added'**
+  String get playerSubtitleDownloaded;
+
+  /// Tag on a subtitle track that only captions foreign-language dialogue.
+  ///
+  /// In en, this message translates to:
+  /// **'Forced'**
+  String get playerSubtitleForced;
+
+  /// Tag on a subtitle track made of images rather than text (Blu-ray PGS, DVD VobSub).
+  ///
+  /// In en, this message translates to:
+  /// **'Picture'**
+  String get playerSubtitlePicture;
+
+  /// Tag on a subtitle track stored in its own file beside the video, rather than inside it. Matches the wording Jellyfin itself uses.
+  ///
+  /// In en, this message translates to:
+  /// **'External'**
+  String get playerSubtitleFile;
+
   /// Fallback label for a subtitle track that has no title or language, identified by its track id.
   ///
   /// In en, this message translates to:
@@ -3112,6 +3250,12 @@ abstract class AppLocalizations {
   /// **'Back to App'**
   String get playerBackToApp;
 
+  /// Item menu action: drop the item from the Continue Watching row by clearing its resume position.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Continue Watching'**
+  String get actionRemoveFromContinueWatching;
+
   /// Context-menu row: open the item's detail page.
   ///
   /// In en, this message translates to:
@@ -3169,14 +3313,26 @@ abstract class AppLocalizations {
   /// Tooltip: add this item to favorites.
   ///
   /// In en, this message translates to:
-  /// **'Add Favorite'**
+  /// **'Add to Favorites'**
   String get detailAddFavorite;
 
   /// Tooltip: remove this item from favorites.
   ///
   /// In en, this message translates to:
-  /// **'Remove Favorite'**
+  /// **'Remove from Favorites'**
   String get detailRemoveFavorite;
+
+  /// Tooltip/menu row: add this item to the Watchlist.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to Watchlist'**
+  String get detailAddToWatchlist;
+
+  /// Tooltip/menu row: remove this item from the Watchlist.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Watchlist'**
+  String get detailRemoveFromWatchlist;
 
   /// Media type label for a TV series.
   ///
@@ -3417,6 +3573,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Trailer'**
   String get detailTrailer;
+
+  /// Detail page section: a title's bonus material.
+  ///
+  /// In en, this message translates to:
+  /// **'Extras'**
+  String get detailExtras;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Trailer'**
+  String get extraTypeTrailer;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Behind the Scenes'**
+  String get extraTypeBehindTheScenes;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted Scene'**
+  String get extraTypeDeletedScene;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Interview'**
+  String get extraTypeInterview;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Scene'**
+  String get extraTypeScene;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Featurette'**
+  String get extraTypeFeaturette;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Short'**
+  String get extraTypeShort;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Clip'**
+  String get extraTypeClip;
+
+  /// Extra kind label.
+  ///
+  /// In en, this message translates to:
+  /// **'Sample'**
+  String get extraTypeSample;
 
   /// Section heading for a row of similar titles.
   ///
@@ -4018,6 +4234,72 @@ abstract class AppLocalizations {
   /// **'Favorites'**
   String get browseFavorites;
 
+  /// How many items are selected in a grid.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 selected} other{{count} selected}}'**
+  String selectionCount(int count);
+
+  /// Selects every item currently shown in the grid.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get selectionSelectAll;
+
+  /// Result message after marking a selection watched.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Marked 1 as watched} other{Marked {count} as watched}}'**
+  String selectionMarkedWatched(int count);
+
+  /// Result message after marking a selection unwatched.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Marked 1 as unwatched} other{Marked {count} as unwatched}}'**
+  String selectionMarkedUnwatched(int count);
+
+  /// Result message after favoriting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Added 1 to favorites} other{Added {count} to favorites}}'**
+  String selectionFavorited(int count);
+
+  /// Result message after unfavoriting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Removed 1 from favorites} other{Removed {count} from favorites}}'**
+  String selectionUnfavorited(int count);
+
+  /// Confirmation title for deleting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete 1 item?} other{Delete {count} items?}}'**
+  String selectionDeleteTitle(int count);
+
+  /// Confirmation body for deleting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the files from your server. It cannot be undone.'**
+  String get selectionDeleteBody;
+
+  /// Result message after deleting a selection.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Deleted 1 item} other{Deleted {count} items}}'**
+  String selectionDeleted(int count);
+
+  /// Item menu action: start selecting several items in the grid.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get actionSelect;
+
+  /// Watchlist screen title and nav destination label.
+  ///
+  /// In en, this message translates to:
+  /// **'Watchlist'**
+  String get browseWatchlist;
+
   /// Browse-bar link to playlists.
   ///
   /// In en, this message translates to:
@@ -4227,6 +4509,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No favorites yet'**
   String get browseNoFavorites;
+
+  /// Empty state: the user's Watchlist has nothing in it yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Your watchlist is empty'**
+  String get browseNoWatchlist;
 
   /// Empty state: the library has no items.
   ///
@@ -4966,6 +5254,12 @@ abstract class AppLocalizations {
   /// **'Playlists'**
   String get ytPlaylists;
 
+  /// Floating pill label while a YouTube download is in progress. Distinct from the Jellyfin download pill's plain "Downloading" since both can show at once.
+  ///
+  /// In en, this message translates to:
+  /// **'YouTube Download'**
+  String get ytDownloadPill;
+
   /// Tab / screen title: downloaded items.
   ///
   /// In en, this message translates to:
@@ -5445,6 +5739,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This removes every watched video and its saved position.'**
   String get ytClearHistoryConfirm;
+
+  /// Button to enter multi-select mode on the Downloads tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Select'**
+  String get ytSelectDownloads;
+
+  /// Button to select every finished download at once.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get ytSelectAll;
+
+  /// App-bar-style label while some downloads are selected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 selected} other{{count} selected}}'**
+  String ytNSelected(int count);
+
+  /// Confirmation dialog title for bulk-deleting selected downloads.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete download?} other{Delete {count} downloads?}}'**
+  String ytDeleteSelectedTitle(int count);
+
+  /// Confirmation dialog body for bulk-deleting selected downloads.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the downloaded files from your device. They can be downloaded again later.'**
+  String get ytDeleteSelectedConfirm;
 
   /// Tooltip to remove a single video from watch history.
   ///
@@ -5974,6 +6298,12 @@ abstract class AppLocalizations {
   /// **'Favorites'**
   String get appNavFavorites;
 
+  /// Navigation rail label for the Watchlist section.
+  ///
+  /// In en, this message translates to:
+  /// **'Watchlist'**
+  String get appNavWatchlist;
+
   /// Navigation rail label for the Live TV section.
   ///
   /// In en, this message translates to:
@@ -6045,6 +6375,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Skip 15 seconds'**
   String get radioSkip;
+
+  /// Tooltip for the previous-station button on the radio Now Playing screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous Station'**
+  String get radioPreviousStation;
+
+  /// Tooltip for the next-station button on the radio Now Playing screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Next Station'**
+  String get radioNextStation;
 
   /// Tooltip for the group header overflow menu.
   ///
@@ -6567,6 +6909,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remote access, published URL, ports'**
   String get adminNetworkingSubtitle;
+
+  /// Admin screen title: server backups.
+  ///
+  /// In en, this message translates to:
+  /// **'Backups'**
+  String get adminBackupsTitle;
+
+  /// Admin hub subtitle for the Backups screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Create and restore snapshots of the server'**
+  String get adminBackupsSubtitle;
+
+  /// Intro text at the top of the Backups screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Create and restore snapshots of your server. A backup can include the database, metadata, subtitles, and trickplay images, and is stored on the server.'**
+  String get adminBackupsHelp;
+
+  /// Empty state on the Backups screen.
+  ///
+  /// In en, this message translates to:
+  /// **'No backups yet'**
+  String get adminBackupsNone;
+
+  /// Shown when the server has no backup API.
+  ///
+  /// In en, this message translates to:
+  /// **'This server does not offer backups. They need a newer version of Jellyfin.'**
+  String get adminBackupsUnsupported;
+
+  /// Button and dialog title: make a new server backup.
+  ///
+  /// In en, this message translates to:
+  /// **'Create Backup'**
+  String get adminBackupCreate;
+
+  /// Note in the Create Backup dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Depending on the size of your library, a backup can take a while.'**
+  String get adminBackupDisclaimer;
+
+  /// Backup content option: the server database. Always included.
+  ///
+  /// In en, this message translates to:
+  /// **'Database'**
+  String get adminBackupDatabase;
+
+  /// Backup content option: metadata such as artwork and NFO data.
+  ///
+  /// In en, this message translates to:
+  /// **'Metadata'**
+  String get adminBackupMetadata;
+
+  /// Backup content option: subtitles stored by the server.
+  ///
+  /// In en, this message translates to:
+  /// **'Subtitles'**
+  String get adminBackupSubtitles;
+
+  /// Backup content option: trickplay scrubbing images.
+  ///
+  /// In en, this message translates to:
+  /// **'Trickplay'**
+  String get adminBackupTrickplay;
+
+  /// Title of the dialog shown while a backup is being written.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup in progress'**
+  String get adminBackupInProgress;
+
+  /// Confirmation after a backup finishes.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup created'**
+  String get adminBackupCreated;
+
+  /// Title of the warning shown when creating a backup while tasks run.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled tasks are running'**
+  String get adminBackupTasksRunning;
+
+  /// Warning body listing running scheduled tasks.
+  ///
+  /// In en, this message translates to:
+  /// **'It is best to wait for these to finish, or stop them, before backing up:\n\n{tasks}'**
+  String adminBackupTasksRunningBody(String tasks);
+
+  /// Title of the sheet showing one backup's details.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup Details'**
+  String get adminBackupDetails;
+
+  /// Label for where a backup is stored on the server.
+  ///
+  /// In en, this message translates to:
+  /// **'Path'**
+  String get adminBackupPath;
+
+  /// Label for the Jellyfin version a backup was made on.
+  ///
+  /// In en, this message translates to:
+  /// **'Server Version'**
+  String get adminBackupServerVersion;
+
+  /// Label for what a backup contains.
+  ///
+  /// In en, this message translates to:
+  /// **'Includes'**
+  String get adminBackupIncludes;
+
+  /// Confirmation after copying a backup's path.
+  ///
+  /// In en, this message translates to:
+  /// **'Path copied'**
+  String get adminBackupPathCopied;
+
+  /// Action: restore the server from a backup.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore'**
+  String get adminBackupRestore;
+
+  /// Confirmation title before restoring a backup.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore This Backup?'**
+  String get adminBackupRestoreTitle;
+
+  /// Warning before restoring a backup.
+  ///
+  /// In en, this message translates to:
+  /// **'The server restarts and is unusable until the restore finishes, and anything added or changed since this backup was made is lost.\n\nOnly restore a backup onto the same Jellyfin version it was made on ({version}). Restoring onto a different version is unsupported and can leave the server unusable.'**
+  String adminBackupRestoreBody(String version);
+
+  /// Title of the dialog shown while the server restores.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore in progress'**
+  String get adminBackupRestoring;
+
+  /// Body of the restore progress dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the server to come back. This can take several minutes.'**
+  String get adminBackupRestoringBody;
+
+  /// Confirmation when the server is back after a restore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore complete'**
+  String get adminBackupRestored;
 
   /// Admin section title: API keys (app access tokens).
   ///
@@ -8248,6 +8746,240 @@ abstract class AppLocalizations {
   /// **'Access All Devices'**
   String get adminAccessAllDevices;
 
+  /// Toggle: always transcode remote media sources such as Live TV for this user.
+  ///
+  /// In en, this message translates to:
+  /// **'Force Transcoding of Remote Sources'**
+  String get adminForceRemoteTranscoding;
+
+  /// Subtitle under the force remote transcoding toggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Such as Live TV'**
+  String get adminForceRemoteTranscodingSub;
+
+  /// Section header: which libraries a user may delete media from.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow Media Deletion From'**
+  String get adminSectionDeletion;
+
+  /// Toggle: the user may delete media from every library.
+  ///
+  /// In en, this message translates to:
+  /// **'All Libraries'**
+  String get adminDeleteFromAll;
+
+  /// Section header for a user's watch-together permissions.
+  ///
+  /// In en, this message translates to:
+  /// **'SyncPlay'**
+  String get adminSectionSyncPlay;
+
+  /// Dropdown label: what a user may do with SyncPlay groups.
+  ///
+  /// In en, this message translates to:
+  /// **'SyncPlay Access'**
+  String get adminSyncPlayAccess;
+
+  /// SyncPlay access option.
+  ///
+  /// In en, this message translates to:
+  /// **'Create and Join Groups'**
+  String get adminSyncPlayCreateAndJoin;
+
+  /// SyncPlay access option.
+  ///
+  /// In en, this message translates to:
+  /// **'Join Groups Only'**
+  String get adminSyncPlayJoin;
+
+  /// SyncPlay access option.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled for This User'**
+  String get adminSyncPlayNone;
+
+  /// Section header for a user's authentication and password reset providers.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-In'**
+  String get adminSectionSignIn;
+
+  /// Dropdown label: how this user signs in.
+  ///
+  /// In en, this message translates to:
+  /// **'Authentication Provider'**
+  String get adminAuthProvider;
+
+  /// Dropdown label: how this user resets a forgotten password.
+  ///
+  /// In en, this message translates to:
+  /// **'Password Reset Provider'**
+  String get adminPasswordResetProvider;
+
+  /// Help under the device access list.
+  ///
+  /// In en, this message translates to:
+  /// **'This only applies to devices that can be uniquely identified, and does not block browser access. Limiting devices stops this user signing in on a new device until it is approved here.'**
+  String get adminDeviceAccessHelp;
+
+  /// Help under the channel access list.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the channels this user can see.'**
+  String get adminChannelAccessHelp;
+
+  /// Help under the maximum parental rating dropdown.
+  ///
+  /// In en, this message translates to:
+  /// **'Content rated higher than this is hidden from this user.'**
+  String get adminRatingHelp;
+
+  /// Help above the block unrated item types.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide items of these kinds that have no rating, or a rating the server does not recognise.'**
+  String get adminBlockUnratedHelp;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Books'**
+  String get adminUnratedBooks;
+
+  /// Unrated item type: plugin channel content.
+  ///
+  /// In en, this message translates to:
+  /// **'Channels'**
+  String get adminUnratedChannels;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Live TV'**
+  String get adminUnratedLiveTv;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Movies'**
+  String get adminUnratedMovies;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Music'**
+  String get adminUnratedMusic;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Trailers'**
+  String get adminUnratedTrailers;
+
+  /// Unrated item type.
+  ///
+  /// In en, this message translates to:
+  /// **'Shows'**
+  String get adminUnratedShows;
+
+  /// Unrated item type: anything not covered by the other types. Only shown when a user already blocks it, so it can be cleared.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get adminUnratedOther;
+
+  /// Section header: tags a user's content must carry.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow Items With Tags'**
+  String get adminAllowedTags;
+
+  /// Help for allowed tags.
+  ///
+  /// In en, this message translates to:
+  /// **'Only show media with at least one of these tags.'**
+  String get adminAllowedTagsHelp;
+
+  /// Section header: tags that hide content from a user.
+  ///
+  /// In en, this message translates to:
+  /// **'Block Items With Tags'**
+  String get adminBlockedTags;
+
+  /// Help for blocked tags.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide media with at least one of these tags.'**
+  String get adminBlockedTagsHelp;
+
+  /// Button and dialog title: add a tag.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Tag'**
+  String get adminAddTag;
+
+  /// Text field label for a tag.
+  ///
+  /// In en, this message translates to:
+  /// **'Tag'**
+  String get adminTag;
+
+  /// Section header: hours a user may use the server.
+  ///
+  /// In en, this message translates to:
+  /// **'Access Schedule'**
+  String get adminAccessSchedule;
+
+  /// Help for access schedules.
+  ///
+  /// In en, this message translates to:
+  /// **'Limit this user to certain days and hours. With no schedule, access is not limited.'**
+  String get adminAccessScheduleHelp;
+
+  /// Button and dialog title: add an access schedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Schedule'**
+  String get adminAddSchedule;
+
+  /// Dropdown label: day or days a schedule applies to.
+  ///
+  /// In en, this message translates to:
+  /// **'Day'**
+  String get adminScheduleDay;
+
+  /// Dropdown label: when a schedule's access begins.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Time'**
+  String get adminScheduleStart;
+
+  /// Dropdown label: when a schedule's access ends.
+  ///
+  /// In en, this message translates to:
+  /// **'End Time'**
+  String get adminScheduleEnd;
+
+  /// Access schedule day option.
+  ///
+  /// In en, this message translates to:
+  /// **'Every Day'**
+  String get adminEveryDay;
+
+  /// Access schedule day option.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekdays'**
+  String get adminWeekdays;
+
+  /// Access schedule day option.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekends'**
+  String get adminWeekends;
+
   /// Toggle label: grant access to all channels.
   ///
   /// In en, this message translates to:
@@ -8709,6 +9441,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Image Cache'**
   String get searchImageCache;
+
+  /// Settings search result title: where downloaded Jellyfin media is saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Download Location'**
+  String get searchDownloadLocation;
 
   /// Settings search result title: app theme (dark/light/system).
   ///
@@ -9687,6 +10425,324 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Voice input isn\'t available on this device'**
   String get tvVoiceUnavailable;
+
+  /// Title of the elimination-wheel decider screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Movie Night Wheel'**
+  String get wheelTitle;
+
+  /// Shown on the wheel setup screen when there are no titles to pick from yet.
+  ///
+  /// In en, this message translates to:
+  /// **'Search your library above to add titles, or put a few on your Watchlist.'**
+  String get wheelNeedsWatchlist;
+
+  /// Instructions on the wheel's setup screen, above the checklist.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick at least two titles, then spin.'**
+  String get wheelSetupHint;
+
+  /// Start button label, showing how many titles are selected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Start with 1 Title} other{Start with {count} Titles}}'**
+  String wheelStartWith(int count);
+
+  /// Disabled Start button label when fewer than 2 titles are selected.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick at Least 2 Titles'**
+  String get wheelNeedTwo;
+
+  /// Header above the wheel showing how many titles remain in this round.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 Left} other{{count} Left}}'**
+  String wheelRemaining(int count);
+
+  /// Hint text below the wheel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap or flick the wheel to spin'**
+  String get wheelTapToSpin;
+
+  /// Shown over a dimmed poster right after a spin eliminates a title.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is out!'**
+  String wheelEliminated(String name);
+
+  /// Small eyebrow label above the winning title's poster.
+  ///
+  /// In en, this message translates to:
+  /// **'TONIGHT\'S PICK'**
+  String get wheelWinnerLabel;
+
+  /// Button to restart the wheel from the setup screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Spin Again'**
+  String get wheelSpinAgain;
+
+  /// Hint below the wheel on TV, where the remote's OK/Select button spins it.
+  ///
+  /// In en, this message translates to:
+  /// **'Press OK to spin'**
+  String get wheelPressToSpin;
+
+  /// Wheel game mode: each spin eliminates a title until one remains.
+  ///
+  /// In en, this message translates to:
+  /// **'Last One Standing'**
+  String get wheelModeLast;
+
+  /// Wheel game mode: one spin picks the winner.
+  ///
+  /// In en, this message translates to:
+  /// **'Single Spin'**
+  String get wheelModeSingle;
+
+  /// Wheel game mode: the first title landed on twice wins.
+  ///
+  /// In en, this message translates to:
+  /// **'Best of 3'**
+  String get wheelModeBest3;
+
+  /// Explains the Last One Standing mode on the setup screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Each spin knocks one title out until one is left.'**
+  String get wheelModeLastHint;
+
+  /// Explains the Single Spin mode on the setup screen.
+  ///
+  /// In en, this message translates to:
+  /// **'One spin. Wherever it lands is tonight\'s pick.'**
+  String get wheelModeSingleHint;
+
+  /// Explains the Best of 3 mode on the setup screen.
+  ///
+  /// In en, this message translates to:
+  /// **'The first title the wheel lands on twice wins.'**
+  String get wheelModeBest3Hint;
+
+  /// Label of the search field for adding library titles to the wheel.
+  ///
+  /// In en, this message translates to:
+  /// **'Add from Your Library'**
+  String get wheelSearchLabel;
+
+  /// Placeholder in the wheel's library search field.
+  ///
+  /// In en, this message translates to:
+  /// **'Search movies and shows'**
+  String get wheelSearchHint;
+
+  /// Shown under the wheel's library search when nothing matches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matches'**
+  String get wheelNoResults;
+
+  /// Tag on a wheel candidate that was added from the library rather than the Watchlist.
+  ///
+  /// In en, this message translates to:
+  /// **'Added'**
+  String get wheelAdded;
+
+  /// Tag on a wheel candidate the user has already watched.
+  ///
+  /// In en, this message translates to:
+  /// **'Watched'**
+  String get wheelWatched;
+
+  /// Filter chip: only include titles not yet watched.
+  ///
+  /// In en, this message translates to:
+  /// **'Unwatched'**
+  String get wheelFilterUnwatched;
+
+  /// Filter chip: only include titles with a runtime of 2 hours or less.
+  ///
+  /// In en, this message translates to:
+  /// **'Under 2 Hours'**
+  String get wheelFilterUnder2h;
+
+  /// Genre filter chip label when no genre is chosen.
+  ///
+  /// In en, this message translates to:
+  /// **'Genre'**
+  String get wheelFilterGenre;
+
+  /// Genre filter menu option that clears the genre filter.
+  ///
+  /// In en, this message translates to:
+  /// **'All Genres'**
+  String get wheelFilterAllGenres;
+
+  /// Button that checks every title currently shown on the wheel setup list.
+  ///
+  /// In en, this message translates to:
+  /// **'Select All'**
+  String get wheelSelectAll;
+
+  /// Button that unchecks every title currently shown on the wheel setup list.
+  ///
+  /// In en, this message translates to:
+  /// **'Select None'**
+  String get wheelSelectNone;
+
+  /// Shown on the wheel setup list when the filters exclude every title.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing matches these filters.'**
+  String get wheelNothingMatches;
+
+  /// Button under the wheel that reverses the last result.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get wheelUndo;
+
+  /// Header above the wheel in Best of 3 mode.
+  ///
+  /// In en, this message translates to:
+  /// **'Spin {current} of {total}'**
+  String wheelSpinOf(int current, int total);
+
+  /// Header above the wheel when three spins landed on three different titles.
+  ///
+  /// In en, this message translates to:
+  /// **'Tiebreaker: This Spin Decides It'**
+  String get wheelTiebreak;
+
+  /// Header above the wheel in Single Spin mode.
+  ///
+  /// In en, this message translates to:
+  /// **'One Spin Decides It'**
+  String get wheelSingleHeader;
+
+  /// Shown over a poster in Best of 3 mode when the wheel lands on it.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} scores!'**
+  String wheelScored(String name);
+
+  /// Tooltip for the wheel's sound toggle while sound is on.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute Sounds'**
+  String get wheelMute;
+
+  /// Tooltip for the wheel's sound toggle while sound is off.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute Sounds'**
+  String get wheelUnmute;
+
+  /// Play button on the wheel's result screen while in a Watch Together group.
+  ///
+  /// In en, this message translates to:
+  /// **'Play for Group'**
+  String get wheelPlayForGroup;
+
+  /// Note under the result screen's buttons while in a Watch Together group.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone in your Watch Together group will start watching.'**
+  String get wheelGroupHint;
+
+  /// Sleep timer button tooltip, player menu entry, and sheet title.
+  ///
+  /// In en, this message translates to:
+  /// **'Sleep Timer'**
+  String get sleepTimer;
+
+  /// Sleep timer option: stop playback after this many minutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 Minute} other{{count} Minutes}}'**
+  String sleepTimerMinutes(int count);
+
+  /// Sleep timer option: stop when the current song finishes instead of playing the next.
+  ///
+  /// In en, this message translates to:
+  /// **'End of Track'**
+  String get sleepTimerEndOfTrack;
+
+  /// Sleep timer option: stop when the current episode finishes instead of playing the next.
+  ///
+  /// In en, this message translates to:
+  /// **'End of Episode'**
+  String get sleepTimerEndOfEpisode;
+
+  /// Sleep timer option: stop when the current movie or video finishes.
+  ///
+  /// In en, this message translates to:
+  /// **'End of Video'**
+  String get sleepTimerEndOfVideo;
+
+  /// Sleep timer countdown, e.g. 'Stops in 23m'.
+  ///
+  /// In en, this message translates to:
+  /// **'Stops in {time}'**
+  String sleepTimerStopsIn(String time);
+
+  /// Sleep timer status when set to stop at the end of the current track or episode.
+  ///
+  /// In en, this message translates to:
+  /// **'Stops at the end of this one'**
+  String get sleepTimerAfterThis;
+
+  /// Button that cancels a running sleep timer.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn Off'**
+  String get sleepTimerTurnOff;
+
+  /// Tooltip / screen-reader label for the repeat (off / all / one) button.
+  ///
+  /// In en, this message translates to:
+  /// **'Repeat'**
+  String get commonRepeat;
+
+  /// Tooltip / screen-reader label for a three-dot overflow menu button.
+  ///
+  /// In en, this message translates to:
+  /// **'More Options'**
+  String get commonMoreOptions;
+
+  /// Tooltip / screen-reader label for the button that reveals the typed password.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Password'**
+  String get loginShowPassword;
+
+  /// Tooltip / screen-reader label for the button that hides the typed password again.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide Password'**
+  String get loginHidePassword;
+
+  /// Screen-reader label for the spinning wheel.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Movie Night Wheel with 1 title} other{Movie Night Wheel with {count} titles}}'**
+  String a11yWheel(int count);
+
+  /// Screen-reader name of the action that spins the wheel.
+  ///
+  /// In en, this message translates to:
+  /// **'Spin'**
+  String get a11ySpin;
+
+  /// Screen-reader announcement of the wheel's final pick.
+  ///
+  /// In en, this message translates to:
+  /// **'Tonight\'s pick: {name}'**
+  String a11yWinner(String name);
 }
 
 class _AppLocalizationsDelegate

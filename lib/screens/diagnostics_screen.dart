@@ -7,6 +7,7 @@ import '../services/diagnostics.dart';
 import '../state/app_info.dart';
 import '../state/preferences.dart';
 import '../state/session_controller.dart';
+import '../widgets/app_snack.dart';
 
 /// App-wide troubleshooting. Turning on Diagnostic Logging records global
 /// errors, app logs, and (during playback) a verbose libmpv trace into one
@@ -58,8 +59,8 @@ class DiagnosticsScreen extends ConsumerWidget {
                   title: Text(l.diagnosticsClear),
                   onTap: () {
                     Diagnostics.instance.clear();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l.diagnosticsCleared)));
+                    showSnack(context, l.diagnosticsCleared,
+                        kind: SnackKind.success);
                   },
                 ),
               ],
@@ -74,8 +75,7 @@ class DiagnosticsScreen extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
     if (Diagnostics.instance.isEmpty) {
-      messenger
-          .showSnackBar(SnackBar(content: Text(l.prefsDiagnosticsEmpty)));
+      showSnackOn(messenger, l.prefsDiagnosticsEmpty);
       return;
     }
     final version = ref.read(appVersionProvider).asData?.value ?? '?';
@@ -89,6 +89,6 @@ class DiagnosticsScreen extends ConsumerWidget {
       'Hardware decoding': prefs?.hardwareDecoding ?? true,
     });
     await Clipboard.setData(ClipboardData(text: report));
-    messenger.showSnackBar(SnackBar(content: Text(l.prefsDiagnosticsCopied)));
+    showSnackOn(messenger, l.prefsDiagnosticsCopied, kind: SnackKind.success);
   }
 }

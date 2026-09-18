@@ -8,9 +8,11 @@ import '../models/youtube_video.dart';
 import '../services/youtube_thumbnails.dart';
 import '../services/tv_mode.dart';
 import '../state/preferences.dart';
+import 'context_menu.dart';
 import 'tv_focus.dart';
 import 'youtube_actions.dart';
 import 'youtube_cards.dart';
+import 'app_spinner.dart';
 
 /// Videos as a list or a grid, following the YouTube list-mode setting.
 ///
@@ -54,7 +56,7 @@ class YoutubeVideoCollection extends ConsumerWidget {
         itemBuilder: (_, i) => i >= videos.length
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(child: AppSpinner()),
               )
             : YoutubeVideoRow(
                 video: videos[i],
@@ -78,7 +80,7 @@ class YoutubeVideoCollection extends ConsumerWidget {
         ),
         itemCount: count,
         itemBuilder: (_, i) => i >= videos.length
-            ? const Center(child: CircularProgressIndicator())
+            ? const Center(child: AppSpinner())
             : YoutubeVideoCard(
                 video: videos[i],
                 showAuthor: showAuthor,
@@ -111,18 +113,11 @@ class _YoutubeVideoCardState extends ConsumerState<YoutubeVideoCard> {
 
   /// The same menu the list rows have. A card and a row are the same video;
   /// which actions you get must not depend on the layout setting.
-  Future<void> _showContextMenu(Offset at) async {
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
-    final chosen = await showMenu<VoidCallback>(
-      context: context,
-      position: RelativeRect.fromRect(
-          at & const Size(1, 1), Offset.zero & overlay.size),
-      items: YoutubeActions.menuItems(context, ref, widget.video),
-    );
-    chosen?.call();
-  }
+  Future<void> _showContextMenu(Offset at) => showContextMenu(
+        context,
+        at: at,
+        actions: YoutubeActions.menuItems(context, ref, widget.video),
+      );
 
   @override
   Widget build(BuildContext context) {

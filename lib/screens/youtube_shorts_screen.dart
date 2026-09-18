@@ -21,6 +21,7 @@ import '../state/youtube_providers.dart';
 import '../widgets/add_to_youtube_playlist.dart';
 import '../widgets/animated_control.dart';
 import '../widgets/youtube_actions.dart';
+import '../widgets/app_spinner.dart';
 
 /// A vertical, swipeable Shorts viewer — one Short per full-screen page, swipe
 /// up/down to move. Scoped to the list it was opened from (e.g. a channel's
@@ -387,7 +388,7 @@ class _ShortPageState extends ConsumerState<_ShortPage> {
               initialData: true,
               builder: (context, snap) => (snap.data ?? false)
                   ? const Center(
-                      child: CircularProgressIndicator(color: Colors.white))
+                      child: AppSpinner(color: Colors.white))
                   : const SizedBox.shrink(),
             ),
 
@@ -717,14 +718,14 @@ class _ShortsCommentsSheet extends ConsumerWidget {
     return SizedBox(
       height: MediaQuery.sizeOf(context).height * 0.78,
       child: ref.watch(youtubeWatchProvider(videoId)).when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: AppSpinner()),
             error: (_, _) => unavailable(),
             data: (d) {
               final token = d.commentsToken;
               if (token == null) return unavailable();
               return ref.watch(youtubeCommentsProvider(token)).when(
                     loading: () =>
-                        const Center(child: CircularProgressIndicator()),
+                        const Center(child: AppSpinner()),
                     error: (_, _) => unavailable(),
                     data: (page) {
                       if (page.comments.isEmpty) return unavailable();
@@ -750,11 +751,7 @@ class _ShortsCommentsSheet extends ConsumerWidget {
                               child: page.loadingMore
                                   ? const Padding(
                                       padding: EdgeInsets.all(8),
-                                      child: SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2)),
+                                      child: AppSpinner.inline(),
                                     )
                                   : TextButton.icon(
                                       onPressed: () => ref

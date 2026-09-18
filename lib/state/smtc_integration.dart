@@ -58,6 +58,8 @@ final smtcProvider = Provider<SmtcService?>((ref) {
     }
     final st = ref.read(audioControllerProvider);
     // Internet radio: no queue track, so present the station + live ICY title.
+    // Next/Previous switch stations (see AudioController.next/previous), not
+    // tracks.
     if (st.isRadio && st.radioStation != null) {
       final s = st.radioStation!;
       final icy = st.radioTitle;
@@ -77,8 +79,8 @@ final smtcProvider = Provider<SmtcService?>((ref) {
           artist: hasIcy ? s.name : genre,
           thumbnail: art,
         ),
-        canNext: false,
-        canPrev: false,
+        canNext: true,
+        canPrev: true,
       );
       return;
     }

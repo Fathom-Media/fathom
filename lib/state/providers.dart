@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../api/jellyfin_client.dart';
+import '../services/resilient_secure_storage.dart';
 
 /// A stable per-install device id. Overridden in `main()` with the real value
 /// read from secure storage before the app starts.
@@ -9,8 +9,8 @@ final deviceIdProvider = Provider<String>((ref) {
   throw UnimplementedError('deviceIdProvider must be overridden in main()');
 });
 
-final secureStorageProvider = Provider<FlutterSecureStorage>((ref) {
-  return const FlutterSecureStorage();
+final secureStorageProvider = Provider<ResilientSecureStorage>((ref) {
+  return const ResilientSecureStorage();
 });
 
 final jellyfinClientProvider = Provider<JellyfinClient>((ref) {

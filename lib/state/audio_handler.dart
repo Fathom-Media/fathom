@@ -132,10 +132,9 @@ class FathomAudioHandler extends BaseAudioHandler with SeekHandler {
   /// Publish transport state (playing/paused, position, buffered) so the
   /// notification's controls and scrubber reflect the player.
   ///
-  /// [radio] switches to the live-stream control set: just play/pause. Radio has
-  /// no track queue, so the music skip buttons would be dead no-ops, and a stop
-  /// button only renders as a stray square in the media player. One control is
-  /// all a live stream needs.
+  /// [radio] switches skip to mean previous/next STATION (there's no track
+  /// queue) rather than previous/next track; a stop button isn't included
+  /// either way, since it only renders as a stray square in the media player.
   void setPlayback({
     required bool playing,
     required bool buffering,
@@ -149,15 +148,11 @@ class FathomAudioHandler extends BaseAudioHandler with SeekHandler {
     int? queueIndex, // which queue row the car highlights as "now playing"
     bool musicQueue = false, // show shuffle/repeat (library music only)
   }) {
-    final controls = <MediaControl>[];
-    if (radio) {
-      controls.add(playing ? MediaControl.pause : MediaControl.play);
-    } else {
-      controls
-        ..add(MediaControl.skipToPrevious)
-        ..add(playing ? MediaControl.pause : MediaControl.play)
-        ..add(MediaControl.skipToNext);
-    }
+    final controls = <MediaControl>[
+      MediaControl.skipToPrevious,
+      playing ? MediaControl.pause : MediaControl.play,
+      MediaControl.skipToNext,
+    ];
     if (musicQueue) {
       // Shuffle + Repeat as custom buttons. Custom actions have no built-in
       // on/off state, so "active" is shown with a filled-chip icon variant.
@@ -207,7 +202,7 @@ class FathomAudioHandler extends BaseAudioHandler with SeekHandler {
               MediaAction.seekForward,
               MediaAction.seekBackward,
             },
-      androidCompactActionIndices: radio ? const [0] : const [0, 1, 2],
+      androidCompactActionIndices: const [0, 1, 2],
       processingState:
           buffering ? AudioProcessingState.buffering : AudioProcessingState.ready,
       playing: playing,

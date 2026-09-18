@@ -90,6 +90,7 @@ Future<void> pushAppNotification(
   // so a new build is a proper native notification, not a fleeting snackbar.
   bool osNotify = false,
   String? route,
+  Object? routeExtra,
 }) async {
   if (!enabled) return;
   await ref.read(notificationsProvider.notifier).add(AppNotif(
@@ -99,6 +100,7 @@ Future<void> pushAppNotification(
         body: body,
         time: DateTime.now(),
         route: route,
+        routeExtra: routeExtra,
       ));
   if (osNotify) {
     await AppNotifications.show(title, body);
