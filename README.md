@@ -14,6 +14,8 @@ An all-in-one client for Jellyfin, on desktop and Android. Your media, your serv
 [![Stars](https://img.shields.io/github/stars/Fathom-Media/fathom?style=social)](https://github.com/Fathom-Media/fathom/stargazers)
 [![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey)](https://fathom-media.github.io/fathom/install/)
 
+[![Documentation](https://img.shields.io/badge/docs-fathom--media.github.io-8A2BE2?logo=readthedocs&logoColor=white)](https://fathom-media.github.io/fathom/)
+
 **[Documentation](https://fathom-media.github.io/fathom/) · [Install](https://fathom-media.github.io/fathom/install/) · [Releases](https://github.com/Fathom-Media/fathom/releases/latest)**
 
 **Mac fund:** Fathom has no macOS or iOS build yet, because building either needs a Mac. [See the goal](https://traceapps.github.io/docs/support/) or [chip in](https://ko-fi.com/traceapps). Fathom stays free either way.
