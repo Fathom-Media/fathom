@@ -9,10 +9,10 @@
 An all-in-one client for Jellyfin, on desktop and Android. Your media, your server, Seerr requests, and YouTube, without leaving the app.
 
 [![License](https://img.shields.io/github/license/Fathom-Media/fathom?color=blue)](LICENSE)
-[![Latest release](https://img.shields.io/github/v/release/Fathom-Media/fathom)](https://github.com/Fathom-Media/fathom/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/Fathom-Media/fathom/total)](https://github.com/Fathom-Media/fathom/releases)
-[![Stars](https://img.shields.io/github/stars/Fathom-Media/fathom)](https://github.com/Fathom-Media/fathom/stargazers)
-![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey)
+[![Latest release](https://img.shields.io/github/v/release/Fathom-Media/fathom?label=release&color=orange)](https://github.com/Fathom-Media/fathom/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Fathom-Media/fathom/total?label=downloads&color=brightgreen)](https://github.com/Fathom-Media/fathom/releases)
+[![Stars](https://img.shields.io/github/stars/Fathom-Media/fathom?style=social)](https://github.com/Fathom-Media/fathom/stargazers)
+[![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Android-lightgrey)](https://fathom-media.github.io/fathom/install/)
 
 **[Documentation](https://fathom-media.github.io/fathom/) · [Install](https://fathom-media.github.io/fathom/install/) · [Releases](https://github.com/Fathom-Media/fathom/releases/latest)**
 
