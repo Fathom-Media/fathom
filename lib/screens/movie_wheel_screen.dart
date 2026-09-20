@@ -87,6 +87,7 @@ class _Narrowed extends _Action {
 class _MovieWheelScreenState extends ConsumerState<MovieWheelScreen> {
   _Phase _phase = _Phase.setup;
   final _wheelKey = GlobalKey<SpinWheelState>();
+  bool _wheelFocused = false; // TV: the remote is on the wheel
 
   // Setup.
   bool _prefsLoaded = false;
@@ -708,12 +709,18 @@ class _MovieWheelScreenState extends ConsumerState<MovieWheelScreen> {
                     onTick: _audio.tick,
                     onLanded: _onLanded,
                     onSettled: _onSettled,
+                    focused: _wheelFocused,
                   );
                   // The wheel's own tap-to-spin is a bare GestureDetector
                   // with no focus node, so a remote can't reach it without
-                  // this wrap. TvFocusable is a no-op off TV.
+                  // this wrap. TvFocusable is a no-op off TV. The wheel draws
+                  // its own round focus ring, and doesn't grow on focus since
+                  // it's already sized to fill the space.
                   return TvFocusable(
                     autofocus: isTvDevice,
+                    showRing: false,
+                    scale: 1.0,
+                    onFocusChange: (v) => setState(() => _wheelFocused = v),
                     onTap: () => _wheelKey.currentState?.spin(),
                     child: wheel,
                   );
