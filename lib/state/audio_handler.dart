@@ -1,6 +1,8 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/diagnostics.dart';
+
 /// The initialized OS media session, or null when it isn't available (desktop,
 /// or a failed init). Overridden in main() after [AudioService.init].
 final audioHandlerProvider = Provider<FathomAudioHandler?>((_) => null);
@@ -57,23 +59,49 @@ class FathomAudioHandler extends BaseAudioHandler with SeekHandler {
   Future<void> Function()? onToggleShuffle;
   Future<void> Function()? onCycleRepeat;
 
-  @override
-  Future<void> play() async => onPlay?.call();
+  // Every transport command the system sends (notification, lock screen,
+  // headset and Bluetooth buttons, the car) lands in one of these. They are
+  // logged with whether a player is actually wired to them, so a report of
+  // "the notification buttons do nothing" can be read rather than guessed:
+  // no line at all means the command never reached the app.
+  void _log(String action, Object? bound) => Diagnostics.instance
+      .add('media', 'session $action (wired=${bound != null})');
 
   @override
-  Future<void> pause() async => onPause?.call();
+  Future<void> play() async {
+    _log('play', onPlay);
+    await onPlay?.call();
+  }
 
   @override
-  Future<void> skipToNext() async => onNext?.call();
+  Future<void> pause() async {
+    _log('pause', onPause);
+    await onPause?.call();
+  }
 
   @override
-  Future<void> skipToPrevious() async => onPrevious?.call();
+  Future<void> skipToNext() async {
+    _log('next', onNext);
+    await onNext?.call();
+  }
 
   @override
-  Future<void> stop() async => onStop?.call();
+  Future<void> skipToPrevious() async {
+    _log('previous', onPrevious);
+    await onPrevious?.call();
+  }
 
   @override
-  Future<void> seek(Duration position) async => onSeek?.call(position);
+  Future<void> stop() async {
+    _log('stop', onStop);
+    await onStop?.call();
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    _log('seek', onSeek);
+    await onSeek?.call(position);
+  }
 
   // ---- Android Auto browsing ------------------------------------------------
   // The car (or any MediaBrowser client) calls these to build its browse UI and

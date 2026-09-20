@@ -301,6 +301,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.music());
       _noisySub = session.becomingNoisyEventStream.listen((_) {
+        Diagnostics.instance.add('media',
+            'video: audio became noisy, live=${!_disposed && !_deactivated}');
         if (!_disposed && !_deactivated) _safePause();
       });
       _interruptSub = session.interruptionEventStream.listen((e) {

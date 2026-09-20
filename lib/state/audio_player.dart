@@ -351,6 +351,8 @@ class AudioController extends Notifier<AudioState> {
         // (there's no video screen to do it).
         await session.configure(const AudioSessionConfiguration.music());
         _noisySub = session.becomingNoisyEventStream.listen((_) {
+          Diagnostics.instance.add(
+              'media', 'audio became noisy, playing=${_player.state.playing}');
           if (_player.state.playing) _player.pause();
         });
         // Pause when we lose audio focus — this is what fires when Android Auto
