@@ -138,6 +138,44 @@ jobs:
           Copy-Item "$crtDir\*.dll" -Destination "build\windows\x64\runner\Release\" -Force
           Get-ChildItem "build\windows\x64\runner\Release\" -Filter "*140*.dll" | Format-Table Name
 
+      # YouTube serves anything above 360p (and, for a growing number of videos,
+      # everything) as separate video and audio streams that only ffmpeg can
+      # merge, and Windows has no ffmpeg of its own. Bundle one beside the exe,
+      # where youtube_download.dart looks first. Pinned to a versioned release
+      # and hash-checked, so a changed download fails the build instead of
+      # reaching users. The license and a pointer to the source go with it.
+      # The version and hash live in windows/ffmpeg.env (see that file).
+      - name: Bundle ffmpeg
+        shell: pwsh
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          $pin = @{}
+          foreach ($line in Get-Content windows\ffmpeg.env) {
+            if ($line -match '^(\w+)=(.+)$') { $pin[$Matches[1]] = $Matches[2].Trim() }
+          }
+          $ver = $pin['FFMPEG_VERSION']
+          $sha = $pin['FFMPEG_SHA256'].ToLower()
+          if (-not $ver -or -not $sha) { throw "windows/ffmpeg.env is missing the version or hash" }
+          $zip = "ffmpeg-$ver-essentials_build.zip"
+          Invoke-WebRequest "https://github.com/GyanD/codexffmpeg/releases/download/$ver/$zip" -OutFile $zip
+          $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $sha) { throw "ffmpeg download checksum mismatch: $got" }
+          Expand-Archive $zip -DestinationPath ffmpeg-dl -Force
+          $src = "ffmpeg-dl\ffmpeg-$ver-essentials_build"
+          $out = "build\windows\x64\runner\Release"
+          Copy-Item "$src\bin\ffmpeg.exe" $out
+          Copy-Item "$src\LICENSE" "$out\ffmpeg-LICENSE.txt"
+          Set-Content "$out\ffmpeg-SOURCE.txt" @"
+          ffmpeg.exe is FFmpeg $ver (GPLv3), the essentials build by Gyan Doshi,
+          bundled so Fathom can merge YouTube's separate video and audio streams.
+          Build: https://github.com/GyanD/codexffmpeg/releases/tag/$ver
+          Source: https://ffmpeg.org/releases/ffmpeg-$ver.tar.xz
+          "@
+          # Prove the bundled copy runs, not just that it was copied.
+          $info = & "$out\ffmpeg.exe" -hide_banner -version
+          if ($LASTEXITCODE -ne 0) { throw "bundled ffmpeg failed to run" }
+          Write-Host $info[0]
+
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
