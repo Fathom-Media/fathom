@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../services/shared_files.dart';
 import '../services/image_cache.dart';
 import '../services/tv_mode.dart';
 import '../state/preferences.dart';
@@ -1372,25 +1373,82 @@ class _YoutubeDownloadFolders extends ConsumerWidget {
     final l = AppLocalizations.of(context);
     final p = ref.watch(preferencesProvider).asData?.value ?? const Prefs();
     final c = ref.read(preferencesProvider.notifier);
-    final fallback =
-        ref.watch(youtubeDownloadDirProvider(YtDownloadKind.video)).asData?.value;
+    // What an unset folder means here: the public folder downloads are
+    // published to on Android 11+, the default download folder elsewhere.
+    String fallback(bool audio) =>
+        ref
+            .watch(youtubeDownloadFolderLabelProvider(
+                audio ? YtDownloadKind.audio : YtDownloadKind.video))
+            .asData
+            ?.value ??
+        l.prefsDefault;
+
+    // A new folder is for new downloads. When finished downloads would be
+    // left behind in the old one, ask once whether to bring them along;
+    // nothing moves without a yes.
+    Future<void> setFolder(bool audio, String path) async {
+      final messenger = ScaffoldMessenger.of(context);
+      await c.edit((x) => audio
+          ? x.copyWith(youtubeAudioDownloadPath: path)
+          : x.copyWith(youtubeVideoDownloadPath: path));
+      await ref.read(youtubeDownloadsProvider.future);
+      final downloads = ref.read(youtubeDownloadsProvider.notifier);
+      final behind = await downloads.leftBehind(audio: audio, custom: path);
+      if (behind.isEmpty || !context.mounted) return;
+      final move = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l.ytMoveDownloadsTitle),
+          content: Text(l.ytMoveDownloadsBody(behind.length)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l.ytMoveDownloadsKeep),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l.ytMoveDownloadsMove),
+            ),
+          ],
+        ),
+      );
+      if (move != true) return;
+      final moved = await downloads.moveTo(behind, audio: audio, custom: path);
+      showSnackOn(
+        messenger,
+        moved == behind.length
+            ? l.ytMoveDownloadsDone(moved)
+            : l.ytMoveDownloadsPartial(moved, behind.length),
+        kind: moved == behind.length ? SnackKind.success : SnackKind.error,
+      );
+    }
 
     Future<void> pick(bool audio) async {
       final dir = await FilePicker.getDirectoryPath(
           dialogTitle:
               audio ? l.prefsAudioDownloadFolder : l.prefsVideoDownloadFolder);
       if (dir == null) return;
-      c.edit((x) => audio
-          ? x.copyWith(youtubeAudioDownloadPath: dir)
-          : x.copyWith(youtubeVideoDownloadPath: dir));
+      await setFolder(audio, dir);
     }
+
+    // Android publishes through MediaStore, which can only write to the
+    // phone's main storage; say so up front when the folder is elsewhere,
+    // rather than letting downloads quietly land somewhere else.
+    final publishes =
+        ref.watch(sharedFilesPublishProvider).asData?.value ?? false;
+    bool unusable(String value) =>
+        publishes && value.isNotEmpty && SharedFiles.relativeDir(value) == null;
 
     Widget row(String title, String value, bool audio) => ListTile(
           leading: Icon(audio ? Icons.library_music_rounded : Icons.folder_rounded),
           title: Text(title),
           subtitle: Text(
-            value.isEmpty ? (fallback?.path ?? l.prefsDefault) : value,
-            maxLines: 1,
+            unusable(value)
+                ? '$value\n${l.prefsDownloadFolderUnavailable(SharedFiles.defaultDir(audio: audio))}'
+                : value.isEmpty
+                    ? fallback(audio)
+                    : value,
+            maxLines: unusable(value) ? 3 : 1,
             overflow: TextOverflow.ellipsis,
           ),
           trailing: value.isEmpty
@@ -1398,16 +1456,27 @@ class _YoutubeDownloadFolders extends ConsumerWidget {
               : IconButton(
                   tooltip: l.commonReset,
                   icon: const Icon(Icons.close_rounded),
-                  onPressed: () => c.edit((x) => audio
-                      ? x.copyWith(youtubeAudioDownloadPath: '')
-                      : x.copyWith(youtubeVideoDownloadPath: '')),
+                  // Back to the default is a folder change too.
+                  onPressed: () => setFolder(audio, ''),
                 ),
           onTap: () => pick(audio),
         );
 
+    final theme = Theme.of(context);
     return Column(children: [
       row(l.prefsVideoFolder, p.youtubeVideoDownloadPath, false),
       row(l.prefsAudioFolder, p.youtubeAudioDownloadPath, true),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            l.prefsDownloadFolderNote,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+      ),
     ]);
   }
 }

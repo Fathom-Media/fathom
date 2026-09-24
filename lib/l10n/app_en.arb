@@ -4003,6 +4003,54 @@
   "@ytShowInFolder": {
     "description": "Menu item: open the folder containing a downloaded file."
   },
+  "prefsDownloadFolderNote": "New downloads go here. If you already have downloads, you'll be asked whether to move them too.",
+  "@prefsDownloadFolderNote": {
+    "description": "Help text under the YouTube download folder settings: changing the folder only moves existing files if the user agrees."
+  },
+  "ytMoveDownloadsTitle": "Move Existing Downloads?",
+  "@ytMoveDownloadsTitle": {
+    "description": "Dialog title after changing the download folder while downloads exist in the old one."
+  },
+  "ytMoveDownloadsBody": "{count, plural, =1{1 download is in your old folder. Move it here too?} other{{count} downloads are in your old folder. Move them here too?}}",
+  "@ytMoveDownloadsBody": {
+    "description": "Dialog body: how many finished downloads would stay behind in the previous folder.",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "ytMoveDownloadsKeep": "Keep Them Where They Are",
+  "@ytMoveDownloadsKeep": {
+    "description": "Dialog button: leave existing downloads in the old folder."
+  },
+  "ytMoveDownloadsMove": "Move Them",
+  "@ytMoveDownloadsMove": {
+    "description": "Dialog button: move existing downloads into the new folder."
+  },
+  "ytMoveDownloadsDone": "{count, plural, =1{Moved 1 download.} other{Moved {count} downloads.}}",
+  "@ytMoveDownloadsDone": {
+    "description": "Confirmation after moving downloads to the new folder.",
+    "placeholders": {"count": {"type": "int"}}
+  },
+  "ytMoveDownloadsPartial": "Moved {moved} of {total} downloads. The rest couldn't be moved and stayed where they were.",
+  "@ytMoveDownloadsPartial": {
+    "description": "Some downloads could not be moved to the new folder.",
+    "placeholders": {"moved": {"type": "int"}, "total": {"type": "int"}}
+  },
+  "prefsDownloadFolderUnavailable": "Fathom can't save here, so downloads go to {folder}.",
+  "@prefsDownloadFolderUnavailable": {
+    "description": "Android: the chosen download folder is outside the phone's main storage (an SD card, say). {folder} is the folder used instead, such as Movies/Fathom.",
+    "placeholders": {"folder": {"type": "String"}}
+  },
+  "ytOpenWith": "Open With",
+  "@ytOpenWith": {
+    "description": "Menu item (Android): open a downloaded file in another app, such as a video player."
+  },
+  "ytShareFile": "Share",
+  "@ytShareFile": {
+    "description": "Menu item (Android): send a downloaded file to another app or person."
+  },
+  "ytOpenFileFailed": "No app on this device can open that file.",
+  "@ytOpenFileFailed": {
+    "description": "Error shown when no installed app can open or receive a downloaded file."
+  },
   "ytRemoveFromList": "Remove from List",
   "@ytRemoveFromList": {
     "description": "Menu item: remove a download from the list but keep the file."
@@ -4316,7 +4364,7 @@
       }
     }
   },
-  "ytFfmpegNote": "ffmpeg not found. Only M4A audio and 360p MP4 are available. Install ffmpeg for MP3, MKV and higher resolutions.",
+  "ytFfmpegNote": "ffmpeg not found, so only M4A audio can be downloaded, plus 360p MP4 for videos YouTube still offers as a single file. Install ffmpeg for MP3, MKV and higher resolutions.",
   "@ytFfmpegNote": {
     "description": "Note in the download sheet when ffmpeg is not installed."
   },

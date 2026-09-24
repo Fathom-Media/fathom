@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- The in-app updater stages its APK in the app's external files dir (see
-     app_installer.dart), and only that folder is shared with the installer. -->
-<paths>
-    <external-files-path name="updates" path="." />
-</paths>

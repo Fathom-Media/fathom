@@ -45,6 +45,8 @@ class MainActivity : AudioServiceActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             io.flutter.FlutterInjector.instance().flutterLoader(),
         )
+        // Downloads: publish to shared storage, Open With, Share.
+        SharedFiles(this, flutterEngine.dartExecutor.binaryMessenger)
         channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "app.fathom.player/pip",
@@ -88,7 +90,7 @@ class MainActivity : AudioServiceActivity() {
                     try {
                         val file = File(call.arguments as String)
                         val uri = FileProvider.getUriForFile(
-                            this, "$packageName.updates", file)
+                            this, "$packageName.files", file)
                         val intent = Intent(Intent.ACTION_VIEW)
                             .setDataAndType(uri, "application/vnd.android.package-archive")
                             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

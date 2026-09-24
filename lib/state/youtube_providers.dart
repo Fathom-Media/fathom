@@ -20,6 +20,8 @@ import '../services/youtube_innertube.dart';
 import '../services/youtube_search_params.dart';
 import '../models/youtube_download.dart';
 import '../services/youtube_download.dart';
+import '../services/diagnostics.dart';
+import '../services/shared_files.dart';
 import '../services/sponsorblock.dart';
 import '../models/app_notification.dart';
 import 'notifications_controller.dart';
@@ -1336,10 +1338,37 @@ final youtubeDownloadDirProvider =
   final custom = kind == YtDownloadKind.audio
       ? (p?.youtubeAudioDownloadPath ?? '')
       : (p?.youtubeVideoDownloadPath ?? '');
-  if (custom.isNotEmpty) return Directory(custom);
+  // Android 11+ downloads into Fathom's own folder and publishes the finished
+  // file to the chosen (or default public) folder afterwards: writing straight
+  // into shared storage by path is refused for scratch files and anywhere
+  // outside the standard folders. See [YoutubeDownloads._publish].
+  if (custom.isNotEmpty && !await SharedFiles.canPublish()) {
+    return Directory(custom);
+  }
   final downloads = await getDownloadsDirectory();
   final base = downloads ?? await getApplicationSupportDirectory();
   return Directory('${base.path}/Fathom');
+});
+
+/// Whether finished downloads are published to shared storage (Android 11+).
+final sharedFilesPublishProvider =
+    FutureProvider<bool>((ref) => SharedFiles.canPublish());
+
+/// The folder downloads end up in, as shown to people: on Android 11+ the
+/// public folder they're published to (see [SharedFiles]), elsewhere the
+/// download folder itself.
+final youtubeDownloadFolderLabelProvider =
+    FutureProvider.family<String, YtDownloadKind>((ref, kind) async {
+  final audio = kind == YtDownloadKind.audio;
+  if (await SharedFiles.canPublish()) {
+    final p = ref.watch(preferencesProvider).asData?.value;
+    final picked = audio
+        ? (p?.youtubeAudioDownloadPath ?? '')
+        : (p?.youtubeVideoDownloadPath ?? '');
+    return (picked.isEmpty ? null : SharedFiles.relativeDir(picked)) ??
+        SharedFiles.defaultDir(audio: audio);
+  }
+  return (await ref.watch(youtubeDownloadDirProvider(kind).future)).path;
 });
 
 final youtubeDownloaderProvider =
@@ -1370,10 +1399,12 @@ class YoutubeDownloads extends AsyncNotifier<List<YoutubeDownload>> {
       ];
       // Drop any whose file has since been moved or deleted from outside the
       // app, rather than listing downloads that aren't there.
-      return [
+      final kept = [
         for (final d in list)
           if (d.filePath != null && File(d.filePath!).existsSync()) d,
       ];
+      unawaited(_publishHidden());
+      return kept;
     } catch (_) {
       return const [];
     }
@@ -1397,6 +1428,111 @@ class YoutubeDownloads extends AsyncNotifier<List<YoutubeDownload>> {
 
   YoutubeDownload? entryFor(String videoId) =>
       _current.where((d) => d.id == videoId).firstOrNull;
+
+  /// Moves a finished download out of Fathom's own folder into shared storage
+  /// (Android 11+), so the Files app and the gallery see it: into the folder
+  /// picked in settings when that's in shared storage and MediaStore accepts
+  /// it, else Movies/Fathom or Music/Fathom. Null when it stays where it is.
+  Future<String?> _publish(File file) async {
+    if (!await SharedFiles.canPublish()) return null;
+    final prefs = ref.read(preferencesProvider).asData?.value;
+    final audio = SharedFiles.mimeFor(file.path).startsWith('audio/');
+    final picked = audio
+        ? (prefs?.youtubeAudioDownloadPath ?? '')
+        : (prefs?.youtubeVideoDownloadPath ?? '');
+    final pickedDir = picked.isEmpty ? null : SharedFiles.relativeDir(picked);
+    for (final dir in [
+      ?pickedDir,
+      SharedFiles.defaultDir(audio: audio),
+    ]) {
+      try {
+        return await SharedFiles.publish(file, dir);
+      } catch (e) {
+        Diagnostics.instance.add('downloads', 'publishing to $dir failed: $e');
+      }
+    }
+    return null;
+  }
+
+  /// Where a download of this kind lands when [custom] is the folder setting:
+  /// on Android 11+ the public folder it's published to, elsewhere the folder
+  /// itself, or Downloads/Fathom when none is set.
+  Future<String> _folderFor({required bool audio, required String custom}) async {
+    if (await SharedFiles.canPublish()) {
+      final rel = (custom.isEmpty ? null : SharedFiles.relativeDir(custom)) ??
+          SharedFiles.defaultDir(audio: audio);
+      return SharedFiles.absoluteDir(rel);
+    }
+    if (custom.isNotEmpty) return custom;
+    final downloads = await getDownloadsDirectory();
+    final base = downloads ?? await getApplicationSupportDirectory();
+    return '${base.path}/Fathom';
+  }
+
+  static bool _isAudio(String path) =>
+      SharedFiles.mimeFor(path).startsWith('audio/');
+
+  /// Finished downloads of one kind that aren't in the folder [custom] points
+  /// to: what changing the folder setting would leave behind.
+  Future<List<YoutubeDownload>> leftBehind(
+      {required bool audio, required String custom}) async {
+    final folder = YoutubeDownloader.comparableFolder(
+        await _folderFor(audio: audio, custom: custom));
+    return [
+      for (final d in _current)
+        if (d.status == YtDownloadStatus.done &&
+            d.filePath != null &&
+            _isAudio(d.filePath!) == audio &&
+            YoutubeDownloader.comparableFolder(File(d.filePath!).parent.path) !=
+                folder &&
+            File(d.filePath!).existsSync())
+          d,
+    ];
+  }
+
+  /// Moves [downloads] into the folder [custom] points to, and returns how
+  /// many moved. Any that can't be moved stay where they were, and the
+  /// reason goes to Diagnostics.
+  Future<int> moveTo(List<YoutubeDownload> downloads,
+      {required bool audio, required String custom}) async {
+    final folder = await _folderFor(audio: audio, custom: custom);
+    final publishes = await SharedFiles.canPublish();
+    var moved = 0;
+    for (final d in downloads) {
+      final from = d.filePath;
+      if (from == null) continue;
+      try {
+        final to = publishes
+            ? await SharedFiles.move(
+                from, folder.substring(SharedFiles.absoluteDir('').length))
+            : await YoutubeDownloader.moveInto(File(from), Directory(folder));
+        _update(d.id, (x) => x.copyWith(filePath: to));
+        moved++;
+      } catch (e) {
+        Diagnostics.instance.add('downloads', 'moving ${d.title} failed: $e');
+      }
+    }
+    return moved;
+  }
+
+  /// Downloads from before publishing existed sit in Fathom's own folder,
+  /// hidden from every other app. Moves them out once, after the list loads.
+  Future<void> _publishHidden() async {
+    await future;
+    if (!await SharedFiles.canPublish()) return;
+    for (final d in _current) {
+      final path = d.filePath;
+      if (d.status != YtDownloadStatus.done ||
+          path == null ||
+          !path.contains('/Android/data/')) {
+        continue;
+      }
+      final published = await _publish(File(path));
+      if (published != null) {
+        _update(d.id, (x) => x.copyWith(filePath: published));
+      }
+    }
+  }
 
   void _update(String id, YoutubeDownload Function(YoutubeDownload) f) {
     _set([
@@ -1488,14 +1624,16 @@ class YoutubeDownloads extends AsyncNotifier<List<YoutubeDownload>> {
               ),
             ),
           );
+      final published = await _publish(file);
+      final saved = published == null ? file : File(published);
       _update(
           video.id,
           (d) => d.copyWith(
                 status: YtDownloadStatus.done,
-                filePath: file.path,
+                filePath: saved.path,
                 progress: 1,
                 stage: '',
-                bytes: file.existsSync() ? file.lengthSync() : d.bytes,
+                bytes: saved.existsSync() ? saved.lengthSync() : d.bytes,
               ));
       await pushAppNotification(ref,
           kind: AppNotifKind.downloadComplete,

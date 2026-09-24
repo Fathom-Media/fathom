@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Files Fathom hands to other apps through its FileProvider: the in-app
+     updater's staged APK and unpublished downloads live in the app's external
+     files dir; published downloads live in shared storage (Movies, Music,
+     Download). Only URIs Fathom creates for a specific file are ever shared. -->
+<paths>
+    <external-files-path name="app" path="." />
+    <external-path name="shared" path="." />
+</paths>

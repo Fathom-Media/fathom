@@ -94,10 +94,11 @@ class YtDownloadProgress {
 /// — ffmpeg copies the streams, which takes a second or two rather than minutes,
 /// and loses nothing.
 ///
-/// Desktop has a system ffmpeg (usually), so that's a plain shell-out. Android
-/// has none, so it runs the same commands through a bundled ffmpeg instead
-/// (ffmpeg_kit_flutter_new) rather than being permanently capped at 360p/M4A
-/// the way it was before.
+/// Desktop shells out to ffmpeg: the copy bundled beside Fathom when there is
+/// one (the Windows build ships it, since Windows has none of its own), else
+/// the system's. Android has no binary to run, so it runs the same commands
+/// through a bundled ffmpeg instead (ffmpeg_kit_flutter_new) rather than being
+/// permanently capped at 360p/M4A the way it was before.
 class YoutubeDownloader {
   YoutubeDownloader({Dio? dio}) : _dio = dio ?? Dio();
 
@@ -105,26 +106,42 @@ class YoutubeDownloader {
 
   static bool? _ffmpegCached;
 
+  /// The desktop ffmpeg that answered [hasFfmpeg]: the bundled copy's full
+  /// path, or plain 'ffmpeg' for the one on PATH.
+  static String _ffmpegExe = 'ffmpeg';
+
+  /// Where a bundled ffmpeg sits: beside the Fathom executable.
+  static String get _bundledFfmpeg {
+    final dir = File(Platform.resolvedExecutable).parent.path;
+    return '$dir${Platform.pathSeparator}'
+        '${Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg'}';
+  }
+
   /// Whether ffmpeg is available: bundled on Android, so always true there;
-  /// on PATH elsewhere. Cached — it can't change while we run, and this is
-  /// asked on every download and every menu build.
+  /// the copy beside Fathom or the one on PATH elsewhere. Cached, since it
+  /// can't change while we run and this is asked on every download and every
+  /// menu build.
   static Future<bool> hasFfmpeg() async {
     if (_ffmpegCached != null) return _ffmpegCached!;
     if (Platform.isAndroid) return _ffmpegCached = true;
-    try {
-      final r = await Process.run('ffmpeg', ['-version']);
-      _ffmpegCached = r.exitCode == 0;
-    } catch (_) {
-      _ffmpegCached = false;
+    final bundled = _bundledFfmpeg;
+    for (final exe in [if (File(bundled).existsSync()) bundled, 'ffmpeg']) {
+      try {
+        final r = await Process.run(exe, ['-version']);
+        if (r.exitCode == 0) {
+          _ffmpegExe = exe;
+          return _ffmpegCached = true;
+        }
+      } catch (_) {}
     }
-    return _ffmpegCached!;
+    return _ffmpegCached = false;
   }
 
   /// Only for tests, which must not depend on the host having ffmpeg.
   static void debugSetFfmpeg(bool? value) => _ffmpegCached = value;
 
   /// Runs an ffmpeg command: the bundled plugin on Android (which has no
-  /// system binary), the system `ffmpeg` on PATH elsewhere. Same call sites,
+  /// system binary), the bundled or system ffmpeg elsewhere. Same call sites,
   /// same failure behavior, either way.
   static Future<void> _ffmpeg(List<String> args, String context) async {
     if (Platform.isAndroid) {
@@ -136,7 +153,8 @@ class YoutubeDownloader {
       }
       return;
     }
-    final r = await Process.run('ffmpeg', args);
+    await hasFfmpeg(); // settles which ffmpeg to run
+    final r = await Process.run(_ffmpegExe, args);
     if (r.exitCode != 0) {
       throw Exception('$context: ${r.stderr.toString().trim()}');
     }
@@ -172,6 +190,33 @@ class YoutubeDownloader {
       n++;
     }
     return candidate;
+  }
+
+  /// A folder path in one form for comparing: forward slashes, no trailing
+  /// slash, and case-folded on Windows, where the folder picker hands back
+  /// backslashes and downloads are written with forward ones.
+  static String comparableFolder(String path, {bool? windows}) {
+    var s = path.replaceAll(r'\', '/');
+    while (s.length > 1 && s.endsWith('/')) {
+      s = s.substring(0, s.length - 1);
+    }
+    return (windows ?? Platform.isWindows) ? s.toLowerCase() : s;
+  }
+
+  /// Moves a finished download into [into] and returns its new path: a
+  /// rename, or a copy and delete when the folder is on another drive.
+  /// Never overwrites: a name already taken there gets " (2)" and so on.
+  static Future<String> moveInto(File file, Directory into) async {
+    await into.create(recursive: true);
+    final name = file.path.split(RegExp(r'[/\\]')).last;
+    final target = uniqueFile(into, name);
+    try {
+      return (await file.rename(target.path)).path;
+    } on FileSystemException {
+      await file.copy(target.path);
+      await file.delete();
+      return target.path;
+    }
   }
 
   /// How much to ask for at a time.
@@ -375,10 +420,12 @@ class YoutubeDownloader {
     if (!streams.isAdaptive || !canMux) {
       final muxed = streams.muxedUrl;
       if (muxed == null) {
+        // YouTube is dropping the single-file 360p stream, so for a growing
+        // number of videos nothing is downloadable without a merge.
         throw Exception(canMux
             ? 'No downloadable stream for this video.'
-            : 'ffmpeg is needed to download above 360p. Install it, or '
-                'download the audio instead.');
+            : 'This video only comes as separate video and audio, which need '
+                'ffmpeg to merge. Install it, or download the audio instead.');
       }
       // MKV is a remux, so it needs ffmpeg; with it, wrap the muxed stream.
       if (mkv && canMux) {

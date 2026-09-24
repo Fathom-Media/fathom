@@ -5704,6 +5704,72 @@ abstract class AppLocalizations {
   /// **'Show in Folder'**
   String get ytShowInFolder;
 
+  /// Help text under the YouTube download folder settings: changing the folder only moves existing files if the user agrees.
+  ///
+  /// In en, this message translates to:
+  /// **'New downloads go here. If you already have downloads, you\'ll be asked whether to move them too.'**
+  String get prefsDownloadFolderNote;
+
+  /// Dialog title after changing the download folder while downloads exist in the old one.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Existing Downloads?'**
+  String get ytMoveDownloadsTitle;
+
+  /// Dialog body: how many finished downloads would stay behind in the previous folder.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 download is in your old folder. Move it here too?} other{{count} downloads are in your old folder. Move them here too?}}'**
+  String ytMoveDownloadsBody(int count);
+
+  /// Dialog button: leave existing downloads in the old folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep Them Where They Are'**
+  String get ytMoveDownloadsKeep;
+
+  /// Dialog button: move existing downloads into the new folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Them'**
+  String get ytMoveDownloadsMove;
+
+  /// Confirmation after moving downloads to the new folder.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Moved 1 download.} other{Moved {count} downloads.}}'**
+  String ytMoveDownloadsDone(int count);
+
+  /// Some downloads could not be moved to the new folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved {moved} of {total} downloads. The rest couldn\'t be moved and stayed where they were.'**
+  String ytMoveDownloadsPartial(int moved, int total);
+
+  /// Android: the chosen download folder is outside the phone's main storage (an SD card, say). {folder} is the folder used instead, such as Movies/Fathom.
+  ///
+  /// In en, this message translates to:
+  /// **'Fathom can\'t save here, so downloads go to {folder}.'**
+  String prefsDownloadFolderUnavailable(String folder);
+
+  /// Menu item (Android): open a downloaded file in another app, such as a video player.
+  ///
+  /// In en, this message translates to:
+  /// **'Open With'**
+  String get ytOpenWith;
+
+  /// Menu item (Android): send a downloaded file to another app or person.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get ytShareFile;
+
+  /// Error shown when no installed app can open or receive a downloaded file.
+  ///
+  /// In en, this message translates to:
+  /// **'No app on this device can open that file.'**
+  String get ytOpenFileFailed;
+
   /// Menu item: remove a download from the list but keep the file.
   ///
   /// In en, this message translates to:
@@ -6085,7 +6151,7 @@ abstract class AppLocalizations {
   /// Note in the download sheet when ffmpeg is not installed.
   ///
   /// In en, this message translates to:
-  /// **'ffmpeg not found. Only M4A audio and 360p MP4 are available. Install ffmpeg for MP3, MKV and higher resolutions.'**
+  /// **'ffmpeg not found, so only M4A audio can be downloaded, plus 360p MP4 for videos YouTube still offers as a single file. Install ffmpeg for MP3, MKV and higher resolutions.'**
   String get ytFfmpegNote;
 
   /// Subscribe button label once subscribed to a channel.

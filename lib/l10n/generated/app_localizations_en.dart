@@ -3203,6 +3203,60 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytShowInFolder => 'Show in Folder';
 
   @override
+  String get prefsDownloadFolderNote =>
+      'New downloads go here. If you already have downloads, you\'ll be asked whether to move them too.';
+
+  @override
+  String get ytMoveDownloadsTitle => 'Move Existing Downloads?';
+
+  @override
+  String ytMoveDownloadsBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count downloads are in your old folder. Move them here too?',
+      one: '1 download is in your old folder. Move it here too?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ytMoveDownloadsKeep => 'Keep Them Where They Are';
+
+  @override
+  String get ytMoveDownloadsMove => 'Move Them';
+
+  @override
+  String ytMoveDownloadsDone(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Moved $count downloads.',
+      one: 'Moved 1 download.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ytMoveDownloadsPartial(int moved, int total) {
+    return 'Moved $moved of $total downloads. The rest couldn\'t be moved and stayed where they were.';
+  }
+
+  @override
+  String prefsDownloadFolderUnavailable(String folder) {
+    return 'Fathom can\'t save here, so downloads go to $folder.';
+  }
+
+  @override
+  String get ytOpenWith => 'Open With';
+
+  @override
+  String get ytShareFile => 'Share';
+
+  @override
+  String get ytOpenFileFailed => 'No app on this device can open that file.';
+
+  @override
   String get ytRemoveFromList => 'Remove from List';
 
   @override
@@ -3445,7 +3499,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ytFfmpegNote =>
-      'ffmpeg not found. Only M4A audio and 360p MP4 are available. Install ffmpeg for MP3, MKV and higher resolutions.';
+      'ffmpeg not found, so only M4A audio can be downloaded, plus 360p MP4 for videos YouTube still offers as a single file. Install ffmpeg for MP3, MKV and higher resolutions.';
 
   @override
   String get ytSubscribed => 'Subscribed';
