@@ -800,6 +800,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get prefsAmoledBlackSub => 'Pure-black backgrounds in dark mode';
 
   @override
+  String get prefsInterfaceSize => 'Interface Size';
+
+  @override
+  String get prefsInterfaceSizeSub =>
+      'Makes everything bigger or smaller. Automatic follows your display.';
+
+  @override
+  String prefsInterfaceSizeAuto(int percent) {
+    return 'Automatic ($percent%)';
+  }
+
+  @override
+  String prefsInterfaceSizePercent(int percent) {
+    return '$percent%';
+  }
+
+  @override
   String get prefsForceTvMode => 'Force TV Mode';
 
   @override
@@ -5351,6 +5368,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchAmoledBlack => 'AMOLED Black';
+
+  @override
+  String get searchInterfaceSize => 'Interface Size';
 
   @override
   String get searchRatingOnCards => 'Rating on Cards';

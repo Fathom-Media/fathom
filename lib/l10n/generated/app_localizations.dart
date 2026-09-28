@@ -1576,6 +1576,30 @@ abstract class AppLocalizations {
   /// **'Pure-black backgrounds in dark mode'**
   String get prefsAmoledBlackSub;
 
+  /// Setting (desktop): how big the whole interface is drawn, for high-resolution screens.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface Size'**
+  String get prefsInterfaceSize;
+
+  /// Interface Size setting subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Makes everything bigger or smaller. Automatic follows your display.'**
+  String get prefsInterfaceSizeSub;
+
+  /// Interface Size option: follow the display, showing the size it works out to, such as 150%.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic ({percent}%)'**
+  String prefsInterfaceSizeAuto(int percent);
+
+  /// An Interface Size option as a percentage, such as 125%.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String prefsInterfaceSizePercent(int percent);
+
   /// Toggle title: force the 10-foot D-pad interface.
   ///
   /// In en, this message translates to:
@@ -9525,6 +9549,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AMOLED Black'**
   String get searchAmoledBlack;
+
+  /// Settings search result title: the interface size (zoom) setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface Size'**
+  String get searchInterfaceSize;
 
   /// Settings search result title: show a rating badge on poster cards.
   ///

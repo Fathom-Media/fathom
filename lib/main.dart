@@ -20,6 +20,7 @@ import 'services/diagnostics.dart';
 import 'services/notifications.dart';
 import 'services/resilient_secure_storage.dart';
 import 'state/audio_handler.dart';
+import 'state/interface_scale.dart';
 import 'state/providers.dart';
 
 Future<void> main() async {
@@ -94,6 +95,10 @@ Future<void> main() async {
   // Wayland, which ignores the window's own icon) shows Fathom's icon in the
   // taskbar. Fire-and-forget; no-ops off Linux or outside an AppImage.
   unawaited(integrateAppImageDesktopEntry());
+
+  // The automatic interface size, read before the first frame so the window
+  // opens at the right size instead of jumping to it (Linux; 1.0 elsewhere).
+  AutoInterfaceScale.initial = await queryAutoInterfaceScale();
 
   // A generous in-memory image cache so posters/backdrops stay decoded when you
   // revisit a screen instead of re-downloading (the default 100 MB evicts fast

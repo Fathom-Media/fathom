@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../state/interface_scale.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../services/shared_files.dart';
 import '../services/image_cache.dart';
@@ -674,6 +675,7 @@ class PreferencesScreen extends ConsumerWidget {
         value: p.amoled,
         onChanged: (v) => c.edit((x) => x.copyWith(amoled: v)),
       ),
+      if (interfaceScaleSupported && !isTvDevice) const _InterfaceSizeTile(),
       SwitchListTile(
         secondary: const Icon(Icons.tv_rounded),
         title: Text(l.prefsForceTvMode),
@@ -1606,6 +1608,38 @@ class _Dropdown extends StatelessWidget {
     final safe = options.containsKey(value) ? value : options.keys.first;
     return AppDropdown<String>(
         value: safe, options: options, onChanged: onChanged);
+  }
+}
+
+/// Interface Size (desktop): Automatic, or a fixed size. Automatic shows what
+/// it works out to on this display, so picking isn't guesswork.
+class _InterfaceSizeTile extends ConsumerWidget {
+  const _InterfaceSizeTile();
+
+  static const _sizes = [0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = AppLocalizations.of(context);
+    final chosen =
+        ref.watch(preferencesProvider).asData?.value.interfaceScale ?? 0;
+    final auto = ref.watch(autoInterfaceScaleProvider);
+    int percent(double s) => (s * 100).round();
+    return ListTile(
+      leading: const Icon(Icons.zoom_in_rounded),
+      title: Text(l.prefsInterfaceSize),
+      subtitle: Text(l.prefsInterfaceSizeSub),
+      trailing: AppDropdown<double>(
+        value: _sizes.contains(chosen) ? chosen : 0.0,
+        options: {
+          0.0: l.prefsInterfaceSizeAuto(percent(auto)),
+          for (final s in _sizes) s: l.prefsInterfaceSizePercent(percent(s)),
+        },
+        onChanged: (v) => ref
+            .read(preferencesProvider.notifier)
+            .edit((x) => x.copyWith(interfaceScale: v)),
+      ),
+    );
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../state/interface_scale.dart';
 import '../l10n/generated/app_localizations.dart';
 
 /// One searchable setting: where it lives and how to find it.
@@ -82,6 +83,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // Appearance
   SettingResult(title: l.searchTheme, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['dark', 'light', 'mode', 'system', 'appearance', 'color scheme']),
   SettingResult(title: l.searchAmoledBlack, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['amoled', 'oled', 'pure black', 'true black', 'dark']),
+  if (interfaceScaleSupported) SettingResult(title: l.searchInterfaceSize, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['interface size', 'size', 'scale', 'scaling', 'zoom', 'bigger', 'smaller', 'larger', 'tiny', '4k', 'hidpi', 'high dpi', 'text size', 'font size', 'display']),
   SettingResult(title: l.prefsForceTvMode, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['tv', 'television', 'leanback', 'remote', 'd-pad', 'dpad', '10-foot', 'couch', 'htpc', 'force', 'android tv']),
   SettingResult(title: l.searchRatingOnCards, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['rating', 'cards', 'poster', 'badge', 'rotten tomatoes', 'community', 'star', 'critics', 'imdb']),
   SettingResult(title: l.searchAccentColor, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['accent', 'color', 'colour', 'highlight', 'tint', 'theme color', 'custom accent']),

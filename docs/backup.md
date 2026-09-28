@@ -9,7 +9,7 @@ Fathom can export its own settings to a portable file and import them on another
 
 Everything is organized into groups, and every group is selected by default. You choose which groups to export or import:
 
-- **Appearance:** theme, accent color, AMOLED, and Home layout.
+- **Appearance:** theme, accent color, AMOLED, Interface Size, and Home layout.
 - **Player:** playback, subtitles, and keyboard shortcuts.
 - **YouTube:** client toggles and download preferences.
 - **General:** notifications, update channel, language, and anything else.

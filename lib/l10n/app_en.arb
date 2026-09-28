@@ -900,6 +900,24 @@
   "@prefsAmoledBlackSub": {
     "description": "AMOLED-black toggle subtitle."
   },
+  "prefsInterfaceSize": "Interface Size",
+  "@prefsInterfaceSize": {
+    "description": "Setting (desktop): how big the whole interface is drawn, for high-resolution screens."
+  },
+  "prefsInterfaceSizeSub": "Makes everything bigger or smaller. Automatic follows your display.",
+  "@prefsInterfaceSizeSub": {
+    "description": "Interface Size setting subtitle."
+  },
+  "prefsInterfaceSizeAuto": "Automatic ({percent}%)",
+  "@prefsInterfaceSizeAuto": {
+    "description": "Interface Size option: follow the display, showing the size it works out to, such as 150%.",
+    "placeholders": {"percent": {"type": "int"}}
+  },
+  "prefsInterfaceSizePercent": "{percent}%",
+  "@prefsInterfaceSizePercent": {
+    "description": "An Interface Size option as a percentage, such as 125%.",
+    "placeholders": {"percent": {"type": "int"}}
+  },
   "prefsForceTvMode": "Force TV Mode",
   "@prefsForceTvMode": {
     "description": "Toggle title: force the 10-foot D-pad interface."
@@ -6601,6 +6619,10 @@
   "searchAmoledBlack": "AMOLED Black",
   "@searchAmoledBlack": {
     "description": "Settings search result title: pure black AMOLED dark theme toggle."
+  },
+  "searchInterfaceSize": "Interface Size",
+  "@searchInterfaceSize": {
+    "description": "Settings search result title: the interface size (zoom) setting."
   },
   "searchRatingOnCards": "Rating on Cards",
   "@searchRatingOnCards": {
