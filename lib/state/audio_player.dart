@@ -179,6 +179,24 @@ class AudioController extends Notifier<AudioState> {
   // sits paused until the user notices.
   Timer? _radioRetry;
   int _radioRetryAttempt = 0;
+  // A reconnect's open() is running. Error events that arrive meanwhile belong
+  // to that attempt and must not count as attempts of their own.
+  bool _radioReconnectInFlight = false;
+  // Bumped when the user pauses or stops mid-reconnect, so an attempt already
+  // in flight knows to stand down instead of starting the station again.
+  int _radioReconnectGen = 0;
+  // Set when that stand-down was a pause (not a new station or a stop), so
+  // the attempt pauses the station it just reopened. Cleared by any new
+  // attempt, which means the user asked to play again.
+  bool _radioPausedMidReconnect = false;
+
+  /// Radio is between a dropped connection and audio flowing again: an
+  /// attempt in flight or the next one queued. The OS media session is told
+  /// playback is still on (buffering) throughout; see [_pushPlaybackState].
+  bool get _radioReconnecting =>
+      state.isRadio &&
+      !_pausedByInterruption && // a call's pause is a real pause
+      (_radioReconnectInFlight || (_radioRetry?.isActive ?? false));
   // True while playback is paused by something transient (a recording app, a
   // call, a notification). Radio reconnects rather than unpauses when the
   // interruption ends, since a live stream can't resume where it stopped.
@@ -282,8 +300,16 @@ class AudioController extends Notifier<AudioState> {
     _handler = ref.read(audioHandlerProvider);
     final h = _handler;
     if (h != null) {
-      h.onPlay = _player.play;
-      h.onPause = _player.pause;
+      // Radio after a dropped connection needs a real reconnect, not a bare
+      // unpause of the dead one; and a pause mid-reconnect must stop the
+      // retries, or the next one starts the station again.
+      h.onPlay = () => state.isRadio && _radioNeedsReconnect
+          ? _reconnectRadio(force: true)
+          : _player.play();
+      h.onPause = () async {
+        if (state.isRadio) _cancelRadioReconnect('paused');
+        await _player.pause();
+      };
       // Skip routes by mode: radio has no track queue, so skip means switch
       // station; the YouTube queue advances itself (one track at a time); the
       // music queue uses the player's own playlist.
@@ -617,9 +643,15 @@ class AudioController extends Notifier<AudioState> {
       final i = currentIndex;
       if (i >= 0) queueIndex = i;
     }
+    // Mid-reconnect the player itself reads stopped, but to the listener the
+    // station is still on, just reconnecting. Saying so keeps the media
+    // notification honest (a pause button, not play) and, on Android, keeps
+    // Fathom a foreground media app: reported as paused, the system freezes
+    // it in the background and the queued retry never fires.
+    final reconnecting = _radioReconnecting;
     h.setPlayback(
-      playing: s.playing,
-      buffering: s.buffering,
+      playing: s.playing || reconnecting,
+      buffering: s.buffering || reconnecting,
       position: s.position,
       buffered: s.buffer,
       speed: s.rate,
@@ -815,6 +847,8 @@ class AudioController extends Notifier<AudioState> {
     _radioTick?.cancel();
     _radioRetry?.cancel();
     _radioRetryAttempt = 0;
+    _radioReconnectGen++; // an old station's attempt in flight stands down
+    _radioPausedMidReconnect = false;
     _reportStopped(); // no Jellyfin scrobble for radio
     _reportedId = null;
     _radioNeedsReconnect = false;
@@ -884,6 +918,8 @@ class AudioController extends Notifier<AudioState> {
     _radioTick?.cancel();
     _radioRetry?.cancel();
     _radioRetryAttempt = 0;
+    _radioReconnectGen++;
+    _radioPausedMidReconnect = false;
     _radioNeedsReconnect = false;
     await _player.stop();
     state = state.copyWith(
@@ -1190,7 +1226,13 @@ class AudioController extends Notifier<AudioState> {
       // rest used to be dropped entirely, which is how a failed attempt became
       // the last one ever.
       Diagnostics.instance.add('radio', 'reconnect skipped: debounced');
-      _scheduleRadioRetry();
+      // One failed attempt fires several errors (the lookup, then the open).
+      // They belong to the attempt already running or queued, so only line up
+      // a retry when there's neither; counting each one pushed the next try
+      // from 3 seconds out to 30 after a single failure.
+      if (!_radioReconnectInFlight && !(_radioRetry?.isActive ?? false)) {
+        _scheduleRadioRetry();
+      }
       return;
     }
     _radioLastReconnectAttempt = now;
@@ -1199,17 +1241,47 @@ class AudioController extends Notifier<AudioState> {
     _radioTickWall = null;
     state = state.copyWith(radioBehindLive: Duration.zero, radioSeekable: false);
     Diagnostics.instance.add('radio', 'reconnect attempt: ${s.name}');
+    final gen = _radioReconnectGen;
+    _radioPausedMidReconnect = false;
+    _radioRetry?.cancel();
+    _radioReconnectInFlight = true;
+    _pushPlaybackState();
     try {
       await _player.open(Media(s.url));
       _applyVolume();
       Diagnostics.instance.add('radio', 'reconnect: open() returned');
     } catch (e) {
       Diagnostics.instance.add('radio', 'reconnect failed: $e');
+    } finally {
+      _radioReconnectInFlight = false;
+    }
+    if (gen != _radioReconnectGen || !state.isRadio) {
+      // Paused, stopped or switched station while this attempt was opening.
+      // open() starts playback, so a pause has to be applied again; a stop or
+      // a new station has already taken over the player.
+      if (_radioPausedMidReconnect && state.isRadio) await _player.pause();
+      _pushPlaybackState();
+      return;
     }
     // open() returning proves nothing: a DNS failure surfaces as an error event
-    // afterwards, not an exception. Line up the next attempt, and cancel it
-    // once audio is actually flowing (see the buffering listener).
+    // afterwards, not an exception. Line up the next attempt (one per real
+    // attempt), and cancel it once audio is actually flowing (see the
+    // buffering listener).
     _scheduleRadioRetry();
+  }
+
+  /// Stops reconnecting because the user paused or stopped mid-reconnect. The
+  /// station still needs a real reconnect, so Play reconnects rather than
+  /// unpausing a dead stream.
+  void _cancelRadioReconnect(String why) {
+    if (!_radioReconnecting) return;
+    _radioReconnectGen++;
+    _radioPausedMidReconnect = true;
+    _radioRetry?.cancel();
+    _radioRetry = null;
+    _radioRetryAttempt = 0;
+    Diagnostics.instance.add('radio', 'reconnect cancelled: $why');
+    _pushPlaybackState();
   }
 
   /// Queues another reconnect on a growing delay, until playback is confirmed
@@ -1222,6 +1294,8 @@ class AudioController extends Notifier<AudioState> {
     // a router reboot, short of retrying forever on a station that's gone.
     if (_radioRetryAttempt >= 20) {
       Diagnostics.instance.add('radio', 'reconnect: giving up for now');
+      _radioRetry = null;
+      _pushPlaybackState(); // now genuinely stopped
       return;
     }
     const steps = [3, 5, 10, 20, 30, 60];
@@ -1234,10 +1308,12 @@ class AudioController extends Notifier<AudioState> {
       if (!state.isRadio || _pausedByInterruption) return;
       if (_player.state.playing && !_player.state.buffering) {
         _radioRetryAttempt = 0;
+        _pushPlaybackState();
         return;
       }
       unawaited(_reconnectRadio(force: true));
     });
+    _pushPlaybackState();
   }
 
   /// Playback is flowing again: stop retrying and reset the backoff.
@@ -1247,6 +1323,7 @@ class AudioController extends Notifier<AudioState> {
     _radioRetry?.cancel();
     _radioRetry = null;
     _radioRetryAttempt = 0;
+    _pushPlaybackState();
   }
 
   /// Rewind/skip within the buffered window (seekable streams only). Negative to
@@ -1717,6 +1794,12 @@ class AudioController extends Notifier<AudioState> {
     if (state.isRadio) {
       Diagnostics.instance.add('radio',
           'togglePlay: playing=${_player.state.playing}, needsReconnect=$_radioNeedsReconnect');
+      // Pausing mid-reconnect: stop the retries too, or the next one starts
+      // the station again.
+      if (_player.state.playing && _radioReconnecting) {
+        _cancelRadioReconnect('paused');
+        return _player.pause();
+      }
     }
     return _player.playOrPause();
   }
