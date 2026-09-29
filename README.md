@@ -18,7 +18,7 @@ An all-in-one client for Jellyfin, on desktop and Android. Your media, your serv
 
 **[Documentation](https://fathom-media.github.io/fathom/) · [Install](https://fathom-media.github.io/fathom/install/) · [Releases](https://github.com/Fathom-Media/fathom/releases/latest)**
 
-**Mac fund:** Fathom has no macOS or iOS build yet, because building either needs a Mac. [Chip in on Ko-fi](https://ko-fi.com/traceapps). Fathom stays free either way.
+**Coming to Apple devices:** Fathom has no Mac or iPhone app yet, because building and testing them needs a Mac and an iPhone. [Chip in on Ko-fi](https://ko-fi.com/traceapps). Fathom stays free either way.
 
 </div>
 
@@ -65,11 +65,11 @@ The docs cover installing, connecting your server, every feature, the update cha
 
 Fathom is free and open source, and always will be. No paid tier, nothing behind a donation, no telemetry. It's built and maintained by one person.
 
-**The current goal is a Mac.** Building Fathom for macOS or iOS needs one, and so does testing on an iPhone. The same fund covers the Trace apps, which need the same hardware, so it's one goal rather than two. The itemised breakdown is on the [Support page](https://traceapps.github.io/docs/support/).
+**The current goal is a Mac and an iPhone.** Building Fathom for macOS or iOS needs the Mac, and testing on a real phone needs the iPhone. The same fund covers the Trace apps, which need the same hardware, so it's one goal rather than two. The itemised breakdown is on the [Support page](https://traceapps.github.io/docs/support/).
 
 Helping doesn't have to cost anything: starring the repo, reporting bugs with detail, and translating all count.
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support_the_Mac_fund-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/traceapps) [![GitHub Sponsors](https://img.shields.io/badge/GitHub_Sponsors-Sponsor_monthly-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/TraceApps)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Toward_a_Mac_and_iPhone-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/traceapps) [![GitHub Sponsors](https://img.shields.io/badge/GitHub_Sponsors-Sponsor_monthly-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/TraceApps)
 
 ## License
 
