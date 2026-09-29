@@ -46,4 +46,4 @@ Everything plays through mpv (via [media_kit](https://github.com/media-kit/media
 Fathom runs on **Linux** (AppImage, or a Nix flake), **Windows** (installer or portable zip), and **Android** (phones, tablets, and foldables, with **Android Auto**) today, with **Android TV** supported but experimental for now. Linux and Windows have a self-contained download each, and Android installs from the APK. macOS and iOS are on the radar but need Mac hardware. See [Install](install.md) for details.
 
 !!! info "Free and open source"
-    Fathom is free software under the [AGPL-3.0](https://github.com/Fathom-Media/fathom/blob/main/LICENSE) license, built and maintained by one person. If it is useful to you, a [star on GitHub](https://github.com/Fathom-Media/fathom) or a [Ko-fi](https://ko-fi.com/traceapps) helps.
+    Fathom is free software under the [AGPL-3.0](https://github.com/Fathom-Media/fathom/blob/main/LICENSE) license, built and maintained by one person. If it is useful to you, a [star on GitHub](https://github.com/Fathom-Media/fathom), a [Ko-fi](https://ko-fi.com/traceapps), or [sponsoring on GitHub](https://github.com/sponsors/TraceApps) helps.

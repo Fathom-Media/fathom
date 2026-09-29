@@ -69,7 +69,7 @@ Fathom is free and open source, and always will be. No paid tier, nothing behind
 
 Helping doesn't have to cost anything: starring the repo, reporting bugs with detail, and translating all count.
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support_the_Mac_fund-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/traceapps)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support_the_Mac_fund-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/traceapps) [![GitHub Sponsors](https://img.shields.io/badge/GitHub_Sponsors-Sponsor_monthly-EA4AAA?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/TraceApps)
 
 ## License
 
