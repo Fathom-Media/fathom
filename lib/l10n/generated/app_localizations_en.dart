@@ -336,11 +336,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonDismiss => 'Dismiss';
 
   @override
-  String get settingsSupport => 'Support Development';
+  String get settingsSupport => 'Support';
 
   @override
   String get settingsSupportSubtitle =>
-      'Fathom is free. The current goal is a Mac, so Fathom can come to macOS and iOS.';
+      'Ko-fi, GitHub Sponsors, and free ways to help';
+
+  @override
+  String get settingsSponsor => 'GitHub Sponsors';
+
+  @override
+  String get supportLead =>
+      'Fathom is free and always will be. Support is optional and never unlocks anything.';
+
+  @override
+  String get supportOtherWays => 'Other Ways to Help';
+
+  @override
+  String get supportStar => 'Star on GitHub';
+
+  @override
+  String get supportStarSubtitle =>
+      'Stars are how open source projects get found.';
+
+  @override
+  String get supportReportBug => 'Report a Bug';
+
+  @override
+  String get supportReportBugSubtitle =>
+      'A clear report fixes it for everyone who hits the same thing.';
+
+  @override
+  String get supportTranslate => 'Help Translate';
+
+  @override
+  String get supportTranslateSubtitle => 'Make Fathom usable in your language.';
 
   @override
   String get settingsLicenses => 'Open Source Licenses';

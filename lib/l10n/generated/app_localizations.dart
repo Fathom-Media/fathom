@@ -709,14 +709,68 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSupport.
   ///
   /// In en, this message translates to:
-  /// **'Support Development'**
+  /// **'Support'**
   String get settingsSupport;
 
   /// No description provided for @settingsSupportSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Fathom is free. The current goal is a Mac, so Fathom can come to macOS and iOS.'**
+  /// **'Ko-fi, GitHub Sponsors, and free ways to help'**
   String get settingsSupportSubtitle;
+
+  /// Button on the Support page that opens the GitHub Sponsors page. GitHub Sponsors is a product name; keep it as is.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub Sponsors'**
+  String get settingsSponsor;
+
+  /// No description provided for @supportLead.
+  ///
+  /// In en, this message translates to:
+  /// **'Fathom is free and always will be. Support is optional and never unlocks anything.'**
+  String get supportLead;
+
+  /// No description provided for @supportOtherWays.
+  ///
+  /// In en, this message translates to:
+  /// **'Other Ways to Help'**
+  String get supportOtherWays;
+
+  /// No description provided for @supportStar.
+  ///
+  /// In en, this message translates to:
+  /// **'Star on GitHub'**
+  String get supportStar;
+
+  /// No description provided for @supportStarSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stars are how open source projects get found.'**
+  String get supportStarSubtitle;
+
+  /// No description provided for @supportReportBug.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a Bug'**
+  String get supportReportBug;
+
+  /// No description provided for @supportReportBugSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'A clear report fixes it for everyone who hits the same thing.'**
+  String get supportReportBugSubtitle;
+
+  /// No description provided for @supportTranslate.
+  ///
+  /// In en, this message translates to:
+  /// **'Help Translate'**
+  String get supportTranslate;
+
+  /// No description provided for @supportTranslateSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Fathom usable in your language.'**
+  String get supportTranslateSubtitle;
 
   /// No description provided for @settingsLicenses.
   ///

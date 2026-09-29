@@ -344,8 +344,20 @@
   "@commonDismiss": {
     "description": "Generic dismiss action, e.g. hiding a banner."
   },
-  "settingsSupport": "Support Development",
-  "settingsSupportSubtitle": "Fathom is free. The current goal is a Mac, so Fathom can come to macOS and iOS.",
+  "settingsSupport": "Support",
+  "settingsSupportSubtitle": "Ko-fi, GitHub Sponsors, and free ways to help",
+  "settingsSponsor": "GitHub Sponsors",
+  "@settingsSponsor": {
+    "description": "Button on the Support page that opens the GitHub Sponsors page. GitHub Sponsors is a product name; keep it as is."
+  },
+  "supportLead": "Fathom is free and always will be. Support is optional and never unlocks anything.",
+  "supportOtherWays": "Other Ways to Help",
+  "supportStar": "Star on GitHub",
+  "supportStarSubtitle": "Stars are how open source projects get found.",
+  "supportReportBug": "Report a Bug",
+  "supportReportBugSubtitle": "A clear report fixes it for everyone who hits the same thing.",
+  "supportTranslate": "Help Translate",
+  "supportTranslateSubtitle": "Make Fathom usable in your language.",
   "settingsLicenses": "Open Source Licenses",
   "settingsLicensesSubtitle": "The software Fathom is built on",
   "settingsSignOut": "Sign Out",

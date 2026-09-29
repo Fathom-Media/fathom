@@ -57,6 +57,7 @@ import '../screens/updates_screen.dart';
 import '../models/seerr_result.dart';
 import '../screens/server_connect_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/support_screen.dart';
 import '../screens/studios_screen.dart';
 import '../screens/syncplay_screen.dart';
 import '../screens/user_edit_screen.dart';
@@ -378,6 +379,9 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: '/shortcuts',
               pageBuilder: (_, _) =>
                   _fadePage(const KeyboardShortcutsScreen())),
+          GoRoute(
+              path: '/support',
+              pageBuilder: (_, _) => _fadePage(const SupportScreen())),
           GoRoute(
               path: '/genres',
               pageBuilder: (_, _) => _fadePage(const GenresScreen())),
