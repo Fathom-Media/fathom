@@ -301,6 +301,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateDownloadInstall => 'Download & Install';
 
   @override
+  String get updateInstallDownloaded => 'Install';
+
+  @override
   String updateDownloading(String percent) {
     return 'Downloading… $percent%';
   }

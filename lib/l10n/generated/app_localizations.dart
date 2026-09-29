@@ -652,6 +652,12 @@ abstract class AppLocalizations {
   /// **'Download & Install'**
   String get updateDownloadInstall;
 
+  /// Android: the update is already downloaded, so the button only opens the system installer.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get updateInstallDownloaded;
+
   /// Progress label while the update downloads.
   ///
   /// In en, this message translates to:

@@ -290,6 +290,10 @@
   "@updateDownloadInstall": {
     "description": "Button that downloads the new version and installs it in place."
   },
+  "updateInstallDownloaded": "Install",
+  "@updateInstallDownloaded": {
+    "description": "Android: the update is already downloaded, so the button only opens the system installer."
+  },
   "updateDownloading": "Downloading… {percent}%",
   "@updateDownloading": {
     "description": "Progress label while the update downloads.",
