@@ -9,6 +9,14 @@ body:
 
         **The most useful thing you can add is a diagnostic log.** In Fathom, open **Settings > System > Diagnostics**, turn on **Diagnostic Logging**, make the problem happen, then tap **Copy Diagnostics** and paste it below. Credentials are removed from the log automatically.
 
+  - type: checkboxes
+    id: searched
+    attributes:
+      label: Before You Post
+      options:
+      - label: I searched the open and closed [issues](https://github.com/Fathom-Media/fathom/issues?q=is%3Aissue) and [pull requests](https://github.com/Fathom-Media/fathom/pulls?q=is%3Apr), and nobody has reported this yet. A closed one may already have the fix, waiting for the next release.
+        required: true
+
   - type: dropdown
     id: platform
     attributes:
