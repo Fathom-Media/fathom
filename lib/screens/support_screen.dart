@@ -12,7 +12,7 @@ class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
 
   static const _kofi = 'https://ko-fi.com/traceapps';
-  static const _sponsors = 'https://github.com/sponsors/TraceApps';
+  static const _sponsors = 'https://github.com/sponsors/TraceApps?metadata_app=fathom&metadata_from=app';
   static const _repo = 'https://github.com/Fathom-Media/fathom';
   static const _newIssue = 'https://github.com/Fathom-Media/fathom/issues/new/choose';
   static const _translate =
