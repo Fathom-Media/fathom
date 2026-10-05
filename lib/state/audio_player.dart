@@ -386,6 +386,13 @@ class AudioController extends Notifier<AudioState> {
         // the phone speaker. We don't auto-resume on the tail: a disconnect is
         // deliberate, so playback stays paused until the user restarts it.
         _interruptSub = session.interruptionEventStream.listen((event) {
+          Diagnostics.instance.add('media',
+              'audio focus ${event.begin ? 'lost' : 'back'} (${event.type.name})');
+          // Losing focus for good drops it on the platform side; ask again on
+          // the next play (see _activateAudioSession).
+          if (event.begin && event.type == AudioInterruptionType.unknown) {
+            _focusGranted = null;
+          }
           if (event.begin) {
             if (!_player.state.playing) return;
             // A transient interruption (a recording app taking the mic, a call,
@@ -491,7 +498,16 @@ class AudioController extends Notifier<AudioState> {
     StreamSubscription<bool>? subPlaying, subBuffering;
     StreamSubscription<Duration>? subDuration;
     if (h != null) {
-      subPlaying = _player.stream.playing.listen((_) => _pushPlaybackState());
+      subPlaying = _player.stream.playing.listen((playing) {
+        _pushPlaybackState();
+        // Claim audio focus whenever playback starts, not only when a source
+        // is opened. Another app taking focus for good makes audio_session
+        // drop both the focus and its headphone-disconnect listener, and
+        // resuming with Play never asked for them back: no pause when the
+        // earbuds disconnect, and two apps playing over each other.
+        // setActive is a no-op while focus is already held.
+        if (playing) unawaited(_activateAudioSession());
+      });
       subBuffering = _player.stream.buffering.listen((_) => _pushPlaybackState());
       // Re-publish now-playing once the real duration is known.
       subDuration = _player.stream.duration.listen((_) => _pushNowPlaying());
@@ -1057,9 +1073,18 @@ class AudioController extends Notifier<AudioState> {
   Future<void> _activateAudioSession() async {
     try {
       final s = _audioSession ??= await AudioSession.instance;
-      await s.setActive(true);
-    } catch (_) {}
+      final granted = await s.setActive(true);
+      // Logged only when it changes: this runs on every play.
+      if (granted != _focusGranted) {
+        _focusGranted = granted;
+        Diagnostics.instance.add('media', 'audio focus requested: granted=$granted');
+      }
+    } catch (e) {
+      Diagnostics.instance.add('media', 'audio focus request failed: $e');
+    }
   }
+
+  bool? _focusGranted;
 
   /// Resolve an item's audio URL, reusing a recently-resolved one from the cache
   /// so a pre-resolved next track opens instantly.

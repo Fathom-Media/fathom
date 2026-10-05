@@ -165,3 +165,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# audio_service with a fix for media controls going dead after a stop; see
+# third_party/audio_service/FATHOM_PATCH.md.
+dependency_overrides:
+  audio_service:
+    path: third_party/audio_service

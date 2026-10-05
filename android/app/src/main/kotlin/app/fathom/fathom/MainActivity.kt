@@ -77,6 +77,11 @@ class MainActivity : AudioServiceActivity() {
                             pm.hasSystemFeature("android.hardware.type.television")
                     result.success(isTv)
                 }
+                // Media commands as Android delivered them to the playback service
+                // (third_party/audio_service), for the Diagnostics report.
+                "mediaEvents" -> {
+                    result.success(com.ryanheise.audioservice.AudioService.fathomEvents())
+                }
                 "hardwareVideoCodecs" -> {
                     result.success(hardwareVideoCodecs())
                 }
