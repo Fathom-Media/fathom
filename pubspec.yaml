@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # 0.9.x = beta run toward the first stable release; 1.0.0 is reserved for GA,
 # after which versioning follows the TraceApps strict-semver conventions.
-version: 0.13.0+21
+version: 0.13.1+22
 
 environment:
   sdk: ^3.12.2
@@ -64,7 +64,6 @@ dependencies:
   # Background audio + lock-screen/notification media controls (music, mobile).
   audio_service: ^0.18.15
   background_downloader: ^9.6.1
-  open_filex: ^4.7.0
   audio_session: ^0.2.4
   # Voice entry on the D-pad keyboard (Android TV remotes with a mic button).
   speech_to_text: ^7.0.0
@@ -166,3 +165,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# audio_service with a fix for media controls going dead after a stop; see
+# third_party/audio_service/FATHOM_PATCH.md.
+dependency_overrides:
+  audio_service:
+    path: third_party/audio_service

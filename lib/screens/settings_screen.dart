@@ -3,7 +3,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../models/session.dart';
@@ -289,14 +288,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
       ListTile(
-        leading: _leading(context, Icons.favorite_rounded),
+        leading: _leading(context, Icons.volunteer_activism_rounded),
         title: Text(l.settingsSupport),
         subtitle: Text(l.settingsSupportSubtitle),
-        trailing: const Icon(Icons.open_in_new_rounded, size: 18),
-        onTap: () => launchUrl(
-          Uri.parse('https://ko-fi.com/traceapps'),
-          mode: LaunchMode.externalApplication,
-        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => context.push('/support'),
       ),
       ListTile(
         leading: _leading(context, Icons.description_outlined),

@@ -210,14 +210,30 @@ class UpdatesScreen extends ConsumerWidget {
                   .textTheme
                   .bodyMedium
                   ?.copyWith(color: Theme.of(context).colorScheme.error)),
+          // The reason, so a report says more than "it failed".
+          SelectableText(install.error!.replaceFirst('Bad state: ', ''),
+              style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 8),
         ],
-        FilledButton.icon(
-          onPressed: () =>
-              ref.read(installControllerProvider.notifier).install(asset),
-          icon: const Icon(Icons.download_rounded, size: 18),
-          label: Text(l.updateDownloadInstall),
-        ),
+        // Already downloaded (the install screen was left and reopened, say):
+        // say so, since tapping it just opens the installer again.
+        Builder(builder: (context) {
+          final staged = ref
+                  .watch(updateStagedProvider(
+                      (asset: asset, version: latest.version)))
+                  .asData
+                  ?.value ??
+              false;
+          return FilledButton.icon(
+            onPressed: () => ref
+                .read(installControllerProvider.notifier)
+                .install(asset, version: latest.version),
+            icon: Icon(
+                staged ? Icons.install_mobile_rounded : Icons.download_rounded,
+                size: 18),
+            label: Text(staged ? l.updateInstallDownloaded : l.updateDownloadInstall),
+          );
+        }),
         const SizedBox(height: 8),
         viewOnGitHub(filled: false),
       ],

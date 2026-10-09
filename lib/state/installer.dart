@@ -18,19 +18,31 @@ class InstallController extends Notifier<InstallProgress> {
   @override
   InstallProgress build() => const InstallProgress();
 
-  Future<void> install(ReleaseAsset asset) async {
+  Future<void> install(ReleaseAsset asset, {required String version}) async {
     if (state.busy) return;
     state = const InstallProgress(busy: true);
     try {
       await downloadAndInstall(asset,
+          version: version,
           onProgress: (p) => state = InstallProgress(busy: true, progress: p));
-      // On success the process is replaced by a fresh launch and never gets
-      // here; returning just means nothing more to do.
+      // On desktop the process is replaced by a fresh launch and never gets
+      // here. On Android the system installer has taken over; returning means
+      // nothing more to do here, so settle back to idle.
+      state = const InstallProgress();
     } catch (e) {
       state = InstallProgress(error: e.toString());
+    } finally {
+      // The button's Install / Download & Install label follows what's on disk.
+      ref.invalidate(updateStagedProvider);
     }
   }
 }
+
+/// Whether the Android update for a release is already downloaded, so the
+/// Updates screen can offer Install instead of Download & Install.
+final updateStagedProvider = FutureProvider.autoDispose
+    .family<bool, ({ReleaseAsset asset, String version})>(
+        (ref, r) => isUpdateStaged(r.asset, r.version));
 
 final installControllerProvider =
     NotifierProvider<InstallController, InstallProgress>(InstallController.new);

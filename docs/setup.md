@@ -40,6 +40,7 @@ Optionally enrich detail pages with Rotten Tomatoes, IMDb, and community scores,
 ## Make it yours
 
 - **Themes**: light, dark, and AMOLED, with a custom accent color.
+- **Interface Size** (Linux and Windows): make everything bigger or smaller. **Automatic** follows your display, and on Linux it also sizes up on a dense screen, such as a 4K monitor, when your desktop's scaling is left at 100%.
 - **Home**: rearrange the rows to taste.
 - **Player**: video fit, default playback speed, a control bar you can style (glass, dark, or plain), and remappable keyboard shortcuts.
 - **Search your settings**: the Settings screen has its own search, so you do not have to hunt for an option.

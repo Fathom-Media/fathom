@@ -140,6 +140,11 @@ class BaseItemDto {
   /// The item's media source, needed to fetch a subtitle that lives in its own
   /// file. Usually the same as the item's own id, but not always.
   final String? mediaSourceId;
+
+  /// The original file's extension (`mkv`, `mp4`, `flac`), so a download can be
+  /// saved under a name other apps recognise. Null when the server gives no
+  /// clue. See [mediaFileExtension].
+  final String? fileExtension;
   /// When the item arrived in the library. For a weekly show this is the day
   /// after each episode airs, which is how Continue Watching spots a new one.
   final DateTime? dateCreated;
@@ -194,6 +199,7 @@ class BaseItemDto {
     this.subtitleStreams = const [],
     this.audioStreams = const [],
     this.mediaSourceId,
+    this.fileExtension,
     this.dateCreated,
     this.isFolder = false,
     this.officialRating,
@@ -314,6 +320,7 @@ class BaseItemDto {
       subtitleStreams: parseSubtitleStreams(json),
       audioStreams: parseAudioStreams(json),
       mediaSourceId: firstMediaSourceId(json),
+      fileExtension: mediaFileExtension(json),
       dateCreated: DateTime.tryParse((json['DateCreated'] as String?) ?? ''),
       isFolder: json['IsFolder'] as bool? ?? false,
       officialRating: json['OfficialRating'] as String?,
@@ -541,6 +548,61 @@ List<AudioStream> parseAudioStreams(Map<String, dynamic> json) {
     if (src is Map) take(src['MediaStreams']);
   }
   return out;
+}
+
+/// The extension of an item's original file, from the best clue the server
+/// gives: the file's own name (item lists only carry it when asked for), else
+/// its media source's format, else the item's format list, which uses ffmpeg's
+/// names (`mov,mp4,m4a,3gp,3g2,mj2`, `matroska,webm`) and is always present.
+String? mediaFileExtension(Map<String, dynamic> json) {
+  final audio = json['MediaType'] == 'Audio' || json['Type'] == 'Audio';
+  String? fromPath(Object? path) {
+    if (path is! String) return null;
+    final name = path.split(RegExp(r'[/\\]')).last;
+    final dot = name.lastIndexOf('.');
+    if (dot <= 0) return null;
+    final ext = name.substring(dot + 1).toLowerCase();
+    return RegExp(r'^[a-z0-9]{2,5}$').hasMatch(ext) ? ext : null;
+  }
+
+  String? fromFormat(Object? format) {
+    if (format is! String || format.trim().isEmpty) return null;
+    final names = format.toLowerCase().split(',').map((s) => s.trim()).toList();
+    if (names.contains('matroska') || names.first == 'mkv') return 'mkv';
+    if (names.contains('mp4')) return audio ? 'm4a' : 'mp4';
+    const known = {
+      'mpegts': 'ts',
+      'mpeg': 'mpg',
+      'asf': 'wmv',
+      'webm': 'webm',
+      'avi': 'avi',
+      'flv': 'flv',
+      'ogg': 'ogg',
+      'flac': 'flac',
+      'mp3': 'mp3',
+      'wav': 'wav',
+      'aac': 'aac',
+      'opus': 'opus',
+      'm4a': 'm4a',
+      'm4v': 'm4v',
+      'm2ts': 'm2ts',
+      'wtv': 'wtv',
+    };
+    final first = names.first;
+    if (known.containsKey(first)) {
+      return first == 'asf' && audio ? 'wma' : known[first];
+    }
+    return RegExp(r'^[a-z0-9]{2,5}$').hasMatch(first) ? first : null;
+  }
+
+  final sources = (json['MediaSources'] as List? ?? const [])
+      .whereType<Map>()
+      .toList();
+  final source = sources.isEmpty ? null : sources.first;
+  return fromPath(json['Path']) ??
+      fromPath(source?['Path']) ??
+      fromFormat(source?['Container']) ??
+      fromFormat(json['Container']);
 }
 
 /// The id of an item's first media source, or null when it has none.

@@ -409,6 +409,8 @@ class TvFocusable extends StatefulWidget {
     this.scale = 1.05,
     this.autofocus = false,
     this.focusNode,
+    this.showRing = true,
+    this.onFocusChange,
   });
 
   final Widget child;
@@ -417,6 +419,11 @@ class TvFocusable extends StatefulWidget {
   final double scale;
   final bool autofocus;
   final FocusNode? focusNode;
+
+  /// False when the child draws its own focus indicator from [onFocusChange]
+  /// (a shape the rectangular ring doesn't fit, like the movie wheel).
+  final bool showRing;
+  final ValueChanged<bool>? onFocusChange;
 
   @override
   State<TvFocusable> createState() => _TvFocusableState();
@@ -458,11 +465,14 @@ class _TvFocusableState extends State<TvFocusable> {
         focusNode: widget.focusNode,
         autofocus: widget.autofocus,
         onKeyEvent: _onKey,
-        onFocusChange: (v) => setState(() => _focused = v),
+        onFocusChange: (v) {
+          setState(() => _focused = v);
+          widget.onFocusChange?.call(v);
+        },
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: widget.borderRadius,
-            boxShadow: _focused
+            boxShadow: _focused && widget.showRing
                 ? [
                     BoxShadow(
                       color: scheme.primary.withValues(alpha: 0.75),
@@ -475,7 +485,7 @@ class _TvFocusableState extends State<TvFocusable> {
           child: Stack(
             children: [
               widget.child,
-              if (_focused)
+              if (_focused && widget.showRing)
                 Positioned.fill(
                   child: IgnorePointer(
                     child: DecoratedBox(

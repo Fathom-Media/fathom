@@ -7,6 +7,7 @@
 
 #include <limits.h>
 #include <signal.h>
+#include <string.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -61,6 +62,7 @@ static void set_app_icon(GtkWindow* window) {
 struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
+  FlMethodChannel* display_channel;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -97,6 +99,44 @@ static gboolean on_window_delete(GtkWidget* widget, GdkEvent* event,
                                  gpointer user_data) {
   g_timeout_add(200, force_exit_cb, nullptr);
   return FALSE;
+}
+
+// The monitor the window is on: its width in device pixels and millimetres,
+// and GTK's own scale factor. The Dart side works out the pixel density from
+// these to size the interface automatically on a dense screen (a 27" 4K, say)
+// when the desktop's scaling is left at 100%. GTK only scales in whole steps,
+// so without this such a screen draws everything at a quarter of the size.
+static FlMethodResponse* display_density(GtkWidget* widget) {
+  GdkDisplay* display = gtk_widget_get_display(widget);
+  GdkWindow* window = gtk_widget_get_window(gtk_widget_get_toplevel(widget));
+  GdkMonitor* monitor =
+      window != nullptr ? gdk_display_get_monitor_at_window(display, window)
+                        : nullptr;
+  if (monitor == nullptr) monitor = gdk_display_get_primary_monitor(display);
+  if (monitor == nullptr) monitor = gdk_display_get_monitor(display, 0);
+  g_autoptr(FlValue) result = fl_value_new_map();
+  if (monitor != nullptr) {
+    GdkRectangle geometry;
+    gdk_monitor_get_geometry(monitor, &geometry);
+    const int scale = gdk_monitor_get_scale_factor(monitor);
+    fl_value_set_string_take(result, "widthPx",
+                             fl_value_new_int(geometry.width * scale));
+    fl_value_set_string_take(result, "widthMm",
+                             fl_value_new_int(gdk_monitor_get_width_mm(monitor)));
+    fl_value_set_string_take(result, "scale", fl_value_new_int(scale));
+  }
+  return FL_METHOD_RESPONSE(fl_method_success_response_new(result));
+}
+
+static void display_method_call(FlMethodChannel* channel, FlMethodCall* call,
+                                gpointer user_data) {
+  g_autoptr(FlMethodResponse) response = nullptr;
+  if (strcmp(fl_method_call_get_name(call), "density") == 0) {
+    response = display_density(GTK_WIDGET(user_data));
+  } else {
+    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+  }
+  fl_method_call_respond(call, response, nullptr);
 }
 
 // Implements GApplication::activate.
@@ -156,6 +196,13 @@ static void my_application_activate(GApplication* application) {
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 
+  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+  self->display_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "app.fathom.player/display", FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      self->display_channel, display_method_call, view, nullptr);
+
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
@@ -202,6 +249,7 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  g_clear_object(&self->display_channel);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 

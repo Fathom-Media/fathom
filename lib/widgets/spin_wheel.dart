@@ -38,6 +38,10 @@ class SpinWheel extends StatefulWidget {
   /// Landings per item id, drawn as stars on that wedge.
   final Map<String, int> marks;
 
+  /// Holds the remote's focus (TV): draws the focus ring around the wheel
+  /// itself, since the generic rectangular ring doesn't fit a circle.
+  final bool focused;
+
   const SpinWheel({
     super.key,
     required this.items,
@@ -46,6 +50,7 @@ class SpinWheel extends StatefulWidget {
     this.onTick,
     this.size = 320,
     this.marks = const {},
+    this.focused = false,
   });
 
   @override
@@ -537,6 +542,32 @@ class SpinWheelState extends State<SpinWheel> with TickerProviderStateMixin {
                 ),
               ),
             ),
+            if (widget.focused)
+              Positioned(
+                top: 24,
+                child: IgnorePointer(
+                  child: Container(
+                    width: size,
+                    height: size,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.75),
+                          blurRadius: 22,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             // Fixed pointer; flaps on its own each time a peg passes.
             Positioned(top: 0, child: _Pointer(flap: _flap)),
             Positioned(

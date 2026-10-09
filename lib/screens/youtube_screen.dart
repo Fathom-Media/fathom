@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../models/youtube_channel.dart';
 import '../models/youtube_history.dart';
 import '../models/youtube_video.dart';
+import '../services/shared_files.dart';
 import '../state/youtube_providers.dart';
 import '../widgets/cached_image.dart';
 import '../widgets/context_menu.dart';
@@ -822,8 +823,10 @@ class _DownloadsTabState extends ConsumerState<_DownloadsTab> {
     final theme = Theme.of(context);
     final downloads =
         ref.watch(youtubeDownloadsProvider).asData?.value ?? const [];
-    final dir =
-        ref.watch(youtubeDownloadDirProvider(YtDownloadKind.video)).asData?.value;
+    final folder = ref
+        .watch(youtubeDownloadFolderLabelProvider(YtDownloadKind.video))
+        .asData
+        ?.value;
     final hasFfmpeg = ref.watch(ffmpegAvailableProvider).asData?.value ?? true;
     final doneIds = [
       for (final d in downloads)
@@ -835,7 +838,7 @@ class _DownloadsTabState extends ConsumerState<_DownloadsTab> {
         icon: Icons.download_rounded,
         title: l.ytNoDownloadsTitle,
         message: hasFfmpeg
-            ? l.ytDownloadsEmptyFfmpeg(dir?.path ?? l.ytDownloadsFolder)
+            ? l.ytDownloadsEmptyFfmpeg(folder ?? l.ytDownloadsFolder)
             : l.ytDownloadsEmptyNoFfmpeg,
       );
     }
@@ -911,6 +914,19 @@ class _DownloadRow extends ConsumerWidget {
     this.onToggle,
   });
 
+  /// Hands the file to another app, saying so plainly when none can take it
+  /// rather than failing without a word.
+  static Future<void> _handOff(
+      BuildContext context, Future<void> Function() action) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action();
+    } catch (_) {
+      showSnackOn(messenger, l.ytOpenFileFailed);
+    }
+  }
+
   /// The same menu whichever of the three-dot button, right-click, or
   /// long-press opened it. "Select" (when this download has finished) is
   /// just one more entry in it, not a separate gesture of its own.
@@ -931,7 +947,21 @@ class _DownloadRow extends ConsumerWidget {
       if (playable)
         ContextMenuAction(
             icon: Icons.play_arrow_rounded, label: l.commonPlay, onTap: play),
-      if (d.filePath != null)
+      // Android can't open a folder in another app (a file:// link is
+      // refused outright), so there the file itself goes to Open With or
+      // Share instead.
+      if (d.filePath != null && Platform.isAndroid) ...[
+        ContextMenuAction(
+          icon: Icons.open_in_new_rounded,
+          label: l.ytOpenWith,
+          onTap: () => _handOff(context, () => SharedFiles.open(d.filePath!)),
+        ),
+        ContextMenuAction(
+          icon: Icons.share_rounded,
+          label: l.ytShareFile,
+          onTap: () => _handOff(context, () => SharedFiles.share(d.filePath!)),
+        ),
+      ] else if (d.filePath != null)
         ContextMenuAction(
           icon: Icons.folder_open_rounded,
           label: l.ytShowInFolder,

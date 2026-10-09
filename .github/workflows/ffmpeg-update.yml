@@ -1,0 +1,91 @@
+name: ffmpeg update check
+
+# The Windows build bundles a pinned ffmpeg (windows/ffmpeg.env). Once a week,
+# look for a newer release of that same build and, if there is one, propose
+# moving the pin: a branch with the new version and hash, a pull request
+# against dev, and a Windows build of that branch to show it still works.
+# Nothing changes until the pull request is reviewed and merged.
+#
+# The hash comes from GitHub's own record of the release file and is checked
+# again here against a real download, so the proposal can't carry a typo.
+on:
+  schedule:
+    - cron: '17 6 * * 1' # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: write # push the proposal branch
+  pull-requests: write # open the pull request
+  issues: write # fallback when pull requests from Actions are disallowed
+  actions: write # start the Windows build of the branch
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+
+      - name: Propose a newer ffmpeg
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pin=windows/ffmpeg.env
+          current=$(sed -n 's/^FFMPEG_VERSION=//p' "$pin")
+          latest=$(gh api repos/GyanD/codexffmpeg/releases/latest --jq .tag_name)
+          echo "Pinned $current, newest $latest"
+          # Only ever move forward, and only to a plain release number.
+          if ! [[ "$latest" =~ ^[0-9]+(\.[0-9]+)*$ ]]; then
+            echo "Newest tag '$latest' isn't a release number, skipping"; exit 0
+          fi
+          newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -1)
+          if [ "$latest" = "$current" ] || [ "$newest" != "$latest" ]; then
+            echo "Nothing newer"; exit 0
+          fi
+
+          branch="ffmpeg-$latest"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "$branch already proposed"; exit 0
+          fi
+
+          asset="ffmpeg-$latest-essentials_build.zip"
+          digest=$(gh api "repos/GyanD/codexffmpeg/releases/tags/$latest" \
+            --jq ".assets[] | select(.name == \"$asset\") | .digest")
+          if [[ "$digest" != sha256:* ]]; then
+            echo "::error::No SHA-256 published for $asset"; exit 1
+          fi
+          sha=${digest#sha256:}
+          curl -fsSL -o ffmpeg.zip \
+            "https://github.com/GyanD/codexffmpeg/releases/download/$latest/$asset"
+          echo "$sha  ffmpeg.zip" | sha256sum -c -
+          # The build expects this layout; catch a repackaged release here.
+          unzip -l ffmpeg.zip | grep -q "ffmpeg-$latest-essentials_build/bin/ffmpeg.exe"
+          rm ffmpeg.zip
+
+          sed -i "s/^FFMPEG_VERSION=.*/FFMPEG_VERSION=$latest/; s/^FFMPEG_SHA256=.*/FFMPEG_SHA256=$sha/" "$pin"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git commit -am "Bundle ffmpeg $latest in the Windows build"
+          git push origin "$branch"
+
+          title="Bundle ffmpeg $latest in the Windows build"
+          body="FFmpeg $latest is out as a Windows essentials build, replacing $current.
+
+          - Release: https://github.com/GyanD/codexffmpeg/releases/tag/$latest
+          - Changes: https://ffmpeg.org/index.html#news
+          - SHA-256: \`$sha\` (published by GitHub, checked against a download)
+
+          A Windows build of this branch has been started; check it passed before merging. Patch releases are bug and security fixes and are safe to take promptly. For a new major version, test a YouTube download on Windows first."
+          if gh pr create --base dev --head "$branch" --title "$title" --body "$body"; then
+            echo "Pull request opened"
+          else
+            # Pull requests from Actions are switched off in the repo or org
+            # settings. Leave the branch and say so in an issue instead.
+            gh issue create --title "$title" --body "$body
+
+          Actions could not open the pull request itself, so the change is on the \`$branch\` branch: https://github.com/${{ github.repository }}/compare/dev...$branch"
+          fi
+          gh workflow run windows.yml --ref "$branch"

@@ -38,7 +38,7 @@ const _appearanceKeys = <String>{
   'themeMode', 'accentColor', 'amoled', 'showGreeting',
   'homeBanner', 'showContinueWatching', 'showNextUp', 'showRecentlyAdded',
   'showMyMedia', 'showLibraryLatest', 'showGenreRows', 'homeRowOrder',
-  'navOrder', 'navHidden', 'cardRating', 'libraryViewMode',
+  'navOrder', 'navHidden', 'cardRating', 'libraryViewMode', 'interfaceScale',
   'showRtCritics', 'showRtAudience', 'showImdbRating', 'showCommunityRating',
   'showLetterboxd', 'showMetacritic', 'showMetacriticUser', 'showTrakt',
   'showRogerEbert', 'showMyAnimeList',

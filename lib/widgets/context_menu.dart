@@ -57,17 +57,17 @@ Future<VoidCallback?> _showDropdown(
 }) {
   final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
   if (overlay == null) return Future.value(null);
-  // [at] is a real global (screen) position, from the tap/click event itself.
-  // The overlay's own (0,0) only matches that when it happens to sit flush
-  // with the window's top-left, which isn't reliable across every screen
-  // (window chrome, a shell route's own nesting, and so on). Convert it to a
-  // true global rect instead of assuming that.
-  final overlayOrigin = overlay.localToGlobal(Offset.zero);
+  // [at] is a real global (screen) position, from the tap/click event itself,
+  // while showMenu places the menu in the overlay's own coordinates. Those only
+  // match when the overlay sits flush with the window's top-left at 100% size;
+  // window chrome, nested routes and the Interface Size setting (which scales
+  // everything) all break that. globalToLocal accounts for every one of them.
+  final local = overlay.globalToLocal(at);
   return showMenu<VoidCallback>(
     context: context,
     position: RelativeRect.fromRect(
-      at & const Size(1, 1),
-      overlayOrigin & overlay.size,
+      local & const Size(1, 1),
+      Offset.zero & overlay.size,
     ),
     items: [
       for (final a in actions)

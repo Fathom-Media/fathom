@@ -11,13 +11,24 @@ class ReleaseAsset {
   final String url; // browser_download_url
   final int size; // bytes
 
-  const ReleaseAsset({required this.name, required this.url, required this.size});
+  /// The file's SHA-256 as GitHub records it (lowercase hex), or null for
+  /// releases published before GitHub started listing digests.
+  final String? sha256;
 
-  factory ReleaseAsset.fromJson(Map<String, dynamic> j) => ReleaseAsset(
-        name: j['name'] as String? ?? '',
-        url: j['browser_download_url'] as String? ?? '',
-        size: (j['size'] as num?)?.toInt() ?? 0,
-      );
+  const ReleaseAsset(
+      {required this.name, required this.url, required this.size, this.sha256});
+
+  factory ReleaseAsset.fromJson(Map<String, dynamic> j) {
+    final digest = j['digest'] as String? ?? '';
+    return ReleaseAsset(
+      name: j['name'] as String? ?? '',
+      url: j['browser_download_url'] as String? ?? '',
+      size: (j['size'] as num?)?.toInt() ?? 0,
+      sha256: digest.startsWith('sha256:')
+          ? digest.substring(7).toLowerCase()
+          : null,
+    );
+  }
 }
 
 /// A published Fathom release, from the GitHub Releases API.

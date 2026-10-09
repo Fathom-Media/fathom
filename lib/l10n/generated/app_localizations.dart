@@ -652,6 +652,12 @@ abstract class AppLocalizations {
   /// **'Download & Install'**
   String get updateDownloadInstall;
 
+  /// Android: the update is already downloaded, so the button only opens the system installer.
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get updateInstallDownloaded;
+
   /// Progress label while the update downloads.
   ///
   /// In en, this message translates to:
@@ -703,14 +709,68 @@ abstract class AppLocalizations {
   /// No description provided for @settingsSupport.
   ///
   /// In en, this message translates to:
-  /// **'Support Development'**
+  /// **'Support'**
   String get settingsSupport;
 
   /// No description provided for @settingsSupportSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Fathom is free. Buy me a coffee on Ko-fi'**
+  /// **'Ko-fi, GitHub Sponsors, and free ways to help'**
   String get settingsSupportSubtitle;
+
+  /// Button on the Support page that opens the GitHub Sponsors page. GitHub Sponsors is a product name; keep it as is.
+  ///
+  /// In en, this message translates to:
+  /// **'GitHub Sponsors'**
+  String get settingsSponsor;
+
+  /// No description provided for @supportLead.
+  ///
+  /// In en, this message translates to:
+  /// **'Fathom is free and always will be. Support is optional and never unlocks anything.'**
+  String get supportLead;
+
+  /// No description provided for @supportOtherWays.
+  ///
+  /// In en, this message translates to:
+  /// **'Other Ways to Help'**
+  String get supportOtherWays;
+
+  /// No description provided for @supportStar.
+  ///
+  /// In en, this message translates to:
+  /// **'Star on GitHub'**
+  String get supportStar;
+
+  /// No description provided for @supportStarSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stars are how open source projects get found.'**
+  String get supportStarSubtitle;
+
+  /// No description provided for @supportReportBug.
+  ///
+  /// In en, this message translates to:
+  /// **'Report a Bug'**
+  String get supportReportBug;
+
+  /// No description provided for @supportReportBugSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'A clear report fixes it for everyone who hits the same thing.'**
+  String get supportReportBugSubtitle;
+
+  /// No description provided for @supportTranslate.
+  ///
+  /// In en, this message translates to:
+  /// **'Help Translate'**
+  String get supportTranslate;
+
+  /// No description provided for @supportTranslateSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Make Fathom usable in your language.'**
+  String get supportTranslateSubtitle;
 
   /// No description provided for @settingsLicenses.
   ///
@@ -1575,6 +1635,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pure-black backgrounds in dark mode'**
   String get prefsAmoledBlackSub;
+
+  /// Setting (desktop): how big the whole interface is drawn, for high-resolution screens.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface Size'**
+  String get prefsInterfaceSize;
+
+  /// Interface Size setting subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Makes everything bigger or smaller. Automatic follows your display.'**
+  String get prefsInterfaceSizeSub;
+
+  /// Interface Size option: follow the display, showing the size it works out to, such as 150%.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic ({percent}%)'**
+  String prefsInterfaceSizeAuto(int percent);
+
+  /// An Interface Size option as a percentage, such as 125%.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}%'**
+  String prefsInterfaceSizePercent(int percent);
 
   /// Toggle title: force the 10-foot D-pad interface.
   ///
@@ -5704,6 +5788,72 @@ abstract class AppLocalizations {
   /// **'Show in Folder'**
   String get ytShowInFolder;
 
+  /// Help text under the YouTube download folder settings: changing the folder only moves existing files if the user agrees.
+  ///
+  /// In en, this message translates to:
+  /// **'New downloads go here. If you already have downloads, you\'ll be asked whether to move them too.'**
+  String get prefsDownloadFolderNote;
+
+  /// Dialog title after changing the download folder while downloads exist in the old one.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Existing Downloads?'**
+  String get ytMoveDownloadsTitle;
+
+  /// Dialog body: how many finished downloads would stay behind in the previous folder.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 download is in your old folder. Move it here too?} other{{count} downloads are in your old folder. Move them here too?}}'**
+  String ytMoveDownloadsBody(int count);
+
+  /// Dialog button: leave existing downloads in the old folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep Them Where They Are'**
+  String get ytMoveDownloadsKeep;
+
+  /// Dialog button: move existing downloads into the new folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Them'**
+  String get ytMoveDownloadsMove;
+
+  /// Confirmation after moving downloads to the new folder.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Moved 1 download.} other{Moved {count} downloads.}}'**
+  String ytMoveDownloadsDone(int count);
+
+  /// Some downloads could not be moved to the new folder.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved {moved} of {total} downloads. The rest couldn\'t be moved and stayed where they were.'**
+  String ytMoveDownloadsPartial(int moved, int total);
+
+  /// Android: the chosen download folder is outside the phone's main storage (an SD card, say). {folder} is the folder used instead, such as Movies/Fathom.
+  ///
+  /// In en, this message translates to:
+  /// **'Fathom can\'t save here, so downloads go to {folder}.'**
+  String prefsDownloadFolderUnavailable(String folder);
+
+  /// Menu item (Android): open a downloaded file in another app, such as a video player.
+  ///
+  /// In en, this message translates to:
+  /// **'Open With'**
+  String get ytOpenWith;
+
+  /// Menu item (Android): send a downloaded file to another app or person.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get ytShareFile;
+
+  /// Error shown when no installed app can open or receive a downloaded file.
+  ///
+  /// In en, this message translates to:
+  /// **'No app on this device can open that file.'**
+  String get ytOpenFileFailed;
+
   /// Menu item: remove a download from the list but keep the file.
   ///
   /// In en, this message translates to:
@@ -6085,7 +6235,7 @@ abstract class AppLocalizations {
   /// Note in the download sheet when ffmpeg is not installed.
   ///
   /// In en, this message translates to:
-  /// **'ffmpeg not found. Only M4A audio and 360p MP4 are available. Install ffmpeg for MP3, MKV and higher resolutions.'**
+  /// **'ffmpeg not found, so only M4A audio can be downloaded, plus 360p MP4 for videos YouTube still offers as a single file. Install ffmpeg for MP3, MKV and higher resolutions.'**
   String get ytFfmpegNote;
 
   /// Subscribe button label once subscribed to a channel.
@@ -9459,6 +9609,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AMOLED Black'**
   String get searchAmoledBlack;
+
+  /// Settings search result title: the interface size (zoom) setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface Size'**
+  String get searchInterfaceSize;
 
   /// Settings search result title: show a rating badge on poster cards.
   ///
