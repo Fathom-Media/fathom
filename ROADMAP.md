@@ -4,7 +4,7 @@ What's done, what's next, and what's parked. The client is feature-complete for 
 
 ## Road to 1.0
 
-- [x] **0.13.0 stable**: released, now getting real use.
+- [x] **0.13.1 stable**: released, now getting real use.
 - [ ] **Real-server tests**: run the core flows (sign in, browse, play, resume, mark watched, subtitles) in CI against real Jellyfin servers, old and current, so a break is caught by a failing check rather than by a user.
 - [ ] **Decide 1.0's scope**: Linux, Windows, and Android phones and tablets are in. Android TV is either finished or stays marked experimental.
 - [ ] **Translations**: open community translation, or ship 1.0 in English with translations welcome by pull request.
@@ -40,7 +40,7 @@ What's done, what's next, and what's parked. The client is feature-complete for 
 ### Player and interface
 
 - [x] One shared player across Jellyfin and YouTube, with a picture-in-picture mini player and a pop-out window
-- [x] A control bar you can style, remappable keyboard shortcuts, themes, a sleep timer, and a searchable settings screen
+- [x] A control bar you can style, remappable keyboard shortcuts, themes, an Interface Size setting for high-resolution screens, a sleep timer, and a searchable settings screen
 - [x] Layouts for foldable phones (tabletop) and screen reader support
 - [x] Full interface internationalization (English source of truth, Weblate-ready)
 
@@ -58,7 +58,7 @@ What's done, what's next, and what's parked. The client is feature-complete for 
 
 - [ ] A listening and watching stats screen for servers with the Playback Reporting plugin
 - [ ] Collections you can create and edit, not just browse
-- [ ] Styled ASS subtitles (anime fonts, colours, and positioning)
+- [ ] Styled ASS subtitles (anime fonts, colors, and positioning)
 - [ ] YouTube channel video sorting (Latest, Popular, Oldest)
 
 ## Parked

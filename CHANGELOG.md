@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.13.1
+
+### Added
+- Interface Size (Linux and Windows), in Settings > Appearance: make everything bigger or smaller, from 75% to 200%. Automatic follows your display, and on Linux it also sizes up on a dense screen, such as a 4K monitor, when the desktop's scaling is left at 100%.
+- Settings > Support: Ko-fi, GitHub Sponsors, and free ways to help.
+
+### Changed
+- The Windows build includes ffmpeg, so YouTube downloads above 360p work with nothing else to install, including the growing number of videos YouTube only offers as separate video and audio. The download is about 38 MB larger.
+- Changing a download folder offers to move the downloads already in the old one, and asks only when there are some.
+- Jellyfin downloads are saved under readable names with their real file extension, such as `Bullet Train (2022).mkv` or `Show - S01E02 - Episode.mp4`, so other apps and file managers recognize them. Downloads you already have keep their names.
+- Diagnostics on Android include presses from the notification, lock screen, and headset buttons, and changes in audio focus.
+
+### Fixed
+- Quick Connect failed with "The server returned an error (405)" on Jellyfin 12. (#53, thanks @mmtechslv)
+- On Android, notification, lock screen, and earbud controls could stop responding after you stopped playback and started it again, or after listening in another app. Disconnecting your earbuds pauses Fathom again, and two apps no longer play over each other.
+- On Android, YouTube downloads were saved where only Fathom could see them. They now go to Movies/Fathom and Music/Fathom, or the folder you pick, and existing ones move there once. A download's menu offers Open With and Share in place of Show in Folder.
+- On Android, Download & Install could fail with "Download failed" after you left Fathom and came back. The Updates screen now shows why an update failed.
+- On Android, backing out of the installer meant downloading the whole update again. A downloaded update is now reused, and the button says Install.
+- Radio retries within seconds after a dropped connection, including with the screen off, instead of waiting up to a minute. Pausing while it reconnects stops the retries.
+- Without ffmpeg, the download sheet offered a 360p file for videos YouTube no longer offers one for.
+- On Android TV, the Movie Night Wheel's focus ring was a square box instead of a circle.
+
+### Security
+- There are no open security advisories against Fathom's dependencies. The ffmpeg included on Windows is the current release (9.0.2), and a weekly check keeps it current.
+
 ## 0.13.0
 
 ### Added
