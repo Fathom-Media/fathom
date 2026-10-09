@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../state/interface_scale.dart';
 import '../l10n/generated/app_localizations.dart';
 
 /// One searchable setting: where it lives and how to find it.
@@ -72,6 +73,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // System — updates, backup, diagnostics
   SettingResult(title: l.settingsUpdates, section: l.settingsSectionSystem, icon: Icons.system_update_alt_rounded, route: '/updates', keywords: ['update', 'updates', 'upgrade', 'auto update', 'auto-update', 'version', 'new version', 'release', 'check for updates', 'download', 'channel', 'dev', 'beta', 'stable', 'latest', 'frequency', 'daily', 'weekly', 'launch', 'how often']),
   SettingResult(title: l.settingsBackup, section: l.settingsSectionSystem, icon: Icons.settings_backup_restore_rounded, route: '/backup', keywords: ['backup', 'restore', 'export', 'import', 'settings', 'save settings', 'transfer', 'migrate', 'move', 'sync', 'json', 'share', 'download settings']),
+  SettingResult(title: l.settingsSupport, section: l.settingsSectionAbout, icon: Icons.volunteer_activism_rounded, route: '/support', keywords: ['support', 'donate', 'donation', 'sponsor', 'github sponsors', 'ko-fi', 'kofi', 'tip', 'star', 'report a bug', 'bug', 'translate', 'translation', 'help']),
   SettingResult(title: l.diagnosticsTitle, section: l.settingsSectionSystem, icon: Icons.bug_report_rounded, route: '/diagnostics', keywords: ['diagnostic', 'diagnostics', 'log', 'logging', 'verbose', 'debug', 'troubleshoot', 'troubleshooting', 'bug report', 'mpv log', 'copy log', 'crash', 'issue']),
   SettingResult(title: l.profileChangePassword, section: l.settingsSectionSystem, icon: Icons.password_rounded, route: '/profile', keywords: ['password', 'change password', 'reset password', 'passcode', 'credentials', 'account', 'profile', 'security', 'login', 'sign in']),
   SettingResult(title: l.searchDownloadComplete, section: l.searchGeneral, icon: _general, route: '/preferences', extra: 'general', keywords: ['notification', 'download', 'complete', 'finished', 'youtube']),
@@ -82,6 +84,7 @@ List<SettingResult> userSettingsIndex(AppLocalizations l) => <SettingResult>[
   // Appearance
   SettingResult(title: l.searchTheme, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['dark', 'light', 'mode', 'system', 'appearance', 'color scheme']),
   SettingResult(title: l.searchAmoledBlack, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['amoled', 'oled', 'pure black', 'true black', 'dark']),
+  if (interfaceScaleSupported) SettingResult(title: l.searchInterfaceSize, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['interface size', 'size', 'scale', 'scaling', 'zoom', 'bigger', 'smaller', 'larger', 'tiny', '4k', 'hidpi', 'high dpi', 'text size', 'font size', 'display']),
   SettingResult(title: l.prefsForceTvMode, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['tv', 'television', 'leanback', 'remote', 'd-pad', 'dpad', '10-foot', 'couch', 'htpc', 'force', 'android tv']),
   SettingResult(title: l.searchRatingOnCards, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['rating', 'cards', 'poster', 'badge', 'rotten tomatoes', 'community', 'star', 'critics', 'imdb']),
   SettingResult(title: l.searchAccentColor, section: l.searchAppearance, icon: _appearance, route: '/preferences', extra: 'appearance', keywords: ['accent', 'color', 'colour', 'highlight', 'tint', 'theme color', 'custom accent']),

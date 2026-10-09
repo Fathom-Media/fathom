@@ -592,19 +592,31 @@ class DownloadsController extends AsyncNotifier<Map<String, DownloadEntry>> {
     final loc = _taskLocation(_typeFolder(type));
     // taskId = item id so updates map straight back; displayName drives the
     // system notification text; metaData carries the name across an app restart.
-    final task = DownloadTask(
-      taskId: item.id,
-      url: url,
-      filename: item.id,
-      directory: loc.dir,
-      baseDirectory: loc.base,
-      updates: Updates.statusAndProgress,
-      retries: 2,
-      allowPause: true,
-      displayName: item.name,
-      metaData: item.name,
-    );
-    final path = await task.filePath();
+    DownloadTask taskNamed(String filename) => DownloadTask(
+          taskId: item.id,
+          url: url,
+          filename: filename,
+          directory: loc.dir,
+          baseDirectory: loc.base,
+          updates: Updates.statusAndProgress,
+          retries: 2,
+          allowPause: true,
+          displayName: item.name,
+          metaData: item.name,
+        );
+    // Saved under a readable name with the original extension, so the file
+    // makes sense outside Fathom too; never over another download that
+    // happens to share the name.
+    final name = downloadFileName(item, type: type);
+    var task = taskNamed(name.withNumber(1));
+    var path = await task.filePath();
+    for (var n = 2;
+        await File(path).exists() ||
+            _map.values.any((e) => e.itemId != item.id && e.localPath == path);
+        n++) {
+      task = taskNamed(name.withNumber(n));
+      path = await task.filePath();
+    }
 
     final map = _map;
     map[item.id] = DownloadEntry(
@@ -966,3 +978,42 @@ final downloadRatingsProvider =
     FutureProvider.autoDispose.family<CachedScores?, String>((ref, key) async {
   return ref.read(downloadsProvider.notifier).loadRatings(key);
 });
+
+/// The name a download is saved under, the way Jellyfin itself names media:
+/// `Movie (2022)`, `Show - S01E02 - Episode`, `Artist - Track`, plus the
+/// original file's extension so other apps and file managers recognise it.
+/// Downloads from before this kept the bare item id, which still works.
+@visibleForTesting
+({String base, String? extension}) downloadFileName(BaseItemDto item,
+    {required String? type}) {
+  String two(int? n) => (n ?? 0).toString().padLeft(2, '0');
+  final artist = item.albumArtist ??
+      (item.artists.isNotEmpty ? item.artists.first : null);
+  final title = switch (type) {
+    'Episode' when (item.seriesName ?? '').isNotEmpty =>
+      '${item.seriesName} - S${two(item.parentIndexNumber)}'
+          'E${two(item.indexNumber)} - ${item.name}',
+    'Movie' when item.productionYear != null =>
+      '${item.name} (${item.productionYear})',
+    'Audio' when (artist ?? '').isNotEmpty => '$artist - ${item.name}',
+    _ => item.name,
+  };
+  // What filesystems refuse or misread: path separators, wildcards, quotes.
+  var base = title
+      .replaceAll(RegExp(r'[/\\?%*:|"<>]'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  // Most filesystems cap a name at 255 bytes; leave room for the rest.
+  if (base.length > 180) base = base.substring(0, 180).trim();
+  if (base.isEmpty || base == '.' || base == '..') base = item.id;
+  return (base: base, extension: item.fileExtension);
+}
+
+extension on ({String base, String? extension}) {
+  /// `Name.ext`, or `Name (2).ext` and so on for a name already taken.
+  String withNumber(int n) {
+    final stem = n <= 1 ? base : '$base ($n)';
+    return extension == null ? stem : '$stem.$extension';
+  }
+}
+

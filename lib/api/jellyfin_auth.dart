@@ -136,11 +136,20 @@ extension JellyfinAuthApi on JellyfinClient {
   Future<({String secret, String code})> quickConnectInitiate(
     String baseUrl,
   ) async {
+    final url = '$baseUrl/QuickConnect/Initiate';
+    final options = Options(headers: {'Authorization': authHeader()});
     try {
-      final res = await _dio.get(
-        '$baseUrl/QuickConnect/Initiate',
-        options: Options(headers: {'Authorization': authHeader()}),
-      );
+      // POST since 10.9; Jellyfin 12 dropped the GET form, which older
+      // servers still need. Try the current one, fall back only when the
+      // server says the method or route doesn't exist.
+      Response<dynamic> res;
+      try {
+        res = await _dio.post(url, options: options);
+      } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        if (status != 404 && status != 405) rethrow;
+        res = await _dio.get(url, options: options);
+      }
       final data = Map<String, dynamic>.from(res.data as Map);
       return (secret: data['Secret'] as String, code: data['Code'] as String);
     } on DioException catch (e) {

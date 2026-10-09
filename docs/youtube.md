@@ -29,8 +29,10 @@ Download videos for offline viewing:
 - **Audio** as M4A or MP3.
 - At a **quality** and to a **folder** you choose.
 
-!!! tip "Install ffmpeg for the best quality"
-    YouTube serves high-resolution video and audio as separate streams. `ffmpeg` merges them, so it is recommended if you want downloads above 720p. Everything else works without it.
+On Android 11 and newer, finished downloads go to **Movies/Fathom** (video) and **Music/Fathom** (audio) unless you pick another folder, so they show up in the Files app, your gallery and other players. Long-press a download for **Open With** and **Share**. A folder outside the phone's main storage, such as an SD card, falls back to those defaults.
+
+!!! tip "Install ffmpeg on Linux"
+    YouTube serves anything above 360p, and for more and more videos everything, as separate video and audio streams, which `ffmpeg` merges. Without it you can download audio, and a 360p MP4 only where YouTube still offers one. Android has ffmpeg built in, and the Windows download includes it from 0.13.1 on.
 
 ## Playback details
 

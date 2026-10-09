@@ -301,6 +301,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateDownloadInstall => 'Download & Install';
 
   @override
+  String get updateInstallDownloaded => 'Install';
+
+  @override
   String updateDownloading(String percent) {
     return 'Downloading… $percent%';
   }
@@ -333,11 +336,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonDismiss => 'Dismiss';
 
   @override
-  String get settingsSupport => 'Support Development';
+  String get settingsSupport => 'Support';
 
   @override
   String get settingsSupportSubtitle =>
-      'Fathom is free. Buy me a coffee on Ko-fi';
+      'Ko-fi, GitHub Sponsors, and free ways to help';
+
+  @override
+  String get settingsSponsor => 'GitHub Sponsors';
+
+  @override
+  String get supportLead =>
+      'Fathom is free and always will be. Support is optional and never unlocks anything.';
+
+  @override
+  String get supportOtherWays => 'Other Ways to Help';
+
+  @override
+  String get supportStar => 'Star on GitHub';
+
+  @override
+  String get supportStarSubtitle =>
+      'Stars are how open source projects get found.';
+
+  @override
+  String get supportReportBug => 'Report a Bug';
+
+  @override
+  String get supportReportBugSubtitle =>
+      'A clear report fixes it for everyone who hits the same thing.';
+
+  @override
+  String get supportTranslate => 'Help Translate';
+
+  @override
+  String get supportTranslateSubtitle => 'Make Fathom usable in your language.';
 
   @override
   String get settingsLicenses => 'Open Source Licenses';
@@ -798,6 +831,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get prefsAmoledBlackSub => 'Pure-black backgrounds in dark mode';
+
+  @override
+  String get prefsInterfaceSize => 'Interface Size';
+
+  @override
+  String get prefsInterfaceSizeSub =>
+      'Makes everything bigger or smaller. Automatic follows your display.';
+
+  @override
+  String prefsInterfaceSizeAuto(int percent) {
+    return 'Automatic ($percent%)';
+  }
+
+  @override
+  String prefsInterfaceSizePercent(int percent) {
+    return '$percent%';
+  }
 
   @override
   String get prefsForceTvMode => 'Force TV Mode';
@@ -3203,6 +3253,60 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ytShowInFolder => 'Show in Folder';
 
   @override
+  String get prefsDownloadFolderNote =>
+      'New downloads go here. If you already have downloads, you\'ll be asked whether to move them too.';
+
+  @override
+  String get ytMoveDownloadsTitle => 'Move Existing Downloads?';
+
+  @override
+  String ytMoveDownloadsBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count downloads are in your old folder. Move them here too?',
+      one: '1 download is in your old folder. Move it here too?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ytMoveDownloadsKeep => 'Keep Them Where They Are';
+
+  @override
+  String get ytMoveDownloadsMove => 'Move Them';
+
+  @override
+  String ytMoveDownloadsDone(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Moved $count downloads.',
+      one: 'Moved 1 download.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ytMoveDownloadsPartial(int moved, int total) {
+    return 'Moved $moved of $total downloads. The rest couldn\'t be moved and stayed where they were.';
+  }
+
+  @override
+  String prefsDownloadFolderUnavailable(String folder) {
+    return 'Fathom can\'t save here, so downloads go to $folder.';
+  }
+
+  @override
+  String get ytOpenWith => 'Open With';
+
+  @override
+  String get ytShareFile => 'Share';
+
+  @override
+  String get ytOpenFileFailed => 'No app on this device can open that file.';
+
+  @override
   String get ytRemoveFromList => 'Remove from List';
 
   @override
@@ -3445,7 +3549,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ytFfmpegNote =>
-      'ffmpeg not found. Only M4A audio and 360p MP4 are available. Install ffmpeg for MP3, MKV and higher resolutions.';
+      'ffmpeg not found, so only M4A audio can be downloaded, plus 360p MP4 for videos YouTube still offers as a single file. Install ffmpeg for MP3, MKV and higher resolutions.';
 
   @override
   String get ytSubscribed => 'Subscribed';
@@ -5297,6 +5401,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchAmoledBlack => 'AMOLED Black';
+
+  @override
+  String get searchInterfaceSize => 'Interface Size';
 
   @override
   String get searchRatingOnCards => 'Rating on Cards';

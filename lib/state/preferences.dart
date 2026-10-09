@@ -135,6 +135,10 @@ class Prefs {
   final String libraryViewMode; // 'grid' | 'list'
   // Rating badge shown on poster cards: 'off' | 'auto' | 'community' | 'critics'.
   final String cardRating;
+  // How big the whole interface draws, as a multiple of the system's own
+  // scaling (desktop only). 0 means automatic: follow the system, and on a
+  // dense screen left at 100% scaling, size up to match (see InterfaceScale).
+  final double interfaceScale;
   // Floating mini-player (YouTube PiP) placement and size, remembered so it
   // reopens where and how you left it. Position is a 0..1 fraction of the free
   // space (1,1 = bottom-right), so it stays put and on-screen across resizes.
@@ -356,6 +360,7 @@ class Prefs {
     this.playerBarStyle = 'glass',
     this.libraryViewMode = 'grid',
     this.cardRating = 'off',
+    this.interfaceScale = 0,
     this.miniPlayerX = 1.0,
     this.miniPlayerY = 1.0,
     this.miniPlayerSize = 'medium',
@@ -482,6 +487,7 @@ class Prefs {
     String? playerBarStyle,
     String? libraryViewMode,
     String? cardRating,
+    double? interfaceScale,
     double? miniPlayerX,
     double? miniPlayerY,
     String? miniPlayerSize,
@@ -610,6 +616,7 @@ class Prefs {
         playerBarStyle: playerBarStyle ?? this.playerBarStyle,
         libraryViewMode: libraryViewMode ?? this.libraryViewMode,
         cardRating: cardRating ?? this.cardRating,
+        interfaceScale: interfaceScale ?? this.interfaceScale,
         miniPlayerX: miniPlayerX ?? this.miniPlayerX,
         miniPlayerY: miniPlayerY ?? this.miniPlayerY,
         miniPlayerSize: miniPlayerSize ?? this.miniPlayerSize,
@@ -748,6 +755,7 @@ class Prefs {
         'playerBarStyle': playerBarStyle,
         'libraryViewMode': libraryViewMode,
         'cardRating': cardRating,
+        'interfaceScale': interfaceScale,
         'miniPlayerX': miniPlayerX,
         'miniPlayerY': miniPlayerY,
         'miniPlayerSize': miniPlayerSize,
@@ -883,6 +891,7 @@ class Prefs {
         playerBarStyle: j['playerBarStyle'] as String? ?? 'glass',
         libraryViewMode: j['libraryViewMode'] as String? ?? 'grid',
         cardRating: j['cardRating'] as String? ?? 'off',
+        interfaceScale: (j['interfaceScale'] as num?)?.toDouble() ?? 0,
         miniPlayerX: (j['miniPlayerX'] as num?)?.toDouble() ?? 1.0,
         miniPlayerY: (j['miniPlayerY'] as num?)?.toDouble() ?? 1.0,
         miniPlayerSize: j['miniPlayerSize'] as String? ?? 'medium',

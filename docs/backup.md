@@ -2,11 +2,14 @@
 
 Fathom can export its own settings to a portable file and import them on another device, on any platform. Find it under **Settings → Backup & Restore**.
 
+!!! tip "Backing up the Jellyfin server itself"
+    This page is about Fathom's own settings. To back up or restore your Jellyfin server (its database, and optionally metadata, subtitles, and trickplay images), use **Backups** in the server administration screens. See [Server administration](features.md#server-administration).
+
 ## What's included
 
 Everything is organized into groups, and every group is selected by default. You choose which groups to export or import:
 
-- **Appearance:** theme, accent color, AMOLED, and Home layout.
+- **Appearance:** theme, accent color, AMOLED, Interface Size, and Home layout.
 - **Player:** playback, subtitles, and keyboard shortcuts.
 - **YouTube:** client toggles and download preferences.
 - **General:** notifications, update channel, language, and anything else.

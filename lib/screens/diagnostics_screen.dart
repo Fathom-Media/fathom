@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,7 +76,8 @@ class DiagnosticsScreen extends ConsumerWidget {
   Future<void> _copy(BuildContext context, WidgetRef ref) async {
     final l = AppLocalizations.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    if (Diagnostics.instance.isEmpty) {
+    final mediaEvents = await _androidMediaEvents();
+    if (Diagnostics.instance.isEmpty && mediaEvents.isEmpty) {
       showSnackOn(messenger, l.prefsDiagnosticsEmpty);
       return;
     }
@@ -88,7 +91,25 @@ class DiagnosticsScreen extends ConsumerWidget {
       'Display sync': prefs?.displaySync ?? false,
       'Hardware decoding': prefs?.hardwareDecoding ?? true,
     });
-    await Clipboard.setData(ClipboardData(text: report));
+    // What Android handed Fathom's playback service (notification, lock screen,
+    // earbud and headset presses), recorded natively whether or not diagnostic
+    // logging is on. Nothing here for a press means Android sent it elsewhere.
+    final text = mediaEvents.isEmpty
+        ? report
+        : '$report\n--- Android media commands (${mediaEvents.length}) ---\n'
+            '${mediaEvents.join('\n')}\n';
+    await Clipboard.setData(ClipboardData(text: text));
     showSnackOn(messenger, l.prefsDiagnosticsCopied, kind: SnackKind.success);
+  }
+
+  static Future<List<String>> _androidMediaEvents() async {
+    if (!Platform.isAndroid) return const [];
+    try {
+      return await const MethodChannel('app.fathom.player/pip')
+              .invokeListMethod<String>('mediaEvents') ??
+          const [];
+    } catch (_) {
+      return const [];
+    }
   }
 }

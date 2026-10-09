@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show Timer, unawaited;
 import 'dart:io' show Platform, Process, ProcessSignal, pid, sleep;
 import 'dart:isolate';
 import 'dart:ui' show AppExitResponse;
@@ -20,6 +20,7 @@ import 'services/live_streams.dart';
 import 'services/notifications.dart';
 import 'state/audio_handler.dart';
 import 'state/audio_player.dart';
+import 'state/interface_scale.dart';
 import 'state/syncplay_session.dart';
 import 'state/mpris_integration.dart';
 import 'state/smtc_integration.dart';
@@ -29,6 +30,7 @@ import 'state/preferences.dart';
 import 'state/server_address.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_snack.dart';
+import 'widgets/interface_scale.dart';
 import 'widgets/popout_video.dart';
 import 'widgets/window_frame.dart';
 
@@ -205,8 +207,22 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
     }
   }
 
+  // The window may now be on a different monitor, which may want a different
+  // automatic interface size. Moves arrive continuously while dragging, so
+  // check once it settles.
+  Timer? _movedSettle;
+
+  @override
+  void onWindowMoved() {
+    _movedSettle?.cancel();
+    _movedSettle = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) ref.read(autoInterfaceScaleProvider.notifier).refresh();
+    });
+  }
+
   @override
   void dispose() {
+    _movedSettle?.cancel();
     if (_isDesktop) windowManager.removeListener(this);
     _lifecycle.dispose();
     super.dispose();
@@ -272,7 +288,11 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
           const SingleActivator(LogicalKeyboardKey.gameButtonA):
               const ActivateIntent(),
         };
-        return Shortcuts(
+        // Interface Size: everything below, dialogs and menus included, drawn
+        // at the chosen (or automatic) size. A no-op at 100% and off desktop.
+        return InterfaceScale(
+        scale: ref.watch(interfaceScaleProvider),
+        child: Shortcuts(
         shortcuts: tvActivation,
         child: Consumer(
         builder: (context, ref, _) {
@@ -304,6 +324,7 @@ class _FathomAppState extends ConsumerState<FathomApp> with WindowListener {
             ],
           );
         },
+        ),
         ),
         );
       },
